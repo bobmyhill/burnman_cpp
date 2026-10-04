@@ -245,7 +245,7 @@ inline Eigen::MatrixXd complete_basis(const Eigen::MatrixXd &basis) {
   Eigen::MatrixXd I = Eigen::MatrixXd::Identity(m, m);
   Eigen::MatrixXd full_basis(
       n + static_cast<Eigen::Index>(basis_indices.size()), m);
-  full_basis << basis, I(basis_indices, Eigen::all);
+  full_basis << basis, I(basis_indices, Eigen::indexing::all);
   return full_basis;
 }
 

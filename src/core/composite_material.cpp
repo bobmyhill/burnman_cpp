@@ -235,14 +235,15 @@ Eigen::MatrixXd CompositeMaterial::compute_stoichiometric_matrix() const {
 
 Eigen::MatrixXd
 CompositeMaterial::compute_reduced_stoichiometric_matrix() const {
-  return (get_stoichiometric_matrix())(Eigen::all,
+  return (get_stoichiometric_matrix())(Eigen::indexing::all,
                                        get_independent_element_indices());
 }
 
 Eigen::MatrixXd CompositeMaterial::compute_compositional_basis() const {
   const Eigen::MatrixXd &reac_basis_mat = get_reaction_basis();
   return utils::complete_basis(reac_basis_mat)(
-      Eigen::seq(get_n_reactions(), Eigen::last), Eigen::all);
+      Eigen::seq(get_n_reactions(), Eigen::indexing::last),
+      Eigen::indexing::all);
 }
 
 Eigen::MatrixXd CompositeMaterial::compute_compositional_null_basis() const {
