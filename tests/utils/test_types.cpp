@@ -7,19 +7,19 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
+#include "burnman/utils/types/ndarray.hpp"
+#include "burnman/utils/types/simple_types.hpp"
+#include "burnman/utils/vector_utils.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include "burnman/utils/types/simple_types.hpp"
-#include "burnman/utils/types/ndarray.hpp"
 #include <cstddef>
 #include <vector>
-#include "burnman/utils/vector_utils.hpp"
 
 using namespace burnman;
 
 TEST_CASE("FormulaMap addition and scalar multiplication", "[utils][types]") {
-  types::FormulaMap fm1 {{"Si", 1.0}, {"O", 2.0}};
-  types::FormulaMap fm2 {{"Mg", 1.0}, {"O", 1.0}};
+  types::FormulaMap fm1{{"Si", 1.0}, {"O", 2.0}};
+  types::FormulaMap fm2{{"Mg", 1.0}, {"O", 1.0}};
   SECTION("Addition") {
     types::FormulaMap result = fm1 + fm2;
     REQUIRE(result["Si"] == 1.0);
@@ -75,7 +75,7 @@ TEST_CASE("NDArray indexing", "[utils][types]") {
     REQUIRE_NOTHROW(arr(2) = 20);
     REQUIRE(arr(1) == 10);
     REQUIRE(arr[2] == 20);
-    const types::NDArray<int>& const_arr = arr;
+    const types::NDArray<int> &const_arr = arr;
     REQUIRE(const_arr(1) == 10);
     REQUIRE(const_arr[2] == 20);
   }
@@ -86,7 +86,7 @@ TEST_CASE("NDArray indexing", "[utils][types]") {
     REQUIRE_NOTHROW(arr(ind_n) = 2);
     REQUIRE(arr(ind_0) == 1);
     REQUIRE(arr({1, 2}) == 2);
-    const types::NDArray<int>& const_arr = arr;
+    const types::NDArray<int> &const_arr = arr;
     REQUIRE(const_arr({ind_0}) == 1);
     REQUIRE(const_arr({ind_n}) == 2);
   }
@@ -105,7 +105,7 @@ TEST_CASE("NDArray vs utils::vector_utils", "[utils][types]") {
   std::vector<std::size_t> shape{2, 3, 4};
   std::vector<std::size_t> strides = utils::compute_strides(shape);
   types::NDArray<int> arr(shape);
-  for (std::size_t i = 0; i < arr.size(); ++ i) {
+  for (std::size_t i = 0; i < arr.size(); ++i) {
     arr[i] = static_cast<int>(i);
   }
   for (std::size_t i = 0; i < arr.size(); ++i) {

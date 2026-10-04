@@ -12,26 +12,21 @@
 
 namespace burnman::averaging {
 
-double HashinShtrikman::average_bulk_moduli(
-  const Eigen::ArrayXd& volumes,
-  const Eigen::ArrayXd& bulk_moduli,
-  const Eigen::ArrayXd& shear_moduli
-) const {
-  return (
-      utils::lower_hs_bulk_fn(volumes, bulk_moduli, shear_moduli)
-      + utils::upper_hs_bulk_fn(volumes, bulk_moduli, shear_moduli)
-    ) / 2.0;
+double
+HashinShtrikman::average_bulk_moduli(const Eigen::ArrayXd &volumes,
+                                     const Eigen::ArrayXd &bulk_moduli,
+                                     const Eigen::ArrayXd &shear_moduli) const {
+  return (utils::lower_hs_bulk_fn(volumes, bulk_moduli, shear_moduli) +
+          utils::upper_hs_bulk_fn(volumes, bulk_moduli, shear_moduli)) /
+         2.0;
 }
 
 double HashinShtrikman::average_shear_moduli(
-  const Eigen::ArrayXd& volumes,
-  const Eigen::ArrayXd& bulk_moduli,
-  const Eigen::ArrayXd& shear_moduli
-) const {
-  return (
-      utils::lower_hs_shear_fn(volumes, bulk_moduli, shear_moduli)
-      + utils::upper_hs_shear_fn(volumes, bulk_moduli, shear_moduli)
-    ) / 2.0;
+    const Eigen::ArrayXd &volumes, const Eigen::ArrayXd &bulk_moduli,
+    const Eigen::ArrayXd &shear_moduli) const {
+  return (utils::lower_hs_shear_fn(volumes, bulk_moduli, shear_moduli) +
+          utils::upper_hs_shear_fn(volumes, bulk_moduli, shear_moduli)) /
+         2.0;
 }
 
 } // namespace burnman::averaging

@@ -7,15 +7,15 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include "burnman/utils/validate_optionals.hpp"
-#include <optional>
-#include <stdexcept>
-#include <sstream>
-#include <string>
 #include "burnman/utils/warnings.hpp"
 #include "tolerances.hpp"
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <optional>
+#include <sstream>
+#include <stdexcept>
+#include <string>
 
 using namespace Catch::Matchers;
 using namespace burnman;
@@ -23,13 +23,15 @@ using namespace burnman;
 TEST_CASE("require_set", "[utils][validate_optionals]") {
   SECTION("T double") {
     std::optional<double> opt;
-    REQUIRE_THROWS_AS(utils::require_set(opt, "Test parameter"), std::invalid_argument);
+    REQUIRE_THROWS_AS(utils::require_set(opt, "Test parameter"),
+                      std::invalid_argument);
     opt = 42.0;
     REQUIRE_NOTHROW(utils::require_set(opt, "Test parameter"));
   }
   SECTION("T string") {
     std::optional<std::string> opt;
-    REQUIRE_THROWS_AS(utils::require_set(opt, "Test parameter"), std::invalid_argument);
+    REQUIRE_THROWS_AS(utils::require_set(opt, "Test parameter"),
+                      std::invalid_argument);
     opt = "Test";
     REQUIRE_NOTHROW(utils::require_set(opt, "Test parameter"));
   }
@@ -62,5 +64,7 @@ TEST_CASE("check_in_range", "[utils][validate_optionals]") {
   opt = 5.0;
   REQUIRE(utils::check_in_range(opt, 0.0, 10.0));
   REQUIRE_FALSE(utils::check_in_range(opt, 6.0, 10.0));
-  REQUIRE_THROWS_AS(utils::check_in_range(opt, 6.0, 10.0, "Test parameter", true), std::runtime_error);
+  REQUIRE_THROWS_AS(
+      utils::check_in_range(opt, 6.0, 10.0, "Test parameter", true),
+      std::runtime_error);
 }

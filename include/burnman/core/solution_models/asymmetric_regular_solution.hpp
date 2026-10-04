@@ -10,10 +10,10 @@
 #ifndef BURNMAN_CORE_SOLUTION_MODELS_ASYMMETRIC_REGULAR_INCLUDED
 #define BURNMAN_CORE_SOLUTION_MODELS_ASYMMETRIC_REGULAR_INCLUDED
 
-#include <vector>
-#include <Eigen/Dense>
-#include "burnman/utils/types/simple_types.hpp"
 #include "burnman/core/solution_models/ideal_solution.hpp"
+#include "burnman/utils/types/simple_types.hpp"
+#include <Eigen/Dense>
+#include <vector>
 
 namespace burnman {
 namespace solution_models {
@@ -39,84 +39,71 @@ namespace solution_models {
  *
  * See `SymmetricRegularSolution' for the special case where all alpha = 1.
  */
-class AsymmetricRegularSolution : public IdealSolution{
+class AsymmetricRegularSolution : public IdealSolution {
 
- public:
-
+public:
   AsymmetricRegularSolution(
-    const types::PairedEndmemberList& endmember_list,
-    std::vector<double> alphas,
-    std::vector<std::vector<double>> energy_interaction,
-    std::vector<std::vector<double>> volume_interaction = {},
-    std::vector<std::vector<double>> entropy_interaction = {});
+      const types::PairedEndmemberList &endmember_list,
+      std::vector<double> alphas,
+      std::vector<std::vector<double>> energy_interaction,
+      std::vector<std::vector<double>> volume_interaction = {},
+      std::vector<std::vector<double>> entropy_interaction = {});
 
   Eigen::ArrayXd compute_excess_partial_gibbs_free_energies(
-    double pressure,
-    double temperature,
-    const Eigen::ArrayXd& molar_fractions) const override;
+      double pressure, double temperature,
+      const Eigen::ArrayXd &molar_fractions) const override;
 
   Eigen::ArrayXd compute_excess_partial_entropies(
-    double pressure,
-    double temperature,
-    const Eigen::ArrayXd& molar_fractions) const override;
+      double pressure, double temperature,
+      const Eigen::ArrayXd &molar_fractions) const override;
 
   Eigen::ArrayXd compute_excess_partial_volumes(
-    double pressure,
-    double temperature,
-    const Eigen::ArrayXd& molar_fractions) const override;
+      double pressure, double temperature,
+      const Eigen::ArrayXd &molar_fractions) const override;
 
-  Eigen::ArrayXd compute_activities(
-    double pressure,
-    double temperature,
-    const Eigen::ArrayXd& molar_fractions) const override;
+  Eigen::ArrayXd
+  compute_activities(double pressure, double temperature,
+                     const Eigen::ArrayXd &molar_fractions) const override;
 
   Eigen::ArrayXd compute_activity_coefficients(
-    double pressure,
-    double temperature,
-    const Eigen::ArrayXd& molar_fractions) const override;
+      double pressure, double temperature,
+      const Eigen::ArrayXd &molar_fractions) const override;
 
-  Eigen::MatrixXd compute_gibbs_hessian(
-    double pressure,
-    double temperature,
-    const Eigen::ArrayXd& molar_fractions) const override;
+  Eigen::MatrixXd
+  compute_gibbs_hessian(double pressure, double temperature,
+                        const Eigen::ArrayXd &molar_fractions) const override;
 
-  Eigen::MatrixXd compute_entropy_hessian(
-    double pressure,
-    double temperature,
-    const Eigen::ArrayXd& molar_fractions) const override;
+  Eigen::MatrixXd
+  compute_entropy_hessian(double pressure, double temperature,
+                          const Eigen::ArrayXd &molar_fractions) const override;
 
-  Eigen::MatrixXd compute_volume_hessian(
-    double pressure,
-    double temperature,
-    const Eigen::ArrayXd& molar_fractions) const override;
+  Eigen::MatrixXd
+  compute_volume_hessian(double pressure, double temperature,
+                         const Eigen::ArrayXd &molar_fractions) const override;
 
- private:
-
+private:
   // Alphas (van Laar) and interaction parameters
   Eigen::ArrayXd alphas;
   Eigen::MatrixXd W_e; // energy interactions
   Eigen::MatrixXd W_s; // entropy interactions
   Eigen::MatrixXd W_v; // volume interactions
 
-  Eigen::ArrayXd compute_phi(
-    const Eigen::ArrayXd& molar_fractions) const;
+  Eigen::ArrayXd compute_phi(const Eigen::ArrayXd &molar_fractions) const;
 
-  Eigen::ArrayXd compute_non_ideal_interactions(
-    const Eigen::MatrixXd& W,
-    const Eigen::ArrayXd& molar_fractions) const;
+  Eigen::ArrayXd
+  compute_non_ideal_interactions(const Eigen::MatrixXd &W,
+                                 const Eigen::ArrayXd &molar_fractions) const;
 
   Eigen::ArrayXd compute_non_ideal_excess_partial_gibbs(
-    double pressure,
-    double temperature,
-    const Eigen::ArrayXd& molar_fractions) const;
+      double pressure, double temperature,
+      const Eigen::ArrayXd &molar_fractions) const;
 
-  Eigen::MatrixXd compute_non_ideal_hessian(
-    const Eigen::MatrixXd& interactions,
-    const Eigen::ArrayXd& molar_fractions) const;
+  Eigen::MatrixXd
+  compute_non_ideal_hessian(const Eigen::MatrixXd &interactions,
+                            const Eigen::ArrayXd &molar_fractions) const;
 
   // Forward declare helper struct to access private members for tests
   friend struct RegularSolutionTestHelper;
-
 };
 
 } // namespace solution_models

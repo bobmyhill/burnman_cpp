@@ -8,16 +8,14 @@
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
 #include "burnman/tools/equilibration/equilibrate_lambda_bounds.hpp"
-#include <cmath>
 #include <algorithm>
+#include <cmath>
 
 namespace burnman::equilibration {
 
-std::pair<double, double> lambda_bounds_func(
-  const Eigen::VectorXd& dx,
-  const Eigen::VectorXd& x,
-  const std::vector<int>& endmembers_per_phase
-) {
+std::pair<double, double>
+lambda_bounds_func(const Eigen::VectorXd &dx, const Eigen::VectorXd &x,
+                   const std::vector<int> &endmembers_per_phase) {
   Eigen::ArrayXd max_steps = Eigen::ArrayXd::Constant(x.size(), 100000.0);
   // First two constraints are P & T - use biggest reasonable P-T steps
   max_steps(0) = 20.0e9;
@@ -25,7 +23,7 @@ std::pair<double, double> lambda_bounds_func(
   int j = 2;
   for (int n : endmembers_per_phase) {
     if (x(j) + dx(j) < 0.0) {
-      max_steps(j) = std::max(x(j)*0.999, 0.001);
+      max_steps(j) = std::max(x(j) * 0.999, 0.001);
     }
     for (int k = 1; k < n; ++k) {
       max_steps(j + k) = std::max(x(j + k) * 0.99, 0.01);

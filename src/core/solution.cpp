@@ -8,13 +8,13 @@
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
 #include "burnman/core/solution.hpp"
+#include "burnman/tools/averaging/averaging_schemes.hpp"
+#include "burnman/utils/chemistry_utils.hpp"
+#include "burnman/utils/constants.hpp"
+#include "burnman/utils/matrix_utils.hpp"
 #include <cmath>
 #include <stdexcept>
 #include <utility>
-#include "burnman/utils/constants.hpp"
-#include "burnman/utils/chemistry_utils.hpp"
-#include "burnman/utils/matrix_utils.hpp"
-#include "burnman/tools/averaging/averaging_schemes.hpp"
 
 namespace burnman {
 
@@ -40,23 +40,27 @@ void Solution::reset_cache() {
 }
 
 // Public setters
-void Solution::set_solution_model(std::shared_ptr<solution_models::SolutionModel> model) {
+void Solution::set_solution_model(
+    std::shared_ptr<solution_models::SolutionModel> model) {
   // TODO: think about using clone semantics instead
   solution_model = std::move(model);
 }
 
-void Solution::set_composition(const Eigen::ArrayXd& composition_vector) {
+void Solution::set_composition(const Eigen::ArrayXd &composition_vector) {
   // Throw error if no solution model yet
   if (!solution_model) {
-    throw std::runtime_error("Cannot set molar fractions: solution model not set!");
+    throw std::runtime_error(
+        "Cannot set molar fractions: solution model not set!");
   }
   // Throw error if length not correct
   if (composition_vector.size() != get_n_endmembers()) {
-    throw std::runtime_error(
-      "Composition vector length (" + std::to_string(composition_vector.size()) +
-      ") does not match number of endmembers (" + std::to_string(get_n_endmembers()) + ").");
+    throw std::runtime_error("Composition vector length (" +
+                             std::to_string(composition_vector.size()) +
+                             ") does not match number of endmembers (" +
+                             std::to_string(get_n_endmembers()) + ").");
   }
-  if (std::abs(composition_vector.sum() - 1.0) > constants::precision::abs_tolerance) {
+  if (std::abs(composition_vector.sum() - 1.0) >
+      constants::precision::abs_tolerance) {
     throw std::runtime_error("Sum of molar fractions not equal to 1.0!");
   }
   molar_fractions = composition_vector;
@@ -64,7 +68,7 @@ void Solution::set_composition(const Eigen::ArrayXd& composition_vector) {
 
 // Public setter overrides of Material
 void Solution::set_method(std::shared_ptr<EquationOfState> new_method) {
-  for (Mineral& embr : solution_model->endmembers) {
+  for (Mineral &embr : solution_model->endmembers) {
     embr.set_method(new_method);
   }
   // Clear properties cache
@@ -72,22 +76,19 @@ void Solution::set_method(std::shared_ptr<EquationOfState> new_method) {
 }
 
 void Solution::set_method(types::EOSType new_method) {
-  for (Mineral& embr : solution_model->endmembers) {
+  for (Mineral &embr : solution_model->endmembers) {
     embr.set_method(new_method);
   }
   // Clear properties cache
   reset_cache();
 }
 
-void Solution::set_state(
-  double new_pressure,
-  double new_temperature
-) {
+void Solution::set_state(double new_pressure, double new_temperature) {
   reset_cache(); // TODO: check if reset needed here???
   // Set P,T using Material
   Material::set_state(new_pressure, new_temperature);
   // Set state of each endmember
-  for (Mineral& embr : solution_model->endmembers) {
+  for (Mineral &embr : solution_model->endmembers) {
     embr.set_state(new_pressure, new_temperature);
   }
 }
@@ -210,94 +211,93 @@ Eigen::MatrixXd Solution::get_volume_hessian() const {
 // Solution property computations
 double Solution::compute_excess_gibbs() const {
   return solution_model->compute_excess_gibbs_free_energy(
-    get_pressure(), get_temperature(), molar_fractions);
+      get_pressure(), get_temperature(), molar_fractions);
 }
 
 double Solution::compute_excess_volume() const {
   return solution_model->compute_excess_volume(
-    get_pressure(), get_temperature(), molar_fractions);
+      get_pressure(), get_temperature(), molar_fractions);
 }
 
 double Solution::compute_excess_entropy() const {
   return solution_model->compute_excess_entropy(
-    get_pressure(), get_temperature(), molar_fractions);
+      get_pressure(), get_temperature(), molar_fractions);
 }
 
 double Solution::compute_excess_enthalpy() const {
   return solution_model->compute_excess_enthalpy(
-    get_pressure(), get_temperature(), molar_fractions);
+      get_pressure(), get_temperature(), molar_fractions);
 }
 
 Eigen::ArrayXd Solution::compute_activities() const {
-  return solution_model->compute_activities(
-    get_pressure(), get_temperature(), molar_fractions);
+  return solution_model->compute_activities(get_pressure(), get_temperature(),
+                                            molar_fractions);
 }
 
 Eigen::ArrayXd Solution::compute_activity_coefficients() const {
   return solution_model->compute_activity_coefficients(
-    get_pressure(), get_temperature(), molar_fractions);
+      get_pressure(), get_temperature(), molar_fractions);
 }
 
 Eigen::ArrayXd Solution::compute_excess_partial_gibbs() const {
   return solution_model->compute_excess_partial_gibbs_free_energies(
-    get_pressure(), get_temperature(), molar_fractions);
+      get_pressure(), get_temperature(), molar_fractions);
 }
 
 Eigen::ArrayXd Solution::compute_excess_partial_volumes() const {
   return solution_model->compute_excess_partial_volumes(
-    get_pressure(), get_temperature(), molar_fractions);
+      get_pressure(), get_temperature(), molar_fractions);
 }
 
 Eigen::ArrayXd Solution::compute_excess_partial_entropies() const {
   return solution_model->compute_excess_partial_entropies(
-    get_pressure(), get_temperature(), molar_fractions);
+      get_pressure(), get_temperature(), molar_fractions);
 }
 
 Eigen::ArrayXd Solution::compute_partial_gibbs() const {
-  return get_excess_partial_gibbs()
-    + map_endmembers_to_array(&Mineral::get_molar_gibbs);
+  return get_excess_partial_gibbs() +
+         map_endmembers_to_array(&Mineral::get_molar_gibbs);
 }
 
 Eigen::ArrayXd Solution::compute_partial_volumes() const {
-  return get_excess_partial_volumes()
-    + map_endmembers_to_array(&Mineral::get_molar_volume);
+  return get_excess_partial_volumes() +
+         map_endmembers_to_array(&Mineral::get_molar_volume);
 }
 
 Eigen::ArrayXd Solution::compute_partial_entropies() const {
-  return get_excess_partial_entropies()
-    + map_endmembers_to_array(&Mineral::get_molar_entropy);
+  return get_excess_partial_entropies() +
+         map_endmembers_to_array(&Mineral::get_molar_entropy);
 }
 
 Eigen::MatrixXd Solution::compute_gibbs_hessian() const {
   return solution_model->compute_gibbs_hessian(
-    get_pressure(), get_temperature(), molar_fractions);
+      get_pressure(), get_temperature(), molar_fractions);
 }
 
 Eigen::MatrixXd Solution::compute_entropy_hessian() const {
   return solution_model->compute_entropy_hessian(
-    get_pressure(), get_temperature(), molar_fractions);
+      get_pressure(), get_temperature(), molar_fractions);
 }
 
 Eigen::MatrixXd Solution::compute_volume_hessian() const {
   return solution_model->compute_volume_hessian(
-    get_pressure(), get_temperature(), molar_fractions);
+      get_pressure(), get_temperature(), molar_fractions);
 }
 
 // Material property overrides
 double Solution::compute_molar_internal_energy() const {
-  return get_molar_helmholtz()
-    + get_temperature() * get_molar_entropy();
+  return get_molar_helmholtz() + get_temperature() * get_molar_entropy();
 }
 
 double Solution::compute_molar_gibbs() const {
-  //Eigen::ArrayXd em_gibbs = map_endmembers_to_array(&Mineral::get_molar_gibbs);
-  //return (em_gibbs * molar_fractions).sum() + get_excess_gibbs();
+  // Eigen::ArrayXd em_gibbs =
+  // map_endmembers_to_array(&Mineral::get_molar_gibbs); return (em_gibbs *
+  // molar_fractions).sum() + get_excess_gibbs();
   return (get_partial_gibbs() * molar_fractions).sum();
 }
 
 double Solution::compute_molar_helmholtz() const {
-  return get_molar_gibbs()
-    - get_pressure() * get_molar_volume();
+  return get_molar_gibbs() - get_pressure() * get_molar_volume();
 }
 
 double Solution::compute_molar_mass() const {
@@ -318,27 +318,27 @@ double Solution::compute_molar_entropy() const {
 }
 
 double Solution::compute_molar_enthalpy() const {
-  Eigen::ArrayXd em_enthalpies = map_endmembers_to_array(&Mineral::get_molar_enthalpy);
+  Eigen::ArrayXd em_enthalpies =
+      map_endmembers_to_array(&Mineral::get_molar_enthalpy);
   return (em_enthalpies * molar_fractions).sum() + get_excess_enthalpy();
 }
 
 double Solution::compute_isothermal_bulk_modulus_reuss() const {
-  double V_over_KT = (
-    map_endmembers_to_array(&Mineral::get_molar_volume)
-    / map_endmembers_to_array(&Mineral::get_isothermal_bulk_modulus_reuss)
-    * molar_fractions
-  ).sum();
-  return get_molar_volume()
-    * 1.0 / (V_over_KT + solution_model->compute_VoverKT_excess());
+  double V_over_KT =
+      (map_endmembers_to_array(&Mineral::get_molar_volume) /
+       map_endmembers_to_array(&Mineral::get_isothermal_bulk_modulus_reuss) *
+       molar_fractions)
+          .sum();
+  return get_molar_volume() * 1.0 /
+         (V_over_KT + solution_model->compute_VoverKT_excess());
 }
 
 double Solution::compute_isentropic_bulk_modulus_reuss() const {
   if (get_temperature() < constants::precision::abs_tolerance) {
     return get_isothermal_bulk_modulus_reuss();
   } else {
-    return get_isothermal_bulk_modulus_reuss()
-      * get_molar_heat_capacity_p()
-      / get_molar_heat_capacity_v();
+    return get_isothermal_bulk_modulus_reuss() * get_molar_heat_capacity_p() /
+           get_molar_heat_capacity_v();
   }
 }
 
@@ -351,16 +351,16 @@ double Solution::compute_isentropic_compressibility_reuss() const {
 }
 
 double Solution::compute_shear_modulus() const {
-  Eigen::ArrayXd em_shear_moduli = map_endmembers_to_array(&Mineral::get_shear_modulus);
+  Eigen::ArrayXd em_shear_moduli =
+      map_endmembers_to_array(&Mineral::get_shear_modulus);
   return averaging::utils::reuss_fn(molar_fractions, em_shear_moduli);
 }
 
 double Solution::compute_p_wave_velocity() const {
   constexpr double FOUR_THIRDS = 4.0 / 3.0;
-  return std::sqrt(
-    (get_isentropic_bulk_modulus_reuss() + FOUR_THIRDS * get_shear_modulus())
-    / get_density()
-  );
+  return std::sqrt((get_isentropic_bulk_modulus_reuss() +
+                    FOUR_THIRDS * get_shear_modulus()) /
+                   get_density());
 }
 
 double Solution::compute_bulk_sound_velocity() const {
@@ -375,41 +375,35 @@ double Solution::compute_grueneisen_parameter() const {
   if (get_temperature() < constants::precision::abs_tolerance) {
     return std::nan("");
   } else {
-    return get_thermal_expansivity()
-      * get_isothermal_bulk_modulus_reuss()
-      * get_molar_volume()
-      / get_molar_heat_capacity_v();
+    return get_thermal_expansivity() * get_isothermal_bulk_modulus_reuss() *
+           get_molar_volume() / get_molar_heat_capacity_v();
   }
 }
 
 double Solution::compute_thermal_expansivity() const {
-  double alphaV = (
-    map_endmembers_to_array(&Mineral::get_molar_volume)
-    * map_endmembers_to_array(&Mineral::get_thermal_expansivity)
-    * molar_fractions
-  ).sum();
-  return (1.0 / get_molar_volume())
-    * (alphaV + solution_model->compute_alphaV_excess());
+  double alphaV = (map_endmembers_to_array(&Mineral::get_molar_volume) *
+                   map_endmembers_to_array(&Mineral::get_thermal_expansivity) *
+                   molar_fractions)
+                      .sum();
+  return (1.0 / get_molar_volume()) *
+         (alphaV + solution_model->compute_alphaV_excess());
 }
 
 double Solution::compute_molar_heat_capacity_v() const {
-  return get_molar_heat_capacity_p()
-    - get_molar_volume()
-    * get_temperature()
-    * get_thermal_expansivity()
-    * get_thermal_expansivity()
-    * get_isothermal_bulk_modulus_reuss();
+  return get_molar_heat_capacity_p() -
+         get_molar_volume() * get_temperature() * get_thermal_expansivity() *
+             get_thermal_expansivity() * get_isothermal_bulk_modulus_reuss();
 }
 
 double Solution::compute_molar_heat_capacity_p() const {
-  Eigen::ArrayXd em_Cp = map_endmembers_to_array(&Mineral::get_molar_heat_capacity_p);
+  Eigen::ArrayXd em_Cp =
+      map_endmembers_to_array(&Mineral::get_molar_heat_capacity_p);
   return (em_Cp * molar_fractions).sum() + solution_model->compute_Cp_excess();
 }
 
 double Solution::compute_isentropic_thermal_gradient() const {
-  return
-    (get_molar_volume() * get_temperature() * get_thermal_expansivity())
-    / get_molar_heat_capacity_p();
+  return (get_molar_volume() * get_temperature() * get_thermal_expansivity()) /
+         get_molar_heat_capacity_p();
 }
 
 types::FormulaMap Solution::compute_formula() const {
@@ -423,11 +417,13 @@ Eigen::Index Solution::compute_n_endmembers() const {
 }
 
 void Solution::setup_endmember_names() const {
-  set_endmember_names(map_endmembers_to_vector<std::string>(&Mineral::get_name));
+  set_endmember_names(
+      map_endmembers_to_vector<std::string>(&Mineral::get_name));
 }
 
 void Solution::setup_endmember_formulae() const {
-  set_endmember_formulae(map_endmembers_to_vector<types::FormulaMap>(&Mineral::get_formula));
+  set_endmember_formulae(
+      map_endmembers_to_vector<types::FormulaMap>(&Mineral::get_formula));
 }
 
 } // namespace burnman

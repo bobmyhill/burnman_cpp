@@ -12,19 +12,18 @@
 
 namespace burnman::averaging {
 
-double VoigtReussHill::average_bulk_moduli(
-  const Eigen::ArrayXd& volumes,
-  const Eigen::ArrayXd& bulk_moduli,
-  const Eigen::ArrayXd& shear_moduli [[maybe_unused]]
-) const {
+double VoigtReussHill::average_bulk_moduli(const Eigen::ArrayXd &volumes,
+                                           const Eigen::ArrayXd &bulk_moduli,
+                                           const Eigen::ArrayXd &shear_moduli
+                                           [[maybe_unused]]) const {
   return utils::voigt_reuss_hill_fn(volumes, bulk_moduli);
 }
 
-double VoigtReussHill::average_shear_moduli(
-  const Eigen::ArrayXd& volumes,
-  const Eigen::ArrayXd& bulk_moduli [[maybe_unused]],
-  const Eigen::ArrayXd& shear_moduli
-) const {
+double
+VoigtReussHill::average_shear_moduli(const Eigen::ArrayXd &volumes,
+                                     const Eigen::ArrayXd &bulk_moduli
+                                     [[maybe_unused]],
+                                     const Eigen::ArrayXd &shear_moduli) const {
   return utils::voigt_reuss_hill_fn(volumes, shear_moduli);
 }
 

@@ -13,15 +13,12 @@ namespace burnman::solution_models {
 
 // SymmetricRegularSolution Constructor
 SymmetricRegularSolution::SymmetricRegularSolution(
-  const types::PairedEndmemberList& endmember_list,
-  std::vector<std::vector<double>> energy_interaction,
-  std::vector<std::vector<double>> volume_interaction,
-  std::vector<std::vector<double>> entropy_interaction)
-: AsymmetricRegularSolution(
-    endmember_list,
-    std::vector<double>(endmember_list.size(), 1.0),
-    energy_interaction,
-    volume_interaction,
-    entropy_interaction) {}
+    const types::PairedEndmemberList &endmember_list,
+    std::vector<std::vector<double>> energy_interaction,
+    std::vector<std::vector<double>> volume_interaction,
+    std::vector<std::vector<double>> entropy_interaction)
+    : AsymmetricRegularSolution(
+          endmember_list, std::vector<double>(endmember_list.size(), 1.0),
+          energy_interaction, volume_interaction, entropy_interaction) {}
 
 } // namespace burnman::solution_models

@@ -8,63 +8,60 @@
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
 #include "burnman/tools/equilibration/equilibrate_objective.hpp"
+#include "burnman/core/solution.hpp"
+#include "burnman/tools/equilibration/equilibrate_utils.hpp"
 #include <cstddef>
 #include <vector>
-#include "burnman/tools/equilibration/equilibrate_utils.hpp"
-#include "burnman/core/solution.hpp"
 
 namespace burnman::equilibration {
 
-Eigen::VectorXd F(
-  const Eigen::VectorXd& x,
-  Assemblage& assemblage,
-  const ConstraintGroup& equality_constraints,
-  const Eigen::VectorXd& reduced_composition_vector,
-  const Eigen::MatrixXd& reduced_free_composition_vectors
-) {
+Eigen::VectorXd F(const Eigen::VectorXd &x, Assemblage &assemblage,
+                  const ConstraintGroup &equality_constraints,
+                  const Eigen::VectorXd &reduced_composition_vector,
+                  const Eigen::MatrixXd &reduced_free_composition_vectors) {
   // Update assemblage state
   set_composition_and_state_from_parameters(assemblage, x);
   // Retrieve updated endmember amounts
   Eigen::VectorXd new_endmember_amounts = get_endmember_amounts(assemblage);
   // Allocate F
   Eigen::Index n_eqc = static_cast<Eigen::Index>(equality_constraints.size());
-  Eigen::VectorXd eqns = Eigen::VectorXd::Zero(assemblage.get_n_endmembers() + n_eqc);
+  Eigen::VectorXd eqns =
+      Eigen::VectorXd::Zero(assemblage.get_n_endmembers() + n_eqc);
   // Fill equality constraint portion of F
   for (Eigen::Index i = 0; i < n_eqc; ++i) {
-    eqns(i) = equality_constraints[static_cast<std::size_t>(i)]->evaluate(x, assemblage);
+    eqns(i) = equality_constraints[static_cast<std::size_t>(i)]->evaluate(
+        x, assemblage);
   }
   // Compute reduced composition vector
   Eigen::VectorXd new_reduced_composition_vector = reduced_composition_vector;
   if (n_eqc > 2) {
     new_reduced_composition_vector +=
-      x.tail(n_eqc - 2).transpose() * reduced_free_composition_vectors;
+        x.tail(n_eqc - 2).transpose() * reduced_free_composition_vectors;
   }
   // TODO:: Assemblage::get_reaction_affinities
   Eigen::Index n_reac = assemblage.get_n_reactions();
   eqns.segment(n_eqc, n_reac) = assemblage.get_reaction_affinities();
   // TODO:: Assemblage::get_reduced_stoichiometric_matrix
-  eqns.tail(eqns.size() - (n_eqc + n_reac)) = (
-    assemblage.get_reduced_stoichiometric_matrix().transpose()
-    * new_endmember_amounts
-    ) - new_reduced_composition_vector;
+  eqns.tail(eqns.size() - (n_eqc + n_reac)) =
+      (assemblage.get_reduced_stoichiometric_matrix().transpose() *
+       new_endmember_amounts) -
+      new_reduced_composition_vector;
   return eqns;
 }
 
-Eigen::MatrixXd J(
-  const Eigen::VectorXd& x,
-  Assemblage& assemblage,
-  const ConstraintGroup& equality_constraints,
-  const Eigen::MatrixXd& reduced_free_composition_vectors
-) {
+Eigen::MatrixXd J(const Eigen::VectorXd &x, Assemblage &assemblage,
+                  const ConstraintGroup &equality_constraints,
+                  const Eigen::MatrixXd &reduced_free_composition_vectors) {
   Eigen::Index n_eqc = static_cast<Eigen::Index>(equality_constraints.size());
   Eigen::Index n_end = assemblage.get_n_endmembers();
   Eigen::Index jacobian_size = n_end + n_eqc;
-  Eigen::MatrixXd jacobian = Eigen::MatrixXd::Zero(jacobian_size, jacobian_size);
+  Eigen::MatrixXd jacobian =
+      Eigen::MatrixXd::Zero(jacobian_size, jacobian_size);
   // Build constraints part of Jacobian
   for (Eigen::Index i = 0; i < n_eqc; ++i) {
     jacobian.row(i) =
-      equality_constraints[static_cast<std::size_t>(i)]->derivative(
-        x, assemblage, jacobian_size);
+        equality_constraints[static_cast<std::size_t>(i)]->derivative(
+            x, assemblage, jacobian_size);
   }
   // P-T effects on each independent reaction
   // i.e. dF(i, reactions)/dx[0] and dF(i, reactions)/dx[1]
@@ -86,8 +83,10 @@ Eigen::MatrixXd J(
     }
     j += n;
   }
-  Eigen::VectorXd reaction_volumes = assemblage.get_reaction_basis() * partial_volumes;
-  Eigen::VectorXd reaction_entropies = assemblage.get_reaction_basis() * partial_entropies;
+  Eigen::VectorXd reaction_volumes =
+      assemblage.get_reaction_basis() * partial_volumes;
+  Eigen::VectorXd reaction_entropies =
+      assemblage.get_reaction_basis() * partial_entropies;
   // dGi/dP = deltaVi; dGi/dT = -deltaSi
   jacobian.col(0).tail(n_end) = reaction_volumes;
   jacobian.col(1).tail(n_end) = -reaction_entropies;
@@ -95,7 +94,8 @@ Eigen::MatrixXd J(
   // P & T have no effect, i.e. dF(i, bulk)/dx[0] and dF(i, bulk)/dx[1] = 0
   // Build composition Hessian d2G/dfidfj = dmui/dfj
   // where fj is the fraction of endmember j in a phase.
-  Eigen::VectorXd phase_amounts = assemblage.get_molar_fractions() * assemblage.get_n_moles();
+  Eigen::VectorXd phase_amounts =
+      assemblage.get_molar_fractions() * assemblage.get_n_moles();
   Eigen::MatrixXd comp_hessian = Eigen::MatrixXd::Zero(n_end, n_end);
   Eigen::MatrixXd dfi_dxj = Eigen::MatrixXd::Zero(n_end, n_end);
   Eigen::MatrixXd dpi_dxj = Eigen::MatrixXd::Zero(n_end, n_end);
@@ -103,7 +103,8 @@ Eigen::MatrixXd J(
   for (std::size_t i = 0; i < embr_per_phase.size(); ++i) {
     Eigen::Index n = static_cast<Eigen::Index>(embr_per_phase[i]);
     if (n == 1) {
-      // changing the amount (p) of a pure phase doesn't change its fraction in that phase
+      // changing the amount (p) of a pure phase doesn't change its fraction in
+      // that phase
       dpi_dxj(j, j) = 1.0;
     } else {
       auto ph = assemblage.get_phase<Solution>(i);
@@ -120,8 +121,8 @@ Eigen::MatrixXd J(
       dfi_dxj.row(j).segment(j, n).array() -= 1.0;
       // Total amounts of endmembers (p) are the fractions
       // multiplied by the amounts of their representative phases
-      dpi_dxj.block(j, j, n, n) = dfi_dxj.block(j, j, n, n)
-        * phase_amounts(static_cast<Eigen::Index>(i));
+      dpi_dxj.block(j, j, n, n) = dfi_dxj.block(j, j, n, n) *
+                                  phase_amounts(static_cast<Eigen::Index>(i));
       // The derivative of the amount of each endmember with respect to
       // the amount of each phase is equal to the molar fractions of
       // the endmembers
@@ -130,33 +131,25 @@ Eigen::MatrixXd J(
     j += n;
   }
   // dfi_dxj converts the endmember hessian to the parameter hessian.
-  Eigen::MatrixXd reaction_hessian = assemblage.get_reaction_basis()
-    * comp_hessian * dfi_dxj;
-  Eigen::MatrixXd bulk_hessian = assemblage.get_reduced_stoichiometric_matrix().transpose()
-    * dpi_dxj;
+  Eigen::MatrixXd reaction_hessian =
+      assemblage.get_reaction_basis() * comp_hessian * dfi_dxj;
+  Eigen::MatrixXd bulk_hessian =
+      assemblage.get_reduced_stoichiometric_matrix().transpose() * dpi_dxj;
   if (reaction_hessian.rows() > 0) {
-    jacobian.block(
-      n_eqc, 2,
-      reaction_hessian.rows(), reaction_hessian.cols()
-    ) = reaction_hessian;
-    jacobian.block(
-      n_eqc + reaction_hessian.rows(),
-      2, bulk_hessian.rows(), bulk_hessian.cols()
-    ) = bulk_hessian;
+    jacobian.block(n_eqc, 2, reaction_hessian.rows(), reaction_hessian.cols()) =
+        reaction_hessian;
+    jacobian.block(n_eqc + reaction_hessian.rows(), 2, bulk_hessian.rows(),
+                   bulk_hessian.cols()) = bulk_hessian;
   } else {
-    jacobian.block(
-      n_eqc, 2,
-      bulk_hessian.rows(), bulk_hessian.cols()
-    ) = bulk_hessian;
+    jacobian.block(n_eqc, 2, bulk_hessian.rows(), bulk_hessian.cols()) =
+        bulk_hessian;
   }
   if (reduced_free_composition_vectors.rows() > 0) {
     // Swap because transposing
     Eigen::Index nrows = reduced_free_composition_vectors.cols();
     Eigen::Index ncols = reduced_free_composition_vectors.rows();
-    jacobian.block(
-      jacobian.rows() - nrows, 2 + reaction_hessian.cols(),
-      nrows, ncols
-    ) = -reduced_free_composition_vectors.transpose();
+    jacobian.block(jacobian.rows() - nrows, 2 + reaction_hessian.cols(), nrows,
+                   ncols) = -reduced_free_composition_vectors.transpose();
   }
   return jacobian;
 }

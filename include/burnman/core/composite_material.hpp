@@ -10,12 +10,12 @@
 #ifndef BURNMAN_CORE_COMPOSITE_MATERIAL_HPP_INCLUDED
 #define BURNMAN_CORE_COMPOSITE_MATERIAL_HPP_INCLUDED
 
+#include "burnman/core/material.hpp"
+#include "burnman/utils/types/simple_types.hpp"
+#include <Eigen/Dense>
 #include <optional>
 #include <string>
 #include <vector>
-#include <Eigen/Dense>
-#include "burnman/utils/types/simple_types.hpp"
-#include "burnman/core/material.hpp"
 
 namespace burnman {
 
@@ -31,8 +31,7 @@ namespace burnman {
  */
 class CompositeMaterial : public Material {
 
- public:
-
+public:
   virtual ~CompositeMaterial() = default;
 
   // Override of reset_cache to include additional solution properties
@@ -85,12 +84,12 @@ class CompositeMaterial : public Material {
   /**
    * @brief Vector of chemical elements in the material in IUPAC order.
    */
-  const std::vector<std::string>& get_elements() const;
+  const std::vector<std::string> &get_elements() const;
 
   /**
    * @brief Vector of names of all endmembers in the material.
    */
-  const std::vector<std::string>& get_endmember_names() const;
+  const std::vector<std::string> &get_endmember_names() const;
 
   /**
    * @brief Vector of chemical formula of all endmembers in the material.
@@ -98,7 +97,7 @@ class CompositeMaterial : public Material {
    * Each formula is a FormulaMap, where
    * FormulaMap = std::unordered_map<std::string, double>>;
    */
-  const std::vector<types::FormulaMap>& get_endmember_formulae() const;
+  const std::vector<types::FormulaMap> &get_endmember_formulae() const;
 
   /**
    * @brief The independent set of element indices.
@@ -107,12 +106,12 @@ class CompositeMaterial : public Material {
    * elements can be inferred by:
    *   -compositional_null_basis[independent_element_indices].dot(element_amounts)
    */
-  const std::vector<Eigen::Index>& get_independent_element_indices() const;
+  const std::vector<Eigen::Index> &get_independent_element_indices() const;
 
   /**
    * @brief The element indices not in the independent list.
    */
-  const std::vector<Eigen::Index>& get_dependent_element_indices() const;
+  const std::vector<Eigen::Index> &get_dependent_element_indices() const;
 
   /**
    * @brief The matrix describing material stoichiometry.
@@ -120,17 +119,17 @@ class CompositeMaterial : public Material {
    * Each element M[i,j] corresponds to the number of
    * atoms of element j in endmember i.
    */
-  const Eigen::MatrixXd& get_stoichiometric_matrix() const;
+  const Eigen::MatrixXd &get_stoichiometric_matrix() const;
 
   /**
    * @brief Stoichiometric matrix restricted to independent elements.
    */
-  const Eigen::MatrixXd& get_reduced_stoichiometric_matrix() const;
+  const Eigen::MatrixXd &get_reduced_stoichiometric_matrix() const;
 
   /**
    * @brief The compositional basis of the material.
    */
-  const Eigen::MatrixXd& get_compositional_basis() const;
+  const Eigen::MatrixXd &get_compositional_basis() const;
 
   /**
    * @brief The compositional null basis of the material.
@@ -138,7 +137,7 @@ class CompositeMaterial : public Material {
    * The matrix where N[b] = 0 for all bulk compositions that
    * can be produced with a linear sum of the endmembers in the material.
    */
-  const Eigen::MatrixXd& get_compositional_null_basis() const;
+  const Eigen::MatrixXd &get_compositional_null_basis() const;
 
   /**
    * @brief The reaction basis of the material.
@@ -146,7 +145,7 @@ class CompositeMaterial : public Material {
    * Each element M[i,j] corresponds to the number of moles
    * of endmember j involved in reaction i.
    */
-  const Eigen::MatrixXd& get_reaction_basis() const;
+  const Eigen::MatrixXd &get_reaction_basis() const;
 
   /**
    * @brief Retrieves the endmember partial molar gibbs free energy.
@@ -158,10 +157,9 @@ class CompositeMaterial : public Material {
    *
    * @return Partial molar gibbs free energies in [J/mol].
    */
-  const Eigen::ArrayXd& get_partial_gibbs() const;
+  const Eigen::ArrayXd &get_partial_gibbs() const;
 
- protected:
-
+protected:
   // Pure virtual funtions that must be implemented in derived classes
   virtual Eigen::Index compute_n_endmembers() const = 0;
   // Void functions should use protected setters!
@@ -179,11 +177,11 @@ class CompositeMaterial : public Material {
   void set_endmember_names(std::vector<std::string> names) const;
   void set_endmember_formulae(std::vector<types::FormulaMap> formulae) const;
 
- private:
-
+private:
   // Cached CompositeMaterial properties
-  // Note: Not cleared by reset_cache()! Use clear_computed_properties() instead.
-  // Use setup_composite_material_properties() to initialise all values.
+  // Note: Not cleared by reset_cache()! Use clear_computed_properties()
+  // instead. Use setup_composite_material_properties() to initialise all
+  // values.
   mutable std::optional<Eigen::Index> n_endmembers;
   mutable std::optional<Eigen::Index> n_elements;
   mutable std::optional<Eigen::Index> n_reactions;
@@ -212,7 +210,6 @@ class CompositeMaterial : public Material {
   Eigen::MatrixXd compute_compositional_basis() const;
   Eigen::MatrixXd compute_compositional_null_basis() const;
   Eigen::MatrixXd compute_reaction_basis() const;
-
 };
 
 } // namespace burnman

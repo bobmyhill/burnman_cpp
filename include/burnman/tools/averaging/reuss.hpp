@@ -25,16 +25,15 @@ namespace averaging {
  * Overrides bulk and shear moduli averaging in `AveragingScheme'.
  */
 class Reuss : public AveragingScheme {
- public:
-  double average_bulk_moduli(
-    const Eigen::ArrayXd& volumes,
-    const Eigen::ArrayXd& bulk_moduli,
-    const Eigen::ArrayXd& shear_moduli) const override;
+public:
+  double average_bulk_moduli(const Eigen::ArrayXd &volumes,
+                             const Eigen::ArrayXd &bulk_moduli,
+                             const Eigen::ArrayXd &shear_moduli) const override;
 
-  double average_shear_moduli(
-    const Eigen::ArrayXd& volumes,
-    const Eigen::ArrayXd& bulk_moduli,
-    const Eigen::ArrayXd& shear_moduli) const override;
+  double
+  average_shear_moduli(const Eigen::ArrayXd &volumes,
+                       const Eigen::ArrayXd &bulk_moduli,
+                       const Eigen::ArrayXd &shear_moduli) const override;
 };
 
 } // namespace averaging

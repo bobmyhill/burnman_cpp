@@ -8,20 +8,19 @@
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
 #include "burnman/tools/equilibration/equilibrate_utils.hpp"
+#include "burnman/core/solution.hpp"
 #include <cassert>
 #include <cmath>
 #include <cstddef>
 #include <optional>
 #include <stdexcept>
-#include "burnman/core/solution.hpp"
 
 namespace burnman::equilibration {
 
 EquilibrationParameters get_equilibration_parameters(
-  const Assemblage& assemblage,
-  const types::FormulaMap& composition,
-  const std::vector<std::unordered_map<std::string, double>>& free_compositional_vectors
-) {
+    const Assemblage &assemblage, const types::FormulaMap &composition,
+    const std::vector<std::unordered_map<std::string, double>>
+        &free_compositional_vectors) {
   // Make parameter object
   EquilibrationParameters prm;
   // Make temporary for storing phase_amount_indices
@@ -34,12 +33,15 @@ EquilibrationParameters get_equilibration_parameters(
   std::vector<std::string> embr_names = assemblage.get_endmember_names();
   for (std::size_t i = 0; i < embr_per_phase.size(); ++i) {
     auto ph = assemblage.get_phase(i);
-    phase_amount_ind_temp.push_back(static_cast<int>(prm.parameter_names.size()));
+    phase_amount_ind_temp.push_back(
+        static_cast<int>(prm.parameter_names.size()));
     prm.parameter_names.push_back("x(" + ph->get_name() + ")");
     int n_mbrs = embr_per_phase[i];
     // When n_mbrs > 1, add embr names (but skip 1st)
     for (int j = 1; j < n_mbrs; ++j) {
-      prm.parameter_names.push_back("p(" + embr_names[static_cast<std::size_t>(embr_start_idx + j)] + ")");
+      prm.parameter_names.push_back(
+          "p(" + embr_names[static_cast<std::size_t>(embr_start_idx + j)] +
+          ")");
     }
     embr_start_idx += n_mbrs;
   }
@@ -52,39 +54,35 @@ EquilibrationParameters get_equilibration_parameters(
   prm.n_parameters = static_cast<Eigen::Index>(prm.parameter_names.size());
   // Map phase amount indices
   prm.phase_amount_indices = Eigen::Map<Eigen::ArrayXi>(
-    phase_amount_ind_temp.data(), phase_amount_ind_temp.size());
+      phase_amount_ind_temp.data(), phase_amount_ind_temp.size());
   // Process bulk composition vector
-  const std::vector<std::string>& elements = assemblage.get_elements();
+  const std::vector<std::string> &elements = assemblage.get_elements();
   Eigen::Index n_elements = static_cast<Eigen::Index>(elements.size());
   prm.bulk_composition_vector.resize(n_elements);
   for (Eigen::Index i = 0; i < n_elements; ++i) {
     std::string el = elements[static_cast<std::size_t>(i)];
     auto it = composition.find(el);
     if (it == composition.end()) {
-      throw std::runtime_error(
-        "Element '" + el + "' not found in bulk composition!"
-      );
+      throw std::runtime_error("Element '" + el +
+                               "' not found in bulk composition!");
     }
     prm.bulk_composition_vector(i) = it->second;
   }
   // Process free_compositional_vectors
   if (n_free_compositional_vectors > 0) {
     prm.free_compositional_vectors.resize(
-      static_cast<Eigen::Index>(n_free_compositional_vectors),
-      n_elements
-    );
+        static_cast<Eigen::Index>(n_free_compositional_vectors), n_elements);
     for (std::size_t i = 0; i < n_free_compositional_vectors; ++i) {
       for (std::size_t j = 0; j < static_cast<std::size_t>(n_elements); ++j) {
-        const std::string& el = elements[j];
+        const std::string &el = elements[j];
         auto it = free_compositional_vectors[i].find(el);
         if (it == free_compositional_vectors[i].end()) {
-          throw std::runtime_error(
-            "Element '" + el + "' not found in composition!"
-          );
+          throw std::runtime_error("Element '" + el +
+                                   "' not found in composition!");
         }
-        prm.free_compositional_vectors(
-          static_cast<Eigen::Index>(i),
-          static_cast<Eigen::Index>(j)) = it->second;
+        prm.free_compositional_vectors(static_cast<Eigen::Index>(i),
+                                       static_cast<Eigen::Index>(j)) =
+            it->second;
       }
     }
   } else {
@@ -96,34 +94,36 @@ EquilibrationParameters get_equilibration_parameters(
   if (assemblage.get_compositional_null_basis().rows() != 0) {
     // In burnman python only first element is checked
     // assemblage.compositional_null_basis.dot(prm.bulk_composition_vector)[0]
-    double val = (assemblage.get_compositional_null_basis() * prm.bulk_composition_vector)(0);
+    double val = (assemblage.get_compositional_null_basis() *
+                  prm.bulk_composition_vector)(0);
     if (std::abs(val) > constants::precision::abs_tolerance) {
-      throw std::runtime_error(
-        "The bulk composition is not within the compositional space of the assemblage."
-      );
+      throw std::runtime_error("The bulk composition is not within the "
+                               "compositional space of the assemblage.");
     }
     // TODO: Should we check if whole Vector is zero??
     // i.e.
-    //Eigen::VectorXd v = assemblage.get_compositional_null_basis() * prm.bulk_composition_vector;
-    //if (!v.isZero(constants::precision::abs_tolerance)) {
+    // Eigen::VectorXd v = assemblage.get_compositional_null_basis() *
+    // prm.bulk_composition_vector; if
+    // (!v.isZero(constants::precision::abs_tolerance)) {
     //  throw ...
     //}
   }
   // Reduce vector to independent elements
-  const auto& indep = assemblage.get_independent_element_indices();
+  const auto &indep = assemblage.get_independent_element_indices();
   prm.reduced_composition_vector = prm.bulk_composition_vector(indep);
-  prm.reduced_free_composition_vectors = prm.free_compositional_vectors(Eigen::all, indep);
+  prm.reduced_free_composition_vectors =
+      prm.free_compositional_vectors(Eigen::all, indep);
   // Process constraints
-  auto [constraint_matrix, constraint_vector] = calculate_constraints(assemblage, static_cast<int>(n_free_compositional_vectors));
+  auto [constraint_matrix, constraint_vector] = calculate_constraints(
+      assemblage, static_cast<int>(n_free_compositional_vectors));
   prm.constraint_matrix = constraint_matrix;
   prm.constraint_vector = constraint_vector;
   return prm;
 }
 
-std::pair<Eigen::MatrixXd, Eigen::VectorXd> calculate_constraints(
-  const Assemblage& assemblage,
-  int n_free_compositional_vectors
-) {
+std::pair<Eigen::MatrixXd, Eigen::VectorXd>
+calculate_constraints(const Assemblage &assemblage,
+                      int n_free_compositional_vectors) {
   // Use std::optional for empty bounds
   std::vector<std::optional<Eigen::ArrayXXd>> bounds;
   Eigen::Index n_constraints = 0;
@@ -140,9 +140,8 @@ std::pair<Eigen::MatrixXd, Eigen::VectorXd> calculate_constraints(
   // Setup of vector/matrix
   Eigen::VectorXd c_vector = Eigen::VectorXd::Zero(n_constraints + 2);
   Eigen::MatrixXd c_matrix = Eigen::MatrixXd::Zero(
-    n_constraints + 2,
-    assemblage.get_n_endmembers() + 2 + n_free_compositional_vectors
-  );
+      n_constraints + 2,
+      assemblage.get_n_endmembers() + 2 + n_free_compositional_vectors);
   // Manually set P T constraints
   c_matrix(0, 0) = -1.0; // P > 0
   c_matrix(1, 1) = -1.0; // T > 0
@@ -156,12 +155,13 @@ std::pair<Eigen::MatrixXd, Eigen::VectorXd> calculate_constraints(
     // Re-express the constraints without the first endmember
     ++cidx;
     if (bounds[i].has_value()) {
-      const Eigen::ArrayXXd& occ = *(bounds[i]);
+      const Eigen::ArrayXXd &occ = *(bounds[i]);
       Eigen::Index m = occ.cols();
       c_vector.segment(cidx, m) = -occ.row(0);
       c_matrix.block(cidx, pidx + 3, m, n - 1) =
-        (occ.row(0).transpose().matrix() * Eigen::VectorXd::Ones(n - 1).transpose())
-        - occ.transpose().block(0, 1, m, n-1).matrix();
+          (occ.row(0).transpose().matrix() *
+           Eigen::VectorXd::Ones(n - 1).transpose()) -
+          occ.transpose().block(0, 1, m, n - 1).matrix();
       cidx += m;
     }
     pidx += n;
@@ -169,13 +169,15 @@ std::pair<Eigen::MatrixXd, Eigen::VectorXd> calculate_constraints(
   return {c_matrix, c_vector};
 }
 
-Eigen::VectorXd get_parameter_vector(
-  const Assemblage& assemblage,
-  int n_free_compositional_vectors
-) {
-  Eigen::Index n_params = assemblage.get_n_endmembers() + 2 + n_free_compositional_vectors; // TODO: Eigen::Index for n_free_compositional_vectors?
+Eigen::VectorXd get_parameter_vector(const Assemblage &assemblage,
+                                     int n_free_compositional_vectors) {
+  Eigen::Index n_params =
+      assemblage.get_n_endmembers() + 2 +
+      n_free_compositional_vectors; // TODO: Eigen::Index for
+                                    // n_free_compositional_vectors?
   Eigen::VectorXd params = Eigen::VectorXd::Zero(n_params);
-  Eigen::ArrayXd n_moles_per_phase = assemblage.get_n_moles() * assemblage.get_molar_fractions();
+  Eigen::ArrayXd n_moles_per_phase =
+      assemblage.get_n_moles() * assemblage.get_molar_fractions();
   // check pressure & temperature are set
   if (!assemblage.has_state()) {
     throw std::runtime_error("You need to set_state before getting parameters");
@@ -188,7 +190,8 @@ Eigen::VectorXd get_parameter_vector(
   for (Eigen::Index i = 0; i < assemblage.get_n_phases(); ++i) {
     params(j) = n_moles_per_phase(i);
     if (auto ph = assemblage.get_phase<Solution>(static_cast<std::size_t>(i))) {
-      Eigen::Index n_embr = static_cast<Eigen::Index>(embr_per_phase[i] - 1); // skip first embr
+      Eigen::Index n_embr =
+          static_cast<Eigen::Index>(embr_per_phase[i] - 1); // skip first embr
       params.segment(j + 1, n_embr) = ph->get_molar_fractions().tail(n_embr);
     }
     j += embr_per_phase[static_cast<std::size_t>(i)];
@@ -196,17 +199,16 @@ Eigen::VectorXd get_parameter_vector(
   return params;
 }
 
-Eigen::VectorXd get_endmember_amounts(
-  const Assemblage& assemblage
-) {
-  Eigen::ArrayXd phase_amounts = assemblage.get_n_moles() * assemblage.get_molar_fractions();
+Eigen::VectorXd get_endmember_amounts(const Assemblage &assemblage) {
+  Eigen::ArrayXd phase_amounts =
+      assemblage.get_n_moles() * assemblage.get_molar_fractions();
   Eigen::VectorXd abs_amounts(assemblage.get_n_endmembers());
   std::vector<int> embr_per_phase = assemblage.get_endmembers_per_phase();
   Eigen::Index j = 0;
   for (Eigen::Index i = 0; i < assemblage.get_n_phases(); ++i) {
     if (auto ph = assemblage.get_phase<Solution>(static_cast<std::size_t>(i))) {
       abs_amounts.segment(j, j + static_cast<Eigen::Index>(embr_per_phase[i])) =
-        phase_amounts(i) * ph->get_molar_fractions();
+          phase_amounts(i) * ph->get_molar_fractions();
     } else {
       abs_amounts(j) = phase_amounts(i);
     }
@@ -216,9 +218,7 @@ Eigen::VectorXd get_endmember_amounts(
 }
 
 void set_composition_and_state_from_parameters(
-  Assemblage& assemblage,
-  const Eigen::VectorXd& parameters
-) {
+    Assemblage &assemblage, const Eigen::VectorXd &parameters) {
   // Set P & T (first two parameters)
   assemblage.set_state(parameters(0), parameters(1));
   Eigen::Index n_phases = assemblage.get_n_phases();
@@ -227,7 +227,8 @@ void set_composition_and_state_from_parameters(
   for (Eigen::Index phase_idx = 0; phase_idx < n_phases; ++phase_idx) {
     phase_amounts(phase_idx) = parameters(i);
     // TODO: get_phase take Eigen::Index?
-    if (auto ph = assemblage.get_phase<Solution>(static_cast<std::size_t>(phase_idx))) {
+    if (auto ph = assemblage.get_phase<Solution>(
+            static_cast<std::size_t>(phase_idx))) {
       Eigen::Index n_mbrs = ph->get_n_endmembers();
       Eigen::ArrayXd f = Eigen::ArrayXd::Zero(n_mbrs);
       f.segment(1, n_mbrs - 1) = parameters.segment(i + 1, n_mbrs - 1);

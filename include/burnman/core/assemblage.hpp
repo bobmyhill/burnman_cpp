@@ -10,8 +10,13 @@
 #ifndef BURNMAN_CORE_COMPOSITE_HPP_INCLUDED
 #define BURNMAN_CORE_COMPOSITE_HPP_INCLUDED
 
-#include <cstddef>
+#include "burnman/core/composite_material.hpp"
+#include "burnman/core/material.hpp"
+#include "burnman/tools/averaging/averaging_schemes.hpp"
+#include "burnman/utils/types/simple_types.hpp"
+#include <Eigen/Dense>
 #include <algorithm>
+#include <cstddef>
 #include <initializer_list>
 #include <iterator>
 #include <memory>
@@ -19,11 +24,6 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
-#include <Eigen/Dense>
-#include "burnman/utils/types/simple_types.hpp"
-#include "burnman/tools/averaging/averaging_schemes.hpp"
-#include "burnman/core/material.hpp"
-#include "burnman/core/composite_material.hpp"
 
 namespace burnman {
 
@@ -45,14 +45,14 @@ namespace burnman {
  */
 class Assemblage : public CompositeMaterial {
 
- public:
-
+public:
   virtual ~Assemblage() = default;
 
   // Override of reset_cache to include additional solution properties
   void reset_cache() override;
 
-  // Override of clear_computed_properties() to include additional assemblage properties
+  // Override of clear_computed_properties() to include additional assemblage
+  // properties
   void clear_computed_properties() override;
 
   // Utility functions
@@ -76,13 +76,10 @@ class Assemblage : public CompositeMaterial {
    * @return properties Array of endmember properties.
    */
   template <typename Func>
-  Eigen::ArrayXd map_phases_to_array(Func&& func) const {
+  Eigen::ArrayXd map_phases_to_array(Func &&func) const {
     Eigen::ArrayXd mapped_properties(phases.size());
-    std::transform(
-      phases.begin(), phases.end(), mapped_properties.data(),
-      [&func](const auto& phase) {
-        return ((*phase).*func)();
-    });
+    std::transform(phases.begin(), phases.end(), mapped_properties.data(),
+                   [&func](const auto &phase) { return ((*phase).*func)(); });
     return mapped_properties;
   }
 
@@ -95,14 +92,12 @@ class Assemblage : public CompositeMaterial {
    * @return vector of endmember properties (of type T)
    */
   template <typename T, typename Func>
-  std::vector<T> map_phases_to_vector(Func&& func) const {
+  std::vector<T> map_phases_to_vector(Func &&func) const {
     std::vector<T> mapped_properties;
     mapped_properties.reserve(phases.size());
-    std::transform(
-      phases.begin(), phases.end(), std::back_inserter(mapped_properties),
-      [&func](const auto& phase) {
-        return ((*phase).*func)();
-      });
+    std::transform(phases.begin(), phases.end(),
+                   std::back_inserter(mapped_properties),
+                   [&func](const auto &phase) { return ((*phase).*func)(); });
     return mapped_properties;
   }
 
@@ -116,15 +111,12 @@ class Assemblage : public CompositeMaterial {
    * Overload to add a phase by value (no external access to pointer).
    * Consumes phase object
    */
-  template <typename PhaseType>
-  void add_phase(PhaseType&& phase) {
+  template <typename PhaseType> void add_phase(PhaseType &&phase) {
     static_assert(
-      std::is_base_of_v<Material, std::remove_reference_t<PhaseType>>,
-      "PhaseType must derive from Material!"
-    );
+        std::is_base_of_v<Material, std::remove_reference_t<PhaseType>>,
+        "PhaseType must derive from Material!");
     this->phases.push_back(
-      std::make_shared<std::remove_reference_t<PhaseType>>(std::move(phase))
-    );
+        std::make_shared<std::remove_reference_t<PhaseType>>(std::move(phase)));
   }
 
   /**
@@ -135,7 +127,7 @@ class Assemblage : public CompositeMaterial {
    *   auto ol_ptr = std::make_shared<Solution>(olivine);
    *   assemblage.add_phase(ol_ptr);
    */
-  void add_phase(const std::shared_ptr<Material>& phase_ptr);
+  void add_phase(const std::shared_ptr<Material> &phase_ptr);
 
   // Multiple phases
 
@@ -149,9 +141,8 @@ class Assemblage : public CompositeMaterial {
    * to allow mixed types including Assemblage (so run into recursion issues).
    * Consumes phase objects.
    */
-  template<typename... Ts>
-  void add_phases(Ts&&... args) {
-      (add_phase(std::forward<Ts>(args)), ...);
+  template <typename... Ts> void add_phases(Ts &&...args) {
+    (add_phase(std::forward<Ts>(args)), ...);
   }
 
   /**
@@ -160,8 +151,7 @@ class Assemblage : public CompositeMaterial {
    * Overload to add phase pointers (for external access to pointers).
    * Construct a std::vector<std::shared_ptr<Material>> first.
    */
-  void add_phases(
-    const std::vector<std::shared_ptr<Material>>& phase_ptr_list);
+  void add_phases(const std::vector<std::shared_ptr<Material>> &phase_ptr_list);
 
   /**
    * @brief Sets the phase list
@@ -169,8 +159,8 @@ class Assemblage : public CompositeMaterial {
    * Overload to add phase pointers (for external access to pointers).
    * Overload to pass an initialiser list.
    */
-  void add_phases(
-    std::initializer_list<std::shared_ptr<Material>> phase_ptr_list);
+  void
+  add_phases(std::initializer_list<std::shared_ptr<Material>> phase_ptr_list);
 
   /**
    * @brief Sets the fraction of each phase in the assemblage.
@@ -179,9 +169,8 @@ class Assemblage : public CompositeMaterial {
    * Mass fractions will be converted to molar fractions automatically.
    */
   void set_fractions(
-    const Eigen::ArrayXd& fractions,
-    const types::FractionType fraction_type = types::FractionType::Molar);
-
+      const Eigen::ArrayXd &fractions,
+      const types::FractionType fraction_type = types::FractionType::Molar);
 
   /**
    * @brief Sets the fraction of each phase in the assemblage.
@@ -192,8 +181,8 @@ class Assemblage : public CompositeMaterial {
    * Overload to pass an initialiser list: set_fractions({0.5, 0.5});
    */
   void set_fractions(
-    std::initializer_list<double> fractions,
-    const types::FractionType fraction_type = types::FractionType::Molar);
+      std::initializer_list<double> fractions,
+      const types::FractionType fraction_type = types::FractionType::Molar);
 
   /**
    * @brief Sets the averaging scheme to use for computing properties.
@@ -212,10 +201,12 @@ class Assemblage : public CompositeMaterial {
   /**
    * @brief Sets the averaging scheme to use for computing properties.
    *
-   * Sets the averaging scheme to a custom class. Must be derived from `AveragingScheme'.
+   * Sets the averaging scheme to a custom class. Must be derived from
+   * `AveragingScheme'.
    *
    */
-  void set_averaging_scheme(std::shared_ptr<averaging::AveragingScheme> custom_scheme);
+  void set_averaging_scheme(
+      std::shared_ptr<averaging::AveragingScheme> custom_scheme);
 
   // Override public methods
   void set_state(double new_pressure, double new_temperature) override;
@@ -223,7 +214,8 @@ class Assemblage : public CompositeMaterial {
   void set_method(std::shared_ptr<EquationOfState> new_method) override;
 
   /**
-   * @brief Set n_moles (Used to convert mole fractions / absolute phase amounts).
+   * @brief Set n_moles (Used to convert mole fractions / absolute phase
+   * amounts).
    */
   void set_n_moles(double new_n_moles);
 
@@ -270,8 +262,7 @@ class Assemblage : public CompositeMaterial {
    * Returns a shared_ptr<T> where T is the phase type.
    * Usage example: assemblage.get_phase<Solution>(0);
    */
-  template <typename T>
-  std::shared_ptr<T> get_phase(std::size_t index) const {
+  template <typename T> std::shared_ptr<T> get_phase(std::size_t index) const {
     return std::dynamic_pointer_cast<T>(this->phases.at(index));
   }
 
@@ -281,7 +272,8 @@ class Assemblage : public CompositeMaterial {
   Eigen::Index get_n_phases() const;
 
   /**
-   * @brief Get n_moles (Used to convert mole fractions / absolute phase amounts).
+   * @brief Get n_moles (Used to convert mole fractions / absolute phase
+   * amounts).
    */
   double get_n_moles() const;
 
@@ -289,7 +281,8 @@ class Assemblage : public CompositeMaterial {
    * @brief Returns the equilibrium tolerance (J/reaction).
    *
    * @note Use `Assemblage::set_equilibtrium_tolerance' to change.
-   * The default value of 1.0e-3 is rest on calls to `Assemblage::reset_cache()'.
+   * The default value of 1.0e-3 is rest on calls to
+   * `Assemblage::reset_cache()'.
    */
   double get_equilibrium_tolerance() const;
 
@@ -298,8 +291,7 @@ class Assemblage : public CompositeMaterial {
    */
   Eigen::VectorXd get_reaction_affinities() const;
 
- protected:
-
+protected:
   // Overrides of defaults from Material
   double compute_molar_internal_energy() const override;
   double compute_molar_gibbs() const override;
@@ -333,8 +325,7 @@ class Assemblage : public CompositeMaterial {
   Eigen::ArrayXd compute_volume_fractions() const;
   Eigen::VectorXd compute_reaction_affinities() const;
 
- private:
-
+private:
   // Vector of pointers to phases in the assemblage
   std::vector<std::shared_ptr<Material>> phases;
 
@@ -363,8 +354,8 @@ class Assemblage : public CompositeMaterial {
   /**
    * @brief Convert from mass fractions to molar fractions.
    */
-  Eigen::ArrayXd convert_mass_to_molar_fractions(const Eigen::ArrayXd& mass_fractions) const;
-
+  Eigen::ArrayXd
+  convert_mass_to_molar_fractions(const Eigen::ArrayXd &mass_fractions) const;
 };
 
 } // namespace burnman

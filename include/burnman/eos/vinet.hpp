@@ -10,8 +10,8 @@
 #ifndef BURNMAN_EOS_VINET_HPP_INCLUDED
 #define BURNMAN_EOS_VINET_HPP_INCLUDED
 
-#include "burnman/utils/types/mineral_params.hpp"
 #include "burnman/core/equation_of_state.hpp"
+#include "burnman/utils/types/mineral_params.hpp"
 
 namespace burnman {
 namespace eos {
@@ -27,85 +27,58 @@ namespace eos {
  *
  * @note All functions assume SI units for all properties.
  */
-class Vinet : public EquationOfState{
- public:
-
+class Vinet : public EquationOfState {
+public:
   // Helper functions
-  void validate_parameters(types::MineralParams& params) override;
+  void validate_parameters(types::MineralParams &params) override;
 
   // Specific EOS functions
-  double compute_volume(
-    double pressure,
-    double temperature,
-    const types::MineralParams& params) const override;
+  double compute_volume(double pressure, double temperature,
+                        const types::MineralParams &params) const override;
 
-  double compute_pressure(
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double compute_pressure(double temperature, double volume,
+                          const types::MineralParams &params) const override;
 
   double compute_grueneisen_parameter(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   double compute_isothermal_bulk_modulus_reuss(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   double compute_isentropic_bulk_modulus_reuss(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
-  double compute_shear_modulus(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double
+  compute_shear_modulus(double pressure, double temperature, double volume,
+                        const types::MineralParams &params) const override;
 
   double compute_molar_heat_capacity_v(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   double compute_molar_heat_capacity_p(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   double compute_thermal_expansivity(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
-  double compute_gibbs_free_energy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double
+  compute_gibbs_free_energy(double pressure, double temperature, double volume,
+                            const types::MineralParams &params) const override;
 
-  double compute_entropy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double compute_entropy(double pressure, double temperature, double volume,
+                         const types::MineralParams &params) const override;
 
   double compute_molar_internal_energy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
- private:
-
+private:
   /**
    * @brief Evaluate the Vinet EOS pressure.
    *
@@ -114,7 +87,8 @@ class Vinet : public EquationOfState{
    *
    * @return Pressure in [Pa].
    */
-  static double compute_vinet(double compression, const types::MineralParams& params);
+  static double compute_vinet(double compression,
+                              const types::MineralParams &params);
 
   /**
    * @brief GSL function wrapper to compute P(V) - P
@@ -123,7 +97,7 @@ class Vinet : public EquationOfState{
    * @param p Generic pointer for parameter object
    * @see `eos::gsl_params::SolverParams_P`
    */
-  static double vinet_gsl_wrapper(double x, void* p);
+  static double vinet_gsl_wrapper(double x, void *p);
 };
 
 } // namespace eos

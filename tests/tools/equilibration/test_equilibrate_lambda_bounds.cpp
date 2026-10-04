@@ -7,11 +7,11 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
+#include "burnman/tools/equilibration/equilibrate_lambda_bounds.hpp"
+#include "solution_fixtures.hpp"
+#include "tolerances.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include "burnman/tools/equilibration/equilibrate_lambda_bounds.hpp"
-#include "tolerances.hpp"
-#include "solution_fixtures.hpp"
 
 using namespace Catch::Matchers;
 using namespace burnman;

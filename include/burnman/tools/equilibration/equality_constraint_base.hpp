@@ -10,9 +10,9 @@
 #ifndef BURNMAN_TOOLS_EQUILIBRATION_EQUALITY_CONSTRAINT_BASE_HPP_INCLUDED
 #define BURNMAN_TOOLS_EQUILIBRATION_EQUALITY_CONSTRAINT_BASE_HPP_INCLUDED
 
+#include <Eigen/Dense>
 #include <memory>
 #include <vector>
-#include <Eigen/Dense>
 
 namespace burnman {
 
@@ -45,13 +45,11 @@ class EqualityConstraint {
 public:
   virtual ~EqualityConstraint() = default;
   virtual std::unique_ptr<EqualityConstraint> clone() const = 0;
-  virtual double evaluate(
-    const Eigen::VectorXd& x,
-    const Assemblage& assemblage) const = 0;
-  virtual Eigen::VectorXd derivative(
-    const Eigen::VectorXd& x,
-    const Assemblage& assemblage,
-    Eigen::Index J_size) const = 0;
+  virtual double evaluate(const Eigen::VectorXd &x,
+                          const Assemblage &assemblage) const = 0;
+  virtual Eigen::VectorXd derivative(const Eigen::VectorXd &x,
+                                     const Assemblage &assemblage,
+                                     Eigen::Index J_size) const = 0;
 };
 
 /**

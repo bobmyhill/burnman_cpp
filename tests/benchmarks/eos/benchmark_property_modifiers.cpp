@@ -7,14 +7,14 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/benchmark/catch_benchmark.hpp>
-#include <catch2/generators/catch_generators.hpp>
-#include "burnman/eos/components/property_modifiers.hpp"
-#include "burnman/utils/types/simple_types.hpp"
-#include "burnman/eos/components/excess_params.hpp"
-#include "burnman/utils/types/mineral_params.hpp"
 #include "burnman/core/mineral.hpp"
+#include "burnman/eos/components/excess_params.hpp"
+#include "burnman/eos/components/property_modifiers.hpp"
+#include "burnman/utils/types/mineral_params.hpp"
+#include "burnman/utils/types/simple_types.hpp"
+#include <catch2/benchmark/catch_benchmark.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 using namespace burnman;
 
@@ -25,28 +25,23 @@ TEST_CASE("Property modifier benchmarks", "[eos][prop_mod][!benchmark]") {
   double T = 1000.0;
   double T_high = 2000.0;
   eos::excesses::LandauParams landau_params = {1200.0, 1.0e-7, 5.0};
-  eos::excesses::LandauHPParams landau_hp_params = {298.15, 1.0e5, 1200.0, 1.0e-7, 5.0};
+  eos::excesses::LandauHPParams landau_hp_params = {298.15, 1.0e5, 1200.0,
+                                                    1.0e-7, 5.0};
   eos::excesses::LandauSLB2022Params landau_slb_params = {1200.0, 1.0e-7, 5.0};
   eos::excesses::LinearParams linear_params = {1.0e-7, 5.0, 1200.0};
-  eos::excesses::BraggWilliamsParams bw_params = {1, 0.8, 1000.0, 1.0e-7, 1000.0, 1.0e-7};
-  eos::excesses::MagneticChsParams mag_params = {0.4, 1200.0, 1.0e-8, 2.2, 1.0e-10};
+  eos::excesses::BraggWilliamsParams bw_params = {1,      0.8,    1000.0,
+                                                  1.0e-7, 1000.0, 1.0e-7};
+  eos::excesses::MagneticChsParams mag_params = {0.4, 1200.0, 1.0e-8, 2.2,
+                                                 1.0e-10};
   eos::excesses::DebyeParams deb_params = {1.0, 1200.0};
   eos::excesses::DebyeDeltaParams deb_d_params = {1.0, 1200.0};
   eos::excesses::EinsteinParams ein_params = {1.0, 1200.0};
   eos::excesses::EinsteinDeltaParams ein_d_params = {1.0, 1200.0};
   // Set up combined modifiers for integrated test
   eos::excesses::ExcessParamVector excess_params = {
-    landau_params,
-    landau_hp_params,
-    landau_slb_params,
-    linear_params,
-    bw_params,
-    mag_params,
-    deb_params,
-    deb_d_params,
-    ein_params,
-    ein_d_params
-  };
+      landau_params, landau_hp_params, landau_slb_params, linear_params,
+      bw_params,     mag_params,       deb_params,        deb_d_params,
+      ein_params,    ein_d_params};
   // Set up mineral object for integrated test
   Mineral test_mineral;
   test_mineral.params.equation_of_state = types::EOSType::BM3;
@@ -107,5 +102,4 @@ TEST_CASE("Property modifier benchmarks", "[eos][prop_mod][!benchmark]") {
     test_mineral.set_state(P, T);
     return test_mineral.get_property_modifiers();
   };
-
 }

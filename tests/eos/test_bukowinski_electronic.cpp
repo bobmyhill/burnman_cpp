@@ -7,11 +7,11 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include "burnman/eos/components/bukowinski_electronic.hpp"
 #include "burnman/utils/types/mineral_params.hpp"
 #include "tolerances.hpp"
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 using namespace Catch::Matchers;
 using namespace burnman;
@@ -45,31 +45,31 @@ TEST_CASE("Bukowinski functions python reference values", "[eos][bukowinski]") {
   SECTION("compute_helmholtz_el") {
     double ref = -412.3459160934548;
     CHECK_THAT(compute_helmholtz_el(T, V, params),
-      WithinRel(ref, tol_rel) || WithinAbs(ref, tol_abs));
+               WithinRel(ref, tol_rel) || WithinAbs(ref, tol_abs));
   }
   SECTION("compute_pressure_el") {
     double ref = 309259437.0700911;
     CHECK_THAT(compute_pressure_el(T, V, params),
-      WithinRel(ref, tol_rel) || WithinAbs(ref, tol_abs));
+               WithinRel(ref, tol_rel) || WithinAbs(ref, tol_abs));
   }
   SECTION("compute_entropy_el") {
     double ref = 0.733059406388364;
     CHECK_THAT(compute_entropy_el(T, V, params),
-      WithinRel(ref, tol_rel) || WithinAbs(ref, tol_abs));
+               WithinRel(ref, tol_rel) || WithinAbs(ref, tol_abs));
   }
   SECTION("compute_KT_over_V") {
     double ref = -77314859267522.78;
     CHECK_THAT(compute_KT_over_V(T, V, params),
-      WithinRel(ref, tol_rel) || WithinAbs(ref, tol_abs));
+               WithinRel(ref, tol_rel) || WithinAbs(ref, tol_abs));
   }
   SECTION("compute_CV_over_T") {
     double ref = 0.00061088283865697;
     CHECK_THAT(compute_CV_over_T(V, params),
-      WithinRel(ref, tol_rel) || WithinAbs(ref, tol_abs));
+               WithinRel(ref, tol_rel) || WithinAbs(ref, tol_abs));
   }
   SECTION("compute_alpha_KT") {
     double ref = 549794.5547912731;
     CHECK_THAT(compute_alpha_KT(T, V, params),
-      WithinRel(ref, tol_rel) || WithinAbs(ref, tol_abs));
+               WithinRel(ref, tol_rel) || WithinAbs(ref, tol_abs));
   }
 }

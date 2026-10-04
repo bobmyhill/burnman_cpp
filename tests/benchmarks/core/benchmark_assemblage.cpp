@@ -7,16 +7,17 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/benchmark/catch_benchmark.hpp>
-#include <catch2/generators/catch_generators.hpp>
 #include "burnman/core/assemblage.hpp"
 #include "burnman/utils/types/simple_types.hpp"
 #include "solution_fixtures.hpp"
+#include <catch2/benchmark/catch_benchmark.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 using namespace burnman;
 
-TEST_CASE_METHOD(PyroliteAssemblageFixture, "Assemblage benchmarks", "[core][assemblage][!benchmark]") {
+TEST_CASE_METHOD(PyroliteAssemblageFixture, "Assemblage benchmarks",
+                 "[core][assemblage][!benchmark]") {
   // Setup assemblage object
   double P = 50.e9;
   double T = 2000.0;
@@ -198,10 +199,11 @@ TEST_CASE_METHOD(PyroliteAssemblageFixture, "Assemblage benchmarks", "[core][ass
     assemblage.clear_computed_properties();
     return assemblage.get_molar_heat_capacity_p();
   };
-
 }
 
-TEST_CASE_METHOD(PyroliteAssemblageFixture, "Assemblage benchmarks - soft reset", "[core][assemblage][!benchmark]") {
+TEST_CASE_METHOD(PyroliteAssemblageFixture,
+                 "Assemblage benchmarks - soft reset",
+                 "[core][assemblage][!benchmark]") {
   // Setup assemblage object
   double P = 50.e9;
   double T = 2000.0;
@@ -383,5 +385,4 @@ TEST_CASE_METHOD(PyroliteAssemblageFixture, "Assemblage benchmarks - soft reset"
     assemblage.reset_cache();
     return assemblage.get_molar_heat_capacity_p();
   };
-
 }

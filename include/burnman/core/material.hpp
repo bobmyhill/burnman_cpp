@@ -10,10 +10,10 @@
 #ifndef BURNMAN_CORE_MATERIAL_HPP_INCLUDED
 #define BURNMAN_CORE_MATERIAL_HPP_INCLUDED
 
+#include "burnman/utils/types/simple_types.hpp"
 #include <memory>
 #include <optional>
 #include <string>
-#include "burnman/utils/types/simple_types.hpp"
 
 namespace burnman {
 
@@ -34,7 +34,8 @@ class EquationOfState;
  * manually reset the property cache.
  *
  * Computation of properties should be implemented in derived classes.
- * The default implementations here will throw `exceptions::NotImplementedError`.
+ * The default implementations here will throw
+ `exceptions::NotImplementedError`.
   TODO
   Funcs:
     to_string
@@ -47,7 +48,7 @@ class EquationOfState;
  */
 class Material {
 
- public:
+public:
   // Virtual destructor may be needed for cleanup in derived classes
   virtual ~Material() = default;
 
@@ -82,9 +83,9 @@ class Material {
   /**
    * @brief Sets the EOS method for the material.
    *
-   * For endmember materials like Mineral, this replaces the EOS used internally.
-   * For composite materials (Solution, Assemblage), this functions dispatches the EOS
-   * setting to the contained materials.
+   * For endmember materials like Mineral, this replaces the EOS used
+   * internally. For composite materials (Solution, Assemblage), this functions
+   * dispatches the EOS setting to the contained materials.
    *
    * @param new_method types::EOSType enum corresponding to EOS.
    * @throws `exceptions::NotImplementedError' if default implementation called.
@@ -97,9 +98,9 @@ class Material {
    * Overloaded function to allow custom EOS classes derived
    * from EquationOfState to be set by the user.
    *
-   * For endmember materials like Mineral, this replaces the EOS used internally.
-   * For composite materials (Solution, Assemblage), this functions dispatches the EOS
-   * setting to the contained materials.
+   * For endmember materials like Mineral, this replaces the EOS used
+   * internally. For composite materials (Solution, Assemblage), this functions
+   * dispatches the EOS setting to the contained materials.
    *
    * @param new_method std::shared_ptr to the EOS class.
    * @throws `exceptions::NotImplementedError' if default implementation called.
@@ -134,7 +135,7 @@ class Material {
    *
    * @return FormulaMap (std::unordered_map<std::string, double>)
    */
-  const types::FormulaMap& get_formula() const;
+  const types::FormulaMap &get_formula() const;
 
   /**
    * @brief Returns current pressure
@@ -421,9 +422,7 @@ class Material {
    */
   double get_isentropic_thermal_gradient() const;
 
-
- protected:
-
+protected:
   // protected compute functions to override in derived classes
   /**
    * @brief Computes the molar internal energy of the mineral.
@@ -684,7 +683,7 @@ class Material {
    */
   bool has_custom_name() const;
 
- private:
+private:
   // std::optional used for caching
   mutable std::optional<double> pressure;
   mutable std::optional<double> temperature;
@@ -720,13 +719,13 @@ class Material {
    *
    * Use __func__ for method name
    */
-  [[noreturn]] void throw_not_implemented_error(const std::string& method) const;
+  [[noreturn]] void
+  throw_not_implemented_error(const std::string &method) const;
 
   /**
    * @brief Helper function to get name of class (incl. derived)
    */
   std::string get_class_name() const;
-
 };
 
 } // namespace burnman

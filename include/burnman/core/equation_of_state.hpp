@@ -10,8 +10,8 @@
 #ifndef BURNMAN_CORE_EQUATION_OF_STATE_HPP_INCLUDED
 #define BURNMAN_CORE_EQUATION_OF_STATE_HPP_INCLUDED
 
-#include <string>
 #include "burnman/utils/types/mineral_params.hpp"
+#include <string>
 
 namespace burnman {
 
@@ -34,7 +34,7 @@ namespace burnman {
  */
 class EquationOfState {
 
- public:
+public:
   // Virtual destructor for cleanup in derived classes
   virtual ~EquationOfState() = default;
 
@@ -47,7 +47,8 @@ class EquationOfState {
    *
    * @return Density in [kg/m^3].
    */
-  double compute_density(double volume, const types::MineralParams& params) const;
+  double compute_density(double volume,
+                         const types::MineralParams &params) const;
 
   // Function to override in derived classes with EOS specific implementations
 
@@ -64,7 +65,7 @@ class EquationOfState {
    * @note Default implementation passes with warning.
    *       Derived classes should override method.
    */
-  virtual void validate_parameters(types::MineralParams& params);
+  virtual void validate_parameters(types::MineralParams &params);
 
   // EOS relations
   /**
@@ -80,10 +81,8 @@ class EquationOfState {
    * @return Molar volume in [m^3].
    * @throws `exceptions::NotImplementedError' if default implementation called.
    */
-  virtual double compute_volume(
-    double pressure,
-    double temperature,
-    const types::MineralParams& params) const;
+  virtual double compute_volume(double pressure, double temperature,
+                                const types::MineralParams &params) const;
 
   /**
    * @brief Computes the pressure (incl. cold and thermal).
@@ -98,10 +97,8 @@ class EquationOfState {
    * @return Pressure in [Pa].
    * @throws `exceptions::NotImplementedError' if default implementation called.
    */
-  virtual double compute_pressure(
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const;
+  virtual double compute_pressure(double temperature, double volume,
+                                  const types::MineralParams &params) const;
 
   /**
    * @brief Computes the Grueneisen parameter.
@@ -117,11 +114,10 @@ class EquationOfState {
    * @return Grueneisen parameter [unitless].
    * @throws `exceptions::NotImplementedError' if default implementation called.
    */
-  virtual double compute_grueneisen_parameter(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const;
+  virtual double
+  compute_grueneisen_parameter(double pressure, double temperature,
+                               double volume,
+                               const types::MineralParams &params) const;
 
   /**
    * @brief Computes K_T.
@@ -138,10 +134,8 @@ class EquationOfState {
    * @throws `exceptions::NotImplementedError' if default implementation called.
    */
   virtual double compute_isothermal_bulk_modulus_reuss(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const;
 
   /**
    * @brief Computes K_S.
@@ -158,10 +152,8 @@ class EquationOfState {
    * @throws `exceptions::NotImplementedError' if default implementation called.
    */
   virtual double compute_isentropic_bulk_modulus_reuss(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const;
 
   /**
    * @brief Computes the shear modulus, G.
@@ -177,11 +169,9 @@ class EquationOfState {
    * @return Shear modulus in [Pa].
    * @throws `exceptions::NotImplementedError' if default implementation called.
    */
-  virtual double compute_shear_modulus(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const;
+  virtual double
+  compute_shear_modulus(double pressure, double temperature, double volume,
+                        const types::MineralParams &params) const;
 
   /**
    * @brief Computes molar heat capacity at constant volume, C_v.
@@ -197,11 +187,10 @@ class EquationOfState {
    * @return Heat capacity at constant volume in [J/K/mol].
    * @throws `exceptions::NotImplementedError' if default implementation called.
    */
-  virtual double compute_molar_heat_capacity_v(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const;
+  virtual double
+  compute_molar_heat_capacity_v(double pressure, double temperature,
+                                double volume,
+                                const types::MineralParams &params) const;
 
   /**
    * @brief Computes molar heat capacity at constant pressure, C_p.
@@ -217,11 +206,10 @@ class EquationOfState {
    * @return Heat capacity at constant pressure in [J/K/mol].
    * @throws `exceptions::NotImplementedError' if default implementation called.
    */
-  virtual double compute_molar_heat_capacity_p(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const;
+  virtual double
+  compute_molar_heat_capacity_p(double pressure, double temperature,
+                                double volume,
+                                const types::MineralParams &params) const;
 
   /**
    * @brief Computes the thermal expansivity.
@@ -237,11 +225,10 @@ class EquationOfState {
    * @return Thermal expansivity in [1/K].
    * @throws `exceptions::NotImplementedError' if default implementation called.
    */
-  virtual double compute_thermal_expansivity(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const;
+  virtual double
+  compute_thermal_expansivity(double pressure, double temperature,
+                              double volume,
+                              const types::MineralParams &params) const;
 
   /**
    * @brief Computes the gibbs free energy.
@@ -257,12 +244,9 @@ class EquationOfState {
    * @return Gibbs free energy in [J/mol].
    * @throws `exceptions::NotImplementedError' if default implementation called.
    */
-  virtual double compute_gibbs_free_energy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const;
-
+  virtual double
+  compute_gibbs_free_energy(double pressure, double temperature, double volume,
+                            const types::MineralParams &params) const;
 
   /**
    * @brief Computes the Helmholtz free energy.
@@ -278,11 +262,10 @@ class EquationOfState {
    * @return Helmholtz free energy in [J/mol].
    * @throws `exceptions::NotImplementedError' if default implementation called.
    */
-  virtual double compute_helmholtz_free_energy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const;
+  virtual double
+  compute_helmholtz_free_energy(double pressure, double temperature,
+                                double volume,
+                                const types::MineralParams &params) const;
 
   /**
    * @brief Computes the entropy.
@@ -298,11 +281,9 @@ class EquationOfState {
    * @return Entropy in [J/K/mol].
    * @throws `exceptions::NotImplementedError' if default implementation called.
    */
-  virtual double compute_entropy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const;
+  virtual double compute_entropy(double pressure, double temperature,
+                                 double volume,
+                                 const types::MineralParams &params) const;
 
   /**
    * @brief Computes the enthalpy.
@@ -318,11 +299,9 @@ class EquationOfState {
    * @return Enthalpy in [J/mol].
    * @throws `exceptions::NotImplementedError' if default implementation called.
    */
-  virtual double compute_enthalpy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const;
+  virtual double compute_enthalpy(double pressure, double temperature,
+                                  double volume,
+                                  const types::MineralParams &params) const;
 
   /**
    * @brief Computes the molar internal energy of the mineral.
@@ -338,27 +317,25 @@ class EquationOfState {
    * @return Internal energy in [J/mol].
    * @throws `exceptions::NotImplementedError' if default implementation called.
    */
-  virtual double compute_molar_internal_energy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const;
+  virtual double
+  compute_molar_internal_energy(double pressure, double temperature,
+                                double volume,
+                                const types::MineralParams &params) const;
 
- private:
-
+private:
   // Private functions for throwing exceptions
   /**
    * @brief Helper function to throw `exceptions::NotImplementedError'
    *
    * Use __func__ for method name
    */
-  [[noreturn]] void throw_not_implemented_error(const std::string& method) const;
+  [[noreturn]] void
+  throw_not_implemented_error(const std::string &method) const;
 
   /**
    * @brief Helper function to get name of class (incl. derived)
    */
   std::string get_class_name() const;
-
 };
 
 } // namespace burnman

@@ -10,9 +10,9 @@
 #ifndef BURNMAN_EOS_SLB_HPP_INCLUDED
 #define BURNMAN_EOS_SLB_HPP_INCLUDED
 
-#include <utility>
-#include "burnman/utils/types/mineral_params.hpp"
 #include "burnman/core/equation_of_state.hpp"
+#include "burnman/utils/types/mineral_params.hpp"
+#include <utility>
 
 namespace burnman {
 namespace eos {
@@ -27,97 +27,65 @@ namespace eos {
  *
  * @note All functions assume SI units for all properties.
  */
-class SLB3 : public EquationOfState{
- public:
-
+class SLB3 : public EquationOfState {
+public:
   // Helper functions
-  void validate_parameters(types::MineralParams& params) override;
+  void validate_parameters(types::MineralParams &params) override;
 
   // Specific EOS functions
-  double compute_volume(
-    double pressure,
-    double temperature,
-    const types::MineralParams& params) const override;
+  double compute_volume(double pressure, double temperature,
+                        const types::MineralParams &params) const override;
 
-  double compute_pressure(
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double compute_pressure(double temperature, double volume,
+                          const types::MineralParams &params) const override;
 
   double compute_grueneisen_parameter(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   double compute_isothermal_bulk_modulus_reuss(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   double compute_isentropic_bulk_modulus_reuss(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
-  double compute_shear_modulus(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double
+  compute_shear_modulus(double pressure, double temperature, double volume,
+                        const types::MineralParams &params) const override;
 
   double compute_molar_heat_capacity_v(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   double compute_molar_heat_capacity_p(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   double compute_thermal_expansivity(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
-  double compute_gibbs_free_energy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double
+  compute_gibbs_free_energy(double pressure, double temperature, double volume,
+                            const types::MineralParams &params) const override;
 
-  double compute_entropy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double compute_entropy(double pressure, double temperature, double volume,
+                         const types::MineralParams &params) const override;
 
   double compute_molar_internal_energy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   double compute_helmholtz_free_energy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
-  double compute_enthalpy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double compute_enthalpy(double pressure, double temperature, double volume,
+                          const types::MineralParams &params) const override;
 
- protected:
-
+protected:
   /**
    * @brief Helper function for shear modulus calculation
    *
@@ -127,10 +95,8 @@ class SLB3 : public EquationOfState{
    *
    * @return delta_G portion of G
    */
-   double compute_shear_modulus_delta(
-    double temperatue,
-    double volume,
-    const types::MineralParams& params) const;
+  double compute_shear_modulus_delta(double temperatue, double volume,
+                                     const types::MineralParams &params) const;
 
   /**
    * @brief Helper function to retrieve electronic params
@@ -138,11 +104,10 @@ class SLB3 : public EquationOfState{
    *
    * @return {bel_0, gel}
    */
-  virtual std::pair<double, double> get_b_g_el(
-    const types::MineralParams& params) const;
+  virtual std::pair<double, double>
+  get_b_g_el(const types::MineralParams &params) const;
 
- private:
-
+private:
   /**
    * @brief Computes the volume dependent Grueneisen parameter.
    *
@@ -151,9 +116,9 @@ class SLB3 : public EquationOfState{
    *
    * @return Grueneisen parameter [unitless].
    */
-  static double compute_slb_grueneisen_parameter(
-    double x,
-    const types::MineralParams& params);
+  static double
+  compute_slb_grueneisen_parameter(double x,
+                                   const types::MineralParams &params);
 
   /**
    * @brief Compute the Debye temperature.
@@ -165,9 +130,8 @@ class SLB3 : public EquationOfState{
    *
    * @return Debye temperature in [K].
    */
-  static double compute_debye_temperature(
-    double x,
-    const types::MineralParams& params);
+  static double compute_debye_temperature(double x,
+                                          const types::MineralParams &params);
 
   /**
    * @brief Compute q
@@ -180,9 +144,8 @@ class SLB3 : public EquationOfState{
    *
    * @return q [unitless]
    */
-  static double compute_volume_dependent_q(
-    double x,
-    const types::MineralParams& params);
+  static double compute_volume_dependent_q(double x,
+                                           const types::MineralParams &params);
 
   /**
    * @brief Compute eta_s0
@@ -195,9 +158,8 @@ class SLB3 : public EquationOfState{
    *
    * @return eta_s [unitless]
    */
-  static double compute_isotropic_eta_s(
-    double x,
-    const types::MineralParams& params);
+  static double compute_isotropic_eta_s(double x,
+                                        const types::MineralParams &params);
 
   /**
    * @brief GSL function wrapper to compute P(V) - P
@@ -206,10 +168,9 @@ class SLB3 : public EquationOfState{
    * @param p Generic pointer for parameter object
    * @see `eos::gsl_params::SolverParams_SLB`
    */
-  static double slb_gsl_wrapper(double x, void* p);
+  static double slb_gsl_wrapper(double x, void *p);
 
   // TODO: wrapper for K_T for GSL Brent also
-
 };
 
 /**
@@ -222,18 +183,16 @@ class SLB3 : public EquationOfState{
  *
  * @note All functions assume SI units for all properties.
  */
-class SLB2 : public SLB3{
- public:
+class SLB2 : public SLB3 {
+public:
   /**
    * @copydoc EquationOfState::compute_shear_modulus
    *
    * @note Second order expansion
    */
-  double compute_shear_modulus(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double
+  compute_shear_modulus(double pressure, double temperature, double volume,
+                        const types::MineralParams &params) const override;
 };
 
 /**
@@ -247,63 +206,45 @@ class SLB2 : public SLB3{
  *
  * @note All functions assume SI units for all properties.
  */
-class SLB3Conductive : public SLB3{
- public:
+class SLB3Conductive : public SLB3 {
+public:
+  void validate_parameters(types::MineralParams &params) override;
 
-  void validate_parameters(types::MineralParams& params) override;
-
-  double compute_pressure(
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double compute_pressure(double temperature, double volume,
+                          const types::MineralParams &params) const override;
 
   double compute_isothermal_bulk_modulus_reuss(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   double compute_molar_heat_capacity_v(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   double compute_thermal_expansivity(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
-  double compute_entropy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double compute_entropy(double pressure, double temperature, double volume,
+                         const types::MineralParams &params) const override;
 
   double compute_helmholtz_free_energy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   double compute_grueneisen_parameter(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
- protected:
-
-   /**
+protected:
+  /**
    * @brief Helper function to retrieve electronic params
    *        for SLB3Conductive.
    *
    * @return {bel_0, gel}
    */
-  std::pair<double, double> get_b_g_el(
-    const types::MineralParams& params) const override;
-
+  std::pair<double, double>
+  get_b_g_el(const types::MineralParams &params) const override;
 };
 
 } // namespace eos

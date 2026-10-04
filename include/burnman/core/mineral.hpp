@@ -10,13 +10,13 @@
 #ifndef BURNMAN_CORE_MINERAL_HPP_INCLUDED
 #define BURNMAN_CORE_MINERAL_HPP_INCLUDED
 
-#include <memory>
-#include <string>
-#include "burnman/utils/types/simple_types.hpp"
-#include "burnman/utils/types/mineral_params.hpp"
-#include "burnman/eos/components/excess_params.hpp"
 #include "burnman/core/equation_of_state.hpp"
 #include "burnman/core/material.hpp"
+#include "burnman/eos/components/excess_params.hpp"
+#include "burnman/utils/types/mineral_params.hpp"
+#include "burnman/utils/types/simple_types.hpp"
+#include <memory>
+#include <string>
 
 namespace burnman {
 
@@ -42,9 +42,8 @@ namespace burnman {
  * the number of formula units per unit cell.
  *
  */
-class Mineral : public Material{
- public:
-
+class Mineral : public Material {
+public:
   /**
    * @brief Parameters for the mineral.
    */
@@ -58,8 +57,9 @@ class Mineral : public Material{
   /**
    * @brief Sets the parameters for thermodynamic property modifiers.
    *
-   * The property modifiers are used to calculate excess thermodynamic properties based
-   * on a model, and summed to give total modification excesses.
+   * The property modifiers are used to calculate excess thermodynamic
+   * properties based on a model, and summed to give total modification
+   * excesses.
    *
    * Possible models are:
    *   - second order transitions (landau, landau_slb_2022, landau_hp)
@@ -80,15 +80,18 @@ class Mineral : public Material{
    * @endcode
    *
    * @param excess_params List of excess parameter structs.
-   * @note Calling this function will reset any previously set property modifiers and recompute where possible.
+   * @note Calling this function will reset any previously set property
+   * modifiers and recompute where possible.
    */
-  void set_property_modifier_params(eos::excesses::ExcessParamVector excess_params);
+  void
+  set_property_modifier_params(eos::excesses::ExcessParamVector excess_params);
 
   /**
    * @brief Retrieves the current property modifiers.
    *
    * Returns the summed excesses from all property modifiers currently set.
-   * @see `compute_property_modifiers()` for details on how these are calculated.
+   * @see `compute_property_modifiers()` for details on how these are
+   * calculated.
    *
    * @return Excesses struct containing the summed excess properties.
    */
@@ -100,8 +103,7 @@ class Mineral : public Material{
   void set_method(types::EOSType new_method) override;
   void set_method(std::shared_ptr<EquationOfState> new_method) override;
 
- protected:
-
+protected:
   /**
    * @brief Computes and sums excesses from all property modifiers.
    *
@@ -148,12 +150,11 @@ class Mineral : public Material{
   double compute_isentropic_thermal_gradient() const override;
   types::FormulaMap compute_formula() const override;
 
- private:
+private:
   // Excesses struct for property modifiers
   // Values initialise to 0
   eos::excesses::Excesses property_modifier_excesses;
   eos::excesses::ExcessParamVector property_modifier_params;
-
 };
 
 } // namespace burnman

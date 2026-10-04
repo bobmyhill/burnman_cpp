@@ -10,17 +10,17 @@
 #ifndef BURNMAN_OPTIM_ROOTS_DAMPED_NEWTON_TYPES_HPP_INCLUDED
 #define BURNMAN_OPTIM_ROOTS_DAMPED_NEWTON_TYPES_HPP_INCLUDED
 
+#include "burnman/utils/constants.hpp"
+#include <Eigen/Dense>
 #include <functional>
 #include <optional>
 #include <string>
 #include <utility>
 #include <vector>
-#include <Eigen/Dense>
-#include "burnman/utils/constants.hpp"
 
 namespace burnman {
-namespace optim{
-namespace roots{
+namespace optim {
+namespace roots {
 
 /**
  * @brief Type for linear equality constraints (A·x + b <= 0)
@@ -35,25 +35,30 @@ using LambdaBounds = std::pair<double, double>;
 /**
  * @brief Type for LambdaBounds function: returns (min_lambda, max_lambda).
  */
-using LambdaBoundsFunc = std::function<LambdaBounds(
-  const Eigen::VectorXd&, const Eigen::VectorXd&)>;
+using LambdaBoundsFunc = std::function<LambdaBounds(const Eigen::VectorXd &,
+                                                    const Eigen::VectorXd &)>;
 
 /**
  * @struct DampedNewtonSettings
  * @brief Parameters controlling DampedNewtonSolver
  */
 struct DampedNewtonSettings {
-  bool store_iterates = false;              ///< Store iteration history (at each step)
-  int max_iterations = 100;                 ///< Maximum number of Newton iterations
-  double tol = 1.0e-6;                      ///< Convergence tolerance on |F|
-  double regularisation = 0.0;              ///< Regularization parameter for the KKT system in Lagrangian solves
-  double condition_threshold_lu = 1e12;     ///< Condition number below which LU decomposition is considered stable
-  double condition_threshold_lstsq = 1e15;  ///< Condition number below which least-squares fallback is considered stable
+  bool store_iterates = false; ///< Store iteration history (at each step)
+  int max_iterations = 100;    ///< Maximum number of Newton iterations
+  double tol = 1.0e-6;         ///< Convergence tolerance on |F|
+  double regularisation =
+      0.0; ///< Regularization parameter for the KKT system in Lagrangian solves
+  double condition_threshold_lu = 1e12; ///< Condition number below which LU
+                                        ///< decomposition is considered stable
+  double condition_threshold_lstsq =
+      1e15; ///< Condition number below which least-squares fallback is
+            ///< considered stable
   double eps = 2.0 * constants::precision::double_eps;
-  LambdaBoundsFunc lambda_bounds_func =              ///< Callable (dx, x) that returns min, max for the damping factor
-    [](const Eigen::VectorXd&, const Eigen::VectorXd&) {
-      return std::make_pair(1.0e-8, 1.0);
-    };
+  LambdaBoundsFunc lambda_bounds_func = ///< Callable (dx, x) that returns min,
+                                        ///< max for the damping factor
+      [](const Eigen::VectorXd &, const Eigen::VectorXd &) {
+        return std::make_pair(1.0e-8, 1.0);
+      };
 };
 
 /**
@@ -124,7 +129,6 @@ struct DampedNewtonResult {
     std::vector<double> lambda;
   };
   std::optional<Iterates> iteration_history;
-
 };
 
 } // namespace roots

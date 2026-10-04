@@ -8,18 +8,17 @@
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
 #include "burnman/core/material.hpp"
-#include <typeinfo>
 #include "burnman/utils/exceptions.hpp"
+#include <typeinfo>
 
 namespace burnman {
 
-[[noreturn]] void Material::throw_not_implemented_error(const std::string& method) const {
+[[noreturn]] void
+Material::throw_not_implemented_error(const std::string &method) const {
   throw exceptions::NotImplementedError(get_class_name(), method);
 }
 
-std::string Material::get_class_name() const {
-  return typeid(*this).name();
-}
+std::string Material::get_class_name() const { return typeid(*this).name(); }
 
 void Material::reset_cache() {
   molar_internal_energy.reset();
@@ -46,13 +45,9 @@ void Material::reset_cache() {
   isentropic_thermal_gradient.reset();
 }
 
-void Material::clear_computed_properties() {
-  reset_cache();
-}
+void Material::clear_computed_properties() { reset_cache(); }
 
-void Material::set_name(std::string new_name) {
-  name = new_name;
-}
+void Material::set_name(std::string new_name) { name = new_name; }
 
 std::string Material::get_name() const {
   if (name.has_value()) {
@@ -62,15 +57,13 @@ std::string Material::get_name() const {
   }
 }
 
-bool Material::has_custom_name() const {
-  return name.has_value();
-}
+bool Material::has_custom_name() const { return name.has_value(); }
 
 bool Material::has_state() const {
   return pressure.has_value() && temperature.has_value();
 }
 
-const types::FormulaMap& Material::get_formula() const {
+const types::FormulaMap &Material::get_formula() const {
   if (!formula.has_value()) {
     formula = compute_formula();
   }
@@ -81,9 +74,8 @@ void Material::set_method(types::EOSType new_method [[maybe_unused]]) {
   throw_not_implemented_error(__func__);
 }
 
-void Material::set_method(
-  std::shared_ptr<EquationOfState> new_method [[maybe_unused]]
-) {
+void Material::set_method(std::shared_ptr<EquationOfState> new_method
+                          [[maybe_unused]]) {
   throw_not_implemented_error(__func__);
 }
 
@@ -94,13 +86,9 @@ void Material::set_state(double new_pressure, double new_temperature) {
 }
 
 // TODO: watch out here! check for value first?
-double Material::get_pressure() const {
-  return *pressure;
-}
+double Material::get_pressure() const { return *pressure; }
 
-double Material::get_temperature() const {
-  return *temperature;
-}
+double Material::get_temperature() const { return *temperature; }
 
 // TODO: maybe factor out caching logic with function template?
 
@@ -183,14 +171,16 @@ double Material::get_isentropic_bulk_modulus_reuss() const {
 
 double Material::get_isothermal_compressibility_reuss() const {
   if (!isothermal_compressibility_reuss.has_value()) {
-    isothermal_compressibility_reuss = compute_isothermal_compressibility_reuss();
+    isothermal_compressibility_reuss =
+        compute_isothermal_compressibility_reuss();
   }
   return *isothermal_compressibility_reuss;
 }
 
 double Material::get_isentropic_compressibility_reuss() const {
   if (!isentropic_compressibility_reuss.has_value()) {
-    isentropic_compressibility_reuss = compute_isentropic_compressibility_reuss();
+    isentropic_compressibility_reuss =
+        compute_isentropic_compressibility_reuss();
   }
   return *isentropic_compressibility_reuss;
 }
@@ -304,7 +294,8 @@ double Material::compute_isentropic_bulk_modulus_reuss() const {
   throw_not_implemented_error(__func__);
 }
 
-// TODO: compressibility implementation in base class (doubled in Mineral and Solution)
+// TODO: compressibility implementation in base class (doubled in Mineral and
+// Solution)
 double Material::compute_isothermal_compressibility_reuss() const {
   throw_not_implemented_error(__func__);
 }

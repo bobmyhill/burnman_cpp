@@ -7,8 +7,8 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
-#include <catch2/catch_test_macros.hpp>
 #include "burnman/utils/warnings.hpp"
+#include <catch2/catch_test_macros.hpp>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -19,7 +19,7 @@ TEST_CASE("Validate warnings", "[utils][warnings]") {
   // Temporarily allow warnings
   utils::suppress_warnings = false;
   // Redirect cerr to grab output
-  std::streambuf* orig_cerr = std::cerr.rdbuf();
+  std::streambuf *orig_cerr = std::cerr.rdbuf();
   std::ostringstream oss;
   std::cerr.rdbuf(oss.rdbuf());
   // Generate a warning

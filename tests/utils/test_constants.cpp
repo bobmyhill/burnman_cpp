@@ -7,8 +7,8 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
-#include <catch2/catch_test_macros.hpp>
 #include "burnman/utils/constants.hpp"
+#include <catch2/catch_test_macros.hpp>
 using namespace burnman;
 // Compile time checks that physical constants haven't been modified
 TEST_CASE("constants::physics CODATA 2022 values", "[core][utils][constants]") {

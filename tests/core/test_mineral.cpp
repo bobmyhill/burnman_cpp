@@ -7,19 +7,19 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
+#include "burnman/core/equation_of_state.hpp"
+#include "burnman/core/mineral.hpp"
+#include "burnman/eos/birch_murnaghan.hpp"
+#include "burnman/eos/components/excess_params.hpp"
+#include "burnman/eos/mie_grueneisen_debye.hpp"
+#include "burnman/utils/types/mineral_params.hpp"
+#include "burnman/utils/types/simple_types.hpp"
+#include "tolerances.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include "burnman/core/mineral.hpp"
 #include <memory>
 #include <string>
 #include <typeinfo>
-#include "burnman/utils/types/simple_types.hpp"
-#include "burnman/utils/types/mineral_params.hpp"
-#include "burnman/eos/components/excess_params.hpp"
-#include "burnman/core/equation_of_state.hpp"
-#include "burnman/eos/birch_murnaghan.hpp"
-#include "burnman/eos/mie_grueneisen_debye.hpp"
-#include "tolerances.hpp"
 
 using namespace Catch::Matchers;
 using namespace burnman;
@@ -49,12 +49,11 @@ TEST_CASE("Set method", "[core][mineral]") {
   REQUIRE(typeid(*test_mineral.eos_method) == typeid(eos::MGD3));
   // Test setting custom EOS (derived from EquationOfState)
   // Using non-derived class will not compile - so no test needed
-  class CustomEOS : public EquationOfState{
-   public:
+  class CustomEOS : public EquationOfState {
+  public:
     // Helper functions
-    void validate_parameters(
-      types::MineralParams& params [[maybe_unused]]
-    ) override {
+    void validate_parameters(types::MineralParams &params
+                             [[maybe_unused]]) override {
       // no-op
     }
   };
@@ -94,17 +93,17 @@ TEST_CASE("Set state", "[core][mineral]") {
   CHECK(test_excess.d2GdPdT == zero_excess.d2GdPdT);
   // Define property modifiers and re-check to see if they are computed
   eos::excesses::ExcessParamVector excess_params = {
-    eos::excesses::LandauParams{800.0, 1.0e-7, 5.0},
-    eos::excesses::LandauSLB2022Params {800.0, 1.0e-8, 5.0},
-    eos::excesses::LandauHPParams{298.15, 1.0e-5, 800.0, 1.0e-7, 5.0},
-    eos::excesses::LinearParams{1.0e-7, 5.0, 1200.0},
-    eos::excesses::BraggWilliamsParams{1, 0.8, 1000.0, 1.0e-7, 1000.0, 1.0e-7},
-    eos::excesses::MagneticChsParams{0.4, 800.0, 1.0e-8, 2.2, 1.0e-10},
-    eos::excesses::DebyeParams{1.0, 1200.0},
-    eos::excesses::DebyeDeltaParams{1.0, 1200.0},
-    eos::excesses::EinsteinParams{1.0, 1200.0},
-    eos::excesses::EinsteinDeltaParams{1.0, 1200.0}
-  };
+      eos::excesses::LandauParams{800.0, 1.0e-7, 5.0},
+      eos::excesses::LandauSLB2022Params{800.0, 1.0e-8, 5.0},
+      eos::excesses::LandauHPParams{298.15, 1.0e-5, 800.0, 1.0e-7, 5.0},
+      eos::excesses::LinearParams{1.0e-7, 5.0, 1200.0},
+      eos::excesses::BraggWilliamsParams{1, 0.8, 1000.0, 1.0e-7, 1000.0,
+                                         1.0e-7},
+      eos::excesses::MagneticChsParams{0.4, 800.0, 1.0e-8, 2.2, 1.0e-10},
+      eos::excesses::DebyeParams{1.0, 1200.0},
+      eos::excesses::DebyeDeltaParams{1.0, 1200.0},
+      eos::excesses::EinsteinParams{1.0, 1200.0},
+      eos::excesses::EinsteinDeltaParams{1.0, 1200.0}};
   REQUIRE_NOTHROW(test_mineral.set_property_modifier_params(excess_params));
   test_mineral.set_state(test_P, test_T);
   test_excess = test_mineral.get_property_modifiers();
@@ -116,26 +115,21 @@ TEST_CASE("Set state", "[core][mineral]") {
   //  'd2GdP2': -1.8604628992319605e-19,
   //  'd2GdPdT': 8.173395433302176e-12
   // d2GdP2 will be within error
-  CHECK_THAT(test_excess.G,
-    !WithinRel(zero_excess.G, tol_rel) &&
-    !WithinAbs(zero_excess.G, tol_abs));
-  CHECK_THAT(test_excess.dGdT,
-    !WithinRel(zero_excess.dGdT, tol_rel) &&
-    !WithinAbs(zero_excess.dGdT, tol_abs));
-  CHECK_THAT(test_excess.dGdP,
-    !WithinRel(zero_excess.dGdP, tol_rel) &&
-    !WithinAbs(zero_excess.dGdP, tol_abs));
-  CHECK_THAT(test_excess.d2GdT2,
-    !WithinRel(zero_excess.d2GdT2, tol_rel) &&
-    !WithinAbs(zero_excess.d2GdT2, tol_abs));
+  CHECK_THAT(test_excess.G, !WithinRel(zero_excess.G, tol_rel) &&
+                                !WithinAbs(zero_excess.G, tol_abs));
+  CHECK_THAT(test_excess.dGdT, !WithinRel(zero_excess.dGdT, tol_rel) &&
+                                   !WithinAbs(zero_excess.dGdT, tol_abs));
+  CHECK_THAT(test_excess.dGdP, !WithinRel(zero_excess.dGdP, tol_rel) &&
+                                   !WithinAbs(zero_excess.dGdP, tol_abs));
+  CHECK_THAT(test_excess.d2GdT2, !WithinRel(zero_excess.d2GdT2, tol_rel) &&
+                                     !WithinAbs(zero_excess.d2GdT2, tol_abs));
   // Check against equality for small values
   // CHECK_THAT(test_excess.d2GdP2,
   //   !WithinRel(zero_excess.d2GdP2, tol_rel) &&
   //   !WithinAbs(zero_excess.d2GdP2, tol_abs));
   CHECK(test_excess.d2GdP2 != zero_excess.d2GdP2);
-  CHECK_THAT(test_excess.d2GdPdT,
-    !WithinRel(zero_excess.d2GdPdT, tol_rel) &&
-    !WithinAbs(zero_excess.d2GdPdT, tol_abs));
+  CHECK_THAT(test_excess.d2GdPdT, !WithinRel(zero_excess.d2GdPdT, tol_rel) &&
+                                      !WithinAbs(zero_excess.d2GdPdT, tol_abs));
 }
 
 TEST_CASE("Check exceptions", "[core][mineral]") {
@@ -147,11 +141,7 @@ TEST_CASE("Check exceptions", "[core][mineral]") {
 TEST_CASE("Check formula", "[core][mineral]") {
   Mineral test_mineral;
   REQUIRE_THROWS(test_mineral.get_formula());
-  types::FormulaMap fm = {
-    {"Al", 2.0},
-    {"Si", 1.0},
-    {"O", 5.0}
-  };
+  types::FormulaMap fm = {{"Al", 2.0}, {"Si", 1.0}, {"O", 5.0}};
   test_mineral.params.formula = fm;
   REQUIRE_NOTHROW(test_mineral.get_formula());
   // TODO (C++20 has ==, but watch doubles -- impement == for FormulaMap)
@@ -232,55 +222,47 @@ TEST_CASE("Check py reference values", "[core][mineral]") {
     double test_vphi = test_mineral.get_bulk_sound_velocity();
     double test_vs = test_mineral.get_shear_wave_velocity();
     CHECK_THAT(test_Vo,
-      WithinRel(ref_Vo, tol_rel) || WithinAbs(ref_Vo, tol_abs));
-    CHECK_THAT(test_V,
-      WithinRel(ref_V, tol_rel) || WithinAbs(ref_V, tol_abs));
-    CHECK_THAT(test_m,
-      WithinRel(ref_m, tol_rel) || WithinAbs(ref_m, tol_abs));
+               WithinRel(ref_Vo, tol_rel) || WithinAbs(ref_Vo, tol_abs));
+    CHECK_THAT(test_V, WithinRel(ref_V, tol_rel) || WithinAbs(ref_V, tol_abs));
+    CHECK_THAT(test_m, WithinRel(ref_m, tol_rel) || WithinAbs(ref_m, tol_abs));
     CHECK_THAT(test_rho,
-      WithinRel(ref_rho, tol_rel) || WithinAbs(ref_rho, tol_abs));
-    CHECK_THAT(test_E,
-      WithinRel(ref_E, tol_rel) || WithinAbs(ref_E, tol_abs));
-    CHECK_THAT(test_G,
-      WithinRel(ref_G, tol_rel) || WithinAbs(ref_G, tol_abs));
-    CHECK_THAT(test_F,
-      WithinRel(ref_F, tol_rel) || WithinAbs(ref_F, tol_abs));
-    CHECK_THAT(test_S,
-      WithinRel(ref_S, tol_rel) || WithinAbs(ref_S, tol_abs));
-    CHECK_THAT(test_H,
-      WithinRel(ref_H, tol_rel) || WithinAbs(ref_H, tol_abs));
+               WithinRel(ref_rho, tol_rel) || WithinAbs(ref_rho, tol_abs));
+    CHECK_THAT(test_E, WithinRel(ref_E, tol_rel) || WithinAbs(ref_E, tol_abs));
+    CHECK_THAT(test_G, WithinRel(ref_G, tol_rel) || WithinAbs(ref_G, tol_abs));
+    CHECK_THAT(test_F, WithinRel(ref_F, tol_rel) || WithinAbs(ref_F, tol_abs));
+    CHECK_THAT(test_S, WithinRel(ref_S, tol_rel) || WithinAbs(ref_S, tol_abs));
+    CHECK_THAT(test_H, WithinRel(ref_H, tol_rel) || WithinAbs(ref_H, tol_abs));
     CHECK_THAT(test_KT,
-      WithinRel(ref_KT, tol_rel) || WithinAbs(ref_KT, tol_abs));
+               WithinRel(ref_KT, tol_rel) || WithinAbs(ref_KT, tol_abs));
     CHECK_THAT(test_KS,
-      WithinRel(ref_KS, tol_rel) || WithinAbs(ref_KS, tol_abs));
+               WithinRel(ref_KS, tol_rel) || WithinAbs(ref_KS, tol_abs));
     CHECK_THAT(test_invKT,
-      WithinRel(ref_invKT, tol_rel) || WithinAbs(ref_invKT, tol_abs));
+               WithinRel(ref_invKT, tol_rel) || WithinAbs(ref_invKT, tol_abs));
     CHECK_THAT(test_invKS,
-      WithinRel(ref_invKS, tol_rel) || WithinAbs(ref_invKS, tol_abs));
+               WithinRel(ref_invKS, tol_rel) || WithinAbs(ref_invKS, tol_abs));
     CHECK_THAT(test_mu,
-      WithinRel(ref_mu, tol_rel) || WithinAbs(ref_mu, tol_abs));
+               WithinRel(ref_mu, tol_rel) || WithinAbs(ref_mu, tol_abs));
     CHECK_THAT(test_gamma,
-      WithinRel(ref_gamma, tol_rel) || WithinAbs(ref_gamma, tol_abs));
+               WithinRel(ref_gamma, tol_rel) || WithinAbs(ref_gamma, tol_abs));
     CHECK_THAT(test_alpha,
-      WithinRel(ref_alpha, tol_rel) || WithinAbs(ref_alpha, tol_abs));
+               WithinRel(ref_alpha, tol_rel) || WithinAbs(ref_alpha, tol_abs));
     CHECK_THAT(test_Cv,
-      WithinRel(ref_Cv, tol_rel) || WithinAbs(ref_Cv, tol_abs));
+               WithinRel(ref_Cv, tol_rel) || WithinAbs(ref_Cv, tol_abs));
     CHECK_THAT(test_Cp,
-      WithinRel(ref_Cp, tol_rel) || WithinAbs(ref_Cp, tol_abs));
+               WithinRel(ref_Cp, tol_rel) || WithinAbs(ref_Cp, tol_abs));
     CHECK_THAT(test_grad,
-      WithinRel(ref_grad, tol_rel) || WithinAbs(ref_grad, tol_abs));
+               WithinRel(ref_grad, tol_rel) || WithinAbs(ref_grad, tol_abs));
     CHECK_THAT(test_vp,
-      WithinRel(ref_vp, tol_rel) || WithinAbs(ref_vp, tol_abs));
+               WithinRel(ref_vp, tol_rel) || WithinAbs(ref_vp, tol_abs));
     CHECK_THAT(test_vphi,
-      WithinRel(ref_vphi, tol_rel) || WithinAbs(ref_vphi, tol_abs));
+               WithinRel(ref_vphi, tol_rel) || WithinAbs(ref_vphi, tol_abs));
     CHECK_THAT(test_vs,
-      WithinRel(ref_vs, tol_rel) || WithinAbs(ref_vs, tol_abs));
+               WithinRel(ref_vs, tol_rel) || WithinAbs(ref_vs, tol_abs));
   }
 
   SECTION("With excess") {
     eos::excesses::ExcessParamVector excess_params = {
-      eos::excesses::MagneticChsParams{0.4, 800.0, 1.0e-8, 2.2, 1.0e-10}
-    };
+        eos::excesses::MagneticChsParams{0.4, 800.0, 1.0e-8, 2.2, 1.0e-10}};
     test_mineral.set_property_modifier_params(excess_params);
     test_mineral.set_method(types::EOSType::Auto);
     test_mineral.set_state(P, T);
@@ -296,8 +278,8 @@ TEST_CASE("Check py reference values", "[core][mineral]") {
     double ref_H = 562840.095049641;
     double ref_KT = 307455565306.87885;
     double ref_KS = 327195790142.47736;
-    double ref_invKT = 1.0 / ref_KT; //3.25250251691452e-12
-    double ref_invKS = 1.0 / ref_KS; //3.0562740418039917e-12
+    double ref_invKT = 1.0 / ref_KT; // 3.25250251691452e-12
+    double ref_invKS = 1.0 / ref_KS; // 3.0562740418039917e-12
     double ref_mu = 212373867679.2852;
     double ref_gamma = 1.7310765377441932;
     double ref_alpha = 3.70897124201741e-05;
@@ -330,48 +312,41 @@ TEST_CASE("Check py reference values", "[core][mineral]") {
     double test_vphi = test_mineral.get_bulk_sound_velocity();
     double test_vs = test_mineral.get_shear_wave_velocity();
     CHECK_THAT(test_Vo,
-      WithinRel(ref_Vo, tol_rel) || WithinAbs(ref_Vo, tol_abs));
-    CHECK_THAT(test_V,
-      WithinRel(ref_V, tol_rel) || WithinAbs(ref_V, tol_abs));
-    CHECK_THAT(test_m,
-      WithinRel(ref_m, tol_rel) || WithinAbs(ref_m, tol_abs));
+               WithinRel(ref_Vo, tol_rel) || WithinAbs(ref_Vo, tol_abs));
+    CHECK_THAT(test_V, WithinRel(ref_V, tol_rel) || WithinAbs(ref_V, tol_abs));
+    CHECK_THAT(test_m, WithinRel(ref_m, tol_rel) || WithinAbs(ref_m, tol_abs));
     CHECK_THAT(test_rho,
-      WithinRel(ref_rho, tol_rel) || WithinAbs(ref_rho, tol_abs));
-    CHECK_THAT(test_E,
-      WithinRel(ref_E, tol_rel) || WithinAbs(ref_E, tol_abs));
-    CHECK_THAT(test_G,
-      WithinRel(ref_G, tol_rel) || WithinAbs(ref_G, tol_abs));
-    CHECK_THAT(test_F,
-      WithinRel(ref_F, tol_rel) || WithinAbs(ref_F, tol_abs));
-    CHECK_THAT(test_S,
-      WithinRel(ref_S, tol_rel) || WithinAbs(ref_S, tol_abs));
-    CHECK_THAT(test_H,
-      WithinRel(ref_H, tol_rel) || WithinAbs(ref_H, tol_abs));
+               WithinRel(ref_rho, tol_rel) || WithinAbs(ref_rho, tol_abs));
+    CHECK_THAT(test_E, WithinRel(ref_E, tol_rel) || WithinAbs(ref_E, tol_abs));
+    CHECK_THAT(test_G, WithinRel(ref_G, tol_rel) || WithinAbs(ref_G, tol_abs));
+    CHECK_THAT(test_F, WithinRel(ref_F, tol_rel) || WithinAbs(ref_F, tol_abs));
+    CHECK_THAT(test_S, WithinRel(ref_S, tol_rel) || WithinAbs(ref_S, tol_abs));
+    CHECK_THAT(test_H, WithinRel(ref_H, tol_rel) || WithinAbs(ref_H, tol_abs));
     CHECK_THAT(test_KT,
-      WithinRel(ref_KT, tol_rel) || WithinAbs(ref_KT, tol_abs));
+               WithinRel(ref_KT, tol_rel) || WithinAbs(ref_KT, tol_abs));
     CHECK_THAT(test_KS,
-      WithinRel(ref_KS, tol_rel) || WithinAbs(ref_KS, tol_abs));
+               WithinRel(ref_KS, tol_rel) || WithinAbs(ref_KS, tol_abs));
     CHECK_THAT(test_invKT,
-      WithinRel(ref_invKT, tol_rel) || WithinAbs(ref_invKT, tol_abs));
+               WithinRel(ref_invKT, tol_rel) || WithinAbs(ref_invKT, tol_abs));
     CHECK_THAT(test_invKS,
-      WithinRel(ref_invKS, tol_rel) || WithinAbs(ref_invKS, tol_abs));
+               WithinRel(ref_invKS, tol_rel) || WithinAbs(ref_invKS, tol_abs));
     CHECK_THAT(test_mu,
-      WithinRel(ref_mu, tol_rel) || WithinAbs(ref_mu, tol_abs));
+               WithinRel(ref_mu, tol_rel) || WithinAbs(ref_mu, tol_abs));
     CHECK_THAT(test_gamma,
-      WithinRel(ref_gamma, tol_rel) || WithinAbs(ref_gamma, tol_abs));
+               WithinRel(ref_gamma, tol_rel) || WithinAbs(ref_gamma, tol_abs));
     CHECK_THAT(test_alpha,
-      WithinRel(ref_alpha, tol_rel) || WithinAbs(ref_alpha, tol_abs));
+               WithinRel(ref_alpha, tol_rel) || WithinAbs(ref_alpha, tol_abs));
     CHECK_THAT(test_Cv,
-      WithinRel(ref_Cv, tol_rel) || WithinAbs(ref_Cv, tol_abs));
+               WithinRel(ref_Cv, tol_rel) || WithinAbs(ref_Cv, tol_abs));
     CHECK_THAT(test_Cp,
-      WithinRel(ref_Cp, tol_rel) || WithinAbs(ref_Cp, tol_abs));
+               WithinRel(ref_Cp, tol_rel) || WithinAbs(ref_Cp, tol_abs));
     CHECK_THAT(test_grad,
-      WithinRel(ref_grad, tol_rel) || WithinAbs(ref_grad, tol_abs));
+               WithinRel(ref_grad, tol_rel) || WithinAbs(ref_grad, tol_abs));
     CHECK_THAT(test_vp,
-      WithinRel(ref_vp, tol_rel) || WithinAbs(ref_vp, tol_abs));
+               WithinRel(ref_vp, tol_rel) || WithinAbs(ref_vp, tol_abs));
     CHECK_THAT(test_vphi,
-      WithinRel(ref_vphi, tol_rel) || WithinAbs(ref_vphi, tol_abs));
+               WithinRel(ref_vphi, tol_rel) || WithinAbs(ref_vphi, tol_abs));
     CHECK_THAT(test_vs,
-      WithinRel(ref_vs, tol_rel) || WithinAbs(ref_vs, tol_abs));
+               WithinRel(ref_vs, tol_rel) || WithinAbs(ref_vs, tol_abs));
   }
 }
