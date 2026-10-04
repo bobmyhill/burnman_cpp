@@ -7,11 +7,13 @@ namespace {
 #define SETTINGS_OPTIONS(X)                                                    \
   X(pressure_seeds)                                                            \
   X(temperature_seeds)                                                         \
-  X(max_refinement_iterations) X(minimization_starts) X(max_phase_instances)   \
-      X(max_trace_steps) X(max_lines) X(max_recovery_passes) X(step)           \
-          X(min_step) X(affinity_tolerance) X(mass_balance_tolerance)          \
-              X(amount_tolerance) X(composition_tolerance) X(node_tolerance)   \
-                  X(verbose) X(exclude_invalid_eos) X(active_solution_faces)   \
+  X(max_refinement_iterations)                                                 \
+  X(minimization_starts)                                                       \
+  X(max_phase_instances) X(max_trace_steps) X(max_lines)                       \
+      X(max_recovery_passes) X(step) X(min_step) X(affinity_tolerance)         \
+          X(mass_balance_tolerance) X(amount_tolerance)                        \
+              X(composition_tolerance) X(node_tolerance) X(verbose)            \
+                  X(exclude_invalid_eos) X(active_solution_faces)              \
                       X(required_eos_phases)
 
 py::dict settings_dict(const pseudosections::Settings &settings) {
@@ -54,8 +56,9 @@ py::dict result_dict(const pseudosections::Result &result) {
 #define SAVE(name) data[#name] = py::cast(result.name);
   SAVE(pressure_range)
   SAVE(temperature_range)
-  SAVE(phase_names) SAVE(diagnostics) SAVE(resolved) SAVE(equilibrium_solves)
-      SAVE(minimization_calls)
+  SAVE(phase_names)
+  SAVE(diagnostics)
+  SAVE(resolved) SAVE(equilibrium_solves) SAVE(minimization_calls)
 #undef SAVE
       // Preserve the SI range keys used by the original example JSON files.
       data["calculation_pressure_range_Pa"] = data["pressure_range"];
@@ -72,9 +75,10 @@ py::dict result_dict(const pseudosections::Result &result) {
 #define SAVE(name) record[#name] = py::cast(state.name);
       SAVE(id)
       SAVE(candidate_index)
-      SAVE(name) SAVE(amount)
+      SAVE(name)
+      SAVE(amount)
 #undef SAVE
-          record["composition"] = vector_list(state.composition);
+      record["composition"] = vector_list(state.composition);
       records.append(record);
     }
     return records;
@@ -87,15 +91,17 @@ py::dict result_dict(const pseudosections::Result &result) {
     SAVE(phases)
     SAVE(sample_indices)
 #undef SAVE
-        fields.append(record);
+    fields.append(record);
   }
   for (auto &node : result.nodes) {
     py::dict record;
 #define SAVE(name) record[#name] = py::cast(node.name);
     SAVE(id)
     SAVE(pressure)
-    SAVE(temperature) SAVE(kind) SAVE(zero_phases) SAVE(assemblage)
-        SAVE(gibbs_variance) SAVE(pt_nullity) SAVE(incident_lines)
+    SAVE(temperature)
+    SAVE(kind)
+    SAVE(zero_phases) SAVE(assemblage) SAVE(gibbs_variance) SAVE(pt_nullity)
+        SAVE(incident_lines)
 #undef SAVE
             record["critical_mode"] = vector_list(node.critical_mode);
     nodes.append(record);
@@ -105,16 +111,19 @@ py::dict result_dict(const pseudosections::Result &result) {
 #define SAVE(name) record[#name] = py::cast(line.name);
     SAVE(id)
     SAVE(zero_phase)
-    SAVE(assemblage) SAVE(side_a) SAVE(side_b) SAVE(start_node) SAVE(end_node)
-        SAVE(termination)
+    SAVE(assemblage)
+    SAVE(side_a)
+    SAVE(side_b) SAVE(start_node) SAVE(end_node) SAVE(termination)
 #undef SAVE
-            py::list points;
+        py::list points;
     for (auto &point : line.points) {
       py::dict item;
 #define SAVE(name) item[#name] = py::cast(point.name);
       SAVE(pressure)
       SAVE(temperature)
-      SAVE(mass_balance_error) SAVE(minimum_affinity) SAVE(residual)
+      SAVE(mass_balance_error)
+      SAVE(minimum_affinity)
+      SAVE(residual)
 #undef SAVE
           item["phases"] = phases(point.phases);
       points.append(item);
@@ -127,11 +136,12 @@ py::dict result_dict(const pseudosections::Result &result) {
 #define SAVE(name) record[#name] = py::cast(state.name);
     SAVE(pressure)
     SAVE(temperature)
-    SAVE(success) SAVE(is_field_verification) SAVE(outside_model_domain)
-        SAVE(message) SAVE(excluded_phases) SAVE(gibbs) SAVE(mass_balance_error)
-            SAVE(minimum_affinity) SAVE(equilibrium_error)
+    SAVE(success)
+    SAVE(is_field_verification)
+    SAVE(outside_model_domain) SAVE(message) SAVE(excluded_phases) SAVE(gibbs)
+        SAVE(mass_balance_error) SAVE(minimum_affinity) SAVE(equilibrium_error)
 #undef SAVE
-                record["phases"] = phases(state.phases);
+            record["phases"] = phases(state.phases);
     samples.append(record);
   }
   data["fields"] = fields;
