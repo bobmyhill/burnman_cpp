@@ -347,10 +347,89 @@ def test_native_equilibrium_result_and_saved_json_range_names():
     ) == [1, 2]
 
 
+def test_plot_has_discrete_phase_count_colours_and_hole(tmp_path):
+    matplotlib = pytest.importorskip("matplotlib")
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    data = diagram([line(square(), [0, 1, 2], [0])])
+    fig, ax = bm.plot_pseudosection(
+        data, pressure_unit="Pa", temperature_unit="K", fill_alpha=1.0
+    )
+    assert sorted(ax.collections[0].get_array()) == [1.0, 3.0]
+    assert ax.collections[0].norm.boundaries.tolist() == [0.5, 1.5, 2.5, 3.5]
+    assert fig.axes[1].get_ylabel() == "Number of phases"
+    # Rendered centre must use the inner field's colour, not an outer patch
+    # painted across its hole. Check pixels well away from line antialiasing.
+    fig.canvas.draw()
+    rgba = np.asarray(fig.canvas.buffer_rgba())
+    for point, count in [((0.5, 0.5), 3), ((0.1, 0.1), 1)]:
+        x, y = ax.transData.transform(point).astype(int)
+        expected = ax.collections[0].cmap(ax.collections[0].norm(count))[:3]
+        np.testing.assert_allclose(
+            rgba[rgba.shape[0] - 1 - y, x, :3] / 255.0, expected, atol=0.01
+        )
+    fig.savefig(tmp_path / "filled.svg")
+    plt.close(fig)
 
 
+def test_plot_labels_assemblages_and_solution_multiplicity():
+    matplotlib = pytest.importorskip("matplotlib")
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    data = diagram([line(square(), [0, 1, 2], [3, 4, 5])])
+    data["phase_names"] = ["g", "pl", "q", "hb", "hb #2", "q"]
+    fig, ax = bm.plot_pseudosection(
+        data, pressure_unit="Pa", temperature_unit="K", phase_aliases={"g": "gt"}
+    )
+    assert {text.get_text() for text in ax.texts} == {"gt pl q", "2hb q"}
+    fig.canvas.draw()
+    plt.close(fig)
+    fig, ax = bm.plot_pseudosection(
+        data, label_assemblages=False, pressure_unit="Pa", temperature_unit="K"
+    )
+    assert not ax.texts
+    plt.close(fig)
 
 
+@pytest.mark.parametrize("merge_fields,field_count", [(True, 1), (False, 4)])
+def test_plot_merged_fields_uses_one_label_and_omits_internal_lines(
+    merge_fields, field_count
+):
+    matplotlib = pytest.importorskip("matplotlib")
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.collections import LineCollection
+
+    data = diagram(
+        [
+            line([(0.0, 0.5), (1.0, 0.5)], [0, 1], [0, 1]),
+            line([(0.5, 0.0), (0.5, 1.0)], [0, 1], [0, 1]),
+        ]
+    )
+    data["phase_names"] = ["gt", "q"]
+    fig, ax = bm.plot_pseudosection(
+        data,
+        pressure_unit="Pa",
+        temperature_unit="K",
+        merge_fields=merge_fields,
+        show_unresolved=False,
+        label_key_path=None,
+        label_fontsize=10.0,
+    )
+    assert len(ax.pseudosection_geometry.polygons) == field_count
+    assert len(ax.texts) == field_count
+    assert {t.get_text() for t in ax.texts} == {"gt q"}
+    assert {t.get_fontsize() for t in ax.texts} == {10.0}
+    outlines = next(c for c in ax.collections if isinstance(c, LineCollection))
+    internal = [
+        s
+        for s in outlines.get_segments()
+        if not np.any(np.all(s == 0.0, axis=0) | np.all(s == 1.0, axis=0))
+    ]
+    assert bool(internal) == (not merge_fields)
+    plt.close(fig)
 
 
 def test_label_rectangles_respect_holes_and_concave_edges():
@@ -382,6 +461,52 @@ def test_label_rectangles_respect_holes_and_concave_edges():
         inner.contains_rectangle([0.5, 0.5], [0.0, 1.0])
 
 
+def test_uniform_font_and_numbered_assemblage_document(tmp_path):
+    matplotlib = pytest.importorskip("matplotlib")
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    narrow = [(0.499, 0.1), (0.501, 0.1), (0.501, 0.9), (0.499, 0.9), (0.499, 0.1)]
+    data = diagram([line(narrow, list(range(12)), [12])])
+    data["phase_names"] = [f"phase{i}" for i in range(12)] + ["background"]
+    key_path = tmp_path / "field_names.md"
+    fig, ax = bm.plot_pseudosection(
+        data,
+        pressure_unit="Pa",
+        temperature_unit="K",
+        label_fontsize=11.0,
+        label_key_path=key_path,
+    )
+    assert {text.get_fontsize() for text in ax.texts} == {11.0}
+    assert ax.pseudosection_label_key
+    assert " ".join(data["phase_names"][:12]) in ax.pseudosection_label_key.values()
+    assert all(
+        str(number) in {text.get_text() for text in ax.texts}
+        for number in ax.pseudosection_label_key
+    )
+    assert key_path.is_file()
+    key = key_path.read_text()
+    for number, name in ax.pseudosection_label_key.items():
+        assert f"| {number} | {name} |" in key
+    # The number does not fit in the narrow region either: retain the chosen
+    # size and show its connection to the correct field.
+    assert any(getattr(text, "arrow_patch", None) is not None for text in ax.texts)
+    fig.canvas.draw()
+    boxes = [text.get_window_extent() for text in ax.texts]
+    assert all(not a.overlaps(b) for i, a in enumerate(boxes) for b in boxes[i + 1 :])
+    plt.close(fig)
+    suppressed = tmp_path / "suppressed.md"
+    fig, ax = bm.plot_pseudosection(
+        data,
+        label_assemblages=False,
+        label_key_path=suppressed,
+        pressure_unit="Pa",
+        temperature_unit="K",
+    )
+    assert not ax.texts and not suppressed.exists()
+    plt.close(fig)
+    with pytest.raises(ValueError, match="label_fontsize"):
+        bm.plot_pseudosection(data, label_fontsize=0.0)
 
 
 def test_eos_domain_mask_is_subdivided_and_never_gets_an_assemblage_colour():

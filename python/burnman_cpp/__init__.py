@@ -238,6 +238,7 @@ from ._core import (
     PhaseFieldPolygon,
     PseudosectionPolygons,
 )
+from .tools.pseudosection import plot_pseudosection
 
 __all__ += [
     "pseudosection",
@@ -255,4 +256,5 @@ __all__ += [
     "pseudosection_field_polygons",
     "PhaseFieldPolygon",
     "PseudosectionPolygons",
+    "plot_pseudosection",
 ]
