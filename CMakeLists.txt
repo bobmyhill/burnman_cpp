@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.18)
 project(burnman_cpp VERSION 0.1.0 LANGUAGES CXX)
 
+option(BURNMAN_BUILD_PYTHON "Build the Python extension" ON)
 option(BURNMAN_BUILD_TESTS "Build the existing C++ tests" OFF)
 
 # Let CMake find standard Homebrew installations as well as system packages.
@@ -19,6 +20,23 @@ target_compile_features(burnman_core PUBLIC cxx_std_17)
 target_include_directories(burnman_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(burnman_core PUBLIC Eigen3::Eigen GSL::gsl GSL::gslcblas)
 set_target_properties(burnman_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+if(BURNMAN_BUILD_PYTHON)
+  find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
+  find_package(pybind11 3.0 CONFIG REQUIRED)
+  pybind11_add_module(_core
+    python/bindings/module.cpp
+    python/bindings/params.cpp
+    python/bindings/materials.cpp
+    python/bindings/combined.cpp
+    python/bindings/modifiers.cpp
+    python/bindings/solutions.cpp
+    python/bindings/minerals.cpp
+    python/bindings/equilibration.cpp)
+  target_link_libraries(_core PRIVATE burnman_core)
+  target_compile_definitions(_core PRIVATE BURNMAN_VERSION="${PROJECT_VERSION}")
+  install(TARGETS _core LIBRARY DESTINATION burnman_cpp RUNTIME DESTINATION burnman_cpp)
+endif()
 
 if(BURNMAN_BUILD_TESTS)
   enable_testing()

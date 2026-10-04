@@ -1,0 +1,33 @@
+[build-system]
+requires = ["scikit-build-core>=0.11", "pybind11>=3.0"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "burnman_cpp"
+version = "0.1.0"
+description = "Python bindings for the BurnMan C++ mineral physics library"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "GPL-3.0-or-later"
+dependencies = ["numpy>=1.23"]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+examples = ["matplotlib>=3.6"]
+reference = ["burnman>=2.1"]
+
+[tool.scikit-build]
+minimum-version = "0.11"
+cmake.version = ">=3.18"
+build-dir = "build/python/{wheel_tag}"
+wheel.packages = ["python/burnman_cpp"]
+sdist.include = [
+  "/CMakeLists.txt", "/include/**/*.hpp", "/src/**/*.cpp", "/src/**/*.hpp",
+  "/python/bindings/*.cpp", "/python/bindings/*.hpp",
+  "/python/burnman_cpp/**/*.py", "/python/tests/*.py", "/examples/*.py",
+  "/tools/export_example_minerals.py",
+]
+sdist.exclude = [".venv/**", "build/**", "bin/**", "*.csv", "benchmark-report.xml", "**/__pycache__/**"]
+
+[tool.pytest.ini_options]
+testpaths = ["python/tests"]
