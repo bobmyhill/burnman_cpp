@@ -207,7 +207,7 @@ Eigen::VectorXd get_endmember_amounts(const Assemblage &assemblage) {
   Eigen::Index j = 0;
   for (Eigen::Index i = 0; i < assemblage.get_n_phases(); ++i) {
     if (auto ph = assemblage.get_phase<Solution>(static_cast<std::size_t>(i))) {
-      abs_amounts.segment(j, j + static_cast<Eigen::Index>(embr_per_phase[i])) =
+      abs_amounts.segment(j, static_cast<Eigen::Index>(embr_per_phase[i])) =
           phase_amounts(i) * ph->get_molar_fractions();
     } else {
       abs_amounts(j) = phase_amounts(i);
@@ -239,9 +239,19 @@ void set_composition_and_state_from_parameters(
       ++i;
     }
   }
-  assert((phase_amounts > -1.0e-8).all());
+  // An unsuccessful predictor or constrained Newton walk can propose an
+  // inadmissible state. Report it to the corrector's retry path in both debug
+  // and release builds rather than aborting or reflecting a negative amount.
+  if (!phase_amounts.isFinite().all() || (phase_amounts <= -1.0e-8).any()) {
+    throw std::invalid_argument(
+        "Equilibrium parameters contain invalid phase amounts.");
+  }
   phase_amounts = phase_amounts.abs();
   double n_moles = phase_amounts.sum();
+  if (!(n_moles > 0.)) {
+    throw std::invalid_argument(
+        "Equilibrium parameters require a positive total phase amount.");
+  }
   assemblage.set_n_moles(n_moles);
   assemblage.set_fractions(phase_amounts / n_moles);
 }

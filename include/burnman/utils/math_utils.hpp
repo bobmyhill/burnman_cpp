@@ -29,10 +29,11 @@ namespace utils {
  * @return Inverse(-ish) of x
  */
 template <typename Derived>
-typename Derived::PlainObject inverseish(const Eigen::ArrayBase<Derived> &x) {
+typename Derived::PlainObject
+inverseish(const Eigen::ArrayBase<Derived> &x,
+           double eps = constants::precision::inverseish_eps) {
   using ArrayType = typename Derived::PlainObject;
   // Grab eps from constants
-  double eps = constants::precision::inverseish_eps;
   ArrayType inverse_x =
       (2.0 / eps -
        x / (eps * eps)); // To work with float and double could add .template
