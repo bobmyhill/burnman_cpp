@@ -10,8 +10,8 @@
 #ifndef BURNMAN_EOS_BIRCH_MURNAGHAN_HPP_INCLUDED
 #define BURNMAN_EOS_BIRCH_MURNAGHAN_HPP_INCLUDED
 
-#include "burnman/utils/types/mineral_params.hpp"
 #include "burnman/core/equation_of_state.hpp"
+#include "burnman/utils/types/mineral_params.hpp"
 
 namespace burnman {
 namespace eos {
@@ -26,11 +26,10 @@ namespace eos {
  *
  * @note All functions assume SI units for all properties.
  */
-class BM3 : public EquationOfState{
- public:
-
+class BM3 : public EquationOfState {
+public:
   // Helper functions
-  void validate_parameters(types::MineralParams& params) override;
+  void validate_parameters(types::MineralParams &params) override;
 
   // Static functions (for public access outside class)
   /**
@@ -41,9 +40,8 @@ class BM3 : public EquationOfState{
    *
    * @return Pressure in [Pa].
    */
-  static double compute_birch_murnaghan(
-    double inv_compression,
-    const types::MineralParams& params);
+  static double compute_birch_murnaghan(double inv_compression,
+                                        const types::MineralParams &params);
 
   /**
    * @brief Evaluate the bulk modulus, K
@@ -53,9 +51,8 @@ class BM3 : public EquationOfState{
    *
    * @return Bulk modulus in [Pa].
    */
-  static double compute_bm_bulk_modulus(
-    double volume,
-    const types::MineralParams& params);
+  static double compute_bm_bulk_modulus(double volume,
+                                        const types::MineralParams &params);
 
   /**
    * @brief Third order exapansion for shear modulus
@@ -65,87 +62,62 @@ class BM3 : public EquationOfState{
    *
    * @return Shear modulus in [Pa].
    */
-  static double compute_third_order_shear_modulus(
-    double volume,
-    const types::MineralParams& params);
+  static double
+  compute_third_order_shear_modulus(double volume,
+                                    const types::MineralParams &params);
 
   // Specific EOS functions
-  double compute_volume(
-    double pressure,
-    double temperature,
-    const types::MineralParams& params) const override;
+  double compute_volume(double pressure, double temperature,
+                        const types::MineralParams &params) const override;
 
-  double compute_pressure(
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double compute_pressure(double temperature, double volume,
+                          const types::MineralParams &params) const override;
 
   double compute_grueneisen_parameter(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   double compute_isothermal_bulk_modulus_reuss(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   double compute_isentropic_bulk_modulus_reuss(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   /**
    * @copydoc EquationOfState::compute_shear_modulus
    *
    * @note Third order expansion
    */
-  double compute_shear_modulus(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double
+  compute_shear_modulus(double pressure, double temperature, double volume,
+                        const types::MineralParams &params) const override;
 
   double compute_molar_heat_capacity_v(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   double compute_molar_heat_capacity_p(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   double compute_thermal_expansivity(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
-  double compute_gibbs_free_energy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double
+  compute_gibbs_free_energy(double pressure, double temperature, double volume,
+                            const types::MineralParams &params) const override;
 
-  double compute_entropy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double compute_entropy(double pressure, double temperature, double volume,
+                         const types::MineralParams &params) const override;
 
   double compute_molar_internal_energy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
- private:
+private:
   /**
    * @brief GSL function wrapper to compute P(V) - P
    *
@@ -153,8 +125,7 @@ class BM3 : public EquationOfState{
    * @param p Generic pointer for parameter object
    * @see `eos::gsl_params::SolverParams_P`
    */
-  static double bm_gsl_wrapper(double x, void* p);
-
+  static double bm_gsl_wrapper(double x, void *p);
 };
 
 /**
@@ -167,8 +138,8 @@ class BM3 : public EquationOfState{
  *
  * @note All functions assume SI units for all properties.
  */
-class BM2 : public BM3{
- public:
+class BM2 : public BM3 {
+public:
   /**
    * @brief Second order exapansion for shear modulus
    *
@@ -177,20 +148,18 @@ class BM2 : public BM3{
    *
    * @return Shear modulus in [Pa].
    */
-  static double compute_second_order_shear_modulus(
-    double volume,
-    const types::MineralParams& params);
+  static double
+  compute_second_order_shear_modulus(double volume,
+                                     const types::MineralParams &params);
 
   /**
    * @copydoc EquationOfState::compute_shear_modulus
    *
    * @note Second order expansion
    */
-  double compute_shear_modulus(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double
+  compute_shear_modulus(double pressure, double temperature, double volume,
+                        const types::MineralParams &params) const override;
 };
 
 } // namespace eos

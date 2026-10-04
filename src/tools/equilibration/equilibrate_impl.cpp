@@ -8,42 +8,38 @@
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
 #include "burnman/tools/equilibration/equilibrate_impl.hpp"
+#include "burnman/core/solution.hpp"
+#include "burnman/optim/roots/damped_newton_solver.hpp"
+#include "burnman/optim/roots/damped_newton_types.hpp"
+#include "burnman/tools/equilibration/equality_constraint_variants.hpp"
+#include "burnman/tools/equilibration/equilibrate_lambda_bounds.hpp"
+#include "burnman/tools/equilibration/equilibrate_objective.hpp"
+#include "burnman/tools/equilibration/equilibrate_utils.hpp"
+#include "burnman/utils/types/ndarray.hpp"
 #include <cmath>
 #include <cstddef>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 #include <utility>
-#include "burnman/utils/types/ndarray.hpp"
-#include "burnman/core/solution.hpp"
-#include "burnman/optim/roots/damped_newton_types.hpp"
-#include "burnman/optim/roots/damped_newton_solver.hpp"
-#include "burnman/tools/equilibration/equality_constraint_variants.hpp"
-#include "burnman/tools/equilibration/equilibrate_lambda_bounds.hpp"
-#include "burnman/tools/equilibration/equilibrate_utils.hpp"
-#include "burnman/tools/equilibration/equilibrate_objective.hpp"
 
 namespace burnman::equilibration {
 
-EquilibrateResult equilibrate(
-  const types::FormulaMap& composition,
-  Assemblage& assemblage,
-  const ConstraintList& equality_constraints,
-  const std::vector<FreeVectorMap>& free_compositional_vectors,
-  double tol,
-  bool store_iterates,
-  bool store_assemblage ,
-  int max_iterations,
-  bool verbose
-) {
+EquilibrateResult
+equilibrate(const types::FormulaMap &composition, Assemblage &assemblage,
+            const ConstraintList &equality_constraints,
+            const std::vector<FreeVectorMap> &free_compositional_vectors,
+            double tol, bool store_iterates, bool store_assemblage,
+            int max_iterations, bool verbose) {
   // Check compositions of solutions set
   // TODO:: could implement a has_composition() for convenience here
-  for (std::size_t i = 0; i < static_cast<std::size_t>(assemblage.get_n_phases()); ++i) {
-    if (const auto& ph = assemblage.get_phase<Solution>(i)) {
+  for (std::size_t i = 0;
+       i < static_cast<std::size_t>(assemblage.get_n_phases()); ++i) {
+    if (const auto &ph = assemblage.get_phase<Solution>(i)) {
       if (!ph->get_molar_fractions().size()) {
-        throw std::runtime_error(
-          "Set composition for solution " + ph->get_name() + " before running equilibrate!"
-        );
+        throw std::runtime_error("Set composition for solution " +
+                                 ph->get_name() +
+                                 " before running equilibrate!");
       }
     }
   }
@@ -52,43 +48,44 @@ EquilibrateResult equilibrate(
   std::size_t n_free_compositional_vectors = free_compositional_vectors.size();
   if (n_equality_constraints != n_free_compositional_vectors + 2) {
     throw std::runtime_error(
-      "The number of equality constraints (" + std::to_string(n_equality_constraints)
-      + ") must be two more than the number of free_compositional_vectors ("
-      + std::to_string(n_free_compositional_vectors) + ")."
-    );
+        "The number of equality constraints (" +
+        std::to_string(n_equality_constraints) +
+        ") must be two more than the number of free_compositional_vectors (" +
+        std::to_string(n_free_compositional_vectors) + ").");
   }
   // Check free_compositional_vectors values sum to zero
-  for (auto const& vec : free_compositional_vectors) {
+  for (auto const &vec : free_compositional_vectors) {
     double sum = 0;
-    for (const auto& pair : vec) {
+    for (const auto &pair : vec) {
       sum += pair.second;
     }
     if (std::abs(sum) > constants::precision::abs_tolerance) {
       throw std::runtime_error(
-        "The amounts of each free_compositional_vector must sum to zero");
+          "The amounts of each free_compositional_vector must sum to zero");
     }
   }
 
   // Set default assemblage molar_fractions if none
   if (!assemblage.get_molar_fractions().size()) {
     Eigen::Index n_phases = assemblage.get_n_phases();
-    Eigen::ArrayXd f = Eigen::ArrayXd::Constant(n_phases, 1.0 / static_cast<double>(n_phases));
+    Eigen::ArrayXd f =
+        Eigen::ArrayXd::Constant(n_phases, 1.0 / static_cast<double>(n_phases));
     assemblage.set_fractions(f);
   }
   // Set n_moles
   double comp_sum = 0;
-  for (const auto& pair : composition) {
+  for (const auto &pair : composition) {
     comp_sum += pair.second;
   }
   double form_sum = 0;
-  for (const auto& pair : assemblage.get_formula()) {
+  for (const auto &pair : assemblage.get_formula()) {
     form_sum += pair.second;
   }
   assemblage.set_n_moles(comp_sum / form_sum);
 
   // Make parameters
   EquilibrationParameters prm = get_equilibration_parameters(
-    assemblage, composition, free_compositional_vectors);
+      assemblage, composition, free_compositional_vectors);
 
   // Set default state if none
   double initial_pressure = 5.0e9;
@@ -99,13 +96,15 @@ EquilibrateResult equilibrate(
     initial_temperature = assemblage.get_temperature();
   }
   // Overwrite with state from constraints if applicable
-  for (const ConstraintGroup& c_group : equality_constraints) {
-    const auto& constraint = c_group[0];
-    if (auto P_c = dynamic_cast<PressureConstraint*>(constraint.get())) {
+  for (const ConstraintGroup &c_group : equality_constraints) {
+    const auto &constraint = c_group[0];
+    if (auto P_c = dynamic_cast<PressureConstraint *>(constraint.get())) {
       initial_pressure = P_c->get_value();
-    } else if (auto T_c = dynamic_cast<TemperatureConstraint*>(constraint.get())) {
+    } else if (auto T_c =
+                   dynamic_cast<TemperatureConstraint *>(constraint.get())) {
       initial_temperature = T_c->get_value();
-    } else if (auto PTE_c = dynamic_cast<PTEllipseConstraint*>(constraint.get())) {
+    } else if (auto PTE_c =
+                   dynamic_cast<PTEllipseConstraint *>(constraint.get())) {
       Eigen::Vector2d value = PTE_c->get_scaling();
       initial_pressure = value(0);
       initial_temperature = value(1);
@@ -115,12 +114,13 @@ EquilibrateResult equilibrate(
   assemblage.set_state(initial_pressure, initial_temperature);
 
   // Get parameter vector (x)
-  Eigen::VectorXd parameter_vector = get_parameter_vector(assemblage, static_cast<int>(n_free_compositional_vectors));
+  Eigen::VectorXd parameter_vector = get_parameter_vector(
+      assemblage, static_cast<int>(n_free_compositional_vectors));
 
   // Set up solves constraint indices from ConstraintList
   std::vector<std::size_t> grid_shape;
   grid_shape.reserve(n_equality_constraints);
-  for (const ConstraintGroup& c_group : equality_constraints) {
+  for (const ConstraintGroup &c_group : equality_constraints) {
     grid_shape.push_back(c_group.size());
   }
   // Store strides for mapping back to grid_index
@@ -135,9 +135,9 @@ EquilibrateResult equilibrate(
   solver_settings.tol = tol;
   std::vector<int> embr_per_phase = assemblage.get_endmembers_per_phase();
   solver_settings.lambda_bounds_func =
-    [embr_per_phase](const Eigen::VectorXd& dx, const Eigen::VectorXd& x) {
-      return lambda_bounds_func(dx, x, embr_per_phase);
-    };
+      [embr_per_phase](const Eigen::VectorXd &dx, const Eigen::VectorXd &x) {
+        return lambda_bounds_func(dx, x, embr_per_phase);
+      };
   // Make solver object
   optim::roots::DampedNewtonSolver solver(solver_settings);
 
@@ -145,49 +145,45 @@ EquilibrateResult equilibrate(
   std::size_t n_problems = sol_array.size();
   for (std::size_t problem_idx = 0; problem_idx < n_problems; ++problem_idx) {
     // Get constraints idx and build current constraints
-    std::vector<std::size_t> constraint_indices = utils::map_index(problem_idx, strides);
+    std::vector<std::size_t> constraint_indices =
+        utils::map_index(problem_idx, strides);
     ConstraintGroup problem_constraints;
     problem_constraints.reserve(n_equality_constraints);
     for (std::size_t i = 0; i < n_equality_constraints; ++i) {
       // Clone constraints to have independent instances
-      // Could also use .get() and use raw pointers (need to modify F, J arg types)
+      // Could also use .get() and use raw pointers (need to modify F, J arg
+      // types)
       problem_constraints.emplace_back(
-        equality_constraints[i][constraint_indices[i]]->clone());
+          equality_constraints[i][constraint_indices[i]]->clone());
     }
 
     // Note - mutates assemblage object (might need to clone before)
     optim::roots::DampedNewtonResult sol = solver.solve(
-      parameter_vector,
-      [&](const Eigen::VectorXd& x) {
-        return F(
-          x,
-          assemblage,
-          problem_constraints,
-          prm.reduced_composition_vector,
-          prm.reduced_free_composition_vectors);
-      },
-      [&](const Eigen::VectorXd& x) {
-        return J(
-          x,
-          assemblage,
-          problem_constraints,
-          prm.reduced_free_composition_vectors);
-      },
-      {prm.constraint_matrix, prm.constraint_vector}
-    );
+        parameter_vector,
+        [&](const Eigen::VectorXd &x) {
+          return F(x, assemblage, problem_constraints,
+                   prm.reduced_composition_vector,
+                   prm.reduced_free_composition_vectors);
+        },
+        [&](const Eigen::VectorXd &x) {
+          return J(x, assemblage, problem_constraints,
+                   prm.reduced_free_composition_vectors);
+        },
+        {prm.constraint_matrix, prm.constraint_vector});
 
     double maxres = 0.0;
     if (sol.success && assemblage.get_reaction_affinities().size() > 0) {
-      maxres = assemblage.get_reaction_affinities().cwiseAbs().maxCoeff() + 1.0e-5;
+      maxres =
+          assemblage.get_reaction_affinities().cwiseAbs().maxCoeff() + 1.0e-5;
       assemblage.set_equilibrium_tolerance(maxres);
     }
-    // TODO: can't store assemblage as not separate object for each problem in loop
-    // Need to implement clone (might work) - see below
+    // TODO: can't store assemblage as not separate object for each problem in
+    // loop Need to implement clone (might work) - see below
     if (store_assemblage) {
       // TODO!
       // Clone with? sol.assemblage = assemblage.clone();
-      // Or better, make a new clone at start of each loop, need to be careful with
-      // lifetime as clone should return a pointer.
+      // Or better, make a new clone at start of each loop, need to be careful
+      // with lifetime as clone should return a pointer.
       ;
       // TODO: Maybe set equilibrium tolerance only here and not above?
     }
@@ -201,13 +197,13 @@ EquilibrateResult equilibrate(
 
     if (problem_idx < n_problems - 1) {
       // Get next set of constraints
-      std::vector<std::size_t> next_c_idx = utils::map_index(
-        problem_idx + 1, strides);
+      std::vector<std::size_t> next_c_idx =
+          utils::map_index(problem_idx + 1, strides);
       ConstraintGroup next_constraints;
       next_constraints.reserve(n_equality_constraints);
       for (std::size_t i = 0; i < n_equality_constraints; ++i) {
         next_constraints.emplace_back(
-          equality_constraints[i][next_c_idx[i]]->clone());
+            equality_constraints[i][next_c_idx[i]]->clone());
       }
       // Get neighbouring indices in grid
       std::vector<std::size_t> prev_indices;
@@ -220,21 +216,18 @@ EquilibrateResult equilibrate(
       }
       bool updated_params = false;
       for (std::size_t idx : prev_indices) {
-        const optim::roots::DampedNewtonResult& s = sol_array(idx);
+        const optim::roots::DampedNewtonResult &s = sol_array(idx);
         if (s.success && !updated_params) {
           // Next guess based on a Newton step using
           // the old solution vector and Jacobian with new constraints
-          Eigen::VectorXd dF = F(
-            s.x,
-            assemblage,
-            next_constraints,
-            prm.reduced_composition_vector,
-            prm.reduced_free_composition_vectors
-          );
+          Eigen::VectorXd dF = F(s.x, assemblage, next_constraints,
+                                 prm.reduced_composition_vector,
+                                 prm.reduced_free_composition_vectors);
           Eigen::PartialPivLU<Eigen::MatrixXd> luJ(s.J);
           Eigen::VectorXd new_parameters = s.x + luJ.solve(-dF);
           // Check constraints are satisfied
-          Eigen::VectorXd c = prm.constraint_matrix * new_parameters + prm.constraint_vector;
+          Eigen::VectorXd c =
+              prm.constraint_matrix * new_parameters + prm.constraint_vector;
           if ((c.array() <= 0.0).all()) {
             // Constraints satisfied - accept new guess
             parameter_vector = new_parameters;
@@ -243,19 +236,19 @@ EquilibrateResult equilibrate(
             parameter_vector = s.x;
             if (verbose) {
               std::vector<std::string> exhausted_phases;
-              Eigen::ArrayXd phase_amounts = new_parameters(prm.phase_amount_indices);
+              Eigen::ArrayXd phase_amounts =
+                  new_parameters(prm.phase_amount_indices);
               for (Eigen::Index i = 0; i < phase_amounts.size(); ++i) {
                 if (phase_amounts(i) < 0.0) {
                   // TODO: update to Eigen::Index
                   exhausted_phases.push_back(
-                    assemblage.get_phase(i)->get_name()
-                  );
+                      assemblage.get_phase(i)->get_name());
                 }
               }
               if (!exhausted_phases.empty()) {
                 std::string ex_p_message =
-                  "A phase might be exhausted before the next step: [";
-                for (const std::string& name : exhausted_phases) {
+                    "A phase might be exhausted before the next step: [";
+                for (const std::string &name : exhausted_phases) {
                   ex_p_message += name + " ";
                 }
                 ex_p_message += "]";
@@ -275,7 +268,8 @@ EquilibrateResult equilibrate(
   return result;
 }
 
-// TODO: if we want to store assemblages like in the python then they need to be copyable:
+// TODO: if we want to store assemblages like in the python then they need to be
+// copyable:
 //       maybe possible with clones?
 //       Material:
 //         virtual std::shared_ptr<Material> clone() const = 0;
@@ -306,6 +300,7 @@ EquilibrateResult equilibrate(
 //           }
 //           return copy;
 //         }
-//       Then: std::shared_ptr<Assemblage> copy = std::dynamic_pointer_cast<Assemblage>(assemblage.clone());
+//       Then: std::shared_ptr<Assemblage> copy =
+//       std::dynamic_pointer_cast<Assemblage>(assemblage.clone());
 
 } // namespace burnman::equilibration

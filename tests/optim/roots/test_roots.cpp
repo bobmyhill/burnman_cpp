@@ -7,27 +7,27 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include "burnman/optim/roots/bracket.hpp"
 #include "burnman/optim/roots/brent.hpp"
 #include "tolerances.hpp"
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 using namespace Catch::Matchers;
 using namespace burnman;
 using namespace optim::roots;
 
 // Simple test function
-double test_function(double x, void*) {
-    return x * x - 4; // Roots at x = -2 and x = 2
+double test_function(double x, void *) {
+  return x * x - 4; // Roots at x = -2 and x = 2
 }
 
 // Simple test function with parameter(s)
 struct test_params {
   double y;
 };
-double test_function_with_p(double x, void* p) {
-  auto* params = static_cast<const test_params*>(p);
+double test_function_with_p(double x, void *p) {
+  auto *params = static_cast<const test_params *>(p);
   return x * x - (4.0 + 10.0 * params->y);
 }
 
@@ -92,7 +92,8 @@ TEST_CASE("Test bracket_root", "[optim][roots]") {
   SECTION("Test invalid bracket") {
     double x_lo = 10.0;
     double x_hi = 11.0;
-    REQUIRE_FALSE(bracket_root(&test_function, nullptr, x_lo, x_hi, 0.1, 1.0, 10));
+    REQUIRE_FALSE(
+        bracket_root(&test_function, nullptr, x_lo, x_hi, 0.1, 1.0, 10));
   }
   SECTION("Test root at edge") {
     double x_lo = 2.0;
@@ -110,11 +111,13 @@ TEST_CASE("Test bracket_root", "[optim][roots]") {
     double x_hi = 3.5;
     SECTION("With root in interval") {
       test_params p_with_root{0.0};
-      REQUIRE(bracket_root(&test_function_with_p, p_with_root, x_lo, x_hi, 0.1));  
+      REQUIRE(
+          bracket_root(&test_function_with_p, p_with_root, x_lo, x_hi, 0.1));
     }
     SECTION("With no root in interval") {
       test_params p_no_root{20.0}; // No root in 100 iterations with dx = 0.1
-      REQUIRE_FALSE(bracket_root(&test_function_with_p, p_no_root, x_lo, x_hi, 0.1));
+      REQUIRE_FALSE(
+          bracket_root(&test_function_with_p, p_no_root, x_lo, x_hi, 0.1));
     }
   }
 }

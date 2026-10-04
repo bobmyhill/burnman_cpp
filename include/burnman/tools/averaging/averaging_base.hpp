@@ -26,8 +26,7 @@ namespace averaging {
  */
 class AveragingScheme {
 
- public:
-
+public:
   virtual ~AveragingScheme() = default;
 
   // Moduli averages need to be implemented in subclasses.
@@ -38,10 +37,10 @@ class AveragingScheme {
    * @param shear_moduli Shear moduli of each phase in [Pa].
    * @return Average bulk modulus, K, in [Pa].
    */
-  virtual double average_bulk_moduli(
-    const Eigen::ArrayXd& volumes,
-    const Eigen::ArrayXd& bulk_moduli,
-    const Eigen::ArrayXd& shear_moduli) const = 0;
+  virtual double
+  average_bulk_moduli(const Eigen::ArrayXd &volumes,
+                      const Eigen::ArrayXd &bulk_moduli,
+                      const Eigen::ArrayXd &shear_moduli) const = 0;
 
   /**
    * @brief Average shear modulus, `G', for a composite.
@@ -50,10 +49,10 @@ class AveragingScheme {
    * @param shear_moduli Shear moduli of each phase in [Pa].
    * @return Average shear modulus, G, in [Pa].
    */
-  virtual double average_shear_moduli(
-    const Eigen::ArrayXd& volumes,
-    const Eigen::ArrayXd& bulk_moduli,
-    const Eigen::ArrayXd& shear_moduli) const = 0;
+  virtual double
+  average_shear_moduli(const Eigen::ArrayXd &volumes,
+                       const Eigen::ArrayXd &bulk_moduli,
+                       const Eigen::ArrayXd &shear_moduli) const = 0;
 
   // Common default implementations
   /**
@@ -64,20 +63,19 @@ class AveragingScheme {
    * @param volumes Volumes of each phase in [m^3].
    * @param densities Densities of each phase in [kg/m^3].
    * @return \f$ \rho \f$ in [kg/m^3].
-    */
-  virtual double average_density(
-    const Eigen::ArrayXd& volumes,
-    const Eigen::ArrayXd& densities) const;
+   */
+  virtual double average_density(const Eigen::ArrayXd &volumes,
+                                 const Eigen::ArrayXd &densities) const;
 
   /**
    * @brief Average thermal expansion coefficient of a composite.
    * @param volumes Volumes of each phase in [m^3].
    * @param alphas Thermal expansivity of each phase in [1/K].
    * @return \f$ \alpha \f$ in [1/K].
-    */
-  virtual double average_thermal_expansivity(
-    const Eigen::ArrayXd& volumes,
-    const Eigen::ArrayXd& alphas) const;
+   */
+  virtual double
+  average_thermal_expansivity(const Eigen::ArrayXd &volumes,
+                              const Eigen::ArrayXd &alphas) const;
 
   // TODO: currently redunant as C_v and C_p identical
   /**
@@ -89,20 +87,17 @@ class AveragingScheme {
    * @param c_v Heat capacities at constant volume of each phase in [J/K/mol].
    * @return Average C_v in [J/K/mol].
     */
-  virtual double average_heat_capacity_v(
-    const Eigen::ArrayXd& fractions,
-    const Eigen::ArrayXd& c_v) const;
+  virtual double average_heat_capacity_v(const Eigen::ArrayXd &fractions,
+                                         const Eigen::ArrayXd &c_v) const;
 
   /**
    * @brief Average C_p of a composite.
    * @param fractions Molar fractions of each phase.
    * @param c_p Heat capacities at constant volume of each phase in [J/K/mol].
    * @return Average C_p in [J/K/mol].
-    */
-  virtual double average_heat_capacity_p(
-    const Eigen::ArrayXd& fractions,
-    const Eigen::ArrayXd& c_p) const;
-
+   */
+  virtual double average_heat_capacity_p(const Eigen::ArrayXd &fractions,
+                                         const Eigen::ArrayXd &c_p) const;
 };
 
 } // namespace averaging

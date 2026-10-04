@@ -4,30 +4,83 @@ import statistics
 import csv
 import burnman as bm
 
+
 def make_mineral_benchmarks(test_mineral):
     return {
         "reset_cache": lambda: (test_mineral.reset(), 0)[1],
-        "get_molar_volume": lambda: (test_mineral.reset(), test_mineral.molar_volume)[1],
+        "get_molar_volume": lambda: (test_mineral.reset(), test_mineral.molar_volume)[
+            1
+        ],
         "get_density": lambda: (test_mineral.reset(), test_mineral.density)[1],
-        "get_molar_internal_energy": lambda: (test_mineral.reset(), test_mineral.molar_internal_energy)[1],
+        "get_molar_internal_energy": lambda: (
+            test_mineral.reset(),
+            test_mineral.molar_internal_energy,
+        )[1],
         "get_molar_gibbs": lambda: (test_mineral.reset(), test_mineral.molar_gibbs)[1],
-        "get_molar_helmholtz": lambda: (test_mineral.reset(), test_mineral.molar_helmholtz)[1],
-        "get_molar_entropy": lambda: (test_mineral.reset(), test_mineral.molar_entropy)[1],
-        "get_molar_enthalpy": lambda: (test_mineral.reset(), test_mineral.molar_enthalpy)[1],
-        "get_isothermal_bulk_modulus_reuss": lambda: (test_mineral.reset(), test_mineral.isothermal_bulk_modulus_reuss)[1],
-        "get_isentropic_bulk_modulus_reuss": lambda: (test_mineral.reset(), test_mineral.isentropic_bulk_modulus_reuss)[1],
-        "get_isothermal_compressibility_reuss": lambda: (test_mineral.reset(), test_mineral.isothermal_compressibility_reuss)[1],
-        "get_isentropic_compressibility_reuss": lambda: (test_mineral.reset(), test_mineral.isentropic_compressibility_reuss)[1],
-        "get_shear_modulus": lambda: (test_mineral.reset(), test_mineral.shear_modulus)[1],
-        "get_grueneisen_parameter": lambda: (test_mineral.reset(), test_mineral.grueneisen_parameter)[1],
-        "get_thermal_expansivity": lambda: (test_mineral.reset(), test_mineral.thermal_expansivity)[1],
-        "get_molar_heat_capacity_v": lambda: (test_mineral.reset(), test_mineral.molar_heat_capacity_v)[1],
-        "get_molar_heat_capacity_p": lambda: (test_mineral.reset(), test_mineral.molar_heat_capacity_p)[1],
-        "get_isentropic_thermal_gradient": lambda: (test_mineral.reset(), test_mineral.isentropic_thermal_gradient)[1],
-        "get_p_wave_velocity": lambda: (test_mineral.reset(), test_mineral.p_wave_velocity)[1],
-        "get_bulk_sound_velocity": lambda: (test_mineral.reset(), test_mineral.bulk_sound_velocity)[1],
-        "get_shear_wave_velocity": lambda: (test_mineral.reset(), test_mineral.shear_wave_velocity)[1],
+        "get_molar_helmholtz": lambda: (
+            test_mineral.reset(),
+            test_mineral.molar_helmholtz,
+        )[1],
+        "get_molar_entropy": lambda: (test_mineral.reset(), test_mineral.molar_entropy)[
+            1
+        ],
+        "get_molar_enthalpy": lambda: (
+            test_mineral.reset(),
+            test_mineral.molar_enthalpy,
+        )[1],
+        "get_isothermal_bulk_modulus_reuss": lambda: (
+            test_mineral.reset(),
+            test_mineral.isothermal_bulk_modulus_reuss,
+        )[1],
+        "get_isentropic_bulk_modulus_reuss": lambda: (
+            test_mineral.reset(),
+            test_mineral.isentropic_bulk_modulus_reuss,
+        )[1],
+        "get_isothermal_compressibility_reuss": lambda: (
+            test_mineral.reset(),
+            test_mineral.isothermal_compressibility_reuss,
+        )[1],
+        "get_isentropic_compressibility_reuss": lambda: (
+            test_mineral.reset(),
+            test_mineral.isentropic_compressibility_reuss,
+        )[1],
+        "get_shear_modulus": lambda: (test_mineral.reset(), test_mineral.shear_modulus)[
+            1
+        ],
+        "get_grueneisen_parameter": lambda: (
+            test_mineral.reset(),
+            test_mineral.grueneisen_parameter,
+        )[1],
+        "get_thermal_expansivity": lambda: (
+            test_mineral.reset(),
+            test_mineral.thermal_expansivity,
+        )[1],
+        "get_molar_heat_capacity_v": lambda: (
+            test_mineral.reset(),
+            test_mineral.molar_heat_capacity_v,
+        )[1],
+        "get_molar_heat_capacity_p": lambda: (
+            test_mineral.reset(),
+            test_mineral.molar_heat_capacity_p,
+        )[1],
+        "get_isentropic_thermal_gradient": lambda: (
+            test_mineral.reset(),
+            test_mineral.isentropic_thermal_gradient,
+        )[1],
+        "get_p_wave_velocity": lambda: (
+            test_mineral.reset(),
+            test_mineral.p_wave_velocity,
+        )[1],
+        "get_bulk_sound_velocity": lambda: (
+            test_mineral.reset(),
+            test_mineral.bulk_sound_velocity,
+        )[1],
+        "get_shear_wave_velocity": lambda: (
+            test_mineral.reset(),
+            test_mineral.shear_wave_velocity,
+        )[1],
     }
+
 
 def run_benchmarks(test_mineral, repeat=5, number=100):
     results = {}
@@ -40,66 +93,67 @@ def run_benchmarks(test_mineral, repeat=5, number=100):
         results[name] = (mean_ns, stdev_ns)
     return results
 
+
 def mineral_property_benchmarks():
     # Mineral per property benchmarks
-    eos_type = 'mgd3'
+    eos_type = "mgd3"
     # Make params
     params = {}
     # Set-up common mineral params
-    params['T_0'] = 300.0
-    params['P_0'] = 0.0
-    params['E_0'] = 0.0
-    params['F_0'] = 0.0
-    params['H_0'] = -1443030.0
-    params['V_0'] = 11.24e-6
-    params['K_0'] = 161.0e9
-    params['Kprime_0'] = 3.8
-    params['Kdprime_0'] = -1.6e-11
-    params['G_0'] = 131.0e9
-    params['Gprime_0'] = 2.1
-    params['molar_mass'] = 0.0403
-    params['n'] = 2
-    params['Debye_0'] = 773.0
-    params['grueneisen_0'] = 1.5
-    params['q_0'] = 1.5
-    params['Cp'] = [149.3, 0.002918, -2983000.0, -799.1]
-    params['S_0'] = 62.6
-    params['a_0'] = 1.87e-05
-    params['eta_s_0'] = 2.565
-    params['bel_0'] = 0.00411
-    params['gel'] = 1.476
+    params["T_0"] = 300.0
+    params["P_0"] = 0.0
+    params["E_0"] = 0.0
+    params["F_0"] = 0.0
+    params["H_0"] = -1443030.0
+    params["V_0"] = 11.24e-6
+    params["K_0"] = 161.0e9
+    params["Kprime_0"] = 3.8
+    params["Kdprime_0"] = -1.6e-11
+    params["G_0"] = 131.0e9
+    params["Gprime_0"] = 2.1
+    params["molar_mass"] = 0.0403
+    params["n"] = 2
+    params["Debye_0"] = 773.0
+    params["grueneisen_0"] = 1.5
+    params["q_0"] = 1.5
+    params["Cp"] = [149.3, 0.002918, -2983000.0, -799.1]
+    params["S_0"] = 62.6
+    params["a_0"] = 1.87e-05
+    params["eta_s_0"] = 2.565
+    params["bel_0"] = 0.00411
+    params["gel"] = 1.476
 
     eos_tags = [
-        'mt',
-        'vinet',
-        'bm2',
-        'bm3',
-        'mgd2',
-        'mgd3',
-        'slb2',
-        'slb3',
-        'slb3-conductive',
-        'hp_tmt'
+        "mt",
+        "vinet",
+        "bm2",
+        "bm3",
+        "mgd2",
+        "mgd3",
+        "slb2",
+        "slb3",
+        "slb3-conductive",
+        "hp_tmt",
     ]
 
     eos_map = {
-        'mt': 'MT',
-        'vinet': 'Vinet',
-        'bm2': 'BM2',
-        'bm3': 'BM3',
-        'mgd2': 'MGD2',
-        'mgd3': 'MGD3',
-        'slb2': 'SLB2',
-        'slb3': 'SLB3',
-        'slb3-conductive': 'SLB3Conductive',
-        'hp_tmt': 'HPTMT'
+        "mt": "MT",
+        "vinet": "Vinet",
+        "bm2": "BM2",
+        "bm3": "BM3",
+        "mgd2": "MGD2",
+        "mgd3": "MGD3",
+        "slb2": "SLB2",
+        "slb3": "SLB3",
+        "slb3-conductive": "SLB3Conductive",
+        "hp_tmt": "HPTMT",
     }
 
     all_results = {}
     for eos in eos_tags:
         print(f"Running benchmarks for {eos}")
         p = params.copy()
-        p['equation_of_state'] = eos
+        p["equation_of_state"] = eos
         mineral = bm.Mineral(params=p)
         mineral.set_state(55.0e9, 1000.0)
         eos_results = run_benchmarks(mineral)
@@ -120,6 +174,7 @@ def mineral_property_benchmarks():
             row = [bench_name] + [vals.get(col, "") for col in columns[1:]]
             writer.writerow(row)
 
+
 def clear_attrib(obj):
     obj.reset()
     cached_props = [
@@ -137,7 +192,7 @@ def clear_attrib(obj):
         "endmembers_per_phase",
         "elements",
         "n_endmembers",
-        "n_elements"
+        "n_elements",
     ]
     for prop in cached_props:
         obj.__dict__.pop(prop, None)
@@ -150,12 +205,14 @@ def clear_attrib(obj):
         for em in endmembers:
             em[0].reset()
 
+
 def time_func(func, number=5, repeat=10000):
     timings = timeit.repeat(func, number=number, repeat=repeat)
     timings_ns = [t / number * 1e9 for t in timings]
     mean_ns = statistics.mean(timings_ns)
     stdev_ns = statistics.stdev(timings_ns) if len(timings_ns) > 1 else 0.0
     return mean_ns, stdev_ns
+
 
 def assemblage_benchmarks():
     # MgPv
@@ -174,7 +231,7 @@ def assemblage_benchmarks():
     p_mgpv["grueneisen_0"] = 1.57
     p_mgpv["q_0"] = 1.1
     p_mgpv["eta_s_0"] = 2.3
-    p_mgpv["equation_of_state"] = 'slb3'
+    p_mgpv["equation_of_state"] = "slb3"
     mgpv = bm.Mineral(params=p_mgpv)
 
     # FePv
@@ -193,7 +250,7 @@ def assemblage_benchmarks():
     p_fepv["grueneisen_0"] = 1.57
     p_fepv["q_0"] = 1.1
     p_fepv["eta_s_0"] = 2.3
-    p_fepv["equation_of_state"] = 'slb3'
+    p_fepv["equation_of_state"] = "slb3"
     fepv = bm.Mineral(params=p_fepv)
 
     # AlPv
@@ -212,7 +269,7 @@ def assemblage_benchmarks():
     p_alpv["grueneisen_0"] = 1.57
     p_alpv["q_0"] = 1.1
     p_alpv["eta_s_0"] = 2.5
-    p_alpv["equation_of_state"] = 'slb3'
+    p_alpv["equation_of_state"] = "slb3"
     alpv = bm.Mineral(params=p_alpv)
 
     # Periclase
@@ -231,7 +288,7 @@ def assemblage_benchmarks():
     p_per["grueneisen_0"] = 1.36127
     p_per["q_0"] = 1.7217
     p_per["eta_s_0"] = 2.81765
-    p_per["equation_of_state"] = 'slb3'
+    p_per["equation_of_state"] = "slb3"
     per = bm.Mineral(params=p_per)
 
     # Wuestite
@@ -250,8 +307,8 @@ def assemblage_benchmarks():
     p_wue["grueneisen_0"] = 1.53047
     p_wue["q_0"] = 1.7217
     p_wue["eta_s_0"] = -0.05731
-    p_wue["equation_of_state"] = 'slb3'
-    pm_wue = [['linear', {'delta_V': 1.0, 'delta_S': 2.0, 'delta_E': 3.0}]]
+    p_wue["equation_of_state"] = "slb3"
+    pm_wue = [["linear", {"delta_V": 1.0, "delta_S": 2.0, "delta_E": 3.0}]]
     wue = bm.Mineral(params=p_wue, property_modifiers=pm_wue)
 
     # CaPv
@@ -270,36 +327,33 @@ def assemblage_benchmarks():
     p_capv["grueneisen_0"] = 1.88839
     p_capv["q_0"] = 0.89769
     p_capv["eta_s_0"] = 1.28818
-    p_capv["equation_of_state"] = 'slb3'
+    p_capv["equation_of_state"] = "slb3"
     capv = bm.Mineral(params=p_capv)
 
     # Bridgmanite Solution
-    bdg_endmembers = [
-    [mgpv, "[Mg][Si]O3"],
-    [fepv, "[Fe][Si]O3"],
-    [alpv, "[Al][Al]O3"]]
+    bdg_endmembers = [[mgpv, "[Mg][Si]O3"], [fepv, "[Fe][Si]O3"], [alpv, "[Al][Al]O3"]]
     bdg_sol = bm.classes.solutionmodel.IdealSolution(endmembers=bdg_endmembers)
     bdg = bm.Solution(solution_model=bdg_sol, molar_fractions=[0.88, 0.07, 0.05])
     bdg.name = "Bridgmanite"
 
     # Ferropericlase Solution
-    fp_endmembers = [
-    [per, "[Mg]O"],
-    [wue, "[Fe]O"]]
-    fp_sol = bm.classes.solutionmodel.SymmetricRegularSolution(endmembers=fp_endmembers, energy_interaction=[[13.0e3]])
+    fp_endmembers = [[per, "[Mg]O"], [wue, "[Fe]O"]]
+    fp_sol = bm.classes.solutionmodel.SymmetricRegularSolution(
+        endmembers=fp_endmembers, energy_interaction=[[13.0e3]]
+    )
     fp = bm.Solution(solution_model=fp_sol, molar_fractions=[0.9, 0.1])
     fp.name = "Ferropericlase"
 
     # Make assemblage
     # Bdg + Fp + CaPv
     pyr = bm.Composite(
-    [bdg, fp, capv],
-    fractions=[0.7, 0.2, 0.1],
-    fraction_type="molar",
-    name="bdg + fp + capv"
+        [bdg, fp, capv],
+        fractions=[0.7, 0.2, 0.1],
+        fraction_type="molar",
+        name="bdg + fp + capv",
     )
 
-    pyr.set_state(50.e9,2000.0)
+    pyr.set_state(50.0e9, 2000.0)
 
     benchmarks = {
         "get_formula": "formula",
@@ -333,35 +387,41 @@ def assemblage_benchmarks():
         "get_grueneisen_parameter": "grueneisen_parameter",
         "get_thermal_expansivity": "thermal_expansivity",
         "get_molar_heat_capacity_v": "molar_heat_capacity_v",
-        "get_molar_heat_capacity_p": "molar_heat_capacity_p"
+        "get_molar_heat_capacity_p": "molar_heat_capacity_p",
     }
 
     def reset_assemblage_benchmark():
-        #clear_attrib(pyr)
+        # clear_attrib(pyr)
         pyr.reset()
         return 0
 
     def set_state_assemblage_benchmark():
-        #clear_attrib(pyr)
+        # clear_attrib(pyr)
         pyr.reset()
-        pyr.set_state(50.e9, 2000.0)
+        pyr.set_state(50.0e9, 2000.0)
         return 0
 
     results = []
     repeat = 5
     number = 100
     print("Running benchmark: reset_cache")
-    reset_mean, reset_std = time_func(reset_assemblage_benchmark, number=number, repeat=repeat)
-    results.append(('clear_computed_properties', reset_mean, reset_std))
+    reset_mean, reset_std = time_func(
+        reset_assemblage_benchmark, number=number, repeat=repeat
+    )
+    results.append(("clear_computed_properties", reset_mean, reset_std))
     print("Running benchmark: set_state")
-    set_state_mean, set_state_std = time_func(set_state_assemblage_benchmark, number=number, repeat=repeat)
-    results.append(('set_state', set_state_mean, set_state_std))
+    set_state_mean, set_state_std = time_func(
+        set_state_assemblage_benchmark, number=number, repeat=repeat
+    )
+    results.append(("set_state", set_state_mean, set_state_std))
     for col_name, method_name in benchmarks.items():
         print(f"Running benchmark: {col_name}")
+
         def wrapped():
-            #clear_attrib(pyr)
+            # clear_attrib(pyr)
             pyr.reset()
             return getattr(pyr, method_name)
+
         mean_ns, stdev_ns = time_func(wrapped, number=number, repeat=repeat)
         results.append((col_name, mean_ns, stdev_ns))
     with open("python_assemblage_benchmarks.csv", "w", newline="") as f:

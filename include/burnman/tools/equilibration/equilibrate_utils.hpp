@@ -10,14 +10,14 @@
 #ifndef BURNMAN_TOOLS_EQUILIBRATION_EQUILIBRATE_UTILS_HPP_INCLUDED
 #define BURNMAN_TOOLS_EQUILIBRATION_EQUILIBRATE_UTILS_HPP_INCLUDED
 
+#include "burnman/core/assemblage.hpp"
+#include "burnman/tools/equilibration/equilibrate_types.hpp"
+#include "burnman/utils/types/simple_types.hpp"
+#include <Eigen/Dense>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include <Eigen/Dense>
-#include "burnman/utils/types/simple_types.hpp"
-#include "burnman/tools/equilibration/equilibrate_types.hpp"
-#include "burnman/core/assemblage.hpp"
 
 namespace burnman {
 namespace equilibration {
@@ -31,12 +31,13 @@ namespace equilibration {
  * @return EquilibrationParameters object.
  */
 EquilibrationParameters get_equilibration_parameters(
-  const Assemblage& assemblage,
-  const types::FormulaMap& composition,
-  const std::vector<std::unordered_map<std::string, double>>& free_compositional_vectors);
+    const Assemblage &assemblage, const types::FormulaMap &composition,
+    const std::vector<std::unordered_map<std::string, double>>
+        &free_compositional_vectors);
 
 /**
- * @brief Calculates the linear inequality constraints bounding the valid parameter space for an assemblage.
+ * @brief Calculates the linear inequality constraints bounding the valid
+ * parameter space for an assemblage.
  *
  * The constraints are:
  *   - Pressure and temperature must be +ve.
@@ -48,11 +49,12 @@ EquilibrationParameters get_equilibration_parameters(
  * if A·x + b < eps.
  *
  * @param assemblage Target assemblage.
- * @param n_free_compositional_vectors Number of bulk compositional degrees of freedom.
+ * @param n_free_compositional_vectors Number of bulk compositional degrees of
+ * freedom.
  */
-std::pair<Eigen::MatrixXd, Eigen::VectorXd> calculate_constraints(
-  const Assemblage& assemblage,
-  int n_free_compositional_vectors);
+std::pair<Eigen::MatrixXd, Eigen::VectorXd>
+calculate_constraints(const Assemblage &assemblage,
+                      int n_free_compositional_vectors);
 
 /**
  * @brief Makes the starting parameter vector for equilibrium problem.
@@ -66,18 +68,17 @@ std::pair<Eigen::MatrixXd, Eigen::VectorXd> calculate_constraints(
  *       (i.e. missing the first endmember as they must sum to one).
  *
  * @param assemblage The target Assemblage object
- * @param n_free_compositional_vectors Number of bulk compositional degrees of freedom.
+ * @param n_free_compositional_vectors Number of bulk compositional degrees of
+ * freedom.
  * @return Parameter vector
  */
-Eigen::VectorXd get_parameter_vector(
-  const Assemblage& assemblage,
-  int n_free_compositional_vectors = 0);
+Eigen::VectorXd get_parameter_vector(const Assemblage &assemblage,
+                                     int n_free_compositional_vectors = 0);
 
 /**
  * @brief Returns the absolute amounts of all the endmembers in the solution.
  */
-Eigen::VectorXd get_endmember_amounts(
-  const Assemblage& assemblage);
+Eigen::VectorXd get_endmember_amounts(const Assemblage &assemblage);
 
 /**
  * @brief Sets state and composition of an Assemblage from parameter vector.
@@ -85,8 +86,7 @@ Eigen::VectorXd get_endmember_amounts(
  * Parameter vector contains P, T, X.
  */
 void set_composition_and_state_from_parameters(
-  Assemblage& assemblage,
-  const Eigen::VectorXd& parameters);
+    Assemblage &assemblage, const Eigen::VectorXd &parameters);
 
 } // namespace equilibration
 } // namespace burnman

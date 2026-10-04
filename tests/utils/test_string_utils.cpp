@@ -7,12 +7,12 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
+#include "burnman/utils/string_utils.hpp"
+#include "tolerances.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include "burnman/utils/string_utils.hpp"
 #include <string>
 #include <vector>
-#include "tolerances.hpp"
 
 using namespace burnman;
 

@@ -10,12 +10,12 @@
 #ifndef BURNMAN_CORE_SOLUTION_MODELS_BASE_HPP_INCLUDED
 #define BURNMAN_CORE_SOLUTION_MODELS_BASE_HPP_INCLUDED
 
+#include "burnman/core/mineral.hpp"
+#include "burnman/utils/types/simple_types.hpp"
+#include <Eigen/Dense>
 #include <map>
 #include <string>
 #include <vector>
-#include <Eigen/Dense>
-#include "burnman/utils/types/simple_types.hpp"
-#include "burnman/core/mineral.hpp"
 
 namespace burnman {
 namespace solution_models {
@@ -29,15 +29,14 @@ namespace solution_models {
  */
 class SolutionModel {
 
- public:
-
+public:
   // Using Mineral objects for now - must be instance not derived class!
   // For derived classes we need unique_ptr instead.
   std::vector<Mineral> endmembers;
   /// use endmembers.emplace_back( ) to add
 
   // Constructor
-  SolutionModel(const types::PairedEndmemberList& endmember_list);
+  SolutionModel(const types::PairedEndmemberList &endmember_list);
 
   virtual ~SolutionModel() = default;
 
@@ -60,47 +59,48 @@ class SolutionModel {
   /**
    * @brief Retrieve site occupancy matrix.
    */
-  const Eigen::ArrayXXd& get_site_multiplicities() const;
+  const Eigen::ArrayXXd &get_site_multiplicities() const;
 
   /**
    * @brief Retrieve solution model occupancy matrix.
    */
-  const Eigen::ArrayXXd& get_endmember_occupancies() const;
+  const Eigen::ArrayXXd &get_endmember_occupancies() const;
 
   /**
    * @brief Retrieve solution model total occupancy matrix.
    */
-  const Eigen::ArrayXXd& get_endmember_n_occupancies() const;
+  const Eigen::ArrayXXd &get_endmember_n_occupancies() const;
 
   /**
    * @brief Retrieve solution model site names.
    */
-  const std::vector<std::string>& get_site_names() const;
+  const std::vector<std::string> &get_site_names() const;
 
   /**
    * @brief Retrieve soluton formula with blank sites.
    */
-  const std::string& get_empty_formula() const;
+  const std::string &get_empty_formula() const;
 
   /**
    * @brief Retrieve generalised solution formula.
    */
-  const std::string& get_general_formula() const;
+  const std::string &get_general_formula() const;
 
   /**
    * @brief Retrieve endmember formulas.
    */
-  const std::vector<std::string>& get_formulas() const;
+  const std::vector<std::string> &get_formulas() const;
 
   /**
    * @brief Retrieve solution model sites list.
    */
-  const std::vector<std::vector<std::string>>& get_sites() const;
+  const std::vector<std::vector<std::string>> &get_sites() const;
 
   /**
    * @brief Retrieve solution site formulae
    */
-  const std::vector<std::map<std::string, double>>& get_solution_formulae() const;
+  const std::vector<std::map<std::string, double>> &
+  get_solution_formulae() const;
 
   // Public functions always using base class implementation
   /**
@@ -112,10 +112,9 @@ class SolutionModel {
    *
    * @returns Excess Gibbs free energy [J/mol].
    */
-  double compute_excess_gibbs_free_energy(
-    double pressure,
-    double temperature,
-    const Eigen::ArrayXd& molar_fractions) const;
+  double
+  compute_excess_gibbs_free_energy(double pressure, double temperature,
+                                   const Eigen::ArrayXd &molar_fractions) const;
 
   /**
    * @brief Compute the excess volume of the solution.
@@ -126,10 +125,8 @@ class SolutionModel {
    *
    * @returns Excess volume [m^3/mol].
    */
-  double compute_excess_volume(
-    double pressure,
-    double temperature,
-    const Eigen::ArrayXd& molar_fractions) const;
+  double compute_excess_volume(double pressure, double temperature,
+                               const Eigen::ArrayXd &molar_fractions) const;
 
   /**
    * @brief Compute the excess entropy of the solution.
@@ -140,10 +137,8 @@ class SolutionModel {
    *
    * @returns Excess entropy [J/K/mol].
    */
-  double compute_excess_entropy(
-    double pressure,
-    double temperature,
-    const Eigen::ArrayXd& molar_fractions) const;
+  double compute_excess_entropy(double pressure, double temperature,
+                                const Eigen::ArrayXd &molar_fractions) const;
 
   /**
    * @brief Compute the excess enthalpy of the solution.
@@ -154,10 +149,8 @@ class SolutionModel {
    *
    * @returns Excess enthalpy [J/mol].
    */
-  double compute_excess_enthalpy(
-    double pressure,
-    double temperature,
-    const Eigen::ArrayXd& molar_fractions) const;
+  double compute_excess_enthalpy(double pressure, double temperature,
+                                 const Eigen::ArrayXd &molar_fractions) const;
 
   // Functions should be made virtual and ovveriden if polynomial
   // solution model added. All three return 0 at present.
@@ -193,9 +186,8 @@ class SolutionModel {
    * @returns Excess partial Gibbs free energies [J/mol].
    */
   virtual Eigen::ArrayXd compute_excess_partial_gibbs_free_energies(
-    double pressure,
-    double temperature,
-    const Eigen::ArrayXd& molar_fractions) const = 0;
+      double pressure, double temperature,
+      const Eigen::ArrayXd &molar_fractions) const = 0;
 
   /**
    * @brief Compute the excess entropy for each endmember.
@@ -207,9 +199,8 @@ class SolutionModel {
    * @returns Excess partial entropies [J/K/mol].
    */
   virtual Eigen::ArrayXd compute_excess_partial_entropies(
-    double pressure,
-    double temperature,
-    const Eigen::ArrayXd& molar_fractions) const = 0;
+      double pressure, double temperature,
+      const Eigen::ArrayXd &molar_fractions) const = 0;
 
   /**
    * @brief Compute the excess partial volume for each endmember.
@@ -221,9 +212,8 @@ class SolutionModel {
    * @returns Excess partial volumes [m^3/mol].
    */
   virtual Eigen::ArrayXd compute_excess_partial_volumes(
-    double pressure,
-    double temperature,
-    const Eigen::ArrayXd& molar_fractions) const = 0;
+      double pressure, double temperature,
+      const Eigen::ArrayXd &molar_fractions) const = 0;
 
   /**
    * @brief Compute the activities of each endmember.
@@ -234,10 +224,9 @@ class SolutionModel {
    *
    * @returns Activities [dimensionless].
    */
-  virtual Eigen::ArrayXd compute_activities(
-    double pressure,
-    double temperature,
-    const Eigen::ArrayXd& molar_fractions) const = 0;
+  virtual Eigen::ArrayXd
+  compute_activities(double pressure, double temperature,
+                     const Eigen::ArrayXd &molar_fractions) const = 0;
 
   /**
    * @brief Compute the activity coefficients of the endmembers.
@@ -249,9 +238,8 @@ class SolutionModel {
    * @returns Activity coefficients [dimensionless].
    */
   virtual Eigen::ArrayXd compute_activity_coefficients(
-    double pressure,
-    double temperature,
-    const Eigen::ArrayXd& molar_fractions) const = 0;
+      double pressure, double temperature,
+      const Eigen::ArrayXd &molar_fractions) const = 0;
 
   /**
    * @brief Compute second compositional derivative of the Gibbs free energy.
@@ -262,10 +250,9 @@ class SolutionModel {
    *
    * @returns Hessian of the Gibbs free energy [J].
    */
-  virtual Eigen::MatrixXd compute_gibbs_hessian(
-    double pressure,
-    double temperature,
-    const Eigen::ArrayXd& molar_fractions) const = 0;
+  virtual Eigen::MatrixXd
+  compute_gibbs_hessian(double pressure, double temperature,
+                        const Eigen::ArrayXd &molar_fractions) const = 0;
 
   /**
    * @brief Compute second compositional derivative of the entropy.
@@ -276,10 +263,9 @@ class SolutionModel {
    *
    * @returns Hessian of the entropy [J/K].
    */
-  virtual Eigen::MatrixXd compute_entropy_hessian(
-    double pressure,
-    double temperature,
-    const Eigen::ArrayXd& molar_fractions) const = 0;
+  virtual Eigen::MatrixXd
+  compute_entropy_hessian(double pressure, double temperature,
+                          const Eigen::ArrayXd &molar_fractions) const = 0;
 
   /**
    * @brief Compute second compositional derivative of the volume.
@@ -290,20 +276,20 @@ class SolutionModel {
    *
    * @return Hessian of the partial volumes [m^3].
    */
-  virtual Eigen::MatrixXd compute_volume_hessian(
-    double pressure,
-    double temperature,
-    const Eigen::ArrayXd& molar_fractions) const = 0;
+  virtual Eigen::MatrixXd
+  compute_volume_hessian(double pressure, double temperature,
+                         const Eigen::ArrayXd &molar_fractions) const = 0;
 
- protected:
+protected:
   // Counts
-  // Using Eigen::Index (usually std::ptrdiff_t) - cast to size_t for STL containers
+  // Using Eigen::Index (usually std::ptrdiff_t) - cast to size_t for STL
+  // containers
   Eigen::Index n_endmembers;
   // Site multiplicity and occupancy matrices
   Eigen::ArrayXXd site_multiplicities;
   Eigen::ArrayXXd endmember_n_occupancies;
 
- private:
+private:
   // Counts
   Eigen::Index n_sites;
   Eigen::Index n_occupancies;
@@ -311,20 +297,23 @@ class SolutionModel {
   Eigen::ArrayXXd endmember_occupancies;
   // Chemical formula/site information and strings
   std::vector<std::string> formulas; // Endmember formulas
-  std::string empty_formula; // Formula stripped of site info
-  std::string general_formula; // Combined solution formula
-  std::vector<std::map<std::string, double>> solution_formulae; // Map of site chem for each em.
-  std::vector<std::string> site_names; // Generic site names
+  std::string empty_formula;         // Formula stripped of site info
+  std::string general_formula;       // Combined solution formula
+  std::vector<std::map<std::string, double>>
+      solution_formulae;                       // Map of site chem for each em.
+  std::vector<std::string> site_names;         // Generic site names
   std::vector<std::vector<std::string>> sites; // Species on equivalent sites
 
   /**
    * @brief Parses solution composition to set up site and occupancy data.
    *
-   * This function parses the list of endmember formulas provided in the constructor
-   * and constructs the site lists, occupancy, and multiplicity data required for
-   * the solution model. It also constructs generalised solution formulae for convenience.
+   * This function parses the list of endmember formulas provided in the
+   * constructor and constructs the site lists, occupancy, and multiplicity data
+   * required for the solution model. It also constructs generalised solution
+   * formulae for convenience.
    *
-   * @throws std::runtime_error if the number of sites is inconsistent between formulae.
+   * @throws std::runtime_error if the number of sites is inconsistent between
+   * formulae.
    *
    * @note Several class members are set by this function:
    * - `n_occupancies` — total number of distinct species across sites.
@@ -333,13 +322,15 @@ class SolutionModel {
    * - `sites` — species present on each site.
    * - `endmember_occupancies` — fractional occupancies for each endmember.
    * - `site_multiplicities` — site multiplicities for each endmember.
-   * - `endmember_n_occupancies` — total site occupancies for each endmember (occupancies * multiplicities).
-   * - `site_names` — Species specific site names (e.g. {"Mg_A", "Fe_A", "Al_B", "Mg_B", "Si_B"})
+   * - `endmember_n_occupancies` — total site occupancies for each endmember
+   * (occupancies * multiplicities).
+   * - `site_names` — Species specific site names (e.g. {"Mg_A", "Fe_A", "Al_B",
+   * "Mg_B", "Si_B"})
    * - `empty_formula` — generalised formula with empty sites [].
-   * - `general_formula` — generalised formula with all possible site species listed
+   * - `general_formula` — generalised formula with all possible site species
+   * listed
    */
   void process_solution_chemistry();
-
 };
 
 } // namespace solution_models

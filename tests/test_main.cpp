@@ -8,15 +8,13 @@
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
 #define CATCH_CONFIG_MAIN
-#include <catch2/catch_all.hpp>
 #include "burnman/utils/warnings.hpp"
+#include <catch2/catch_all.hpp>
 
 namespace {
-  // Helper struct to suppress warnings across tests
-  struct SuppressAllWarnings {
-    SuppressAllWarnings() {
-      burnman::utils::suppress_warnings = true;
-    }
-  };
-  SuppressAllWarnings suppress_warnings;
-}
+// Helper struct to suppress warnings across tests
+struct SuppressAllWarnings {
+  SuppressAllWarnings() { burnman::utils::suppress_warnings = true; }
+};
+SuppressAllWarnings suppress_warnings;
+} // namespace

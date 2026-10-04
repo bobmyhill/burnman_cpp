@@ -7,30 +7,23 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/benchmark/catch_benchmark.hpp>
-#include <catch2/generators/catch_generators.hpp>
 #include "burnman/core/mineral.hpp"
-#include "burnman/utils/types/simple_types.hpp"
 #include "burnman/utils/types/mineral_params.hpp"
+#include "burnman/utils/types/simple_types.hpp"
 #include "eos_names.hpp"
+#include <catch2/benchmark/catch_benchmark.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 using namespace burnman;
 
 TEST_CASE("Mineral per-property benchmarks", "[core][mineral][!benchmark]") {
   // Generate eos type from list of options
-  auto eos_type = GENERATE(
-    types::EOSType::MT,
-    types::EOSType::Vinet,
-    types::EOSType::BM2,
-    types::EOSType::BM3,
-    types::EOSType::MGD2,
-    types::EOSType::MGD3,
-    types::EOSType::SLB2,
-    types::EOSType::SLB3,
-    types::EOSType::SLB3Conductive,
-    types::EOSType::HPTMT
-  );
+  auto eos_type =
+      GENERATE(types::EOSType::MT, types::EOSType::Vinet, types::EOSType::BM2,
+               types::EOSType::BM3, types::EOSType::MGD2, types::EOSType::MGD3,
+               types::EOSType::SLB2, types::EOSType::SLB3,
+               types::EOSType::SLB3Conductive, types::EOSType::HPTMT);
   // Capture var and convert to string to add to benchmark names
   CAPTURE(eos_type);
   std::string eos_name = std::string(" [") + eos_string(eos_type) + "]";

@@ -7,13 +7,13 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
+#include "burnman/eos/vinet.hpp"
+#include "burnman/utils/types/mineral_params.hpp"
+#include "tolerances.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include "burnman/eos/vinet.hpp"
 #include <cmath>
-#include "burnman/utils/types/mineral_params.hpp"
-#include "tolerances.hpp"
 
 using namespace Catch::Matchers;
 using namespace burnman;
@@ -73,17 +73,20 @@ TEST_CASE("Check reference volume", "[vinet][eos]") {
   double V = *params.V_0;
   eos::Vinet vinet;
   CHECK_THAT(vinet.compute_isothermal_bulk_modulus_reuss(P, T, V, params),
-    WithinRel(*params.K_0, tol_rel) || WithinAbs(*params.K_0, tol_abs));
+             WithinRel(*params.K_0, tol_rel) ||
+                 WithinAbs(*params.K_0, tol_abs));
   CHECK_THAT(vinet.compute_isentropic_bulk_modulus_reuss(P, T, V, params),
-    WithinRel(*params.K_0, tol_rel) || WithinAbs(*params.K_0, tol_abs));
+             WithinRel(*params.K_0, tol_rel) ||
+                 WithinAbs(*params.K_0, tol_abs));
   CHECK_THAT(vinet.compute_molar_internal_energy(P, T, V, params),
-    WithinRel(0.0, tol_rel) || WithinAbs(0.0, tol_abs));
+             WithinRel(0.0, tol_rel) || WithinAbs(0.0, tol_abs));
   CHECK_THAT(vinet.compute_gibbs_free_energy(P, T, V, params),
-    WithinRel(P*V, tol_rel) || WithinAbs(P*V, tol_abs));
+             WithinRel(P * V, tol_rel) || WithinAbs(P * V, tol_abs));
   CHECK_THAT(vinet.compute_pressure(T, V, params),
-    WithinRel(*params.P_0, tol_rel) || WithinAbs(*params.P_0, tol_abs));
+             WithinRel(*params.P_0, tol_rel) ||
+                 WithinAbs(*params.P_0, tol_abs));
   CHECK_THAT(vinet.compute_volume(0.0, T, params),
-    WithinRel(V, tol_rel) || WithinAbs(V, tol_abs));
+             WithinRel(V, tol_rel) || WithinAbs(V, tol_abs));
 }
 
 TEST_CASE("Check hard-coded returns", "[vinet][eos]") {
@@ -149,33 +152,30 @@ TEST_CASE("Vinet python reference values", "[vinet][eos]") {
     double P = 0.0;
     double T = 300.0;
     auto test_data = GENERATE(
-      TestData{0.990, 1649261647.56626, 167226180887.78818, 91.947133283917},
-      TestData{0.98, 3379601215.972409, 173674689377.5619, 373.79147656404},
-      TestData{0.95, 9098123097.310312, 194449338236.78143, 2454.3925457405157},
-      TestData{0.80, 54289565597.9588, 341108449579.4405, 51271.223568070265},
-      TestData{0.40, 707279321477.4147, 1861104039241.4866, 1217258.7653399277}
-    );
+        TestData{0.990, 1649261647.56626, 167226180887.78818, 91.947133283917},
+        TestData{0.98, 3379601215.972409, 173674689377.5619, 373.79147656404},
+        TestData{0.95, 9098123097.310312, 194449338236.78143,
+                 2454.3925457405157},
+        TestData{0.80, 54289565597.9588, 341108449579.4405, 51271.223568070265},
+        TestData{0.40, 707279321477.4147, 1861104039241.4866,
+                 1217258.7653399277});
     CAPTURE(test_data.input);
-    CHECK_THAT(vinet.compute_pressure(
-        T, test_data.input*(*params_a.V_0), params_a
-      ),
-      WithinRel(test_data.expected_P, tol_rel) ||
-      WithinAbs(test_data.expected_P, tol_abs));
+    CHECK_THAT(
+        vinet.compute_pressure(T, test_data.input * (*params_a.V_0), params_a),
+        WithinRel(test_data.expected_P, tol_rel) ||
+            WithinAbs(test_data.expected_P, tol_abs));
     CHECK_THAT(vinet.compute_isothermal_bulk_modulus_reuss(
-        P, T, test_data.input*(*params_a.V_0), params_a
-      ),
-      WithinRel(test_data.expected_K, tol_rel) ||
-      WithinAbs(test_data.expected_K, tol_abs));
+                   P, T, test_data.input * (*params_a.V_0), params_a),
+               WithinRel(test_data.expected_K, tol_rel) ||
+                   WithinAbs(test_data.expected_K, tol_abs));
     CHECK_THAT(vinet.compute_isentropic_bulk_modulus_reuss(
-        P, T, test_data.input*(*params_a.V_0), params_a
-      ),
-      WithinRel(test_data.expected_K, tol_rel) ||
-      WithinAbs(test_data.expected_K, tol_abs));
+                   P, T, test_data.input * (*params_a.V_0), params_a),
+               WithinRel(test_data.expected_K, tol_rel) ||
+                   WithinAbs(test_data.expected_K, tol_abs));
     CHECK_THAT(vinet.compute_molar_internal_energy(
-        P, T, test_data.input*(*params_a.V_0), params_a
-      ),
-      WithinRel(test_data.expected_E, tol_rel) ||
-      WithinAbs(test_data.expected_E, tol_abs));
+                   P, T, test_data.input * (*params_a.V_0), params_a),
+               WithinRel(test_data.expected_E, tol_rel) ||
+                   WithinAbs(test_data.expected_E, tol_abs));
   }
   SECTION("Test volume dependent functions B") {
     eos::Vinet vinet;
@@ -183,33 +183,31 @@ TEST_CASE("Vinet python reference values", "[vinet][eos]") {
     double P = 20.e9;
     double T = 2000.0;
     auto test_data = GENERATE(
-      TestData{0.99, 1687167351.8287652, 172398018035.712, 56.33784395172695},
-      TestData{0.98, 3484975646.432192, 181824440103.00647, 230.2567007936093},
-      TestData{0.95, 9612287325.901537, 212903271610.8321, 1536.838065740325},
-      TestData{0.80, 65301548960.54173, 458188447601.4275, 35120.785814691655},
-      TestData{0.40, 1339419452737.9487, 4304135307666.401, 1175069.4080477764}
-    );
+        TestData{0.99, 1687167351.8287652, 172398018035.712, 56.33784395172695},
+        TestData{0.98, 3484975646.432192, 181824440103.00647,
+                 230.2567007936093},
+        TestData{0.95, 9612287325.901537, 212903271610.8321, 1536.838065740325},
+        TestData{0.80, 65301548960.54173, 458188447601.4275,
+                 35120.785814691655},
+        TestData{0.40, 1339419452737.9487, 4304135307666.401,
+                 1175069.4080477764});
     CAPTURE(test_data.input);
-    CHECK_THAT(vinet.compute_pressure(
-        T, test_data.input*(*params_b.V_0), params_b
-      ),
-      WithinRel(test_data.expected_P, tol_rel) ||
-      WithinAbs(test_data.expected_P, tol_abs));
+    CHECK_THAT(
+        vinet.compute_pressure(T, test_data.input * (*params_b.V_0), params_b),
+        WithinRel(test_data.expected_P, tol_rel) ||
+            WithinAbs(test_data.expected_P, tol_abs));
     CHECK_THAT(vinet.compute_isothermal_bulk_modulus_reuss(
-        P, T, test_data.input*(*params_b.V_0), params_b
-      ),
-      WithinRel(test_data.expected_K, tol_rel) ||
-      WithinAbs(test_data.expected_K, tol_abs));
+                   P, T, test_data.input * (*params_b.V_0), params_b),
+               WithinRel(test_data.expected_K, tol_rel) ||
+                   WithinAbs(test_data.expected_K, tol_abs));
     CHECK_THAT(vinet.compute_isentropic_bulk_modulus_reuss(
-        P, T, test_data.input*(*params_b.V_0), params_b
-      ),
-      WithinRel(test_data.expected_K, tol_rel) ||
-      WithinAbs(test_data.expected_K, tol_abs));
+                   P, T, test_data.input * (*params_b.V_0), params_b),
+               WithinRel(test_data.expected_K, tol_rel) ||
+                   WithinAbs(test_data.expected_K, tol_abs));
     CHECK_THAT(vinet.compute_molar_internal_energy(
-        P, T, test_data.input*(*params_b.V_0), params_b
-      ),
-      WithinRel(test_data.expected_E, tol_rel) ||
-      WithinAbs(test_data.expected_E, tol_abs));
+                   P, T, test_data.input * (*params_b.V_0), params_b),
+               WithinRel(test_data.expected_E, tol_rel) ||
+                   WithinAbs(test_data.expected_E, tol_abs));
   }
   SECTION("Test Gibbs") {
     eos::Vinet vinet;
@@ -227,13 +225,17 @@ TEST_CASE("Vinet python reference values", "[vinet][eos]") {
     double expected_G_ba = 536839.2235680703;
     double expected_G_bb = 386120.7858146917;
     CHECK_THAT(vinet.compute_gibbs_free_energy(P_aa, T, V_aa, params_a),
-      WithinRel(expected_G_aa, tol_rel) || WithinAbs(expected_G_aa, tol_abs));
+               WithinRel(expected_G_aa, tol_rel) ||
+                   WithinAbs(expected_G_aa, tol_abs));
     CHECK_THAT(vinet.compute_gibbs_free_energy(P_ab, T, V_ab, params_b),
-      WithinRel(expected_G_ab, tol_rel) || WithinAbs(expected_G_ab, tol_abs));
+               WithinRel(expected_G_ab, tol_rel) ||
+                   WithinAbs(expected_G_ab, tol_abs));
     CHECK_THAT(vinet.compute_gibbs_free_energy(P_ba, T, V_ba, params_a),
-      WithinRel(expected_G_ba, tol_rel) || WithinAbs(expected_G_ba, tol_abs));
+               WithinRel(expected_G_ba, tol_rel) ||
+                   WithinAbs(expected_G_ba, tol_abs));
     CHECK_THAT(vinet.compute_gibbs_free_energy(P_bb, T, V_bb, params_b),
-      WithinRel(expected_G_bb, tol_rel) || WithinAbs(expected_G_bb, tol_abs));
+               WithinRel(expected_G_bb, tol_rel) ||
+                   WithinAbs(expected_G_bb, tol_abs));
   }
   SECTION("Test volume") {
     eos::Vinet vinet;
@@ -243,8 +245,8 @@ TEST_CASE("Vinet python reference values", "[vinet][eos]") {
     double P_a = vinet.compute_pressure(T, V_a, params_a);
     double P_b = vinet.compute_pressure(T, V_b, params_b);
     CHECK_THAT(vinet.compute_volume(P_a, T, params_a),
-      WithinRel(V_a, tol_rel) || WithinAbs(V_a, tol_abs));
+               WithinRel(V_a, tol_rel) || WithinAbs(V_a, tol_abs));
     CHECK_THAT(vinet.compute_volume(P_b, T, params_b),
-      WithinRel(V_b, tol_rel) || WithinAbs(V_b, tol_abs));
+               WithinRel(V_b, tol_rel) || WithinAbs(V_b, tol_abs));
   }
 }

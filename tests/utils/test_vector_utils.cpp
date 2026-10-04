@@ -7,11 +7,11 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
-#include <catch2/catch_test_macros.hpp>
 #include "burnman/utils/vector_utils.hpp"
+#include "tolerances.hpp"
+#include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <vector>
-#include "tolerances.hpp"
 
 using namespace burnman;
 
@@ -54,8 +54,10 @@ TEST_CASE("flatten_index", "[utils][vector_utils]") {
   }
   SECTION("bad input") {
     std::vector<std::size_t> strides{4, 1};
-    REQUIRE_THROWS_AS(utils::flatten_index({0}, strides), std::invalid_argument);
-    REQUIRE_THROWS_AS(utils::flatten_index({0, 1, 2}, strides), std::invalid_argument);
+    REQUIRE_THROWS_AS(utils::flatten_index({0}, strides),
+                      std::invalid_argument);
+    REQUIRE_THROWS_AS(utils::flatten_index({0, 1, 2}, strides),
+                      std::invalid_argument);
   }
 }
 

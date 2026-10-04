@@ -14,25 +14,25 @@
 #include <string>
 
 namespace burnman {
-  namespace utils {
-    /**
-     * @brief Flag to suppress warnings across burnman.
-     */
-    inline bool suppress_warnings = false;
+namespace utils {
+/**
+ * @brief Flag to suppress warnings across burnman.
+ */
+inline bool suppress_warnings = false;
 
-    /**
-     * @brief Prints a warning message.
-     *
-     * @param message The warning message to print.
-     */
-    inline void warn(const std::string& message) {
-      // Simple implementation: print to std::cerr
-      // Could switch to a logging framework if needed
-      if (!suppress_warnings) {
-        std::cerr << "Warning: " << message << std::endl;
-      }
-    }
-  } // namespace utils
+/**
+ * @brief Prints a warning message.
+ *
+ * @param message The warning message to print.
+ */
+inline void warn(const std::string &message) {
+  // Simple implementation: print to std::cerr
+  // Could switch to a logging framework if needed
+  if (!suppress_warnings) {
+    std::cerr << "Warning: " << message << std::endl;
+  }
+}
+} // namespace utils
 } // namespace burnman
 
 #endif // BURNMAN_UTILS_WARNINGS_HPP_INCLUDED

@@ -7,17 +7,17 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
+#include "burnman/core/assemblage.hpp"
+#include "burnman/utils/types/simple_types.hpp"
+#include "solution_fixtures.hpp"
+#include "tolerances.hpp"
+#include <Eigen/Dense>
+#include <catch2/benchmark/catch_benchmark.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include <catch2/benchmark/catch_benchmark.hpp>
-#include "burnman/core/assemblage.hpp"
 #include <memory>
 #include <string>
 #include <vector>
-#include <Eigen/Dense>
-#include "burnman/utils/types/simple_types.hpp"
-#include "tolerances.hpp"
-#include "solution_fixtures.hpp"
 
 using namespace Catch::Matchers;
 using namespace burnman;
@@ -27,7 +27,8 @@ struct MultiMineralFixture {
   StishoviteFixture stish_fix;
 };
 
-TEST_CASE_METHOD(MultiMineralFixture, "Test assemblage creation", "[core][assemblage]") {
+TEST_CASE_METHOD(MultiMineralFixture, "Test assemblage creation",
+                 "[core][assemblage]") {
   // Make assemblage
   Assemblage rock;
 
@@ -41,7 +42,8 @@ TEST_CASE_METHOD(MultiMineralFixture, "Test assemblage creation", "[core][assemb
   REQUIRE_NOTHROW(rock.set_averaging_scheme(types::AveragingType::VRH));
 
   // Can't set fractions without phases
-  REQUIRE_THROWS(rock.set_fractions((Eigen::ArrayXd(2) << 0.6, 0.4).finished()));
+  REQUIRE_THROWS(
+      rock.set_fractions((Eigen::ArrayXd(2) << 0.6, 0.4).finished()));
 
   // Can add phases
   auto capv_ptr = std::make_shared<Mineral>(capv_fix.ca_perovskite);
@@ -51,20 +53,18 @@ TEST_CASE_METHOD(MultiMineralFixture, "Test assemblage creation", "[core][assemb
   REQUIRE(rock.get_phase(0) == capv_ptr);
   REQUIRE(rock.get_phase(1) == stish_ptr);
   // And set molar fractions
-  REQUIRE_NOTHROW(rock.set_fractions((Eigen::ArrayXd(2) << 0.6, 0.4).finished()));
+  REQUIRE_NOTHROW(
+      rock.set_fractions((Eigen::ArrayXd(2) << 0.6, 0.4).finished()));
   REQUIRE(rock.get_n_endmembers() == 2);
 
   // Check computed formula
-  types::FormulaMap expected_formula = {
-    {"Si", 1.0},
-    {"O", 2.6},
-    {"Ca", 0.6}
-  };
+  types::FormulaMap expected_formula = {{"Si", 1.0}, {"O", 2.6}, {"Ca", 0.6}};
   types::FormulaMap computed_formula = rock.get_formula();
   REQUIRE(computed_formula.size() == computed_formula.size());
-  for (const auto& [key, val] : computed_formula) {
+  for (const auto &[key, val] : computed_formula) {
     REQUIRE(expected_formula.find(key) != expected_formula.end());
-    REQUIRE_THAT(val, WithinAbs(expected_formula.at(key), tol_abs) || WithinRel(expected_formula.at(key), tol_rel));
+    REQUIRE_THAT(val, WithinAbs(expected_formula.at(key), tol_abs) ||
+                          WithinRel(expected_formula.at(key), tol_rel));
   }
 
   // Check state can be set
@@ -83,16 +83,7 @@ TEST_CASE_METHOD(MultiMineralFixture, "Test assemblage creation", "[core][assemb
 
   // Check endmember_formulae
   std::vector<types::FormulaMap> expected_formulae = {
-    {
-      {"Ca", 1.0},
-      {"Si", 1.0},
-      {"O", 3.0}
-    },
-    {
-      {"Si", 1.0},
-      {"O", 2.0}
-    }
-  };
+      {{"Ca", 1.0}, {"Si", 1.0}, {"O", 3.0}}, {{"Si", 1.0}, {"O", 2.0}}};
   REQUIRE(rock.get_endmember_formulae() == expected_formulae);
 
   // Test element list
@@ -101,21 +92,18 @@ TEST_CASE_METHOD(MultiMineralFixture, "Test assemblage creation", "[core][assemb
 
   // Test setting method for all phases
   REQUIRE_NOTHROW(rock.set_method(types::EOSType::Auto));
-
 }
 
-TEST_CASE_METHOD(BdgFperAssemblageFixture, "Test multi-solution assemblage", "[core][assemblage]") {
+TEST_CASE_METHOD(BdgFperAssemblageFixture, "Test multi-solution assemblage",
+                 "[core][assemblage]") {
   REQUIRE(assemblage.get_name() == "Bdg + Fper assemblage");
   REQUIRE(assemblage.get_n_endmembers() == 5);
   REQUIRE(assemblage.get_n_elements() == 5);
   REQUIRE(assemblage.get_endmembers_per_phase() == std::vector<int>{3, 2});
   std::vector<std::string> expected_names = {
-    "MgSiO3 perovskite in Bridgmanite",
-    "FeSiO3 perovskite in Bridgmanite",
-    "AlAlO3 perovskite in Bridgmanite",
-    "Periclase in Ferro-periclase",
-    "Wuestite in Ferro-periclase"
-  };
+      "MgSiO3 perovskite in Bridgmanite", "FeSiO3 perovskite in Bridgmanite",
+      "AlAlO3 perovskite in Bridgmanite", "Periclase in Ferro-periclase",
+      "Wuestite in Ferro-periclase"};
   REQUIRE(assemblage.get_endmember_names() == expected_names);
   REQUIRE_NOTHROW(assemblage.set_state(50.e9, 2000.0));
   // Confirm P, T set
@@ -127,59 +115,35 @@ TEST_CASE_METHOD(BdgFperAssemblageFixture, "Test multi-solution assemblage", "[c
   REQUIRE(assemblage.get_phase(1)->get_temperature() == 2000.0);
 }
 
-TEST_CASE_METHOD(PyroliteAssemblageFixture, "Test mixed phase type assemblage", "[core][assemblage]") {
+TEST_CASE_METHOD(PyroliteAssemblageFixture, "Test mixed phase type assemblage",
+                 "[core][assemblage]") {
   REQUIRE(assemblage.get_name() == "Bdg + Fper + CaPv assemblage");
   REQUIRE(assemblage.get_n_endmembers() == 6);
   REQUIRE(assemblage.get_endmembers_per_phase() == std::vector<int>{3, 2, 1});
   REQUIRE(assemblage.get_n_elements() == 6);
   REQUIRE_NOTHROW(assemblage.set_state(50.e9, 2000.0));
   std::vector<types::FormulaMap> expected_formulae = {
-    {
-      {"Mg", 1.0},
-      {"Si", 1.0},
-      {"O", 3.0}
-    },
-    {
-      {"Fe", 1.0},
-      {"Si", 1.0},
-      {"O", 3.0}
-    },
-    {
-      {"Al", 2.0},
-      {"O", 3.0}
-    },
-    {
-      {"Mg", 1.0},
-      {"O", 1.0}
-    },
-    {
-      {"Fe", 1.0},
-      {"O", 1.0}
-    },
-    {
-      {"Ca", 1.0},
-      {"Si", 1.0},
-      {"O", 3.0}
-    }
-  };
+      {{"Mg", 1.0}, {"Si", 1.0}, {"O", 3.0}},
+      {{"Fe", 1.0}, {"Si", 1.0}, {"O", 3.0}},
+      {{"Al", 2.0}, {"O", 3.0}},
+      {{"Mg", 1.0}, {"O", 1.0}},
+      {{"Fe", 1.0}, {"O", 1.0}},
+      {{"Ca", 1.0}, {"Si", 1.0}, {"O", 3.0}}};
   REQUIRE(assemblage.get_endmember_formulae() == expected_formulae);
-  types::FormulaMap expected_formula = {
-    {"Mg", 0.796},
-    {"Fe", 0.069},
-    {"Ca", 0.1},
-    {"Al", 0.07},
-    {"Si", 0.765},
-    {"O", 2.6}
-  };
+  types::FormulaMap expected_formula = {{"Mg", 0.796}, {"Fe", 0.069},
+                                        {"Ca", 0.1},   {"Al", 0.07},
+                                        {"Si", 0.765}, {"O", 2.6}};
   types::FormulaMap computed_formula = assemblage.get_formula();
   REQUIRE(computed_formula.size() == computed_formula.size());
-  for (const auto& [key, val] : computed_formula) {
+  for (const auto &[key, val] : computed_formula) {
     REQUIRE(expected_formula.find(key) != expected_formula.end());
-    REQUIRE_THAT(val, WithinAbs(expected_formula.at(key), tol_abs) || WithinRel(expected_formula.at(key), tol_rel));
+    REQUIRE_THAT(val, WithinAbs(expected_formula.at(key), tol_abs) ||
+                          WithinRel(expected_formula.at(key), tol_rel));
   }
 }
 
-TEST_CASE_METHOD(NestedAssemblageFixture, "Test nested assemblage", "[core][assemblage]") {
+TEST_CASE_METHOD(NestedAssemblageFixture, "Test nested assemblage",
+                 "[core][assemblage]") {
   REQUIRE(assemblage.get_name() == "Nested assemblage");
   REQUIRE(assemblage.get_n_endmembers() == 7);
   REQUIRE_NOTHROW(assemblage.set_state(50.e9, 2000.0));
@@ -189,10 +153,12 @@ TEST_CASE_METHOD(NestedAssemblageFixture, "Test nested assemblage", "[core][asse
   REQUIRE(assemblage.get_phase(0)->get_pressure() == 50.e9);
   REQUIRE(assemblage.get_phase(1)->get_pressure() == 50.e9);
   // Check get_phase works with cast
-  REQUIRE(assemblage.get_phase<Assemblage>(0)->get_phase(0)->get_pressure() == 50.e9);
+  REQUIRE(assemblage.get_phase<Assemblage>(0)->get_phase(0)->get_pressure() ==
+          50.e9);
 }
 
-TEST_CASE_METHOD(PyroliteAssemblageFixture, "Assemblage reference values", "[core][assemblage]") {
+TEST_CASE_METHOD(PyroliteAssemblageFixture, "Assemblage reference values",
+                 "[core][assemblage]") {
   assemblage.set_state(50.e9, 2000.0);
   assemblage.set_method(types::EOSType::Auto);
   // Assemblage functions
@@ -200,29 +166,18 @@ TEST_CASE_METHOD(PyroliteAssemblageFixture, "Assemblage reference values", "[cor
   Eigen::Index ref_n_elements = 6;
   Eigen::Index ref_n_reactions = 1;
   std::vector<std::string> ref_elements = {"Ca", "Mg", "Fe", "Al", "Si", "O"};
-  std::vector<Eigen::Index> ref_independent_element_indices = {0,1,2,3,4};
+  std::vector<Eigen::Index> ref_independent_element_indices = {0, 1, 2, 3, 4};
   std::vector<Eigen::Index> ref_dependent_element_indices = {5};
-  Eigen::MatrixXd ref_stoichiometric_matrix(6,6);
-  ref_stoichiometric_matrix <<
-    0, 1, 0, 0, 1, 3,
-    0, 0, 1, 0, 1, 3,
-    0, 0, 0, 2, 0, 3,
-    0, 1, 0, 0, 0, 1,
-    0, 0, 1, 0, 0, 1,
-    1, 0, 0, 0, 1, 3;
-  Eigen::MatrixXd ref_compositional_basis(5,6);
-  ref_compositional_basis <<
-    1., 0., 0., 0., 0., 0.,
-    0., 1., 0., 0., 0., 0.,
-    0., 0., 1., 0., 0., 0.,
-    0., 0., 0., 1., 0., 0.,
-    0., 0., 0., 0., 0., 1.;
-  Eigen::MatrixXd ref_compositional_null_basis(1,6);
-  ref_compositional_null_basis <<
-    -1.0, -1.0, -1.0, -1.5, -2.0, 1.0;
-  Eigen::MatrixXd ref_reaction_basis(1,6);
-  ref_reaction_basis <<
-    1.0, -1.0, 0, -1.0, 1.0, 0;
+  Eigen::MatrixXd ref_stoichiometric_matrix(6, 6);
+  ref_stoichiometric_matrix << 0, 1, 0, 0, 1, 3, 0, 0, 1, 0, 1, 3, 0, 0, 0, 2,
+      0, 3, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 1, 3;
+  Eigen::MatrixXd ref_compositional_basis(5, 6);
+  ref_compositional_basis << 1., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.,
+      0., 1., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 1.;
+  Eigen::MatrixXd ref_compositional_null_basis(1, 6);
+  ref_compositional_null_basis << -1.0, -1.0, -1.0, -1.5, -2.0, 1.0;
+  Eigen::MatrixXd ref_reaction_basis(1, 6);
+  ref_reaction_basis << 1.0, -1.0, 0, -1.0, 1.0, 0;
   // Material functions
   double ref_molar_internal_energy = -974191.8211164112;
   double ref_molar_gibbs = 999561205.8828137;
@@ -249,52 +204,76 @@ TEST_CASE_METHOD(PyroliteAssemblageFixture, "Assemblage reference values", "[cor
   CHECK(assemblage.get_n_elements() == ref_n_elements);
   CHECK(assemblage.get_n_reactions() == ref_n_reactions);
   CHECK(assemblage.get_elements() == ref_elements);
-  CHECK(assemblage.get_independent_element_indices() == ref_independent_element_indices);
-  CHECK(assemblage.get_dependent_element_indices() == ref_dependent_element_indices);
-  CHECK(assemblage.get_stoichiometric_matrix().isApprox(ref_stoichiometric_matrix, tol_rel));
-  CHECK(assemblage.get_compositional_basis().isApprox(ref_compositional_basis, tol_rel));
-  CHECK(assemblage.get_compositional_null_basis().isApprox(ref_compositional_null_basis, tol_rel));
+  CHECK(assemblage.get_independent_element_indices() ==
+        ref_independent_element_indices);
+  CHECK(assemblage.get_dependent_element_indices() ==
+        ref_dependent_element_indices);
+  CHECK(assemblage.get_stoichiometric_matrix().isApprox(
+      ref_stoichiometric_matrix, tol_rel));
+  CHECK(assemblage.get_compositional_basis().isApprox(ref_compositional_basis,
+                                                      tol_rel));
+  CHECK(assemblage.get_compositional_null_basis().isApprox(
+      ref_compositional_null_basis, tol_rel));
   CHECK(assemblage.get_reaction_basis().isApprox(ref_reaction_basis));
   CHECK_THAT(assemblage.get_molar_internal_energy(),
-    WithinRel(ref_molar_internal_energy, tol_rel) || WithinAbs(ref_molar_internal_energy, tol_abs));
+             WithinRel(ref_molar_internal_energy, tol_rel) ||
+                 WithinAbs(ref_molar_internal_energy, tol_abs));
   CHECK_THAT(assemblage.get_molar_gibbs(),
-    WithinRel(ref_molar_gibbs, tol_rel) || WithinAbs(ref_molar_gibbs, tol_abs));
+             WithinRel(ref_molar_gibbs, tol_rel) ||
+                 WithinAbs(ref_molar_gibbs, tol_abs));
   CHECK_THAT(assemblage.get_molar_helmholtz(),
-    WithinRel(ref_molar_helmholtz, tol_rel) || WithinAbs(ref_molar_helmholtz, tol_abs));
+             WithinRel(ref_molar_helmholtz, tol_rel) ||
+                 WithinAbs(ref_molar_helmholtz, tol_abs));
   CHECK_THAT(assemblage.get_molar_mass(),
-    WithinRel(ref_molar_mass, tol_rel) || WithinAbs(ref_molar_mass, tol_abs));
+             WithinRel(ref_molar_mass, tol_rel) ||
+                 WithinAbs(ref_molar_mass, tol_abs));
   CHECK_THAT(assemblage.get_molar_volume(),
-    WithinRel(ref_molar_volume, tol_rel) || WithinAbs(ref_molar_volume, tol_abs));
-  CHECK_THAT(assemblage.get_density(),
-    WithinRel(ref_density, tol_rel) || WithinAbs(ref_density, tol_abs));
+             WithinRel(ref_molar_volume, tol_rel) ||
+                 WithinAbs(ref_molar_volume, tol_abs));
+  CHECK_THAT(assemblage.get_density(), WithinRel(ref_density, tol_rel) ||
+                                           WithinAbs(ref_density, tol_abs));
   CHECK_THAT(assemblage.get_molar_entropy(),
-    WithinRel(ref_molar_entropy, tol_rel) || WithinAbs(ref_molar_entropy, tol_abs));
+             WithinRel(ref_molar_entropy, tol_rel) ||
+                 WithinAbs(ref_molar_entropy, tol_abs));
   CHECK_THAT(assemblage.get_molar_enthalpy(),
-    WithinRel(ref_molar_enthalpy, tol_rel) || WithinAbs(ref_molar_enthalpy, tol_abs));
+             WithinRel(ref_molar_enthalpy, tol_rel) ||
+                 WithinAbs(ref_molar_enthalpy, tol_abs));
   CHECK_THAT(assemblage.get_isothermal_bulk_modulus_reuss(),
-    WithinRel(ref_isothermal_bulk_modulus_reuss, tol_rel) || WithinAbs(ref_isothermal_bulk_modulus_reuss, tol_abs));
+             WithinRel(ref_isothermal_bulk_modulus_reuss, tol_rel) ||
+                 WithinAbs(ref_isothermal_bulk_modulus_reuss, tol_abs));
   CHECK_THAT(assemblage.get_isentropic_bulk_modulus_reuss(),
-    WithinRel(ref_isentropic_bulk_modulus_reuss, tol_rel) || WithinAbs(ref_isentropic_bulk_modulus_reuss, tol_abs));
+             WithinRel(ref_isentropic_bulk_modulus_reuss, tol_rel) ||
+                 WithinAbs(ref_isentropic_bulk_modulus_reuss, tol_abs));
   CHECK_THAT(assemblage.get_isothermal_compressibility_reuss(),
-    WithinRel(ref_isothermal_compressibility_reuss, tol_rel) || WithinAbs(ref_isothermal_compressibility_reuss, tol_abs));
+             WithinRel(ref_isothermal_compressibility_reuss, tol_rel) ||
+                 WithinAbs(ref_isothermal_compressibility_reuss, tol_abs));
   CHECK_THAT(assemblage.get_isentropic_compressibility_reuss(),
-    WithinRel(ref_isentropic_compressibility_reuss, tol_rel) || WithinAbs(ref_isentropic_compressibility_reuss, tol_abs));
+             WithinRel(ref_isentropic_compressibility_reuss, tol_rel) ||
+                 WithinAbs(ref_isentropic_compressibility_reuss, tol_abs));
   CHECK_THAT(assemblage.get_shear_modulus(),
-    WithinRel(ref_shear_modulus, tol_rel) || WithinAbs(ref_shear_modulus, tol_abs));
+             WithinRel(ref_shear_modulus, tol_rel) ||
+                 WithinAbs(ref_shear_modulus, tol_abs));
   CHECK_THAT(assemblage.get_p_wave_velocity(),
-    WithinRel(ref_p_wave_velocity, tol_rel) || WithinAbs(ref_p_wave_velocity, tol_abs));
+             WithinRel(ref_p_wave_velocity, tol_rel) ||
+                 WithinAbs(ref_p_wave_velocity, tol_abs));
   CHECK_THAT(assemblage.get_bulk_sound_velocity(),
-    WithinRel(ref_bulk_sound_velocity, tol_rel) || WithinAbs(ref_bulk_sound_velocity, tol_abs));
+             WithinRel(ref_bulk_sound_velocity, tol_rel) ||
+                 WithinAbs(ref_bulk_sound_velocity, tol_abs));
   CHECK_THAT(assemblage.get_shear_wave_velocity(),
-    WithinRel(ref_shear_wave_velocity, tol_rel) || WithinAbs(ref_shear_wave_velocity, tol_abs));
+             WithinRel(ref_shear_wave_velocity, tol_rel) ||
+                 WithinAbs(ref_shear_wave_velocity, tol_abs));
   CHECK_THAT(assemblage.get_grueneisen_parameter(),
-    WithinRel(ref_grueneisen_parameter, tol_rel) || WithinAbs(ref_grueneisen_parameter, tol_abs));
+             WithinRel(ref_grueneisen_parameter, tol_rel) ||
+                 WithinAbs(ref_grueneisen_parameter, tol_abs));
   CHECK_THAT(assemblage.get_thermal_expansivity(),
-    WithinRel(ref_thermal_expansivity, tol_rel) || WithinAbs(ref_thermal_expansivity, tol_abs));
+             WithinRel(ref_thermal_expansivity, tol_rel) ||
+                 WithinAbs(ref_thermal_expansivity, tol_abs));
   CHECK_THAT(assemblage.get_molar_heat_capacity_v(),
-    WithinRel(ref_molar_heat_capacity_v, tol_rel) || WithinAbs(ref_molar_heat_capacity_v, tol_abs));
+             WithinRel(ref_molar_heat_capacity_v, tol_rel) ||
+                 WithinAbs(ref_molar_heat_capacity_v, tol_abs));
   CHECK_THAT(assemblage.get_molar_heat_capacity_p(),
-    WithinRel(ref_molar_heat_capacity_p, tol_rel) || WithinAbs(ref_molar_heat_capacity_p, tol_abs));
+             WithinRel(ref_molar_heat_capacity_p, tol_rel) ||
+                 WithinAbs(ref_molar_heat_capacity_p, tol_abs));
 }
 
 // TODO:

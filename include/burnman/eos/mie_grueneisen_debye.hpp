@@ -10,8 +10,8 @@
 #ifndef BURNMAN_EOS_MIE_GRUENEISEN_DEBYE_HPP_INCLUDED
 #define BURNMAN_EOS_MIE_GRUENEISEN_DEBYE_HPP_INCLUDED
 
-#include "burnman/utils/types/mineral_params.hpp"
 #include "burnman/core/equation_of_state.hpp"
+#include "burnman/utils/types/mineral_params.hpp"
 
 namespace burnman {
 namespace eos {
@@ -31,11 +31,10 @@ namespace eos {
  *
  * @note All functions assume SI units for all properties.
  */
-class MGD3 : public EquationOfState{
- public:
-
+class MGD3 : public EquationOfState {
+public:
   // Helper functions
-  void validate_parameters(types::MineralParams& params) override;
+  void validate_parameters(types::MineralParams &params) override;
 
   // Specific EOS functions
   /**
@@ -43,26 +42,20 @@ class MGD3 : public EquationOfState{
    *
    * @note Matas et al. eq. B7.
    */
-  double compute_volume(
-    double pressure,
-    double temperature,
-    const types::MineralParams& params) const override;
+  double compute_volume(double pressure, double temperature,
+                        const types::MineralParams &params) const override;
 
   /**
    * @copydoc EquationOfState::compute_pressure
    *
    * @note Matas et al. eq. B7.
    */
-  double compute_pressure(
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double compute_pressure(double temperature, double volume,
+                          const types::MineralParams &params) const override;
 
   double compute_grueneisen_parameter(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   /**
    * @copydoc EquationOfState::compute_isothermal_bulk_modulus_reuss
@@ -70,10 +63,8 @@ class MGD3 : public EquationOfState{
    * @note Matas et al. eq. B8, B13.
    */
   double compute_isothermal_bulk_modulus_reuss(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   /**
    * @copydoc EquationOfState::compute_isentropic_bulk_modulus_reuss
@@ -81,72 +72,49 @@ class MGD3 : public EquationOfState{
    * @note Matas et al. eq. D6.
    */
   double compute_isentropic_bulk_modulus_reuss(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   /**
    * @copydoc EquationOfState::compute_shear_modulus
    *
    * @note Third order expansion, Matas et al. eq. B11.
    */
-  double compute_shear_modulus(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double
+  compute_shear_modulus(double pressure, double temperature, double volume,
+                        const types::MineralParams &params) const override;
 
   double compute_molar_heat_capacity_v(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   double compute_molar_heat_capacity_p(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   double compute_thermal_expansivity(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
-  double compute_gibbs_free_energy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double
+  compute_gibbs_free_energy(double pressure, double temperature, double volume,
+                            const types::MineralParams &params) const override;
 
-  double compute_entropy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double compute_entropy(double pressure, double temperature, double volume,
+                         const types::MineralParams &params) const override;
 
   double compute_molar_internal_energy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
   double compute_helmholtz_free_energy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
 
-  double compute_enthalpy(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double compute_enthalpy(double pressure, double temperature, double volume,
+                          const types::MineralParams &params) const override;
 
- protected:
-
+protected:
   /**
    * @brief Thermal correction to shear modulus
    *
@@ -156,12 +124,11 @@ class MGD3 : public EquationOfState{
    *
    * @return G_thermal [Pa].
    */
-  double compute_thermal_shear_modulus(
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const;
+  double
+  compute_thermal_shear_modulus(double temperature, double volume,
+                                const types::MineralParams &params) const;
 
- private:
+private:
   /**
    * @brief Compute the thermal correction to the bulk modulus.
    *
@@ -171,10 +138,8 @@ class MGD3 : public EquationOfState{
    *
    * @return K_th in [Pa].
    */
-  double compute_thermal_bulk_modulus(
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const;
+  double compute_thermal_bulk_modulus(double temperature, double volume,
+                                      const types::MineralParams &params) const;
 
   /**
    * @brief Computes the Grueneisen parameter.
@@ -186,9 +151,9 @@ class MGD3 : public EquationOfState{
    *
    * @return Grueneisen parameter [unitless].
    */
-  static double compute_mgd_grueneisen_parameter(
-    double x,
-    const types::MineralParams& params);
+  static double
+  compute_mgd_grueneisen_parameter(double x,
+                                   const types::MineralParams &params);
 
   /**
    * @brief Compute the Debye temperature.
@@ -200,9 +165,8 @@ class MGD3 : public EquationOfState{
    *
    * @return Debye temperature in [K].
    */
-  static double compute_debye_temperature(
-    double x,
-    const types::MineralParams& params);
+  static double compute_debye_temperature(double x,
+                                          const types::MineralParams &params);
 
   /**
    * @brief Compute the isotropic thermal pressure.
@@ -215,10 +179,8 @@ class MGD3 : public EquationOfState{
    *
    * @return Thermal pressure in [Pa].
    */
-  static double compute_thermal_pressure(
-    double temperature,
-    double volume,
-    const types::MineralParams& params);
+  static double compute_thermal_pressure(double temperature, double volume,
+                                         const types::MineralParams &params);
 
   /**
    * @brief GSL function wrapper to compute P(V) - P
@@ -227,10 +189,8 @@ class MGD3 : public EquationOfState{
    * @param p Generic pointer for parameter object
    * @see `eos::gsl_params::SolverParams_P`
    */
-  static double mgd_gsl_wrapper(double x, void* p);
-
+  static double mgd_gsl_wrapper(double x, void *p);
 };
-
 
 /**
  * @class MGD2
@@ -241,18 +201,16 @@ class MGD3 : public EquationOfState{
  *
  * @note All functions assume SI units for all properties.
  */
-class MGD2 : public MGD3{
- public:
+class MGD2 : public MGD3 {
+public:
   /**
    * @copydoc EquationOfState::compute_shear_modulus
    *
    * @note Second order expansion
    */
-  double compute_shear_modulus(
-    double pressure,
-    double temperature,
-    double volume,
-    const types::MineralParams& params) const override;
+  double
+  compute_shear_modulus(double pressure, double temperature, double volume,
+                        const types::MineralParams &params) const override;
 };
 
 } // namespace eos

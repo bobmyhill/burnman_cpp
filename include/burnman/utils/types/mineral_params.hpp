@@ -10,9 +10,9 @@
 #ifndef BURNMAN_UTILS_TYPES_MINERAL_PARAMS_HPP_INCLUDED
 #define BURNMAN_UTILS_TYPES_MINERAL_PARAMS_HPP_INCLUDED
 
+#include "burnman/utils/types/simple_types.hpp"
 #include <optional>
 #include <string>
-#include "burnman/utils/types/simple_types.hpp"
 
 namespace burnman {
 namespace types {
@@ -81,8 +81,10 @@ struct MineralParams {
   std::optional<double> dKdT_0;
   std::optional<double> m; // DKS free param
   std::optional<double> a; // DKS free param
-  std::optional<double> eta_s_0; // for shear strain derivative of grueneisen parameter (SLB, DKS)
-  std::optional<double> T_einstein; // Used for SLB --> can be calculated from S_0 and napfu
+  std::optional<double>
+      eta_s_0; // for shear strain derivative of grueneisen parameter (SLB, DKS)
+  std::optional<double>
+      T_einstein; // Used for SLB --> can be calculated from S_0 and napfu
 
   // Electronic parameters (SLB Conductive)
   std::optional<double> bel_0;

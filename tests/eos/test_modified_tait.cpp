@@ -7,15 +7,15 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
+#include "burnman/eos/modified_tait.hpp"
+#include "burnman/utils/types/mineral_params.hpp"
+#include "tolerances.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
 #include <map>
 #include <tuple>
-#include "burnman/utils/types/mineral_params.hpp"
-#include "burnman/eos/modified_tait.hpp"
-#include "tolerances.hpp"
 
 using namespace Catch::Matchers;
 using namespace burnman;
@@ -79,24 +79,20 @@ TEST_CASE("Tait constant", "[modified_tait][eos]") {
   SECTION("Kprime_0 zero behaviour") {
     params.Kprime_0 = 0;
     result = eos::MT::compute_tait_constants(params);
-    CHECK_THAT(result.b,
-      WithinRel(-*params.Kdprime_0, tol_rel) ||
-      WithinAbs(-*params.Kdprime_0, tol_abs));
+    CHECK_THAT(result.b, WithinRel(-*params.Kdprime_0, tol_rel) ||
+                             WithinAbs(-*params.Kdprime_0, tol_abs));
   }
   SECTION("Reference check") {
-    double ref_a = -625.0/180.0;
+    double ref_a = -625.0 / 180.0;
     double ref_b = 3.284472049689441e-11;
     double ref_c = -0.05446293494704991;
     result = eos::MT::compute_tait_constants(params);
     CHECK_THAT(result.a,
-      WithinRel(ref_a, tol_rel) ||
-      WithinAbs(ref_a, tol_abs));
+               WithinRel(ref_a, tol_rel) || WithinAbs(ref_a, tol_abs));
     CHECK_THAT(result.b,
-      WithinRel(ref_b, tol_rel) ||
-      WithinAbs(ref_b, tol_abs));
+               WithinRel(ref_b, tol_rel) || WithinAbs(ref_b, tol_abs));
     CHECK_THAT(result.c,
-      WithinRel(ref_c, tol_rel) ||
-      WithinAbs(ref_c, tol_abs));
+               WithinRel(ref_c, tol_rel) || WithinAbs(ref_c, tol_abs));
   }
 }
 
@@ -116,21 +112,24 @@ TEST_CASE("Check reference conditions", "[modified_tait][eos]") {
     auto T = GENERATE(300.0, 2000.0);
     double V = *params.V_0;
     CHECK_THAT(mt.compute_pressure(T, V, params),
-      WithinRel(*params.P_0, tol_rel) || WithinAbs(*params.P_0, tol_abs));
+               WithinRel(*params.P_0, tol_rel) ||
+                   WithinAbs(*params.P_0, tol_abs));
   }
   SECTION("Reference P") {
     auto P = *params.P_0;
     auto T = GENERATE(300.0, 2000.0);
-    auto V = GENERATE(11.24e-6, 11.24e-6*0.8, 11.24e-6*0.4);
+    auto V = GENERATE(11.24e-6, 11.24e-6 * 0.8, 11.24e-6 * 0.4);
     CHECK_THAT(mt.compute_isothermal_bulk_modulus_reuss(P, T, V, params),
-      WithinRel(*params.K_0, tol_rel) || WithinAbs(*params.K_0, tol_abs));
+               WithinRel(*params.K_0, tol_rel) ||
+                   WithinAbs(*params.K_0, tol_abs));
     CHECK_THAT(mt.compute_gibbs_free_energy(P, T, V, params),
-      WithinRel((*params.P_0)*(*params.V_0), tol_rel)
-        || WithinAbs((*params.P_0)*(*params.V_0), tol_abs));
+               WithinRel((*params.P_0) * (*params.V_0), tol_rel) ||
+                   WithinAbs((*params.P_0) * (*params.V_0), tol_abs));
     CHECK_THAT(mt.compute_volume(*params.P_0, T, params),
-      WithinRel(*params.V_0, tol_rel) || WithinAbs(*params.V_0, tol_abs));
+               WithinRel(*params.V_0, tol_rel) ||
+                   WithinAbs(*params.V_0, tol_abs));
     // K_S returns 1.0e99 in MT
-    //CHECK_THAT(mt.compute_isentropic_bulk_modulus_reuss(P, T, V, params),
+    // CHECK_THAT(mt.compute_isentropic_bulk_modulus_reuss(P, T, V, params),
     //  WithinRel(*params.K_0, tol_rel) || WithinAbs(*params.K_0, tol_abs));
   }
   SECTION("Reference P-V") {
@@ -138,7 +137,7 @@ TEST_CASE("Check reference conditions", "[modified_tait][eos]") {
     double P = *params.P_0;
     double V = *params.V_0;
     CHECK_THAT(mt.compute_molar_internal_energy(P, T, V, params),
-      WithinRel(0.0, tol_rel) || WithinAbs(0.0, tol_abs));
+               WithinRel(0.0, tol_rel) || WithinAbs(0.0, tol_abs));
   }
 }
 
@@ -183,17 +182,12 @@ TEST_CASE("MT python reference values", "[modified_tait][eos]") {
     };
     double T = 300.0;
     auto test_data = GENERATE(
-      TestData{0.99, 2575775494.857839},
-      TestData{0.98, 5287609064.26949},
-      TestData{0.95, 14317458932.430204},
-      TestData{0.80, 88532160429.76569},
-      TestData{0.40, 1157563719136.7415}
-    );
-    CHECK_THAT(mt.compute_pressure(
-        T, test_data.input*(*params.V_0), params
-      ),
-      WithinRel(test_data.expected_P, tol_rel) ||
-      WithinAbs(test_data.expected_P, tol_abs));
+        TestData{0.99, 2575775494.857839}, TestData{0.98, 5287609064.26949},
+        TestData{0.95, 14317458932.430204}, TestData{0.80, 88532160429.76569},
+        TestData{0.40, 1157563719136.7415});
+    CHECK_THAT(mt.compute_pressure(T, test_data.input * (*params.V_0), params),
+               WithinRel(test_data.expected_P, tol_rel) ||
+                   WithinAbs(test_data.expected_P, tol_abs));
   }
   SECTION("Test pressure dependent functions") {
     struct TestData {
@@ -204,24 +198,20 @@ TEST_CASE("MT python reference values", "[modified_tait][eos]") {
     // P & T unused
     double V = *params.V_0;
     double T = 300.0;
-    auto test_data = GENERATE(
-      TestData{0.0, 250999585999.92, -4.868470204755226e-07},
-      TestData{1.0e9, 255131637073.39673, 24401.633633392434},
-      TestData{5.5e9, 273535494608.45435, 133054.17058804224},
-      TestData{25.0e9, 350134349013.2772, 584996.0112561124},
-      TestData{125.0e9, 691061592418.0354, 2603347.111664467}
-    );
+    auto test_data =
+        GENERATE(TestData{0.0, 250999585999.92, -4.868470204755226e-07},
+                 TestData{1.0e9, 255131637073.39673, 24401.633633392434},
+                 TestData{5.5e9, 273535494608.45435, 133054.17058804224},
+                 TestData{25.0e9, 350134349013.2772, 584996.0112561124},
+                 TestData{125.0e9, 691061592418.0354, 2603347.111664467});
     CAPTURE(test_data.input);
-    CHECK_THAT(mt.compute_isothermal_bulk_modulus_reuss(
-        test_data.input, T, V, params
-      ),
-      WithinRel(test_data.expected_K, tol_rel) ||
-      WithinAbs(test_data.expected_K, tol_abs));
-    CHECK_THAT(mt.compute_gibbs_free_energy(
-        test_data.input, T, V, params
-      ),
-      WithinRel(test_data.expected_G, tol_rel) ||
-      WithinAbs(test_data.expected_G, tol_abs));
+    CHECK_THAT(
+        mt.compute_isothermal_bulk_modulus_reuss(test_data.input, T, V, params),
+        WithinRel(test_data.expected_K, tol_rel) ||
+            WithinAbs(test_data.expected_K, tol_abs));
+    CHECK_THAT(mt.compute_gibbs_free_energy(test_data.input, T, V, params),
+               WithinRel(test_data.expected_G, tol_rel) ||
+                   WithinAbs(test_data.expected_G, tol_abs));
   }
   SECTION("Test P-V depedent") {
     double T = 300.0;
@@ -229,16 +219,11 @@ TEST_CASE("MT python reference values", "[modified_tait][eos]") {
     double x1 = 0.99, x2 = 0.80, x3 = 0.40;
     // Reference data
     std::map<std::tuple<double, double>, double> ref_E = {
-      {{P1, x1}, 196.1336333924337},
-      {{P1, x2}, 4841.63363339243},
-      {{P1, x3}, 14621.633633392432},
-      {{P2, x1}, -20141.488743887632},
-      {{P2, x2}, 95996.01125611231},
-      {{P2, x3}, 340496.01125611237},
-      {{P3, x1}, -422340.388335533},
-      {{P3, x2}, 158347.11166446656},
-      {{P3, x3}, 1380847.1116644668}
-    };
+        {{P1, x1}, 196.1336333924337},  {{P1, x2}, 4841.63363339243},
+        {{P1, x3}, 14621.633633392432}, {{P2, x1}, -20141.488743887632},
+        {{P2, x2}, 95996.01125611231},  {{P2, x3}, 340496.01125611237},
+        {{P3, x1}, -422340.388335533},  {{P3, x2}, 158347.11166446656},
+        {{P3, x3}, 1380847.1116644668}};
     auto P = GENERATE(1.0e9, 25.0e9, 125.0e9);
     auto x = GENERATE(0.99, 0.8, 0.4);
     CAPTURE(P);
@@ -246,7 +231,8 @@ TEST_CASE("MT python reference values", "[modified_tait][eos]") {
     double V = *params.V_0 * x;
     auto key = std::make_tuple(P, x);
     CHECK_THAT(mt.compute_molar_internal_energy(P, T, V, params),
-      WithinRel(ref_E[key], tol_rel) || WithinAbs(ref_E[key], tol_abs));
+               WithinRel(ref_E[key], tol_rel) ||
+                   WithinAbs(ref_E[key], tol_abs));
   }
   SECTION("Test volume") {
     double T = 2000.0;
@@ -255,8 +241,8 @@ TEST_CASE("MT python reference values", "[modified_tait][eos]") {
     double P_a = mt.compute_pressure(T, V_a, params);
     double P_b = mt.compute_pressure(T, V_b, params);
     CHECK_THAT(mt.compute_volume(P_a, T, params),
-      WithinRel(V_a, tol_rel) || WithinAbs(V_a, tol_abs));
+               WithinRel(V_a, tol_rel) || WithinAbs(V_a, tol_abs));
     CHECK_THAT(mt.compute_volume(P_b, T, params),
-      WithinRel(V_b, tol_rel) || WithinAbs(V_b, tol_abs));
+               WithinRel(V_b, tol_rel) || WithinAbs(V_b, tol_abs));
   }
 }

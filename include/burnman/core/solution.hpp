@@ -10,18 +10,18 @@
 #ifndef BURNMAN_CORE_SOLUTION_HPP_INCLUDED
 #define BURNMAN_CORE_SOLUTION_HPP_INCLUDED
 
-#include <cstddef>
+#include "burnman/core/composite_material.hpp"
+#include "burnman/core/mineral.hpp"
+#include "burnman/core/solution_model.hpp"
+#include "burnman/utils/types/simple_types.hpp"
+#include <Eigen/Dense>
 #include <algorithm>
+#include <cstddef>
 #include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
 #include <vector>
-#include <Eigen/Dense>
-#include "burnman/utils/types/simple_types.hpp"
-#include "burnman/core/mineral.hpp"
-#include "burnman/core/solution_model.hpp"
-#include "burnman/core/composite_material.hpp"
 
 namespace burnman {
 
@@ -36,8 +36,8 @@ namespace burnman {
  * require set_composition().
  * Solution states require set_state().
  *
- * Uses an instance of `solution_models::SolutionModel' (or derived class) to calculate
- * interaction terms between endmembers.
+ * Uses an instance of `solution_models::SolutionModel' (or derived class) to
+ * calculate interaction terms between endmembers.
  *
  * All solution parameters and properties are in SI units.
  * e.g. Interaction parameters in J/mol, with T & P derivatives in J/K/mol
@@ -49,8 +49,7 @@ namespace burnman {
  */
 class Solution : public CompositeMaterial {
 
- public:
-
+public:
   virtual ~Solution() = default;
 
   // Override of reset_cache to include additional solution properties
@@ -75,14 +74,13 @@ class Solution : public CompositeMaterial {
    * @return properties Array of endmember properties.
    */
   template <typename Func>
-  Eigen::ArrayXd map_endmembers_to_array(Func&& func) const {
-    const auto& em_ref = solution_model->endmembers;
-    Eigen::ArrayXd mapped_properties(solution_model->get_n_endmembers()); // TODO: could use Solution::get_n_endmembers here
-    std::transform(
-      em_ref.begin(), em_ref.end(), mapped_properties.data(),
-      [&func](const auto& em) {
-        return (em.*func)();
-    });
+  Eigen::ArrayXd map_endmembers_to_array(Func &&func) const {
+    const auto &em_ref = solution_model->endmembers;
+    Eigen::ArrayXd mapped_properties(
+        solution_model->get_n_endmembers()); // TODO: could use
+                                             // Solution::get_n_endmembers here
+    std::transform(em_ref.begin(), em_ref.end(), mapped_properties.data(),
+                   [&func](const auto &em) { return (em.*func)(); });
     return mapped_properties;
   }
 
@@ -95,15 +93,14 @@ class Solution : public CompositeMaterial {
    * @return vector of endmember properties (of type T)
    */
   template <typename T, typename Func>
-  std::vector<T> map_endmembers_to_vector(Func&& func) const {
-    const auto& em_ref = solution_model->endmembers;
+  std::vector<T> map_endmembers_to_vector(Func &&func) const {
+    const auto &em_ref = solution_model->endmembers;
     std::vector<T> mapped_properties;
-    mapped_properties.reserve(static_cast<std::size_t>(solution_model->get_n_endmembers()));
-    std::transform(
-      em_ref.begin(), em_ref.end(), std::back_inserter(mapped_properties),
-      [&func](const auto& em) {
-        return (em.*func)();
-      });
+    mapped_properties.reserve(
+        static_cast<std::size_t>(solution_model->get_n_endmembers()));
+    std::transform(em_ref.begin(), em_ref.end(),
+                   std::back_inserter(mapped_properties),
+                   [&func](const auto &em) { return (em.*func)(); });
     return mapped_properties;
   }
 
@@ -118,7 +115,8 @@ class Solution : public CompositeMaterial {
    *
    * @param model Shared pointer to the solution model.
    */
-  void set_solution_model(std::shared_ptr<solution_models::SolutionModel> model);
+  void
+  set_solution_model(std::shared_ptr<solution_models::SolutionModel> model);
 
   /**
    * @brief Sets the molar amounts of each endmember.
@@ -128,7 +126,7 @@ class Solution : public CompositeMaterial {
    * @throws RuntimeError if sum(composition_vector) != 1.
    * @throws RuntimeError if length(composition_vector) != n_endmembers.
    */
-  void set_composition(const Eigen::ArrayXd& composition_vector);
+  void set_composition(const Eigen::ArrayXd &composition_vector);
 
   // Public getters for extra Solution functions
   /**
@@ -142,7 +140,8 @@ class Solution : public CompositeMaterial {
   Eigen::ArrayXXd get_endmember_occupancies() const;
 
   /**
-   * @brief Returns site occupancy matrix (absolute number of atoms) from solution model.
+   * @brief Returns site occupancy matrix (absolute number of atoms) from
+   * solution model.
    */
   Eigen::ArrayXXd get_endmember_n_occupancies() const;
 
@@ -224,7 +223,8 @@ class Solution : public CompositeMaterial {
   Eigen::ArrayXd get_activity_coefficients() const;
 
   /**
-   * @brief Retrieves the excess partial molar gibbs free energies of the solid solution.
+   * @brief Retrieves the excess partial molar gibbs free energies of the solid
+   * solution.
    *
    * Uses a cached value if available, or calls
    * `Solution::compute_excess_partial_gibbs()` and caches the result.
@@ -286,7 +286,8 @@ class Solution : public CompositeMaterial {
   Eigen::ArrayXd get_partial_entropies() const;
 
   /**
-   * @brief Retrieves the second compositional derivative of the Gibbs free energy.
+   * @brief Retrieves the second compositional derivative of the Gibbs free
+   * energy.
    *
    * Uses a cached value if available, or calls
    * `Solution::compute_gibbs_hessian()` and caches the result.
@@ -321,8 +322,7 @@ class Solution : public CompositeMaterial {
    */
   Eigen::MatrixXd get_volume_hessian() const;
 
- protected:
-
+protected:
   // Overrides of defaults from Material
   double compute_molar_internal_energy() const override;
   double compute_molar_gibbs() const override;
@@ -452,8 +452,7 @@ class Solution : public CompositeMaterial {
    */
   Eigen::MatrixXd compute_volume_hessian() const;
 
- private:
-
+private:
   // Molar fractions - not cached so not deleted by reset_cache()
   Eigen::ArrayXd molar_fractions;
 
@@ -479,7 +478,6 @@ class Solution : public CompositeMaterial {
   mutable std::optional<Eigen::MatrixXd> entropy_hessian;
   mutable std::optional<Eigen::MatrixXd> volume_hessian;
   // site_occupancies - Map?
-
 };
 
 } // namespace burnman
