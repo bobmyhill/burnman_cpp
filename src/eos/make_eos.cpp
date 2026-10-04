@@ -10,6 +10,7 @@
 #include "burnman/eos/make_eos.hpp"
 #include "burnman/eos/birch_murnaghan.hpp"
 #include "burnman/eos/hp.hpp"
+#include "burnman/eos/hp_liquid.hpp"
 #include "burnman/eos/mie_grueneisen_debye.hpp"
 #include "burnman/eos/modified_tait.hpp"
 #include "burnman/eos/slb.hpp"
@@ -39,6 +40,8 @@ std::shared_ptr<EquationOfState> make_eos(types::EOSType eos_type) {
     return std::make_shared<SLB3>();
   case types::EOSType::SLB3Conductive:
     return std::make_shared<SLB3Conductive>();
+  case types::EOSType::HPTMTL:
+    return std::make_shared<HP_TMTL>();
   case types::EOSType::HPTMT:
     return std::make_shared<HP_TMT>();
   default:
