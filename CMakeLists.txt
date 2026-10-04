@@ -28,6 +28,7 @@ if(BURNMAN_BUILD_PYTHON)
     python/bindings/module.cpp
     python/bindings/params.cpp
     python/bindings/materials.cpp
+    python/bindings/composition.cpp
     python/bindings/combined.cpp
     python/bindings/modifiers.cpp
     python/bindings/solutions.cpp

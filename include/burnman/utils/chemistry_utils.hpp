@@ -22,6 +22,17 @@
 namespace burnman {
 namespace utils {
 
+/** Parse an XnYm formula, including fractional and decimal atom counts.
+ * Reject malformed formulae and unknown elements. If requested, also return
+ * the elements in first-occurrence order.
+ */
+types::FormulaMap
+dictionarize_formula(const std::string &formula,
+                     std::vector<std::string> *element_order = nullptr);
+
+/// Molar mass in kg/mol, using the same atomic masses as Python BurnMan.
+double formula_mass(const types::FormulaMap &formula);
+
 /**
  * @brief Sorts an element list to IUPAC order.
  *

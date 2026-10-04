@@ -8,6 +8,7 @@ PYBIND11_MODULE(_core, m) {
       m, "NotImplementedError", PyExc_NotImplementedError);
   burnman::python::bind_params(m);
   burnman::python::bind_materials(m);
+  burnman::python::bind_composition(m);
   burnman::python::bind_combined(m);
   burnman::python::bind_solutions(m);
   burnman::python::bind_minerals(m);
