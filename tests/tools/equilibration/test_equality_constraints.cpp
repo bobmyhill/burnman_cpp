@@ -100,9 +100,20 @@ TEST_CASE_METHOD(PyroliteAssemblageFixture, "Assemblage based constraints",
     auto c = equilibration::make_constraint<equilibration::VolumeConstraint>(
         target_volume);
     REQUIRE(c->evaluate(x, assemblage) == 0);
-    deriv_ref << -1.01238991e-16, 2.00192406e-01, 2.14204549e-05,
-        6.72869416e-06, 3.44588368e-06, 1.00009341e-01, 2.00000226e+00,
-        2.37812313e-05;
+    deriv_ref << -1.01238991e-16, 0.0, 2.14204549e-05, 6.72869416e-06,
+        3.44588368e-06, 1.00009341e-01, 2.00000226e+00, 2.37812313e-05;
+    // Check the temperature derivative against the volume response.
+    const double pressure = assemblage.get_pressure();
+    const double temperature = assemblage.get_temperature();
+    const double dT = 0.1;
+    assemblage.set_state(pressure, temperature + dT);
+    const double volume_plus =
+        assemblage.get_molar_volume() * assemblage.get_n_moles();
+    assemblage.set_state(pressure, temperature - dT);
+    const double volume_minus =
+        assemblage.get_molar_volume() * assemblage.get_n_moles();
+    assemblage.set_state(pressure, temperature);
+    deriv_ref(1) = (volume_plus - volume_minus) / (2.0 * dT);
     // Relax tolerance, can make strict by using tol_rel instead
     REQUIRE(c->derivative(x, assemblage, x_size).isApprox(deriv_ref, 1.0e-9));
   }

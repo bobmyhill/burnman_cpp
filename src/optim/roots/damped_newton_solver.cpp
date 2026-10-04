@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -21,6 +22,14 @@ DampedNewtonResult DampedNewtonSolver::solve(
     const std::function<Eigen::VectorXd(const Eigen::VectorXd &)> &F_func,
     const std::function<Eigen::MatrixXd(const Eigen::VectorXd &)> &J_func,
     const LinearConstraints &linear_constraints) const {
+
+  if (settings.parameter_tolerances.size() &&
+      (settings.parameter_tolerances.size() != x0.size() ||
+       !settings.parameter_tolerances.allFinite() ||
+       (settings.parameter_tolerances.array() <= 0.0).any())) {
+    throw std::invalid_argument(
+        "Parameter tolerances must match x and be positive and finite.");
+  }
 
   // Make solution result and solver iteration state objects
   DampedNewtonResult sol;
@@ -114,10 +123,14 @@ void DampedNewtonSolver::update_lambda(DampedNewtonSolverState &state) const {
 
 bool DampedNewtonSolver::is_converged(
     const DampedNewtonSolverState &state) const {
+  const Eigen::ArrayXd tolerances =
+      settings.parameter_tolerances.size()
+          ? settings.parameter_tolerances.array().eval()
+          : Eigen::ArrayXd::Constant(state.x.size(), settings.tol);
   bool simplified_step_below_tol =
-      (state.dxbar_j.array().abs() < this->settings.tol).all();
+      (state.dxbar_j.array().abs() < tolerances).all();
   bool full_step_below_tol =
-      (state.dx.array().abs() < std::sqrt(10.0 * this->settings.tol)).all();
+      (state.dx.array().abs() < (10.0 * tolerances).sqrt()).all();
   bool lambda_is_max =
       std::abs(state.lambda - state.lambda_bounds.second) < this->settings.eps;
   return simplified_step_below_tol && full_step_below_tol && lambda_is_max;
@@ -170,7 +183,8 @@ DampedNewtonSolver::solve_subject_to_constraints(
   Eigen::VectorXd rhs = Eigen::VectorXd::Zero(n_x + n_c);
   rhs.tail(n_c) = -c_x;
   // Get conditon number from SVD
-  Eigen::JacobiSVD<Eigen::MatrixXd> svd(KKT);
+  Eigen::JacobiSVD<Eigen::MatrixXd> svd(KKT, Eigen::ComputeFullU |
+                                                 Eigen::ComputeFullV);
   double cond = svd.singularValues()(0) /
                 svd.singularValues()(svd.singularValues().size() - 1);
   Eigen::VectorXd dx_lambda;

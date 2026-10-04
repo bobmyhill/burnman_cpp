@@ -276,6 +276,7 @@ public:
    * amounts).
    */
   double get_n_moles() const;
+  bool has_n_moles() const { return n_moles.has_value(); }
 
   /**
    * @brief Returns the equilibrium tolerance (J/reaction).

@@ -36,7 +36,7 @@ Eigen::VectorXd F(const Eigen::VectorXd &x, Assemblage &assemblage,
   Eigen::VectorXd new_reduced_composition_vector = reduced_composition_vector;
   if (n_eqc > 2) {
     new_reduced_composition_vector +=
-        x.tail(n_eqc - 2).transpose() * reduced_free_composition_vectors;
+        reduced_free_composition_vectors.transpose() * x.tail(n_eqc - 2);
   }
   // TODO:: Assemblage::get_reaction_affinities
   Eigen::Index n_reac = assemblage.get_n_reactions();
@@ -88,8 +88,8 @@ Eigen::MatrixXd J(const Eigen::VectorXd &x, Assemblage &assemblage,
   Eigen::VectorXd reaction_entropies =
       assemblage.get_reaction_basis() * partial_entropies;
   // dGi/dP = deltaVi; dGi/dT = -deltaSi
-  jacobian.col(0).tail(n_end) = reaction_volumes;
-  jacobian.col(1).tail(n_end) = -reaction_entropies;
+  jacobian.block(n_eqc, 0, reaction_volumes.size(), 1) = reaction_volumes;
+  jacobian.block(n_eqc, 1, reaction_entropies.size(), 1) = -reaction_entropies;
   // Bulk composition constraints
   // P & T have no effect, i.e. dF(i, bulk)/dx[0] and dF(i, bulk)/dx[1] = 0
   // Build composition Hessian d2G/dfidfj = dmui/dfj

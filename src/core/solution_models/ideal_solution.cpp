@@ -144,12 +144,20 @@ Eigen::MatrixXd IdealSolution::compute_log_ideal_activity_derivatives(
   Eigen::ArrayXd reduced_multiplicities =
       (this->site_multiplicities.colwise() * molar_fractions).colwise().sum();
   Eigen::MatrixXd dlnadp =
+      // The Hessian must differentiate the same smoothed logarithm used in
+      // compute_log_ideal_activities(). The generic inverse cutoff is larger;
+      // using it here underestimates derivatives of trace site fractions and
+      // can stall low-temperature equilibrium correctors.
       ((this->endmember_n_occupancies.rowwise() *
-        utils::inverseish(reduced_n_occupancies).transpose())
+        utils::inverseish(reduced_n_occupancies,
+                          constants::precision::logish_eps)
+            .transpose())
            .matrix() *
        this->endmember_n_occupancies.matrix().transpose()) -
       ((this->endmember_n_occupancies.rowwise() *
-        utils::inverseish(reduced_multiplicities).transpose())
+        utils::inverseish(reduced_multiplicities,
+                          constants::precision::logish_eps)
+            .transpose())
            .matrix() *
        this->site_multiplicities.matrix().transpose());
   return dlnadp;
