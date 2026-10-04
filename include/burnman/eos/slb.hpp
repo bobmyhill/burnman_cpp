@@ -12,10 +12,17 @@
 
 #include "burnman/core/equation_of_state.hpp"
 #include "burnman/utils/types/mineral_params.hpp"
+#include <stdexcept>
 #include <utility>
 
 namespace burnman {
 namespace eos {
+
+/// No mechanically stable volume on the reference-connected SLB branch.
+class SLBDomainError : public std::domain_error {
+public:
+  using std::domain_error::domain_error;
+};
 
 /**
  * @class SLB3
@@ -171,6 +178,14 @@ private:
   static double slb_gsl_wrapper(double x, void *p);
 
   // TODO: wrapper for K_T for GSL Brent also
+};
+
+/// SLB2024 stishovite shear softening; thermodynamic properties use SLB3.
+class SLB3Stishovite : public SLB3 {
+public:
+  double
+  compute_shear_modulus(double pressure, double temperature, double volume,
+                        const types::MineralParams &params) const override;
 };
 
 /**

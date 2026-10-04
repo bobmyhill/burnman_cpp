@@ -102,46 +102,108 @@ SLB3Conductive::get_b_g_el(const types::MineralParams &params) const {
 double SLB3::compute_volume(double pressure, double temperature,
                             const types::MineralParams &params) const {
 
-  double gamma_0 = *params.grueneisen_0;
-  // Eq. 47
-  double a1_ii = 6.0 * gamma_0;
-  double a2_iikk = -12.0 * gamma_0 + 36.0 * gamma_0 * gamma_0 -
-                   18.0 * (*params.q_0) * gamma_0;
-  double b_iikk = 9.0 * (*params.K_0);                               // Eq.28
-  double b_iikkmm = 27.0 * (*params.K_0) * (*params.Kprime_0 - 4.0); // Eq.29
-  auto [bel_0, gel] = get_b_g_el(params);
-
-  // TODO Bracketing
-
-  // Make params struct for solver
-  gsl_params::SolverParams_SLB slb_params{params,   pressure, temperature,
-                                          a1_ii,    a2_iikk,  b_iikk,
-                                          b_iikkmm, bel_0,    gel};
-
-  // Set initial volume bracket [V_lo, V_hi]
-  double V_lo = 0.6 * (*params.V_0);
-  double V_hi = *params.V_0;
-  // Check / adjust bracketing interval
-  // Note: modifies V_lo & V_hi internally
-  bool valid_bracket = optim::roots::bracket_root(
-      &slb_gsl_wrapper, slb_params, V_lo, V_hi, 0.01 * (*params.V_0));
-
-  // If we can't find a bracket
-  if (!valid_bracket) {
-    // At high temperature, naive bracketing may try a volume guess
-    // that exceeds the point at which the bulk modulus goes negative
-    // at that temperature. In this case, we try a more nuanced
-    // approach by first finding the volume at which the bulk modulus
-    // goes negative, and then either (a) raising an exception if the
-    // desired pressure is less than the pressure at that volume,
-    // or (b) using that pressure to create a better bracket for brentq.
-    ;
-    // TODO!
+  if (!std::isfinite(pressure) || !std::isfinite(temperature) ||
+      temperature < 0.)
+    throw std::invalid_argument("SLB requires finite pressure and T >= 0 K.");
+  const double v0 = *params.V_0;
+  // Follow the positive-K_T branch connected to the reference volume. Never
+  // accept a second, expanded root beyond the thermal spinodal. Solve in
+  // dimensionless volume, so the root tolerance is independent of molar unit.
+  auto pressure_at = [&](double v) {
+    return compute_pressure(temperature, v * v0, params);
+  };
+  auto modulus_at = [&](double v) {
+    return compute_isothermal_bulk_modulus_reuss(pressure, temperature, v * v0,
+                                                 params);
+  };
+  auto fail = [&](const std::string &reason) -> double {
+    throw SLBDomainError(params.name.value_or("SLB phase") + ": " + reason);
+  };
+  double v = 1., pv = pressure_at(v), kv = modulus_at(v);
+  for (int i = 0; kv <= 0. && i < 200; ++i) {
+    v *= .975;
+    pv = pressure_at(v);
+    kv = modulus_at(v);
   }
-
-  double volume_root =
-      optim::roots::brent(&slb_gsl_wrapper, slb_params, V_lo, V_hi);
-  return volume_root;
+  if (!(std::isfinite(pv) && std::isfinite(kv) && kv > 0.))
+    return fail("no mechanically stable reference-connected volume.");
+  if (pv == pressure)
+    return v * v0;
+  const bool expand = pv > pressure;
+  double lo = v, hi = v;
+  bool bracketed = false;
+  for (int i = 0; i < 300; ++i) {
+    const double next = v * (expand ? 1.025 : 1. / 1.025);
+    double pn = 0., kn = 0.;
+    bool valid = true;
+    try {
+      pn = pressure_at(next);
+      kn = modulus_at(next);
+    } catch (const SLBDomainError &) {
+      valid = false;
+    }
+    if (!valid || !std::isfinite(pn) || !std::isfinite(kn) || kn <= 0.) {
+      // Locate the last stable volume before either a spinodal or the edge
+      // of the finite-strain Debye domain. This recovers roots arbitrarily
+      // close to the spinodal without extrapolating through it.
+      double stable = v, unstable = next;
+      for (int j = 0; j < 60; ++j) {
+        double middle = .5 * (stable + unstable);
+        bool admissible = false;
+        try {
+          double pm = pressure_at(middle), km = modulus_at(middle);
+          admissible = std::isfinite(pm) && std::isfinite(km) && km > 0.;
+        } catch (const SLBDomainError &) {
+        }
+        if (admissible)
+          stable = middle;
+        else
+          unstable = middle;
+      }
+      double limit = pressure_at(stable);
+      if ((pv - pressure) * (limit - pressure) <= 0.) {
+        lo = std::min(v, stable);
+        hi = std::max(v, stable);
+        bracketed = true;
+        break;
+      }
+      return fail("pressure is outside the stable EOS branch at T=" +
+                  std::to_string(temperature) +
+                  " K; limiting pressure=" + std::to_string(limit) + " Pa.");
+    }
+    if ((pv - pressure) * (pn - pressure) <= 0.) {
+      lo = std::min(v, next);
+      hi = std::max(v, next);
+      bracketed = true;
+      break;
+    }
+    v = next;
+    pv = pn;
+  }
+  if (!bracketed)
+    return fail("cannot bracket a stable volume.");
+  // Safeguarded Newton uses dP/d(V/V0)=-K_T/(V/V0). It remains inside
+  // the admissible bracket and falls back to bisection near a spinodal.
+  double root = .5 * (lo + hi);
+  for (int i = 0; i < 100; ++i) {
+    double residual = pressure_at(root) - pressure;
+    if (std::abs(residual) < std::max(1.e-5, std::abs(pressure) * 2.e-14))
+      break;
+    if (residual > 0.)
+      lo = root;
+    else
+      hi = root;
+    if (hi - lo < 2.e-14 * std::max(1., hi)) {
+      root = .5 * (lo + hi);
+      break;
+    }
+    double trial = root + residual * root / modulus_at(root);
+    root = std::isfinite(trial) && trial > lo && trial < hi ? trial
+                                                            : .5 * (lo + hi);
+  }
+  if (!(modulus_at(root) > 0.))
+    return fail("volume root has nonpositive K_T.");
+  return root * v0;
 }
 
 double SLB3::compute_pressure(double temperature, double volume,
@@ -357,8 +419,9 @@ double SLB3::compute_debye_temperature(double x,
                    18.0 * (*params.q_0) * gamma_0;
   // Eq. 41
   double nu_o_nu0_sq = 1.0 + a1_ii * f + 0.5 * a2_iikk * f * f;
-  if (nu_o_nu0_sq < 0.0) {
-    throw std::logic_error("Volume outside valid range of SLB EoS!");
+  if (!(x > 0.0) || !(nu_o_nu0_sq > 0.0)) {
+    throw SLBDomainError(
+        "Volume outside the real Debye domain of the SLB EOS.");
   }
   return *params.debye_0 * std::sqrt(nu_o_nu0_sq);
 }
@@ -408,6 +471,22 @@ double SLB3::compute_isotropic_eta_s(double x,
   double gr = ONE_SIXTH / nu_o_nu0_sq * two_f_plus1 * (a1_ii + a2_iikk * f);
   // Eq. 46 (type in Stixrude 2005)
   return -gr - (0.5 * (1.0 / nu_o_nu0_sq) * two_f_plus1 * two_f_plus1 * a2_s);
+}
+
+// SLB2024 Appendix B, matching the published HeFESTo/BurnMan convention.
+double SLB3Stishovite::compute_shear_modulus(
+    double pressure, double temperature, double volume,
+    const types::MineralParams &params) const {
+  double bare = BM3::compute_third_order_shear_modulus(volume, params);
+  double pc = 51.6e9 + 11.1e6 * (temperature - 300.);
+  double pcq = pc + 50.7e9, cs0 = 128.e9 * pcq / pc, dp = pressure - pc;
+  double cs = dp < 0. ? cs0 * dp / (pressure - pcq)
+                      : cs0 - cs0 * (pcq - pc) / (pcq - pressure + 3. * dp);
+  double shear = .5 * (13. / 15. * bare + 2. / 15. * cs);
+  // Continuous limit at the soft-mode pressure, where Cs is exactly zero.
+  if (cs != 0.)
+    shear += .5 / (13. / 15. / bare + 2. / 15. / cs);
+  return shear - compute_shear_modulus_delta(temperature, volume, params);
 }
 
 // Overrides for SLB3Conductive
