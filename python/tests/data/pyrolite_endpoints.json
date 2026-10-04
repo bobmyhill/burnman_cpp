@@ -1,0 +1,775 @@
+{
+  "cases": [
+    {
+      "name": "line 53 trace spin activation",
+      "end": "start",
+      "previous": {
+        "calculation_pressure_range_Pa": [
+          0.0,
+          150000000000.0
+        ],
+        "temperature_range_K": [
+          0.0,
+          4000.0
+        ],
+        "phase_names": [
+          "ol",
+          "ol #2",
+          "ol #3",
+          "wa",
+          "wa #2",
+          "wa #3",
+          "ri",
+          "ri #2",
+          "ri #3",
+          "opx",
+          "opx #2",
+          "opx #3",
+          "cpx",
+          "cpx #2",
+          "cpx #3",
+          "hpcpx",
+          "hpcpx #2",
+          "hpcpx #3",
+          "gt",
+          "gt #2",
+          "gt #3",
+          "sp",
+          "sp #2",
+          "sp #3",
+          "pl",
+          "pl #2",
+          "pl #3",
+          "ak",
+          "ak #2",
+          "ak #3",
+          "fp",
+          "fp #2",
+          "fp #3",
+          "bg",
+          "bg #2",
+          "bg #3",
+          "ppv",
+          "ppv #2",
+          "ppv #3",
+          "cf",
+          "cf #2",
+          "cf #3",
+          "nal",
+          "nal #2",
+          "nal #3",
+          "capv",
+          "capv #2",
+          "capv #3",
+          "neph",
+          "neph #2",
+          "neph #3",
+          "ky",
+          "ky #2",
+          "ky #3",
+          "q",
+          "q #2",
+          "q #3",
+          "coe",
+          "coe #2",
+          "coe #3",
+          "st",
+          "st #2",
+          "st #3",
+          "seif",
+          "seif #2",
+          "seif #3",
+          "wo",
+          "wo #2",
+          "wo #3",
+          "pwo",
+          "pwo #2",
+          "pwo #3",
+          "Fe-bcc",
+          "Fe-bcc #2",
+          "Fe-bcc #3",
+          "Fe-fcc",
+          "Fe-fcc #2",
+          "Fe-fcc #3",
+          "Fe-hcp",
+          "Fe-hcp #2",
+          "Fe-hcp #3"
+        ],
+        "nodes": [],
+        "samples": [],
+        "fields": [],
+        "boundaries": [
+          {
+            "id": 0,
+            "zero_phase": 39,
+            "assemblage": [
+              30,
+              33,
+              39,
+              45,
+              78
+            ],
+            "side_a": [
+              30,
+              33,
+              45,
+              78
+            ],
+            "side_b": [
+              30,
+              33,
+              39,
+              45,
+              78
+            ],
+            "start_node": -1,
+            "end_node": -1,
+            "termination": "corrector failed; domain edge",
+            "points": [
+              {
+                "pressure": 106833382833.2711,
+                "temperature": 1856.7943918196727,
+                "phases": [
+                  {
+                    "id": 30,
+                    "candidate_index": 10,
+                    "name": "fp",
+                    "amount": 0.09705079177973401,
+                    "composition": [
+                      0.7526045782524469,
+                      0.07493385472844534,
+                      0.1508491791086643,
+                      0.02161238791044356,
+                      0.0
+                    ]
+                  },
+                  {
+                    "id": 33,
+                    "candidate_index": 11,
+                    "name": "bg",
+                    "amount": 0.7360029269210696,
+                    "composition": [
+                      0.9137209334963825,
+                      0.026825008207928453,
+                      0.04654685082490217,
+                      1.1728462223636882e-07,
+                      0.0,
+                      0.007811649211982174,
+                      0.005095440974182514
+                    ]
+                  },
+                  {
+                    "id": 39,
+                    "candidate_index": 13,
+                    "name": "cf",
+                    "amount": 1.8609299997819984e-31,
+                    "composition": [
+                      0.3087826324063082,
+                      0.002930820732574572,
+                      0.007344742273862742,
+                      0.01950055920638149,
+                      0.661441245380873
+                    ]
+                  },
+                  {
+                    "id": 45,
+                    "candidate_index": 15,
+                    "name": "capv",
+                    "amount": 0.05670767859004181,
+                    "composition": [
+                      1.0
+                    ]
+                  },
+                  {
+                    "id": 78,
+                    "candidate_index": 26,
+                    "name": "Fe-hcp",
+                    "amount": 0.0011602428801606131,
+                    "composition": [
+                      1.0
+                    ]
+                  }
+                ],
+                "mass_balance_error": 8.377052117917386e-17,
+                "minimum_affinity": -0.19999752580224595,
+                "residual": 1.1238308336239758e-05
+              },
+              {
+                "pressure": 106831712386.74345,
+                "temperature": 1856.7797387929206,
+                "phases": [
+                  {
+                    "id": 30,
+                    "candidate_index": 10,
+                    "name": "fp",
+                    "amount": 0.09705061240180571,
+                    "composition": [
+                      0.7526068281479436,
+                      0.07493548083752745,
+                      0.1508452631580689,
+                      0.021612427856460108,
+                      0.0
+                    ]
+                  },
+                  {
+                    "id": 33,
+                    "candidate_index": 11,
+                    "name": "bg",
+                    "amount": 0.7360031660916407,
+                    "composition": [
+                      0.9137201835709396,
+                      0.026825452494862734,
+                      0.04654651074276155,
+                      1.1728686089007567e-07,
+                      0.0,
+                      0.00781229658620011,
+                      0.00509543931837506
+                    ]
+                  },
+                  {
+                    "id": 39,
+                    "candidate_index": 13,
+                    "name": "cf",
+                    "amount": 1.8609299997819987e-31,
+                    "composition": [
+                      0.30879060064026076,
+                      0.00292978913856412,
+                      0.007344597248487893,
+                      0.019501817059412722,
+                      0.6614331959132745
+                    ]
+                  },
+                  {
+                    "id": 45,
+                    "candidate_index": 15,
+                    "name": "capv",
+                    "amount": 0.0567076785900418,
+                    "composition": [
+                      1.0
+                    ]
+                  },
+                  {
+                    "id": 78,
+                    "candidate_index": 26,
+                    "name": "Fe-hcp",
+                    "amount": 0.0011604820507318209,
+                    "composition": [
+                      1.0
+                    ]
+                  }
+                ],
+                "mass_balance_error": 1.4725027515310868e-16,
+                "minimum_affinity": -0.19997894119842385,
+                "residual": 1.1707462117770359e-05
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "line 136 trace spin activation",
+      "end": "end",
+      "previous": {
+        "calculation_pressure_range_Pa": [
+          0.0,
+          150000000000.0
+        ],
+        "temperature_range_K": [
+          0.0,
+          4000.0
+        ],
+        "phase_names": [
+          "ol",
+          "ol #2",
+          "ol #3",
+          "wa",
+          "wa #2",
+          "wa #3",
+          "ri",
+          "ri #2",
+          "ri #3",
+          "opx",
+          "opx #2",
+          "opx #3",
+          "cpx",
+          "cpx #2",
+          "cpx #3",
+          "hpcpx",
+          "hpcpx #2",
+          "hpcpx #3",
+          "gt",
+          "gt #2",
+          "gt #3",
+          "sp",
+          "sp #2",
+          "sp #3",
+          "pl",
+          "pl #2",
+          "pl #3",
+          "ak",
+          "ak #2",
+          "ak #3",
+          "fp",
+          "fp #2",
+          "fp #3",
+          "bg",
+          "bg #2",
+          "bg #3",
+          "ppv",
+          "ppv #2",
+          "ppv #3",
+          "cf",
+          "cf #2",
+          "cf #3",
+          "nal",
+          "nal #2",
+          "nal #3",
+          "capv",
+          "capv #2",
+          "capv #3",
+          "neph",
+          "neph #2",
+          "neph #3",
+          "ky",
+          "ky #2",
+          "ky #3",
+          "q",
+          "q #2",
+          "q #3",
+          "coe",
+          "coe #2",
+          "coe #3",
+          "st",
+          "st #2",
+          "st #3",
+          "seif",
+          "seif #2",
+          "seif #3",
+          "wo",
+          "wo #2",
+          "wo #3",
+          "pwo",
+          "pwo #2",
+          "pwo #3",
+          "Fe-bcc",
+          "Fe-bcc #2",
+          "Fe-bcc #3",
+          "Fe-fcc",
+          "Fe-fcc #2",
+          "Fe-fcc #3",
+          "Fe-hcp",
+          "Fe-hcp #2",
+          "Fe-hcp #3"
+        ],
+        "nodes": [],
+        "samples": [],
+        "fields": [],
+        "boundaries": [
+          {
+            "id": 0,
+            "zero_phase": 75,
+            "assemblage": [
+              30,
+              33,
+              45,
+              75,
+              78
+            ],
+            "side_a": [
+              30,
+              33,
+              45,
+              78
+            ],
+            "side_b": [
+              30,
+              33,
+              45,
+              75
+            ],
+            "start_node": -1,
+            "end_node": -1,
+            "termination": "domain edge; corrector failed",
+            "points": [
+              {
+                "pressure": 71421791650.13048,
+                "temperature": 2412.143809395665,
+                "phases": [
+                  {
+                    "id": 30,
+                    "candidate_index": 10,
+                    "name": "fp",
+                    "amount": 0.09526155616156441,
+                    "composition": [
+                      0.8096333881063913,
+                      0.12853526190099934,
+                      0.0397797898810298,
+                      0.022018319282984648,
+                      3.32408285948404e-05
+                    ]
+                  },
+                  {
+                    "id": 33,
+                    "candidate_index": 11,
+                    "name": "bg",
+                    "amount": 0.7383885744119623,
+                    "composition": [
+                      0.8886337616278152,
+                      0.04887338567521046,
+                      0.0431654629254677,
+                      0.0,
+                      0.0,
+                      0.014248411573694608,
+                      0.005078978197812049
+                    ]
+                  },
+                  {
+                    "id": 45,
+                    "candidate_index": 15,
+                    "name": "capv",
+                    "amount": 0.056707678590041805,
+                    "composition": [
+                      1.0
+                    ]
+                  },
+                  {
+                    "id": 75,
+                    "candidate_index": 25,
+                    "name": "Fe-fcc",
+                    "amount": 0.0,
+                    "composition": [
+                      1.0
+                    ]
+                  },
+                  {
+                    "id": 78,
+                    "candidate_index": 26,
+                    "name": "Fe-hcp",
+                    "amount": 0.00354905694411388,
+                    "composition": [
+                      1.0
+                    ]
+                  }
+                ],
+                "mass_balance_error": 1.5355395517160567e-16,
+                "minimum_affinity": -0.19998051202856004,
+                "residual": 5.148993226746516e-10
+              },
+              {
+                "pressure": 71423055751.81267,
+                "temperature": 2412.1764014738737,
+                "phases": [
+                  {
+                    "id": 30,
+                    "candidate_index": 10,
+                    "name": "fp",
+                    "amount": 0.09526173151962121,
+                    "composition": [
+                      0.8096322537227323,
+                      0.12853500311574387,
+                      0.03978122506654393,
+                      0.022018278751602092,
+                      3.323934337788229e-05
+                    ]
+                  },
+                  {
+                    "id": 33,
+                    "candidate_index": 11,
+                    "name": "bg",
+                    "amount": 0.7383883406012202,
+                    "composition": [
+                      0.888633859303484,
+                      0.048873584861274015,
+                      0.04316579324391654,
+                      0.0,
+                      0.0,
+                      0.014247782785254404,
+                      0.005078979806071005
+                    ]
+                  },
+                  {
+                    "id": 45,
+                    "candidate_index": 15,
+                    "name": "capv",
+                    "amount": 0.056707678590041805,
+                    "composition": [
+                      1.0
+                    ]
+                  },
+                  {
+                    "id": 75,
+                    "candidate_index": 25,
+                    "name": "Fe-fcc",
+                    "amount": 0.0,
+                    "composition": [
+                      1.0
+                    ]
+                  },
+                  {
+                    "id": 78,
+                    "candidate_index": 26,
+                    "name": "Fe-hcp",
+                    "amount": 0.003548822997716138,
+                    "composition": [
+                      1.0
+                    ]
+                  }
+                ],
+                "mass_balance_error": 1.81114306267538e-16,
+                "minimum_affinity": -0.1999992547698639,
+                "residual": 8.962136978611226e-10
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "line 176 trace spin activation",
+      "end": "end",
+      "previous": {
+        "calculation_pressure_range_Pa": [
+          0.0,
+          150000000000.0
+        ],
+        "temperature_range_K": [
+          0.0,
+          4000.0
+        ],
+        "phase_names": [
+          "ol",
+          "ol #2",
+          "ol #3",
+          "wa",
+          "wa #2",
+          "wa #3",
+          "ri",
+          "ri #2",
+          "ri #3",
+          "opx",
+          "opx #2",
+          "opx #3",
+          "cpx",
+          "cpx #2",
+          "cpx #3",
+          "hpcpx",
+          "hpcpx #2",
+          "hpcpx #3",
+          "gt",
+          "gt #2",
+          "gt #3",
+          "sp",
+          "sp #2",
+          "sp #3",
+          "pl",
+          "pl #2",
+          "pl #3",
+          "ak",
+          "ak #2",
+          "ak #3",
+          "fp",
+          "fp #2",
+          "fp #3",
+          "bg",
+          "bg #2",
+          "bg #3",
+          "ppv",
+          "ppv #2",
+          "ppv #3",
+          "cf",
+          "cf #2",
+          "cf #3",
+          "nal",
+          "nal #2",
+          "nal #3",
+          "capv",
+          "capv #2",
+          "capv #3",
+          "neph",
+          "neph #2",
+          "neph #3",
+          "ky",
+          "ky #2",
+          "ky #3",
+          "q",
+          "q #2",
+          "q #3",
+          "coe",
+          "coe #2",
+          "coe #3",
+          "st",
+          "st #2",
+          "st #3",
+          "seif",
+          "seif #2",
+          "seif #3",
+          "wo",
+          "wo #2",
+          "wo #3",
+          "pwo",
+          "pwo #2",
+          "pwo #3",
+          "Fe-bcc",
+          "Fe-bcc #2",
+          "Fe-bcc #3",
+          "Fe-fcc",
+          "Fe-fcc #2",
+          "Fe-fcc #3",
+          "Fe-hcp",
+          "Fe-hcp #2",
+          "Fe-hcp #3"
+        ],
+        "nodes": [],
+        "samples": [],
+        "fields": [],
+        "boundaries": [
+          {
+            "id": 0,
+            "zero_phase": 33,
+            "assemblage": [
+              30,
+              33,
+              36,
+              45
+            ],
+            "side_a": [
+              30,
+              36,
+              45
+            ],
+            "side_b": [
+              30,
+              33,
+              36,
+              45
+            ],
+            "start_node": -1,
+            "end_node": -1,
+            "termination": "domain edge; corrector failed",
+            "points": [
+              {
+                "pressure": 133997959456.67374,
+                "temperature": 3407.7743352689827,
+                "phases": [
+                  {
+                    "id": 30,
+                    "candidate_index": 10,
+                    "name": "fp",
+                    "amount": 0.09792097393985455,
+                    "composition": [
+                      0.8173338420156634,
+                      0.07156877245740684,
+                      0.08967705774048812,
+                      0.021420327786441686,
+                      0.0
+                    ]
+                  },
+                  {
+                    "id": 33,
+                    "candidate_index": 11,
+                    "name": "bg",
+                    "amount": 0.0,
+                    "composition": [
+                      0.9097176290731155,
+                      0.03139801184166971,
+                      0.054624765862386696,
+                      0.0,
+                      8.109168837755476e-05,
+                      0.0027947655994963634,
+                      0.0013837359349540767
+                    ]
+                  },
+                  {
+                    "id": 36,
+                    "candidate_index": 12,
+                    "name": "ppv",
+                    "amount": 0.734842684040909,
+                    "composition": [
+                      0.8770969255449668,
+                      0.06493404384761828,
+                      0.05053233514408774,
+                      0.0023332092990107993,
+                      0.005103486164316358
+                    ]
+                  },
+                  {
+                    "id": 45,
+                    "candidate_index": 15,
+                    "name": "capv",
+                    "amount": 0.05670767859004179,
+                    "composition": [
+                      1.0
+                    ]
+                  }
+                ],
+                "mass_balance_error": 1.5572752667654313e-16,
+                "minimum_affinity": -0.19995637785723375,
+                "residual": 1.2286643153907028e-08
+              },
+              {
+                "pressure": 133998941086.15129,
+                "temperature": 3407.864374754991,
+                "phases": [
+                  {
+                    "id": 30,
+                    "candidate_index": 10,
+                    "name": "fp",
+                    "amount": 0.09792097393985451,
+                    "composition": [
+                      0.8173339339521206,
+                      0.07157021282106676,
+                      0.08967552544037093,
+                      0.021420327786441692,
+                      0.0
+                    ]
+                  },
+                  {
+                    "id": 33,
+                    "candidate_index": 11,
+                    "name": "bg",
+                    "amount": 0.0,
+                    "composition": [
+                      0.9097183635551729,
+                      0.031398802897614944,
+                      0.05462329952943563,
+                      0.0,
+                      8.109395627531324e-05,
+                      0.0027946867583397705,
+                      0.0013837533031613766
+                    ]
+                  },
+                  {
+                    "id": 36,
+                    "candidate_index": 12,
+                    "name": "ppv",
+                    "amount": 0.734842684040909,
+                    "composition": [
+                      0.8770968765412406,
+                      0.06493409285134444,
+                      0.05053233514408774,
+                      0.0023332092990108605,
+                      0.005103486164316357
+                    ]
+                  },
+                  {
+                    "id": 45,
+                    "candidate_index": 15,
+                    "name": "capv",
+                    "amount": 0.05670767859004179,
+                    "composition": [
+                      1.0
+                    ]
+                  }
+                ],
+                "mass_balance_error": 5.231392852387137e-17,
+                "minimum_affinity": -0.1999876859390497,
+                "residual": 2.0497693696912468e-08
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
