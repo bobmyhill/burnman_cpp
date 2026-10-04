@@ -134,6 +134,27 @@ public:
    */
   Eigen::ArrayXd get_molar_fractions() const;
 
+  /// Read-only access to the model, for native basis transformations.
+  std::shared_ptr<const solution_models::SolutionModel>
+  get_solution_model() const {
+    return solution_model;
+  }
+
+  /// Rows express current endmembers in the original endmember basis.
+  Eigen::MatrixXd get_basis() const {
+    return transformation_basis.size()
+               ? transformation_basis
+               : Eigen::MatrixXd::Identity(get_n_endmembers(),
+                                           get_n_endmembers());
+  }
+  void set_basis(const Eigen::MatrixXd &basis) {
+    if (basis.rows() != get_n_endmembers() || !basis.allFinite()) {
+      throw std::invalid_argument(
+          "Basis must have one finite row per endmember.");
+    }
+    transformation_basis = basis;
+  }
+
   /**
    * @brief Returns fractional site occupancy matrix from solution model.
    */
@@ -455,6 +476,7 @@ protected:
 private:
   // Molar fractions - not cached so not deleted by reset_cache()
   Eigen::ArrayXd molar_fractions;
+  Eigen::MatrixXd transformation_basis;
 
   // Shared pointer to solution model class
   std::shared_ptr<solution_models::SolutionModel> solution_model;

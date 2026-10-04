@@ -13,4 +13,5 @@ PYBIND11_MODULE(_core, m) {
   burnman::python::bind_solutions(m);
   burnman::python::bind_minerals(m);
   burnman::python::bind_equilibration(m);
+  burnman::python::bind_polytope(m);
 }
