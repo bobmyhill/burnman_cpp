@@ -155,6 +155,34 @@ def test_settings_dictionary_rejects_unknown_options():
         bm.PseudosectionSettings.from_dict({"minimum_step": 1.0e-7})
 
 
+
+
+@pytest.mark.parametrize(
+    "pressure,temperature,absent",
+    [
+        (15.715867e8, 802.309284, "ru"),
+        (5.1996211e8, 588.4336727, "melt"),
+    ],
+)
+def test_basalt_fixed_pt_drops_blocked_zero_amount_phase(pressure, temperature, absent):
+    example = runpy.run_path(
+        str(Path(__file__).parents[2] / "examples" / "example_pseudosection.py")
+    )
+    state = bm.stable_equilibrium(
+        example["BASALT_COMPOSITION"].atomic_composition,
+        example["candidate_phases"](),
+        pressure,
+        temperature,
+    )
+    assert state.success, state.message
+    assert state.mass_balance_error < 1.0e-8
+    assert state.equilibrium_error <= 0.02
+    assert state.minimum_affinity >= -0.2
+    assert absent not in [p.name for p in state.phases]
+    total = sum(p.amount for p in state.phases)
+    assert all(p.amount > 1.0e-7 * total for p in state.phases)
+
+
 def test_polymorph_reduced_variance_has_three_lines():
     phases = [HP.andalusite(), HP.ky(), HP.sill()]
     r = bm.pseudosection(
@@ -243,6 +271,35 @@ def test_water_eos_thermodynamic_derivatives_and_gas_limit():
     with pytest.raises(ValueError, match="Water fluid"):
         fluid.set_state(0.0, 873.15)
         _ = fluid.molar_volume
+
+
+@pytest.mark.parametrize(
+    "pressure,temperature",
+    [(1e9, 873.15), (2e9, 573.15), (1.3333666666666665e9, 573.15)],
+)
+def test_basalt_setup_exact_water_and_native_stable_state(pressure, temperature):
+    reference_loaded = "burnman" in sys.modules
+    example = runpy.run_path(
+        str(Path(__file__).resolve().parents[2] / "examples/example_pseudosection.py")
+    )
+    oxides = example["BASALT_OXIDES"]
+    assert sum(oxides.values()) == 100.0
+    assert oxides["H2O"] == 2.0
+    composition = example["BASALT_COMPOSITION"]
+    assert isinstance(composition, bm.Composition)
+    assert sum(composition.mass_composition.values()) == pytest.approx(0.1)
+    assert composition.mass_composition["H2O"] == pytest.approx(0.002)
+    bulk = composition.atomic_composition
+    state = bm.stable_equilibrium(
+        bulk, example["candidate_phases"](), pressure, temperature
+    )
+    assert state.success, state.message
+    assert state.mass_balance_error < 1e-8
+    assert state.minimum_affinity >= -0.2
+    assert state.equilibrium_error <= 0.02
+    assert ("burnman" in sys.modules) == reference_loaded
+
+
 
 
 def test_invalid_bulk_ranges_and_settings():
@@ -342,3 +399,82 @@ def test_regular_solution_solvus_boundary_keeps_distinct_compositions():
     polygons = bm.pseudosection_field_polygons(r)
     assert not polygons.diagnostics
     assert sorted(p.n_phases for p in polygons.polygons) == [1, 2]
+
+
+@pytest.mark.parametrize("alphas", [(1.0, 1.0), (1.5, 1.0)])
+def test_two_solvus_arms_close_at_composition_critical_point(alphas, tmp_path):
+    R, W = 8.31446261815324, 13000.0
+    a, b = alphas
+    x = b / (a + np.sqrt(a * a - (a - b) * b))
+    S = a * x + b * (1.0 - x)
+    B = 2.0 * W * a * b / (a + b)
+    critical_temperature = 2.0 * B * a * b * x * (1.0 - x) / (R * S**3)
+    chemical_difference = (
+        R * critical_temperature * np.log(x / (1.0 - x))
+        + B * ((1.0 - 2.0 * x) * S - x * (1.0 - x) * (a - b)) / S**2
+    )
+    mg = pure("Mg oxide", {"Mg": 1.0, "O": 1.0})
+    fe = pure("Fe oxide", {"Fe": 1.0, "O": 1.0})
+    main = bm.Solution(
+        bm.AsymmetricRegularSolution(
+            [(mg, "[Mg]O"), (fe, "[Fe]O")],
+            alphas=list(alphas),
+            energy_interaction=[[W]],
+        ),
+        [0.5, 0.5],
+        name="oxide",
+    )
+    mg2 = pure("Mg dioxide", {"Mg": 1.0, "O": 2.0})
+    fe2 = bm.CombinedMineral(
+        [pure("Fe dioxide", {"Fe": 1.0, "O": 2.0})],
+        [1.0],
+        [1000.0 - chemical_difference, 0.0, -1.0e-6],
+        name="Fe dioxide shifted",
+    )
+    auxiliary = bm.Solution(
+        bm.IdealSolution([(mg2, "[Mg]O2"), (fe2, "[Fe]O2")]), [0.5, 0.5], name="dioxide"
+    )
+    bulk = {"Mg": 0.6 * x + 0.2, "Fe": 0.8 - 0.6 * x, "O": 1.4}
+    s = settings()
+    s.pressure_seeds = s.temperature_seeds = 5
+    r = bm.pseudosection(bulk, [main, auxiliary], (0.0, 2.0e9), (600.0, 900.0), s)
+    assert r.resolved, r.diagnostics
+    # Oxygen balance fixes main/auxiliary amounts at .6/.4. At the critical
+    # auxiliary composition .5 gives the critical pressure 1 GPa. For the
+    # asymmetric regular solution, G''=G'''=0 give x and T analytically above;
+    # the symmetric limit is x=.5 and T=W/(2R).
+    critical = [n for n in r.nodes if n.kind == "critical_point" and n.incident_lines]
+    assert len(critical) == 1, r.diagnostics
+    node = critical[0]
+    assert abs(node.pressure - 1.0e9) / (2.0e9) < s.node_tolerance * 2.0
+    assert abs(node.temperature - critical_temperature) / 300.0 < s.node_tolerance * 2.0
+    assert len(node.incident_lines) == 2
+    assert np.linalg.norm(node.critical_mode) == pytest.approx(1.0)
+    for index in node.incident_lines:
+        edge = r.boundaries[index]
+        point = edge.points[0 if edge.start_node == node.id else -1]
+        copies = [p.composition for p in point.phases if p.candidate_index == 0]
+        assert len(copies) == 2
+        np.testing.assert_allclose(copies, [[x, 1.0 - x], [x, 1.0 - x]], atol=1e-8)
+    geometry = bm.pseudosection_field_polygons(r)
+    assert all(p.n_phases > 0 for p in geometry.polygons), geometry.diagnostics
+    assert {p.n_phases for p in geometry.polygons} == {2, 3}
+    assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
+    # Verified critical endpoints intentionally have equal compositions.
+    # Saving/resuming must preserve them rather than rewinding them as false
+    # junctions; the recorded mode can seed an incomplete adjoining arm.
+    import json
+
+    example = runpy.run_path(
+        str(Path(__file__).resolve().parents[2] / "examples/example_pseudosection.py")
+    )
+    path = tmp_path / "critical.json"
+    example["save_json"](r, path)
+    resumed = bm.refine_pseudosection(
+        bulk, [main, auxiliary], json.loads(path.read_text()), s
+    )
+    assert resumed.resolved, resumed.diagnostics
+    assert len(resumed.boundaries) == 2
+    assert all(
+        p.n_phases > 0 for p in bm.pseudosection_field_polygons(resumed).polygons
+    )
