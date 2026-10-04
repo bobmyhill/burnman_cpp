@@ -220,3 +220,39 @@ __all__ = [
     "mineral_params",
     "set_composition_and_state_from_parameters",
 ]
+
+from ._core import (
+    pseudosection,
+    refine_pseudosection,
+    stable_equilibrium,
+    water_fluid,
+    PseudosectionSettings,
+    PseudosectionResult,
+    EquilibriumState,
+    PhaseBoundary,
+    BoundaryPoint,
+    PhaseDiagramNode,
+    PhaseField,
+    PhaseState,
+    pseudosection_field_polygons,
+    PhaseFieldPolygon,
+    PseudosectionPolygons,
+)
+
+__all__ += [
+    "pseudosection",
+    "refine_pseudosection",
+    "stable_equilibrium",
+    "water_fluid",
+    "PseudosectionSettings",
+    "PseudosectionResult",
+    "EquilibriumState",
+    "PhaseBoundary",
+    "BoundaryPoint",
+    "PhaseDiagramNode",
+    "PhaseField",
+    "PhaseState",
+    "pseudosection_field_polygons",
+    "PhaseFieldPolygon",
+    "PseudosectionPolygons",
+]
