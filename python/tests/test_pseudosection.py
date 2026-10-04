@@ -155,10 +155,6 @@ def test_settings_dictionary_rejects_unknown_options():
         bm.PseudosectionSettings.from_dict({"minimum_step": 1.0e-7})
 
 
-
-
-
-
 def test_polymorph_reduced_variance_has_three_lines():
     phases = [HP.andalusite(), HP.ky(), HP.sill()]
     r = bm.pseudosection(
@@ -247,10 +243,6 @@ def test_water_eos_thermodynamic_derivatives_and_gas_limit():
     with pytest.raises(ValueError, match="Water fluid"):
         fluid.set_state(0.0, 873.15)
         _ = fluid.molar_volume
-
-
-
-
 
 
 def test_invalid_bulk_ranges_and_settings():
