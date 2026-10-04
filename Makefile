@@ -26,8 +26,11 @@ INCLUDE_DIR_TEST := $(TEST_DIR)/include
 # For GSL, etc. (Change if non-standard)
 # Only defined here so they can be changed
 # both should be on the system path anyway
-EXTRA_INCLUDE := /usr/local/include /usr/include/eigen3
-EXTRA_LIB := /usr/local/lib
+# Eigen on MacOS installed via brew is in /opt/homebrew/include/eigen3
+# GSL on MacOS installed via brew is in /opt/homebrew/lib
+EXTRA_INCLUDE := /opt/homebrew/include /opt/homebrew/include/eigen3 /opt/homebrew/opt/gsl/include
+# EXTRA_INCLUDE := /usr/local/include /usr/include/eigen3
+EXTRA_LIB := /usr/local/lib /opt/homebrew/lib
 LDFLAGS_COMMON := -lgsl -lgslcblas -lm
 LDFLAGS_TEST := -lCatch2Main -lCatch2
 

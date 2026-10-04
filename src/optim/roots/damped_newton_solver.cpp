@@ -223,7 +223,7 @@ void DampedNewtonSolver::lagrangian_walk_along_constraints(
   Eigen::VectorXd c_newton =
       evaluate_constraints(x_n, state)(active_constraint_indices);
   Eigen::MatrixXd c_A =
-      (state.linear_constraints.first)(active_constraint_indices, Eigen::all);
+      (state.linear_constraints.first)(active_constraint_indices, Eigen::indexing::all);
   state.persistent_bound_violation = false;
   Eigen::VectorXd x_m;
   if (c_A.rows() > 0 &&
@@ -241,7 +241,7 @@ void DampedNewtonSolver::lagrangian_walk_along_constraints(
       c_newton = evaluate_constraints(state.x + state.dx,
                                       state)(potential_active_indices);
       c_A = (state.linear_constraints.first)(potential_active_indices,
-                                             Eigen::all);
+                                             Eigen::indexing::all);
       x_m = std::get<0>(
           solve_subject_to_constraints(x_n, state.J, c_newton, c_A));
       if (evaluate_constraints(x_m, state)(active_constraint_indices[i_rm]) <

@@ -10,3 +10,11 @@ dev-testing/
 
 # VS code configs
 .vscode/
+.venv/
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+*.egg-info/
+.pytest_cache/
+dist/
