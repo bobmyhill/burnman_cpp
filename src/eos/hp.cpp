@@ -46,8 +46,10 @@ void HP_TMT::validate_parameters(types::MineralParams &params) {
   utils::check_in_range(params.V_0, 1.0e-7, 1.0e-2, "V_0");
   utils::check_in_range(params.K_0, 1.0e9, 1.0e13, "K_0");
   utils::check_in_range(params.Kprime_0, 0.0, 40.0, "Kprime_0");
-  utils::check_in_range(params.G_0, 0.0, 1.0e13, "G_0");
-  utils::check_in_range(params.Gprime_0, -5.0, 10.0, "Gprime_0");
+  if (std::isfinite(*params.G_0))
+    utils::check_in_range(params.G_0, 0.0, 1.0e13, "G_0");
+  if (std::isfinite(*params.Gprime_0))
+    utils::check_in_range(params.Gprime_0, -5.0, 10.0, "Gprime_0");
   utils::check_in_range(params.S_0, 0.0, 1.0e3, "S_0");
   utils::check_in_range(params.a_0, 0.0, 1.0e-3, "a_0");
   utils::check_in_range(params.napfu, 1, 1000, "napfu");
