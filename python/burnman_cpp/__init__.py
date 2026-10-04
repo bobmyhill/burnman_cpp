@@ -27,6 +27,7 @@ from ._core import (
     IterationHistory,
     LinearXConstraint,
     Material,
+    MaterialPolytope,
     MineralParams,
     NotImplementedError,
     PhaseCompositionConstraint,
@@ -43,6 +44,10 @@ from ._core import (
     get_equilibration_parameters,
     get_parameter_vector,
     set_composition_and_state_from_parameters,
+    composite_polytope_at_constrained_composition,
+    solution_polytope_from_endmember_occupancies,
+    simplify_composite_with_composition,
+    transform_solution_to_new_basis,
 )
 
 __version__ = _core.__version__
@@ -168,6 +173,11 @@ def equilibrate(
 
 
 __all__ = [
+    "MaterialPolytope",
+    "composite_polytope_at_constrained_composition",
+    "solution_polytope_from_endmember_occupancies",
+    "simplify_composite_with_composition",
+    "transform_solution_to_new_basis",
     "AsymmetricRegularSolution",
     "Assemblage",
     "AveragingType",

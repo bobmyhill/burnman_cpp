@@ -19,6 +19,7 @@ void bind_solutions(py::module_ &m);
 void bind_equilibration(py::module_ &m);
 void bind_combined(py::module_ &m);
 void bind_minerals(py::module_ &m);
+void bind_polytope(py::module_ &m);
 eos::excesses::ExcessParamVector parse_modifiers(const py::iterable &modifiers);
 
 inline void check_state(const Material &material) {

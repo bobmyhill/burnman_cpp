@@ -198,6 +198,7 @@ void bind_solutions(py::module_ &m) {
 #undef SOLUTION_PROPERTY
   bind_property<Solution>(solution, "molar_fractions", "get_molar_fractions",
                           &Solution::get_molar_fractions);
+  bind_property<Solution>(solution, "basis", "get_basis", &Solution::get_basis);
   bind_property<Solution>(solution, "site_names", "get_site_names",
                           &Solution::get_site_names);
   bind_property<Solution>(solution, "endmember_occupancies",
