@@ -54,7 +54,8 @@ enum class EOSType {
   HPTMTL,
   SLB2,
   SLB3,
-  SLB3Conductive
+  SLB3Conductive,
+  SLB3Stishovite
 };
 
 /**
