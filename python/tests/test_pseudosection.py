@@ -155,6 +155,64 @@ def test_settings_dictionary_rejects_unknown_options():
         bm.PseudosectionSettings.from_dict({"minimum_step": 1.0e-7})
 
 
+@pytest.mark.parametrize("case_index", range(3))
+def test_metasediment_phase_entry_recovers_verified_junction(case_index):
+    """Real failures: a solvus, a polymorph swap and a solution entering."""
+    example = runpy.run_path(
+        str(
+            Path(__file__).parents[2]
+            / "examples"
+            / "example_metasediment_pseudosection.py"
+        )
+    )
+    fixtures = json.loads(
+        (Path(__file__).parent / "data" / "metasediment_endpoints.json").read_text()
+    )
+    case = fixtures["cases"][case_index]
+    s = settings()
+    s.max_lines = 1  # Isolate the endpoint from the subsequent branch search.
+    previous = case["previous"]
+    result = bm.refine_pseudosection(
+        example["METASEDIMENT_COMPOSITION"].atomic_composition,
+        example["candidate_phases"](),
+        previous,
+        s,
+    )
+    line = result.boundaries[0]
+    end = case["end"]
+    assert getattr(line, end + "_node") >= 0, (case["name"], result.diagnostics)
+    assert line.termination.split("; ")[0 if end == "start" else 1] == "junction"
+    point = line.points[0 if end == "start" else -1]
+    node = result.nodes[getattr(line, end + "_node")]
+    assert node.kind == "junction"
+    assert len(node.zero_phases) == 2
+    assert point.mass_balance_error < 1.0e-8
+    assert point.minimum_affinity >= -0.2
+    assert point.residual < 0.02
+    for zero in node.zero_phases:
+        assert abs(next(p.amount for p in point.phases if p.id == zero)) < 1.0e-9
+    # The original states initialise the solve. Points before the event remain
+    # intact; a tolerance-sized overshoot is trimmed from the displayed curve.
+    original = previous["boundaries"][0]["points"]
+    retained = np.array([(p.pressure, p.temperature) for p in line.points])
+    for p in original[1:] if end == "start" else original[:-1]:
+        assert np.any(
+            np.all(
+                np.isclose(
+                    retained,
+                    [p["pressure"], p["temperature"]],
+                    rtol=1.0e-12,
+                    atol=1.0e-8,
+                ),
+                axis=1,
+            )
+        )
+    approach = line.points[:3][::-1] if end == "start" else line.points[-3:]
+    u = np.array([(p.pressure, p.temperature) for p in approach]) / [
+        2.0e9 - 1.0e5,
+        600.0,
+    ]
+    assert (u[2] - u[1]) @ (u[1] - u[0]) >= -1.0e-18
 
 
 @pytest.mark.parametrize(
@@ -300,6 +358,50 @@ def test_basalt_setup_exact_water_and_native_stable_state(pressure, temperature)
     assert ("burnman" in sys.modules) == reference_loaded
 
 
+@pytest.mark.parametrize(
+    "pressure,temperature", [(1.0e9, 873.15), (2.0e9, 573.15), (5.0e8, 1073.15)]
+)
+def test_metasediment_setup_exact_water_and_native_stable_state(pressure, temperature):
+    reference_loaded = "burnman" in sys.modules
+    example = runpy.run_path(
+        str(
+            Path(__file__).resolve().parents[2]
+            / "examples/example_metasediment_pseudosection.py"
+        )
+    )
+    oxides = example["METASEDIMENT_OXIDES"]
+    assert sum(oxides.values()) == 100.0
+    assert oxides["H2O"] == 2.0
+    phases = example["candidate_phases"]()
+    names = [p.name for p in phases]
+    assert len(names) == len(set(names))
+    assert {
+        "ms",
+        "bi",
+        "chl",
+        "ctd",
+        "st",
+        "cd",
+        "g",
+        "fsp",
+        "and",
+        "ky",
+        "sill",
+        "melt",
+        "H2O",
+    } <= set(names)
+    composition = example["METASEDIMENT_COMPOSITION"]
+    assert isinstance(composition, bm.Composition)
+    assert sum(composition.mass_composition.values()) == pytest.approx(0.1)
+    assert composition.mass_composition["H2O"] == pytest.approx(0.002)
+    state = bm.stable_equilibrium(
+        composition.atomic_composition, phases, pressure, temperature
+    )
+    assert state.success, state.message
+    assert state.mass_balance_error < 1.0e-8
+    assert state.minimum_affinity >= -0.2
+    assert state.equilibrium_error <= 0.02
+    assert ("burnman" in sys.modules) == reference_loaded
 
 
 def test_invalid_bulk_ranges_and_settings():
