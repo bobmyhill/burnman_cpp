@@ -59,12 +59,14 @@ jobs:
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: "2"
       MPLBACKEND: Agg
-      MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
         with:
           persist-credentials: false
+
+      - name: Configure plotting environment
+        run: echo "MPLCONFIGDIR=$RUNNER_TEMP/matplotlib" >> "$GITHUB_ENV"
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -94,13 +96,15 @@ jobs:
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: "2"
       MPLBACKEND: Agg
-      MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
       PYTHONDONTWRITEBYTECODE: "1"
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
         with:
           persist-credentials: false
+
+      - name: Configure plotting environment
+        run: echo "MPLCONFIGDIR=$RUNNER_TEMP/matplotlib" >> "$GITHUB_ENV"
 
       - name: Check out reference BurnMan
         uses: actions/checkout@v7
