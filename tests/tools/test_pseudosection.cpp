@@ -18,6 +18,40 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 using namespace burnman;
+
+TEST_CASE("Fe-O TX closes fields with unequal composition endpoints",
+          "[pseudosection]") {
+  namespace ps = pseudosections;
+  namespace hp = minerals::HGP_2018_ds633;
+  ps::CompositionSection path;
+  path.type = ps::DiagramType::TX;
+  path.composition_end = {{"Fe", 2.}, {"O", 3.}};
+  ps::Settings settings;
+  settings.temperature_seeds = settings.composition_seeds = 5;
+  settings.max_phase_instances = 1;
+  auto result = ps::pseudosection({{"Fe", 1.}},
+                                  {hp::iron(), hp::wu(), hp::mt(), hp::hem()},
+                                  {1.e5, 1.e5}, {300., 1500.}, settings, path);
+  REQUIRE(result.resolved);
+  auto geometry = ps::field_polygons(result);
+  REQUIRE(geometry.polygons.size() == 4);
+  double area = 0.;
+  for (const auto &field : geometry.polygons) {
+    CHECK(field.n_phases == 2);
+    CHECK_FALSE(field.has_open_boundary);
+    area += field.area;
+  }
+  CHECK_THAT(area, Catch::Matchers::WithinAbs(1., 1.e-8));
+  int invariants = 0;
+  for (const auto &node : result.nodes)
+    if (node.kind == "junction") {
+      CHECK_THAT(node.temperature,
+                 Catch::Matchers::WithinAbs(829.2029337, .01));
+      ++invariants;
+    }
+  CHECK(invariants > 0);
+}
+
 TEST_CASE("Native Gibbs LP dual amounts conserve components",
           "[pseudosection]") {
   Eigen::MatrixXd a(3, 2);

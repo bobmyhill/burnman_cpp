@@ -52,31 +52,43 @@ class Tracer {
   Eigen::Vector2d normalise(double p, double t) const {
     return (Eigen::Vector2d(p, t) - origin).cwiseQuotient(range);
   }
+  Eigen::Vector2d normalise(const Eigen::Vector2d &q) const {
+    return (q - origin).cwiseQuotient(range);
+  }
+  template <typename Point> Eigen::Vector2d normalise(const Point &p) const {
+    return normalise(diagram_coordinates(p, result.section.type));
+  }
   Eigen::Vector2d pt(const Assemblage &a) const {
-    return normalise(a.get_pressure(), a.get_temperature());
+    return normalise(engine.coordinates(a));
   }
   bool inside(const Eigen::Vector2d &u, double margin = 1.e-8) const {
     return (u.array() >= -margin).all() && (u.array() <= 1 + margin).all();
   }
   std::unique_ptr<EqualityConstraint>
-  section(int n, const Eigen::Vector2d &u,
+  section(const Assemblage &a, int n, const Eigen::Vector2d &u,
           const Eigen::Vector2d &normal) const {
     Eigen::VectorXd A = Eigen::VectorXd::Zero(n);
-    A.head<2>() = normal.cwiseQuotient(range);
+    const auto indices = engine.coordinate_indices(n);
+    A[indices[0]] = normal[0] / range[0];
+    A[indices[1]] = normal[1] / range[1];
+    const double offset =
+        engine.free_vectors.empty()
+            ? 0.
+            : normal[1] * engine.composition_coordinate(a) / range[1];
     return std::make_unique<LinearXConstraint>(
-        A, normal.dot(u + origin.cwiseQuotient(range)));
+        A, normal.dot(u + origin.cwiseQuotient(range)) - offset);
   }
   ConstraintList boundary_constraints(const Assemblage &a, int zero,
                                       const Eigen::Vector2d &u,
                                       const Eigen::Vector2d &normal) {
-    auto prm = get_equilibration_parameters(a, engine.bulk, {});
+    auto prm = engine.parameters(a);
     auto it = std::find(current_ids.begin(), current_ids.end(), zero);
     if (it == current_ids.end())
       throw std::runtime_error("Missing zero phase in boundary.");
     return constraints(
         std::make_unique<PhaseFractionConstraint>(it - current_ids.begin(), 0.,
                                                   prm),
-        section(burnman::utils::checked_int(prm.n_parameters), u, normal));
+        section(a, burnman::utils::checked_int(prm.n_parameters), u, normal));
   }
   std::vector<int> current_ids;
   // Project the complete Jacobian null space into scaled P,T. Amount-only
@@ -84,8 +96,12 @@ class Tracer {
   Eigen::VectorXd tangent(const optim::roots::DampedNewtonResult &s,
                           const Assemblage &a, int *pt_rank = nullptr) {
     Eigen::VectorXd scales = Eigen::VectorXd::Ones(s.x.size());
-    scales.head<2>() = range;
-    auto prm = get_equilibration_parameters(a, engine.bulk, {});
+    const auto indices = engine.coordinate_indices(s.x.size());
+    scales[0] = 1.e9;
+    scales[1] = 1000.;
+    scales[indices[0]] = range[0];
+    scales[indices[1]] = range[1];
+    auto prm = engine.parameters(a);
     for (int k = 0; k < prm.phase_amount_indices.size(); ++k)
       scales[prm.phase_amount_indices[k]] = std::max(1.e-3, a.get_n_moles());
     Eigen::MatrixXd j(s.J.rows() - 1, s.J.cols());
@@ -106,7 +122,9 @@ class Tracer {
         (svd.singularValues().array() > rank_tolerance).count());
     Eigen::MatrixXd null = svd.matrixV().rightCols(j.cols() - rank);
     Eigen::JacobiSVD<Eigen::MatrixXd> projection(
-        null.topRows(2), Eigen::ComputeThinU | Eigen::ComputeThinV);
+        null(std::vector<Eigen::Index>{indices[0], indices[1]},
+             Eigen::indexing::all),
+        Eigen::ComputeThinU | Eigen::ComputeThinV);
     int dim = burnman::utils::checked_int(
         (projection.singularValues().array() > 1.e-7).count());
     if (pt_rank)
@@ -114,7 +132,7 @@ class Tracer {
     if (dim != 1)
       return Eigen::VectorXd();
     auto d = (null * projection.matrixV().col(0)).eval();
-    d /= d.head(2).norm();
+    d /= engine.project_direction(d).norm();
     return scales.asDiagonal() * d;
   }
   BoundaryPoint point(const Assemblage &a, const std::vector<int> &ids,
@@ -123,11 +141,17 @@ class Tracer {
     BoundaryPoint p;
     p.pressure = a.get_pressure();
     p.temperature = a.get_temperature();
+    p.composition_coordinate = engine.composition_coordinate(a);
     p.phases = engine.snapshot(a, ids);
     p.mass_balance_error = engine.mass_error(a);
     p.minimum_affinity = affinity;
     p.residual =
-        solve.F.size() > 2 ? solve.F.tail(solve.F.size() - 2).norm() : 0.;
+        solve.F.size() > 2 + static_cast<int>(engine.free_vectors.size())
+            ? solve.F
+                  .tail(solve.F.size() - 2 -
+                        static_cast<int>(engine.free_vectors.size()))
+                  .norm()
+            : 0.;
     return p;
   }
   bool valid(const Assemblage &a,
@@ -177,9 +201,14 @@ class Tracer {
         fraction = std::min(fraction, std::max(0., -slack[i]) / slope[i]);
     guess = x + (fraction < 1. ? fraction * .99 : 1.) * change;
     guess.head<2>() = (x + delta).head<2>();
+    const double old_coordinate = engine.composition_coordinate(a);
+    if (!engine.free_vectors.empty())
+      guess[guess.size() - 1] = (x + delta)[guess.size() - 1];
     for (int j : prm.phase_amount_indices)
       guess[j] = std::max(0., guess[j]);
     set_composition_and_state_from_parameters(a, guess);
+    if (!engine.free_vectors.empty())
+      engine.set_coordinate(a, old_coordinate + (guess - x)[guess.size() - 1]);
   }
   std::vector<int> active(const State &s) const {
     double total = 0.;
@@ -313,10 +342,7 @@ class Tracer {
           continue;
         }
         for (std::size_t k = 1; k < line.points.size(); ++k) {
-          auto a = normalise(line.points[k - 1].pressure,
-                             line.points[k - 1].temperature),
-               b = normalise(line.points[k].pressure,
-                             line.points[k].temperature);
+          auto a = normalise(line.points[k - 1]), b = normalise(line.points[k]);
           auto d = (b - a).eval();
           double f =
               d.squaredNorm() > 0
@@ -352,16 +378,12 @@ class Tracer {
       // Keep the exact junction and remove only the local reversing tail,
       // rather than displaying a doubled-back spur as an unfinished phase
       // boundary.
-      auto junction =
-          normalise(result.nodes[static_cast<std::size_t>(n)].pressure,
-                    result.nodes[static_cast<std::size_t>(n)].temperature);
+      auto junction = normalise(result.nodes[static_cast<std::size_t>(n)]);
       while (line.points.size() > 2) {
         std::size_t tip = start ? 1 : line.points.size() - 2,
                     previous = start ? 2 : line.points.size() - 3;
-        auto u =
-            normalise(line.points[tip].pressure, line.points[tip].temperature);
-        auto before = normalise(line.points[previous].pressure,
-                                line.points[previous].temperature);
+        auto u = normalise(line.points[tip]);
+        auto before = normalise(line.points[previous]);
         auto incoming = (u - before).eval(), remaining = (junction - u).eval();
         if (remaining.norm() > engine.settings.node_tolerance * 2. ||
             remaining.dot(incoming) >= -1.e-18)
@@ -402,9 +424,8 @@ class Tracer {
            const Eigen::MatrixXd *jacobian = nullptr) {
     auto u = pt(a);
     for (auto &old : result.nodes)
-      if ((normalise(old.pressure, old.temperature) - u).norm() <
-          engine.settings.node_tolerance) {
-        double distance = (normalise(old.pressure, old.temperature) - u).norm();
+      if ((normalise(old) - u).norm() < engine.settings.node_tolerance) {
+        double distance = (normalise(old) - u).norm();
         bool compatible_kind =
             old.kind == kind ||
             (kind == "critical_point" && old.kind == "reduced_variance");
@@ -416,6 +437,7 @@ class Tracer {
             critical_axis.size()) {
           old.pressure = a.get_pressure();
           old.temperature = a.get_temperature();
+          old.composition_coordinate = engine.composition_coordinate(a);
           old.critical_mode = critical_axis;
           old.kind = "critical_point";
         }
@@ -429,6 +451,7 @@ class Tracer {
     n.id = burnman::utils::checked_int(result.nodes.size());
     n.pressure = a.get_pressure();
     n.temperature = a.get_temperature();
+    n.composition_coordinate = engine.composition_coordinate(a);
     n.kind = kind;
     n.assemblage = ids;
     n.zero_phases = zero;
@@ -438,7 +461,11 @@ class Tracer {
     n.pt_nullity = 0;
     if (jacobian) {
       Eigen::VectorXd scales = Eigen::VectorXd::Ones(jacobian->cols());
-      scales.head<2>() = range;
+      const auto indices = engine.coordinate_indices(jacobian->cols());
+      scales[0] = 1.e9;
+      scales[1] = 1000.;
+      scales[indices[0]] = range[0];
+      scales[indices[1]] = range[1];
       Eigen::MatrixXd j = (*jacobian) * scales.asDiagonal();
       for (int i = 0; i < j.rows(); ++i)
         if (j.row(i).norm() > 0)
@@ -447,8 +474,9 @@ class Tracer {
       int rank = burnman::utils::checked_int(
           (svd.singularValues().array() > 1.e-9).count());
       if (rank < j.cols()) {
-        Eigen::MatrixXd projection =
-            svd.matrixV().rightCols(j.cols() - rank).topRows(2);
+        Eigen::MatrixXd projection = svd.matrixV().rightCols(j.cols() - rank)(
+            std::vector<Eigen::Index>{indices[0], indices[1]},
+            Eigen::indexing::all);
         Eigen::JacobiSVD<Eigen::MatrixXd> ptsvd(projection);
         n.pt_nullity = burnman::utils::checked_int(
             (ptsvd.singularValues().array() > 1.e-7).count());
@@ -477,7 +505,7 @@ class Tracer {
             result.nodes.at(static_cast<std::size_t>(id)).kind != "junction")
           continue;
         auto &p = start ? line.points.front() : line.points.back();
-        auto u = normalise(p.pressure, p.temperature);
+        auto u = normalise(p);
         std::vector<int> ids, zeros;
         double total = 0.;
         for (auto &ph : p.phases)
@@ -492,7 +520,7 @@ class Tracer {
         int found = -1;
         for (auto &n : result.nodes)
           if (n.kind == "junction") {
-            double distance = (normalise(n.pressure, n.temperature) - u).norm();
+            double distance = (normalise(n) - u).norm();
             if (distance < 1.e-8 ||
                 (distance < engine.settings.node_tolerance &&
                  same_event(n, ids, zeros))) {
@@ -505,11 +533,12 @@ class Tracer {
           n.id = burnman::utils::checked_int(result.nodes.size());
           n.pressure = p.pressure;
           n.temperature = p.temperature;
+          n.composition_coordinate = p.composition_coordinate;
           n.kind = "junction";
           n.assemblage = ids;
           n.zero_phases = zeros;
-          auto a =
-              engine.make_assemblage(ids, p.phases, p.pressure, p.temperature);
+          auto a = engine.make_at(ids, p.phases,
+                                  diagram_coordinates(p, result.section.type));
           n.gibbs_variance = field_variance(*a, ids.size());
           result.nodes.push_back(n);
           found = n.id;
@@ -526,7 +555,7 @@ class Tracer {
                                         int first, int second,
                                         const Eigen::VectorXd &axis,
                                         double target) {
-    auto prm = get_equilibration_parameters(a, engine.bulk, {});
+    auto prm = engine.parameters(a);
     Eigen::VectorXd coefficient = Eigen::VectorXd::Zero(prm.n_parameters);
     for (auto [phase, sign] :
          {std::pair<int, double>{first, 1.}, {second, -1.}}) {
@@ -573,7 +602,7 @@ class Tracer {
           if (axis.norm() <= 1.e-8)
             for (auto &n : result.nodes)
               if (n.critical_mode.size() == axis.size() &&
-                  (normalise(n.pressure, n.temperature) - pt(*a)).norm() <
+                  (normalise(n) - pt(*a)).norm() <
                       engine.settings.node_tolerance)
                 axis = n.critical_mode * .001;
           delta = axis.norm();
@@ -599,7 +628,7 @@ class Tracer {
               std::find(subset.begin(), subset.end(), ids[k]) - subset.begin());
           if (!critical->get_phase<Solution>(static_cast<std::size_t>(phase)))
             continue;
-          auto prm = get_equilibration_parameters(*critical, engine.bulk, {});
+          auto prm = engine.parameters(*critical);
           auto mode_basis = engine.composition_basis(
               *critical->get_phase(static_cast<std::size_t>(phase)),
               ids[k] / engine.settings.max_phase_instances);
@@ -674,8 +703,7 @@ class Tracer {
                 Eigen::VectorXd dx = entry.second.J.partialPivLu().solve(rhs);
                 if (dx.allFinite())
                   predict(*entry.first, entry.second.x, dx,
-                          get_equilibration_parameters(*entry.first,
-                                                       engine.bulk, {}));
+                          engine.parameters(*entry.first));
               }
               auto lc = separation_constraints(*left, ids, zero, z,
                                                burnman::utils::checked_int(k),
@@ -789,6 +817,8 @@ class Tracer {
               BoundaryPoint critical;
               critical.pressure = a.get_pressure();
               critical.temperature = a.get_temperature();
+              critical.composition_coordinate =
+                  engine.composition_coordinate(a);
               critical.phases = states;
               critical.phases[static_cast<std::size_t>(z)].amount =
                   states[k].amount;
@@ -817,7 +847,7 @@ class Tracer {
               Eigen::VectorXd dx = accepted_solve.J.partialPivLu().solve(rhs);
               if (dx.allFinite())
                 predict(*trial, accepted_solve.x, dx,
-                        get_equilibration_parameters(*trial, engine.bulk, {}));
+                        engine.parameters(*trial));
               auto c = separation_constraints(
                   *trial, ids, other, burnman::utils::checked_int(z),
                   burnman::utils::checked_int(k), axis, target);
@@ -836,9 +866,7 @@ class Tracer {
               accepted_solve = s;
               auto d = tangent(s, *trial);
               if (target >= .008 && d.size() && prefix.size() > 1) {
-                auto previous =
-                    normalise(prefix[prefix.size() - 2].pressure,
-                              prefix[prefix.size() - 2].temperature);
+                auto previous = normalise(prefix[prefix.size() - 2]);
                 Seed seed{ids,        other,
                           -2,         engine.snapshot(*trial, ids),
                           pt(*trial), (pt(*trial) - previous).normalized()};
@@ -911,11 +939,9 @@ class Tracer {
     std::set_symmetric_difference(a.begin(), a.end(), b.begin(), b.end(),
                                   std::back_inserter(changed));
     if (changed.size() > 2 && depth < 7) {
-      auto u = (.5 * (normalise(left.state.pressure, left.state.temperature) +
-                      normalise(right.state.pressure, right.state.temperature)))
-                   .eval();
+      auto u = (.5 * (normalise(left.state) + normalise(right.state))).eval();
       auto actual = (origin + u.cwiseProduct(range)).eval();
-      auto mid = engine.stable(actual[0], actual[1]);
+      auto mid = engine.stable_at(actual);
       add_sample(mid.state);
       bracket(left, mid, depth + 1);
       bracket(mid, right, depth + 1);
@@ -932,13 +958,9 @@ class Tracer {
         it->amount = .5 * (it->amount + s.amount);
       }
     }
-    auto u = (.5 * (normalise(left.state.pressure, left.state.temperature) +
-                    normalise(right.state.pressure, right.state.temperature)))
-                 .eval();
-    auto direction = (normalise(right.state.pressure, right.state.temperature) -
-                      normalise(left.state.pressure, left.state.temperature))
-                         .normalized()
-                         .eval();
+    auto u = (.5 * (normalise(left.state) + normalise(right.state))).eval();
+    auto direction =
+        (normalise(right.state) - normalise(left.state)).normalized().eval();
     for (int z : changed)
       queue.push_back({joined, z, -1, states, u,
                        Eigen::Vector2d(-direction[1], direction[0])});
@@ -947,7 +969,7 @@ class Tracer {
                const Eigen::Vector2d &previous, double maximum_distance,
                optim::roots::DampedNewtonResult *solution = nullptr) {
     current_ids = ids;
-    auto prm = get_equilibration_parameters(a, engine.bulk, {});
+    auto prm = engine.parameters(a);
     auto zi = std::find(ids.begin(), ids.end(), z) - ids.begin(),
          oi = std::find(ids.begin(), ids.end(), other) - ids.begin();
     auto c =
@@ -967,6 +989,7 @@ class Tracer {
                                   Eigen::Vector2d::Zero(), s, &minima, 1.e-7,
                                   other)) {
         a = *refitted;
+        engine.set_coordinate(a, engine.composition_coordinate(*refitted));
         verified = valid(a, s);
         separate = distinct(a, ids);
         affinity = engine.stability(a);
@@ -1014,7 +1037,7 @@ class Tracer {
         return false;
       auto location = (origin + u.cwiseProduct(range)).eval();
       try {
-        trial.a = engine.make_assemblage(ids, warm, location[0], location[1]);
+        trial.a = engine.make_at(ids, warm, location);
         current_ids = ids;
         auto c = boundary_constraints(*trial.a, zero, u, unit);
         auto s = engine.solve(*trial.a, c);
@@ -1086,6 +1109,7 @@ class Tracer {
     try {
       auto junction = engine.make_assemblage(
           joined, states, best.a->get_pressure(), best.a->get_temperature());
+      engine.set_coordinate(*junction, engine.composition_coordinate(*best.a));
       index = endpoint(*junction, joined, zero, added, origin_pt,
                        maximum_distance, &solution);
       if (index >= 0)
@@ -1134,6 +1158,7 @@ class Tracer {
         auto trial =
             engine.make_assemblage(ids, states, current->get_pressure(),
                                    current->get_temperature(), face_tolerance);
+        engine.set_coordinate(*trial, engine.composition_coordinate(*current));
         bool changed = false;
         for (std::size_t k = 0; k < ids.size(); ++k) {
           auto old = engine.composition_basis(*current->get_phase(k),
@@ -1148,7 +1173,7 @@ class Tracer {
         current_ids = ids;
         ConstraintList c;
         if (second_zero >= 0) {
-          auto prm = get_equilibration_parameters(*trial, engine.bulk, {});
+          auto prm = engine.parameters(*trial);
           c = constraints(
               std::make_unique<PhaseFractionConstraint>(
                   std::find(ids.begin(), ids.end(), zero) - ids.begin(), 0.,
@@ -1189,7 +1214,8 @@ class Tracer {
     double step = engine.settings.step;
     auto ids = seed.ids;
     double travelled = 0.;
-    Eigen::Vector2d initial_unit = direction.head<2>().cwiseQuotient(range);
+    Eigen::Vector2d initial_unit =
+        engine.project_direction(direction).cwiseQuotient(range);
     for (int iteration = 0; iteration < engine.settings.max_trace_steps;
          ++iteration) {
       auto old_x = solve.x;
@@ -1197,7 +1223,7 @@ class Tracer {
       current_ids = ids;
       double requested = step;
       // Predict the first phase-out event from amount derivatives.
-      auto prm = get_equilibration_parameters(*a, engine.bulk, {});
+      auto prm = engine.parameters(*a);
       int leaving = -1;
       double event_step = std::numeric_limits<double>::infinity();
       for (std::size_t k = 0; k < ids.size(); ++k)
@@ -1236,12 +1262,14 @@ class Tracer {
           // A nearly inactive composition coordinate can make the projected
           // amount derivatives singular. Verify a neighbouring face before
           // interpreting that derivative as an instantaneous phase-out event.
-          Eigen::Vector2d event_unit = direction.head(2).cwiseQuotient(range);
+          Eigen::Vector2d event_unit =
+              engine.project_direction(direction).cwiseQuotient(range);
           if (refit_composition_faces(a, ids, seed.zero, old_u, event_unit,
                                       solve, nullptr, 5.e-7)) {
             auto refitted = tangent(solve, *a);
             if (refitted.size()) {
-              if (refitted.head(2).cwiseQuotient(range).dot(event_unit) < 0.)
+              if (engine.project_direction(refitted).cwiseQuotient(range).dot(
+                      event_unit) < 0.)
                 refitted = -refitted;
               direction = refitted;
               continue;
@@ -1252,7 +1280,8 @@ class Tracer {
         }
         requested = std::min(requested, event_step * .7);
       }
-      auto unit = direction.head(2).cwiseQuotient(range).eval();
+      auto unit =
+          engine.project_direction(direction).cwiseQuotient(range).eval();
       int border_axis = -1;
       double border = 0., border_step = requested;
       for (int k = 0; k < 2; ++k)
@@ -1277,6 +1306,10 @@ class Tracer {
         next = engine.copy_assemblage(*a);
         try {
           predict(*next, old_x, used * direction, prm);
+          if (!engine.free_vectors.empty() && border_axis == 1 &&
+              (border == 0. || border == 1.))
+            next = engine.make_at(ids, engine.snapshot(*next, ids),
+                                  engine.coordinates(*next));
           ConstraintList c;
           current_ids = ids;
           if (border_axis >= 0) {
@@ -1370,6 +1403,8 @@ class Tracer {
             try {
               auto junction = engine.make_assemblage(
                   joined, states, a->get_pressure(), a->get_temperature());
+              engine.set_coordinate(*junction,
+                                    engine.composition_coordinate(*a));
               optim::roots::DampedNewtonResult event_s;
               int n = endpoint(
                   *junction, joined, seed.zero, added, old_u,
@@ -1459,7 +1494,9 @@ class Tracer {
         termination = critical ? "solution critical point" : "reduced variance";
         return points;
       }
-      if (new_direction.head(2).cwiseQuotient(range).dot(unit) < 0)
+      if (engine.project_direction(new_direction)
+              .cwiseQuotient(range)
+              .dot(unit) < 0)
         new_direction = -new_direction;
       a = next;
       solve = next_s;
@@ -1475,10 +1512,7 @@ class Tracer {
     double length = 0.;
     for (std::size_t k = 1; k < line.points.size(); ++k)
       length +=
-          (normalise(line.points[k].pressure, line.points[k].temperature) -
-           normalise(line.points[k - 1].pressure,
-                     line.points[k - 1].temperature))
-              .norm();
+          (normalise(line.points[k]) - normalise(line.points[k - 1])).norm();
     // Label away from nodes, where a normal perturbation crosses only this
     // edge. At a junction the same perturbation can cross several fields.
     // Choose the geometric midpoint and correct it onto the edge. On short
@@ -1486,19 +1520,15 @@ class Tracer {
     double walked = 0.;
     std::size_t segment = 1;
     for (; segment + 1 < line.points.size(); ++segment) {
-      double span = (normalise(line.points[segment].pressure,
-                               line.points[segment].temperature) -
-                     normalise(line.points[segment - 1].pressure,
-                               line.points[segment - 1].temperature))
+      double span = (normalise(line.points[segment]) -
+                     normalise(line.points[segment - 1]))
                         .norm();
       if (walked + span >= length * .5)
         break;
       walked += span;
     }
-    auto left = normalise(line.points[segment - 1].pressure,
-                          line.points[segment - 1].temperature);
-    auto right = normalise(line.points[segment].pressure,
-                           line.points[segment].temperature);
+    auto left = normalise(line.points[segment - 1]);
+    auto right = normalise(line.points[segment]);
     auto along = (right - left).eval();
     double span = along.norm();
     Eigen::Vector2d centre =
@@ -1510,9 +1540,8 @@ class Tracer {
     else
       along /= span;
     auto location = (origin + centre.cwiseProduct(range)).eval();
-    auto anchor_a =
-        engine.make_assemblage(line.assemblage, line.points[segment - 1].phases,
-                               location[0], location[1]);
+    auto anchor_a = engine.make_at(line.assemblage,
+                                   line.points[segment - 1].phases, location);
     current_ids = line.assemblage;
     auto anchor_constraints =
         boundary_constraints(*anchor_a, line.zero_phase, centre, along);
@@ -1525,7 +1554,7 @@ class Tracer {
                      engine.stability(*anchor_a));
     } else {
       anchor = line.points[line.points.size() / 2];
-      centre = normalise(anchor.pressure, anchor.temperature);
+      centre = normalise(anchor);
     }
     Eigen::Vector2d side(-along[1], along[0]);
     std::vector<std::vector<int>> side_assemblages = {line.assemblage};
@@ -1601,8 +1630,7 @@ class Tracer {
         auto actual = (origin + u.cwiseProduct(range)).eval();
         for (auto &subset : side_assemblages)
           try {
-            auto work =
-                engine.fixed_pt(subset, anchor.phases, actual[0], actual[1]);
+            auto work = engine.fixed_at(subset, anchor.phases, actual);
             if (!work.state.success || !distinct(*work.assemblage, work.ids))
               continue;
             work.state.message = "Stable neighbouring field";
@@ -1612,7 +1640,7 @@ class Tracer {
           }
         if (!side_states[static_cast<std::size_t>(slot)].success)
           side_states[static_cast<std::size_t>(slot)] =
-              engine.stable(actual[0], actual[1]).state;
+              engine.stable_at(actual).state;
       }
       if (side_states[0].success && side_states[1].success &&
           active(side_states[0]) == active(side_states[1]))
@@ -1620,8 +1648,7 @@ class Tracer {
           auto u = (centre + sign * offset * side).eval();
           if (inside(u)) {
             auto actual = (origin + u.cwiseProduct(range)).eval();
-            side_states[sign < 0 ? 0 : 1] =
-                engine.stable(actual[0], actual[1]).state;
+            side_states[sign < 0 ? 0 : 1] = engine.stable_at(actual).state;
           }
         }
       if (side_states[0].success && side_states[1].success &&
@@ -1653,12 +1680,10 @@ class Tracer {
   bool same_curve(const Boundary &first, const Boundary &second) {
     auto near = [&](const Boundary &one, const Boundary &two) {
       for (auto &p : one.points) {
-        auto u = normalise(p.pressure, p.temperature);
+        auto u = normalise(p);
         double minimum = std::numeric_limits<double>::infinity();
         for (std::size_t k = 1; k < two.points.size(); ++k) {
-          auto a = normalise(two.points[k - 1].pressure,
-                             two.points[k - 1].temperature),
-               b = normalise(two.points[k].pressure, two.points[k].temperature);
+          auto a = normalise(two.points[k - 1]), b = normalise(two.points[k]);
           auto d = (b - a).eval();
           double f = (d.squaredNorm() != 0.)
                          ? std::clamp((u - a).dot(d) / d.squaredNorm(), 0., 1.)
@@ -1681,12 +1706,12 @@ class Tracer {
         auto &target = one.points[i];
         if (separation(target.phases) < .002)
           continue;
-        auto u = normalise(target.pressure, target.temperature);
+        auto u = normalise(target);
         double minimum = std::numeric_limits<double>::infinity();
         std::size_t closest = 0;
         for (std::size_t k = 0; k < two.points.size(); ++k) {
           auto &p = two.points[k];
-          double distance = (u - normalise(p.pressure, p.temperature)).norm();
+          double distance = (u - normalise(p)).norm();
           if (distance < minimum) {
             minimum = distance;
             closest = k;
@@ -1696,15 +1721,14 @@ class Tracer {
           return false;
         auto &left = one.points[i - 1];
         auto &right = one.points[i + 1];
-        Eigen::Vector2d normal = normalise(right.pressure, right.temperature) -
-                                 normalise(left.pressure, left.temperature);
+        Eigen::Vector2d normal = normalise(right) - normalise(left);
         if (normal.norm() < 1.e-12)
           continue;
         normal.normalize();
         try {
           auto a =
-              engine.make_assemblage(two.assemblage, two.points[closest].phases,
-                                     target.pressure, target.temperature);
+              engine.make_at(two.assemblage, two.points[closest].phases,
+                             diagram_coordinates(target, result.section.type));
           current_ids = two.assemblage;
           auto c = boundary_constraints(*a, two.zero_phase, u, normal);
           auto s = engine.solve(*a, c);
@@ -1729,6 +1753,42 @@ class Tracer {
     };
     return verified(first, second) && verified(second, first);
   }
+  // Equivalent traces can sample the same curve differently. Retain accepted
+  // states when dissolving duplicates, provided their zero phase is the same.
+  void merge_curve(Boundary &kept, const Boundary &other) {
+    if (kept.zero_phase != other.zero_phase || kept.points.size() < 2)
+      return;
+    std::vector<std::pair<double, BoundaryPoint>> ordered;
+    for (std::size_t i = 0; i < kept.points.size(); ++i)
+      ordered.push_back({static_cast<double>(i), kept.points[i]});
+    for (const auto &point : other.points) {
+      const auto u = normalise(point);
+      double nearest = std::numeric_limits<double>::infinity(), position = 0.;
+      for (std::size_t i = 1; i < kept.points.size(); ++i) {
+        const auto a = normalise(kept.points[i - 1]);
+        const auto d = (normalise(kept.points[i]) - a).eval();
+        const double fraction =
+            d.squaredNorm() == 0.
+                ? 0.
+                : std::clamp((u - a).dot(d) / d.squaredNorm(), 0., 1.);
+        const double distance = (u - a - fraction * d).squaredNorm();
+        if (distance < nearest) {
+          nearest = distance;
+          position = static_cast<double>(i - 1) + fraction;
+        }
+      }
+      ordered.push_back({position, point});
+    }
+    std::stable_sort(
+        ordered.begin(), ordered.end(),
+        [](const auto &a, const auto &b) { return a.first < b.first; });
+    kept.points.clear();
+    for (const auto &entry : ordered)
+      if (kept.points.empty() ||
+          (normalise(kept.points.back()) - normalise(entry.second)).norm() >
+              1.e-10)
+        kept.points.push_back(entry.second);
+  }
   void trace(const Seed &seed) {
     if (covered(seed))
       return;
@@ -1750,8 +1810,7 @@ class Tracer {
       // example fixing T on a horizontal edge), leaving a singular corrector.
       for (auto &normal : normals)
         try {
-          a = engine.make_assemblage(seed.ids, seed.phases, actual[0],
-                                     actual[1]);
+          a = engine.make_at(seed.ids, seed.phases, actual);
           auto c = boundary_constraints(*a, seed.zero, seed.pt, normal);
           s = engine.solve(*a, c);
           if (!valid(*a, s) || !distinct(*a, seed.ids) ||
@@ -1789,10 +1848,10 @@ class Tracer {
       line.assemblage = seed.ids;
       line.start_node = seed.node;
       line.end_node = seed.node;
-      auto unit = d.head(2).cwiseQuotient(range).eval();
+      auto unit = engine.project_direction(d).cwiseQuotient(range).eval();
       std::string forward_status, backward_status;
-      auto backward_a = engine.make_assemblage(
-          seed.ids, corrected.phases, a->get_pressure(), a->get_temperature());
+      auto backward_a =
+          engine.make_at(seed.ids, corrected.phases, engine.coordinates(*a));
       if (seed.bridge_node >= 0 && unit.dot(seed.direction) < 0.)
         d = -d;
       auto forward = follow(a, corrected, s, d, line.end_node, forward_status);
@@ -1809,8 +1868,8 @@ class Tracer {
       line.points = std::move(backward);
       line.points.push_back(point(*backward_a, seed.ids, s, affinity));
       // The seed must retain its corrected state, not the final backward state.
-      auto seed_a = engine.make_assemblage(seed.ids, corrected.phases,
-                                           actual[0], actual[1]);
+      auto seed_a = engine.make_at(seed.ids, corrected.phases,
+                                   origin + corrected.pt.cwiseProduct(range));
       seed_a->set_state(s.x[0], s.x[1]);
       line.points.back() = point(*seed_a, seed.ids, s, affinity);
       line.points.insert(line.points.end(), forward.begin(), forward.end());
@@ -1825,10 +1884,7 @@ class Tracer {
       double length = 0.;
       for (std::size_t k = 1; k < line.points.size(); ++k)
         length +=
-            (normalise(line.points[k].pressure, line.points[k].temperature) -
-             normalise(line.points[k - 1].pressure,
-                       line.points[k - 1].temperature))
-                .norm();
+            (normalise(line.points[k]) - normalise(line.points[k - 1])).norm();
       if (length < engine.settings.min_step * 2.)
         return;
       label(line);
@@ -1844,8 +1900,10 @@ class Tracer {
                           (old.start_node == line.end_node &&
                            old.end_node == line.start_node));
         if (same_sides && same_ends && old.assemblage == line.assemblage &&
-            same_curve(old, line))
+            same_curve(old, line)) {
+          merge_curve(old, line);
           return;
+        }
       }
       for (int n : {line.start_node, line.end_node})
         if (n >= 0) {
@@ -1902,7 +1960,7 @@ class Tracer {
           auto &status = back ? backward : forward;
           if (!line.points.empty()) {
             auto &p = back ? line.points.front() : line.points.back();
-            if (model_excluded(p.pressure, p.temperature))
+            if (model_excluded(p))
               continue;
           }
           // Older saved traces could finish at an identical-copy root and call
@@ -1931,9 +1989,7 @@ class Tracer {
           auto original = back ? line.points.front() : line.points.back();
           auto adjacent =
               back ? line.points[1] : line.points[line.points.size() - 2];
-          Eigen::Vector2d hint =
-              normalise(original.pressure, original.temperature) -
-              normalise(adjacent.pressure, adjacent.temperature);
+          Eigen::Vector2d hint = normalise(original) - normalise(adjacent);
           // A former rank stop may have been a trivial root with identical
           // solution copies. Rewind to the last genuinely distinct state.
           while (
@@ -1950,9 +2006,7 @@ class Tracer {
             auto &p = back ? line.points.front() : line.points.back();
             auto &q =
                 back ? line.points[1] : line.points[line.points.size() - 2];
-            if ((normalise(p.pressure, p.temperature) -
-                 normalise(q.pressure, q.temperature))
-                    .norm() > 1.e-12)
+            if ((normalise(p) - normalise(q)).norm() > 1.e-12)
               break;
             if (back)
               line.points.erase(line.points.begin());
@@ -1960,12 +2014,12 @@ class Tracer {
               line.points.pop_back();
           }
           auto saved = back ? line.points.front() : line.points.back();
-          Eigen::Vector2d u = normalise(saved.pressure, saved.temperature);
+          Eigen::Vector2d u = normalise(saved);
           Eigen::Vector2d along = hint;
           if (line.points.size() > 1) {
             auto &neighbour =
                 back ? line.points[1] : line.points[line.points.size() - 2];
-            along = u - normalise(neighbour.pressure, neighbour.temperature);
+            along = u - normalise(neighbour);
           }
           if (along.norm() < 1.e-12)
             continue;
@@ -1973,8 +2027,9 @@ class Tracer {
           if (unfinished(status))
             (back ? line.start_node : line.end_node) = -1;
           try {
-            auto a = engine.make_assemblage(line.assemblage, saved.phases,
-                                            saved.pressure, saved.temperature);
+            auto a =
+                engine.make_at(line.assemblage, saved.phases,
+                               diagram_coordinates(saved, result.section.type));
             current_ids = line.assemblage;
             auto c = boundary_constraints(*a, line.zero_phase, u, along);
             auto s = engine.solve(*a, c);
@@ -2025,7 +2080,8 @@ class Tracer {
             auto d = tangent(s, *a);
             if (!d.size())
               continue;
-            if (d.head<2>().cwiseQuotient(range).dot(along) < 0.)
+            if (engine.project_direction(d).cwiseQuotient(range).dot(along) <
+                0.)
               d = -d;
             Seed seed{line.assemblage,
                       line.zero_phase,
@@ -2074,10 +2130,9 @@ class Tracer {
     for (std::size_t i = 0; i < result.samples.size(); ++i)
       if (result.samples[i].success) {
         auto &s = result.samples[i];
-        nearby.push_back({(normalise(s.pressure, s.temperature) -
-                           normalise(location[0], location[1]))
-                              .squaredNorm(),
-                          i});
+        nearby.push_back(
+            {(normalise(s) - normalise(location[0], location[1])).squaredNorm(),
+             i});
       }
     std::sort(nearby.begin(), nearby.end());
     for (std::size_t i = 0; i < std::min<std::size_t>(32, nearby.size()); ++i)
@@ -2086,8 +2141,7 @@ class Tracer {
         std::vector<int> ids;
         for (auto &ph : previous.phases)
           ids.push_back(ph.id);
-        auto work =
-            engine.fixed_pt(ids, previous.phases, location[0], location[1]);
+        auto work = engine.fixed_at(ids, previous.phases, location);
         if (!work.state.success || !distinct(*work.assemblage, work.ids))
           continue;
         work.state.message =
@@ -2095,7 +2149,7 @@ class Tracer {
         return work.state;
       } catch (const std::exception &) {
       }
-    return engine.stable(location[0], location[1]).state;
+    return engine.stable_at(location).state;
   }
   bool model_excluded(double pressure, double temperature) const {
     Eigen::Vector2d p = normalise(pressure, temperature);
@@ -2113,6 +2167,10 @@ class Tracer {
     }
     return false;
   }
+  template <typename Point> bool model_excluded(const Point &point) const {
+    const auto q = diagram_coordinates(point, result.section.type);
+    return model_excluded(q[0], q[1]);
+  }
   void join_frame_limits() {
     // A corrector can already have accepted a frame point before an amount
     // null direction obscures the outgoing P,T tangent (especially at T=0).
@@ -2127,7 +2185,7 @@ class Tracer {
         if (!unfinished(status))
           continue;
         auto &point = start ? line.points.front() : line.points.back();
-        auto u = normalise(point.pressure, point.temperature);
+        auto u = normalise(point);
         if (!u.allFinite() || !inside(u, 1.e-10) ||
             std::min(u.cwiseAbs().minCoeff(),
                      (u - Eigen::Vector2d::Ones()).cwiseAbs().minCoeff()) >
@@ -2138,8 +2196,7 @@ class Tracer {
         id = -1;
         for (auto &previous : result.nodes)
           if (previous.kind == "domain_edge" &&
-              (normalise(previous.pressure, previous.temperature) - u).norm() <
-                  1.e-10) {
+              (normalise(previous) - u).norm() < 1.e-10) {
             id = previous.id;
             break;
           }
@@ -2149,10 +2206,12 @@ class Tracer {
           n.kind = "domain_edge";
           n.pressure = point.pressure;
           n.temperature = point.temperature;
+          n.composition_coordinate = point.composition_coordinate;
           n.assemblage = line.assemblage;
           n.zero_phases = {line.zero_phase};
-          auto a = engine.make_assemblage(line.assemblage, point.phases,
-                                          point.pressure, point.temperature);
+          auto a =
+              engine.make_at(line.assemblage, point.phases,
+                             diagram_coordinates(point, result.section.type));
           n.gibbs_variance = field_variance(*a, line.assemblage.size());
           result.nodes.push_back(n);
           id = n.id;
@@ -2172,7 +2231,7 @@ class Tracer {
                             "model_domain_limit"))
           continue;
         auto &point = start ? line.points.front() : line.points.back();
-        auto u = normalise(point.pressure, point.temperature);
+        auto u = normalise(point);
         double distance = std::numeric_limits<double>::infinity();
         int region_index = -1, segment = -1;
         for (std::size_t r = 0; r < result.excluded_regions.size(); ++r) {
@@ -2209,7 +2268,8 @@ class Tracer {
         if (!attached) {
           Eigen::MatrixXd updated(ring.rows() + 1, 2);
           updated.topRows(segment) = ring.topRows(segment);
-          updated.row(segment) << point.pressure, point.temperature;
+          updated.row(segment) =
+              diagram_coordinates(point, result.section.type).transpose();
           updated.bottomRows(ring.rows() - segment) =
               ring.bottomRows(ring.rows() - segment);
           ring = std::move(updated);
@@ -2222,6 +2282,7 @@ class Tracer {
           n.kind = "model_domain_limit";
           n.pressure = point.pressure;
           n.temperature = point.temperature;
+          n.composition_coordinate = point.composition_coordinate;
           n.zero_phases = {line.zero_phase};
           n.assemblage = line.assemblage;
           result.nodes.push_back(n);
@@ -2239,8 +2300,8 @@ class Tracer {
         !result.excluded_regions.empty())
       return;
     auto feasible = [&](double pn, double tn) {
-      return engine.eos_bulk_feasible(origin[0] + pn * range[0],
-                                      origin[1] + tn * range[1]);
+      return engine.eos_bulk_feasible_at(
+          origin + Eigen::Vector2d(pn, tn).cwiseProduct(range));
     };
     auto lower_pressure = [&](double tn) {
       if (feasible(0., tn))
@@ -2308,7 +2369,7 @@ class Tracer {
     join_frame_limits();
     join_model_limits();
     for (auto &state : result.samples)
-      if (model_excluded(state.pressure, state.temperature)) {
+      if (model_excluded(state)) {
         state.success = false;
         state.outside_model_domain = true;
         state.message = "Outside the required EOS model domain.";
@@ -2322,16 +2383,26 @@ class Tracer {
         add_sample(state);
     }
     result.boundaries.erase(
-        std::remove_if(result.boundaries.begin(), result.boundaries.end(),
-                       [&](const Boundary &line) {
-                         return !line.points.empty() &&
-                                std::all_of(line.points.begin(),
-                                            line.points.end(),
-                                            [&](const BoundaryPoint &p) {
-                                              return model_excluded(
-                                                  p.pressure, p.temperature);
-                                            });
-                       }),
+        std::remove_if(
+            result.boundaries.begin(), result.boundaries.end(),
+            [&](const Boundary &line) {
+              // Pure composition-edge traces have no two-sided field. Keep
+              // thermodynamic boundaries even when they lie near a P/T edge.
+              if (result.section.type != DiagramType::PT)
+                for (double edge : {0., 1.})
+                  if (!line.points.empty() &&
+                      std::all_of(line.points.begin(), line.points.end(),
+                                  [&](const BoundaryPoint &p) {
+                                    return std::abs(normalise(p)[1] - edge) <
+                                           1.e-8;
+                                  }))
+                    return true;
+              return !line.points.empty() &&
+                     std::all_of(line.points.begin(), line.points.end(),
+                                 [&](const BoundaryPoint &p) {
+                                   return model_excluded(p);
+                                 });
+            }),
         result.boundaries.end());
     for (auto &line : result.boundaries)
       trim_junction_overshoot(line);
@@ -2344,7 +2415,7 @@ class Tracer {
           !result.samples[i].outside_model_domain) {
         auto &old = result.samples[i];
         auto verified =
-            field_state(Eigen::Vector2d(old.pressure, old.temperature));
+            field_state(diagram_coordinates(old, result.section.type));
         if (verified.success)
           add_sample(verified, burnman::utils::checked_int(i));
       }
@@ -2377,8 +2448,12 @@ class Tracer {
             continue;
           if (same_curve(line, old)) {
             duplicate = true;
-            if (line.points.size() > old.points.size())
+            if (line.points.size() > old.points.size()) {
+              auto previous = std::move(old);
               old = std::move(line);
+              merge_curve(old, previous);
+            } else
+              merge_curve(old, line);
             break;
           }
         }
@@ -2468,11 +2543,31 @@ class Tracer {
             !polygon.phases.empty())
           bordered.insert(polygon.phases);
       for (auto &field : result.fields)
-        if (!bordered.count(field.phases))
+        if (!bordered.count(field.phases)) {
+          // A fixed-composition assemblage can occupy only a line or point
+          // in PX/TX, and therefore does not need a two-dimensional perimeter.
+          if (!engine.free_vectors.empty()) {
+            Eigen::MatrixXd span(0, engine.bulk_direction.size());
+            for (int id : field.phases) {
+              const auto &a = engine
+                                  .phases[static_cast<std::size_t>(
+                                      id / engine.settings.max_phase_instances)]
+                                  .a;
+              span.conservativeResize(span.rows() + a.rows(), Eigen::NoChange);
+              span.bottomRows(a.rows()) = a;
+            }
+            Eigen::VectorXd coefficients =
+                span.transpose().completeOrthogonalDecomposition().solve(
+                    engine.bulk_direction);
+            if ((span.transpose() * coefficients - engine.bulk_direction)
+                    .norm() > 1.e-10 * engine.bulk_direction.norm())
+              continue;
+          }
           result.diagnostics.push_back(
               "No field edge resolved for sampled field " +
               std::to_string(field.id) +
               "; increase seed density or inspect failed solves.");
+        }
     }
     result.equilibrium_solves += engine.equilibrium_solves;
     result.minimization_calls += engine.minimization_calls;
@@ -2484,20 +2579,38 @@ public:
   Tracer(const types::FormulaMap &bulk,
          const std::vector<std::shared_ptr<Material>> &phases,
          const std::array<double, 2> &pr, const std::array<double, 2> &tr,
-         const Settings &settings)
-      : engine(bulk, phases, settings) {
-    for (auto r : {pr, tr})
+         const Settings &settings, const CompositionSection &section)
+      : engine(bulk, phases, settings, section) {
+    result.section = engine.section;
+    result.composition_start = engine.bulk_start;
+    result.pressure_range = pr;
+    result.temperature_range = tr;
+    if (section.type != DiagramType::PT && section.type != DiagramType::PX &&
+        section.type != DiagramType::TX)
+      throw std::invalid_argument("Unknown pseudosection diagram type.");
+    if (section.type != DiagramType::PT) {
+      const auto fixed = section.type == DiagramType::PX ? tr : pr;
+      if (!std::isfinite(fixed[0]) || fixed[0] != fixed[1])
+        throw std::invalid_argument(
+            "PX requires fixed temperature; TX requires fixed pressure.");
+      engine.fixed_pressure = pr[0];
+      engine.fixed_temperature = tr[0];
+      if (section.composition_range[0] < 0. ||
+          section.composition_range[1] > 1.)
+        throw std::invalid_argument(
+            "Composition range must lie between 0 and 1.");
+    }
+    const auto ranges = result.coordinate_ranges();
+    for (auto r : ranges)
       if (!std::isfinite(r[0]) || !std::isfinite(r[1]) || r[1] <= r[0])
         throw std::invalid_argument(
-            "P/T ranges must be finite and increasing.");
+            "Diagram ranges must be finite and increasing.");
     if (pr[0] < 0 || tr[0] < 0 ||
         (tr[0] == 0 && !settings.active_solution_faces))
       throw std::invalid_argument("Pseudosections require P>=0 and T>0 (T=0 "
                                   "requires active_solution_faces).");
-    result.pressure_range = pr;
-    result.temperature_range = tr;
-    origin << pr[0], tr[0];
-    range << pr[1] - pr[0], tr[1] - tr[0];
+    origin << ranges[0][0], ranges[1][0];
+    range << ranges[0][1] - ranges[0][0], ranges[1][1] - ranges[1][0];
     result.settings = engine.settings;
     for (auto &phase : engine.phases)
       for (int j = 0; j < settings.max_phase_instances; ++j)
@@ -2506,28 +2619,33 @@ public:
   }
   Result run() {
     auto &opts = engine.settings;
-    for (int i = 0; i < opts.pressure_seeds; ++i)
-      for (int j = 0; j < opts.temperature_seeds; ++j) {
-        auto actual =
-            (origin + Eigen::Vector2d(double(i) / (opts.pressure_seeds - 1),
-                                      double(j) / (opts.temperature_seeds - 1))
-                          .cwiseProduct(range))
-                .eval();
-        auto state = engine.stable(actual[0], actual[1]);
+    const int first_seeds = result.section.type == DiagramType::TX
+                                ? opts.temperature_seeds
+                                : opts.pressure_seeds;
+    const int second_seeds = result.section.type == DiagramType::PT
+                                 ? opts.temperature_seeds
+                                 : opts.composition_seeds;
+    for (int i = 0; i < first_seeds; ++i)
+      for (int j = 0; j < second_seeds; ++j) {
+        auto actual = (origin + Eigen::Vector2d(double(i) / (first_seeds - 1),
+                                                double(j) / (second_seeds - 1))
+                                    .cwiseProduct(range))
+                          .eval();
+        auto state = engine.stable_at(actual);
         add_sample(state.state);
         grid.push_back(std::move(state));
         if (opts.verbose)
           std::cerr << "Seed " << grid.size() << '/'
-                    << opts.pressure_seeds * opts.temperature_seeds << " "
+                    << first_seeds * second_seeds << " "
                     << grid.back().state.message << '\n';
       }
-    for (int i = 0; i < opts.pressure_seeds; ++i)
-      for (int j = 0; j < opts.temperature_seeds; ++j) {
-        int k = i * opts.temperature_seeds + j;
-        if (i + 1 < opts.pressure_seeds)
+    for (int i = 0; i < first_seeds; ++i)
+      for (int j = 0; j < second_seeds; ++j) {
+        int k = i * second_seeds + j;
+        if (i + 1 < first_seeds)
           bracket(grid[static_cast<std::size_t>(k)],
-                  grid[static_cast<std::size_t>(k + opts.temperature_seeds)]);
-        if (j + 1 < opts.temperature_seeds)
+                  grid[static_cast<std::size_t>(k + second_seeds)]);
+        if (j + 1 < second_seeds)
           bracket(grid[static_cast<std::size_t>(k)],
                   grid[static_cast<std::size_t>(k + 1)]);
       }
@@ -2536,6 +2654,10 @@ public:
     return finish();
   }
   Result resume(const Result &previous) {
+    if (!previous.composition_start.empty() &&
+        previous.composition_start != result.composition_start)
+      throw std::invalid_argument(
+          "Resume with the same composition path start.");
     if (previous.phase_names != result.phase_names)
       throw std::invalid_argument(
           "Resume with the same candidate names and max_phase_instances.");
@@ -2568,12 +2690,11 @@ public:
           continue;
         auto &point = start ? line.points.front() : line.points.back();
         auto &n = result.nodes.at(static_cast<std::size_t>(id));
-        if ((normalise(point.pressure, point.temperature) -
-             normalise(n.pressure, n.temperature))
-                .norm() > engine.settings.node_tolerance)
+        if ((normalise(point) - normalise(n)).norm() >
+            engine.settings.node_tolerance)
           continue;
-        auto a = engine.make_assemblage(n.assemblage, point.phases, n.pressure,
-                                        n.temperature);
+        auto a = engine.make_at(n.assemblage, point.phases,
+                                diagram_coordinates(n, result.section.type));
         if (status == "junction")
           expand(*a, n.assemblage, n.zero_phases, id);
         // Critical endpoints are first approached from both arms in recover().
@@ -2588,16 +2709,16 @@ public:
 Result pseudosection(const types::FormulaMap &bulk,
                      const std::vector<std::shared_ptr<Material>> &phases,
                      const std::array<double, 2> &pr,
-                     const std::array<double, 2> &tr,
-                     const Settings &settings) {
-  return Tracer(bulk, phases, pr, tr, settings).run();
+                     const std::array<double, 2> &tr, const Settings &settings,
+                     const CompositionSection &section) {
+  return Tracer(bulk, phases, pr, tr, settings, section).run();
 }
 Result
 refine_pseudosection(const types::FormulaMap &bulk,
                      const std::vector<std::shared_ptr<Material>> &phases,
                      const Result &previous, const Settings &settings) {
   return Tracer(bulk, phases, previous.pressure_range,
-                previous.temperature_range, settings)
+                previous.temperature_range, settings, previous.section)
       .resume(previous);
 }
 Result

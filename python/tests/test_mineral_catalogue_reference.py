@@ -11,8 +11,8 @@ import pytest
 
 pytest.importorskip("burnman")
 import cvxpy as cp
-from burnman.minerals import SLB_2011 as pySLB, JH_2015 as pyJH
-from burnman_cpp.minerals import SLB_2011 as SLB, JH_2015 as JH
+from burnman.minerals import SLB_2011 as pySLB, JH_2015 as pyJH, HGP_2018_ds633 as pyHGP
+from burnman_cpp.minerals import SLB_2011 as SLB, JH_2015 as JH, HGP_2018_ds633 as HGP
 
 ROOT = Path(__file__).resolve().parents[2]
 CATALOGUE_FILES = (
@@ -48,7 +48,7 @@ def test_catalogue_check_is_independent_of_optimizer_choice(
     monkeypatch.setattr(sys, "argv", ["export_example_minerals.py", "--check"])
     before = [(ROOT / filename).read_bytes() for filename in CATALOGUE_FILES]
     exporter.main()
-    assert "Verified 253 endmembers and 155 factories" in capsys.readouterr().out
+    assert "Verified 257 endmembers and 159 factories" in capsys.readouterr().out
     assert [(ROOT / filename).read_bytes() for filename in CATALOGUE_FILES] == before
 
 
@@ -79,6 +79,24 @@ def test_catalogue_check_rejects_real_data_changes_with_a_diff(
     assert "+++ src/minerals/datasets.cpp (pinned Python BurnMan)" in error
     assert "H_0" in error
     assert path.read_text() == changed
+
+
+@pytest.mark.parametrize("name", ["iron", "wu", "mt", "hem"])
+@pytest.mark.parametrize("temperature", [300.0, 829.2029337, 1041.0, 1043.0, 1500.0])
+def test_fe_o_endmembers_match_pinned_holland_powell_reference(name, temperature):
+    native, reference = getattr(HGP, name)(), getattr(pyHGP, name)()
+    assert native.formula == reference.formula
+    native.set_state(1.0e5, temperature)
+    reference.set_state(1.0e5, temperature)
+    for prop in (
+        "molar_gibbs",
+        "molar_entropy",
+        "molar_volume",
+        "molar_heat_capacity_p",
+    ):
+        assert getattr(native, prop) == pytest.approx(
+            getattr(reference, prop), rel=5.0e-8, abs=1.0e-12
+        )
 
 
 @pytest.mark.parametrize(

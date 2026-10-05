@@ -373,12 +373,12 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
   if (!std::isfinite(tolerance) || tolerance < 1.e-12 || tolerance > 1.e-3)
     throw std::invalid_argument(
         "Polygon tolerance must be between 1e-12 and 1e-3 of the P/T domain.");
-  Point origin(result.pressure_range[0], result.temperature_range[0]);
-  Point scale(result.pressure_range[1] - origin.x(),
-              result.temperature_range[1] - origin.y());
+  const auto ranges = result.coordinate_ranges();
+  Point origin(ranges[0][0], ranges[1][0]);
+  Point scale(ranges[0][1] - origin.x(), ranges[1][1] - origin.y());
   if (!origin.allFinite() || !scale.allFinite() || (scale.array() <= 0.).any())
     throw std::invalid_argument(
-        "Polygon P/T ranges must be finite and increasing.");
+        "Polygon diagram ranges must be finite and increasing.");
   auto normalise = [&](double p, double t) -> Point {
     Point value = (Point(p, t) - origin).cwiseQuotient(scale);
     if (!value.allFinite())
@@ -394,6 +394,10 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     }
     return value;
   };
+  auto coordinate = [&](const auto &point) {
+    const auto q = diagram_coordinates(point, result.section.type);
+    return normalise(q[0], q[1]);
+  };
   auto canonical = [](Phases values) {
     std::sort(values.begin(), values.end());
     values.erase(std::unique(values.begin(), values.end()), values.end());
@@ -401,12 +405,12 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
   };
   std::map<int, Point> nodes;
   for (auto &node : result.nodes)
-    nodes.emplace(node.id, normalise(node.pressure, node.temperature));
+    nodes.emplace(node.id, coordinate(node));
   std::vector<Segment> segments;
   for (auto &line : result.boundaries) {
     std::vector<Point> points;
     for (auto &point : line.points)
-      points.push_back(normalise(point.pressure, point.temperature));
+      points.push_back(coordinate(point));
     if (points.size() < 2)
       continue;
     if (nodes.count(line.start_node))
@@ -638,10 +642,8 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
               ? std::min(tolerance * 2.,
                          64. * std::numeric_limits<double>::epsilon())
               : tolerance * 2.;
-      if (!state.success ||
-          !contains(face, vertices.points,
-                    normalise(state.pressure, state.temperature),
-                    sample_tolerance)) {
+      if (!state.success || !contains(face, vertices.points, coordinate(state),
+                                      sample_tolerance)) {
         continue;
       }
       Phases phases;
@@ -653,7 +655,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
           phases.push_back(phase.id);
       if (phases.empty())
         continue;
-      Point location = normalise(state.pressure, state.temperature);
+      Point location = coordinate(state);
       double margin = std::numeric_limits<double>::infinity();
       auto measure = [&](const Ring &ring) {
         for (std::size_t i = 1; i < ring.size(); ++i)
@@ -701,7 +703,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     if (polygon.sample_index >= 0) {
       auto &state =
           result.samples[static_cast<std::size_t>(polygon.sample_index)];
-      sample = normalise(state.pressure, state.temperature);
+      sample = coordinate(state);
     }
     auto label = label_point(face, vertices.points,
                              polygon.sample_index >= 0 ? &sample : nullptr);

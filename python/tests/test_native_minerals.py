@@ -5,9 +5,18 @@ import sys
 import numpy as np
 import pytest
 
-from burnman_cpp.minerals import HP_2011_ds62 as HP, SLB_2011 as SLB, JH_2015 as JH
+from burnman_cpp.minerals import (
+    HP_2011_ds62 as HP,
+    SLB_2011 as SLB,
+    JH_2015 as JH,
+    HGP_2018_ds633 as HGP,
+)
 
 FACTORIES = [
+    HGP.iron,
+    HGP.wu,
+    HGP.mt,
+    HGP.hem,
     HP.sill,
     HP.andalusite,
     HP.ky,

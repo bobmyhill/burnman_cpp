@@ -20,12 +20,31 @@
 #include <vector>
 namespace burnman::pseudosections {
 
+enum class DiagramType { PT, PX, TX };
+
+struct CompositionSection {
+  DiagramType type = DiagramType::PT;
+  // Bulk(X) = (1-X) bulk_start + X composition_end, retaining supplied amounts.
+  types::FormulaMap composition_end;
+  std::array<double, 2> composition_range{0., 1.};
+};
+
+// Geometry coordinates are [P,T], [P,X] or [T,X]; stored P,T stay physical.
+template <typename Point>
+Eigen::Vector2d diagram_coordinates(const Point &point, DiagramType type) {
+  if (type == DiagramType::PT)
+    return {point.pressure, point.temperature};
+  return {type == DiagramType::PX ? point.pressure : point.temperature,
+          point.composition_coordinate};
+}
+
 struct Settings {
   int pressure_seeds = 7, temperature_seeds = 7;
+  int composition_seeds = 7;
   int max_refinement_iterations = 150, minimization_starts = 10;
   int max_phase_instances = 3, max_trace_steps = 500, max_lines = 1000;
   int max_recovery_passes = 2;
-  // Steps and node distances are fractions of the supplied P/T domain.
+  // Steps and node distances are fractions of the supplied diagram domain.
   double step = .025, min_step = 1.e-7;
   // Affinities are J/mol; mass balance and phase amounts use relative errors.
   double affinity_tolerance = .2, mass_balance_tolerance = 1.e-8;
@@ -53,6 +72,7 @@ struct PhaseState {
 
 struct State {
   double pressure = 0., temperature = 0.; // Pa, K
+  double composition_coordinate = 0.;     // X on the supplied bulk path
   bool success = false;
   // A solve explicitly requested at the interior of a constructed face.
   bool is_field_verification = false;
@@ -67,6 +87,7 @@ struct State {
 
 struct BoundaryPoint {
   double pressure = 0., temperature = 0.;
+  double composition_coordinate = 0.;
   std::vector<PhaseState> phases;
   double mass_balance_error = 0., minimum_affinity = 0., residual = 0.;
 };
@@ -84,6 +105,7 @@ struct Node {
   int id = -1, gibbs_variance = 0, pt_nullity = 0;
   std::string kind;
   double pressure = 0., temperature = 0.;
+  double composition_coordinate = 0.;
   std::vector<int> zero_phases, assemblage, incident_lines;
   Eigen::VectorXd critical_mode; // normalised endmember direction, if verified
 };
@@ -95,6 +117,15 @@ struct Field {
 
 struct Result {
   std::array<double, 2> pressure_range, temperature_range;
+  CompositionSection section;
+  types::FormulaMap composition_start;
+  std::array<std::array<double, 2>, 2> coordinate_ranges() const {
+    if (section.type == DiagramType::PT)
+      return {pressure_range, temperature_range};
+    return {section.type == DiagramType::PX ? pressure_range
+                                            : temperature_range,
+            section.composition_range};
+  }
   // Actual settings, retained so continuation uses the same composition
   // coordinates, numerical tolerances and EOS-domain policy by default.
   Settings settings;
@@ -104,7 +135,7 @@ struct Result {
   std::vector<Boundary> boundaries;
   std::vector<Node> nodes;
   std::vector<std::string> diagnostics;
-  // Closed SI [P,T] rings outside the admissible EOS model domain: either
+  // Closed diagram-coordinate rings outside the admissible EOS domain: either
   // remaining candidates cannot represent the bulk or a required EOS fails.
   // These are model limits, not equilibrium phase lines.
   std::vector<Eigen::MatrixXd> excluded_regions;
@@ -119,16 +150,17 @@ struct FieldPolygon {
   std::vector<int> phases;
   // Zero-based faces in the original, unmerged planar subdivision.
   std::vector<int> source_regions;
-  // Closed rings, columns [pressure (Pa), temperature (K)]. Holes have
-  // opposite winding to the exterior. Area is a fraction of the P/T domain.
+  // Closed rings in [P,T], [P,X] or [T,X] (Pa, K, dimensionless X). Holes
+  // have opposite winding. Area is a fraction of the diagram domain.
   Eigen::MatrixXd vertices;
   std::vector<Eigen::MatrixXd> holes;
   double area = 0.;
-  // Interior label point with approximate maximum clearance, in SI [P,T].
+  // Interior label point with approximate maximum clearance, in diagram units.
   Eigen::Vector2d label_position = Eigen::Vector2d::Zero();
   double label_clearance = 0.; // normalised distance to the closest ring
   /// True only when the entire axis-aligned rectangle lies strictly inside
-  /// the exterior and outside all holes. Centre and half-size are SI [P,T].
+  /// the exterior and outside all holes. Centre and half-size use diagram
+  /// units.
   bool contains_rectangle(const Eigen::Vector2d &centre,
                           const Eigen::Vector2d &half_size) const;
 };
@@ -136,7 +168,7 @@ struct FieldPolygon {
 struct FieldPolygons {
   std::vector<FieldPolygon> polygons;
   std::vector<std::string> diagnostics;
-  // Visible, intersection-split edges in SI [P,T], excluding dissolved
+  // Visible, intersection-split edges in diagram units, excluding dissolved
   // internal edges. Unfinished and unclassified edges remain visible.
   std::vector<Eigen::MatrixXd> boundary_segments;
   std::vector<int> boundary_nodes;
@@ -160,11 +192,15 @@ FieldPolygons field_polygons(const Result &result, double tolerance = 1.e-8,
 /// rank and stability checks prune reduced-variance/metastable branches.
 /// Finite seed sampling does not guarantee discovery of every disconnected
 /// field. Inspect resolved and diagnostics; increase seed density to assess it.
+/// For PX, supply a degenerate temperature_range; for TX, a degenerate
+/// pressure_range. section supplies the bulk mixing path and X range. Tracing,
+/// stability checks, junction recovery and polygons are shared by all diagrams.
 Result pseudosection(const types::FormulaMap &composition,
                      const std::vector<std::shared_ptr<Material>> &candidates,
                      const std::array<double, 2> &pressure_range,
                      const std::array<double, 2> &temperature_range,
-                     const Settings &settings = Settings{});
+                     const Settings &settings = Settings{},
+                     const CompositionSection &section = CompositionSection{});
 
 /// Resume unfinished boundaries from their last verified compositions and
 /// revisit junction branches. Supply the same bulk, candidates and phase-ID

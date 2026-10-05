@@ -60,18 +60,6 @@ equilibrate(const types::FormulaMap &composition, Assemblage &assemblage,
         ") must be two more than the number of free_compositional_vectors (" +
         std::to_string(n_free_compositional_vectors) + ").");
   }
-  // Check free_compositional_vectors values sum to zero
-  for (auto const &vec : free_compositional_vectors) {
-    double sum = 0;
-    for (const auto &pair : vec) {
-      sum += pair.second;
-    }
-    if (std::abs(sum) > constants::precision::abs_tolerance) {
-      throw std::runtime_error(
-          "The amounts of each free_compositional_vector must sum to zero");
-    }
-  }
-
   // Set default assemblage molar_fractions if none
   if (!assemblage.get_molar_fractions().size()) {
     Eigen::Index n_phases = assemblage.get_n_phases();

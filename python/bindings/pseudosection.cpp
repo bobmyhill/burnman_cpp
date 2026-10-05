@@ -17,9 +17,26 @@
 #include <set>
 namespace burnman::python {
 namespace {
+std::string diagram_name(pseudosections::DiagramType type) {
+  if (type == pseudosections::DiagramType::PX)
+    return "PX";
+  if (type == pseudosections::DiagramType::TX)
+    return "TX";
+  return "PT";
+}
+pseudosections::DiagramType diagram_type(const std::string &name) {
+  if (name == "PT" || name == "P-T")
+    return pseudosections::DiagramType::PT;
+  if (name == "PX" || name == "P-X")
+    return pseudosections::DiagramType::PX;
+  if (name == "TX" || name == "T-X")
+    return pseudosections::DiagramType::TX;
+  throw py::value_error("diagram must be 'PT', 'PX' or 'TX'.");
+}
 #define SETTINGS_OPTIONS(X)                                                    \
   X(pressure_seeds)                                                            \
   X(temperature_seeds)                                                         \
+  X(composition_seeds)                                                         \
   X(max_refinement_iterations)                                                 \
   X(minimization_starts)                                                       \
   X(max_phase_instances)                                                       \
@@ -74,7 +91,11 @@ py::list matrix_list(const Eigen::MatrixXd &matrix) {
 }
 py::dict result_dict(const pseudosections::Result &result) {
   py::dict data;
-  data["schema_version"] = 1;
+  data["schema_version"] = 2;
+  data["diagram_type"] = diagram_name(result.section.type);
+  data["composition_start"] = py::cast(result.composition_start);
+  data["composition_end"] = py::cast(result.section.composition_end);
+  data["composition_range"] = py::cast(result.section.composition_range);
 #define SAVE(name) data[#name] = py::cast(result.name);
   SAVE(pressure_range)
   SAVE(temperature_range)
@@ -123,6 +144,7 @@ py::dict result_dict(const pseudosections::Result &result) {
     SAVE(id)
     SAVE(pressure)
     SAVE(temperature)
+    SAVE(composition_coordinate)
     SAVE(kind)
     SAVE(zero_phases)
     SAVE(assemblage)
@@ -152,6 +174,7 @@ py::dict result_dict(const pseudosections::Result &result) {
 #define SAVE(name) item[#name] = py::cast(point.name);
       SAVE(pressure)
       SAVE(temperature)
+      SAVE(composition_coordinate)
       SAVE(mass_balance_error)
       SAVE(minimum_affinity)
       SAVE(residual)
@@ -167,6 +190,7 @@ py::dict result_dict(const pseudosections::Result &result) {
 #define SAVE(name) record[#name] = py::cast(state.name);
     SAVE(pressure)
     SAVE(temperature)
+    SAVE(composition_coordinate)
     SAVE(success)
     SAVE(is_field_verification)
     SAVE(outside_model_domain)
@@ -191,6 +215,25 @@ py::dict result_dict(const pseudosections::Result &result) {
 pseudosections::Result saved_result(const py::dict &data, bool full = false) {
   using namespace pseudosections;
   Result result;
+  if (data.contains("diagram_type"))
+    result.section.type =
+        diagram_type(data["diagram_type"].cast<std::string>());
+  if (data.contains("composition_start"))
+    result.composition_start =
+        data["composition_start"].cast<types::FormulaMap>();
+  if (data.contains("composition_end"))
+    result.section.composition_end =
+        data["composition_end"].cast<types::FormulaMap>();
+  if (data.contains("composition_range"))
+    result.section.composition_range =
+        data["composition_range"].cast<std::array<double, 2>>();
+  auto composition_coordinate = [&](const py::dict &record) {
+    if (record.contains("composition_coordinate"))
+      return record["composition_coordinate"].cast<double>();
+    if (result.section.type != DiagramType::PT)
+      throw py::value_error("PX/TX records require composition_coordinate.");
+    return 0.;
+  };
   if (data.contains("settings"))
     result.settings = saved_settings(data["settings"].cast<py::dict>());
   else {
@@ -251,6 +294,7 @@ pseudosections::Result saved_result(const py::dict &data, bool full = false) {
       node.id = value["id"].cast<int>();
       node.pressure = value["pressure"].cast<double>();
       node.temperature = value["temperature"].cast<double>();
+      node.composition_coordinate = composition_coordinate(value);
       if (value.contains("incident_lines"))
         node.incident_lines = value["incident_lines"].cast<std::vector<int>>();
       if (full) {
@@ -289,6 +333,7 @@ pseudosections::Result saved_result(const py::dict &data, bool full = false) {
       BoundaryPoint p;
       p.pressure = record["pressure"].cast<double>();
       p.temperature = record["temperature"].cast<double>();
+      p.composition_coordinate = composition_coordinate(record);
       if (full) {
         p.phases = phases(record["phases"]);
         p.mass_balance_error = record["mass_balance_error"].cast<double>();
@@ -321,6 +366,7 @@ pseudosections::Result saved_result(const py::dict &data, bool full = false) {
       if (value.contains("outside_model_domain"))
         state.outside_model_domain = value["outside_model_domain"].cast<bool>();
       state.temperature = value["temperature"].cast<double>();
+      state.composition_coordinate = composition_coordinate(value);
       if (value.contains("excluded_phases"))
         state.excluded_phases =
             value["excluded_phases"].cast<std::vector<std::string>>();
@@ -365,17 +411,18 @@ void bind_pseudosection(py::module_ &m) {
   py::class_<State>(m, "EquilibriumState")
 #define PROPERTY(name) .def_readonly(#name, &State::name)
       PROPERTY(pressure) PROPERTY(temperature) PROPERTY(success)
-          PROPERTY(is_field_verification) PROPERTY(message) PROPERTY(phases)
-              PROPERTY(gibbs) PROPERTY(mass_balance_error)
-                  PROPERTY(minimum_affinity) PROPERTY(equilibrium_error)
-                      PROPERTY(excluded_phases) PROPERTY(outside_model_domain)
+          PROPERTY(composition_coordinate) PROPERTY(is_field_verification)
+              PROPERTY(message) PROPERTY(phases) PROPERTY(gibbs)
+                  PROPERTY(mass_balance_error) PROPERTY(minimum_affinity)
+                      PROPERTY(equilibrium_error) PROPERTY(excluded_phases)
+                          PROPERTY(outside_model_domain)
 #undef PROPERTY
-                          ;
+                              ;
   py::class_<BoundaryPoint>(m, "BoundaryPoint")
 #define PROPERTY(name) .def_readonly(#name, &BoundaryPoint::name)
       PROPERTY(pressure) PROPERTY(temperature) PROPERTY(phases)
-          PROPERTY(mass_balance_error) PROPERTY(minimum_affinity)
-              PROPERTY(residual)
+          PROPERTY(composition_coordinate) PROPERTY(mass_balance_error)
+              PROPERTY(minimum_affinity) PROPERTY(residual)
 #undef PROPERTY
                   ;
   py::class_<Boundary>(m, "PhaseBoundary")
@@ -389,9 +436,9 @@ void bind_pseudosection(py::module_ &m) {
   py::class_<Node>(m, "PhaseDiagramNode")
 #define PROPERTY(name) .def_readonly(#name, &Node::name)
       PROPERTY(id) PROPERTY(gibbs_variance) PROPERTY(pt_nullity) PROPERTY(kind)
-          PROPERTY(pressure) PROPERTY(temperature) PROPERTY(zero_phases)
-              PROPERTY(assemblage) PROPERTY(incident_lines)
-                  PROPERTY(critical_mode)
+          PROPERTY(composition_coordinate) PROPERTY(pressure)
+              PROPERTY(temperature) PROPERTY(zero_phases) PROPERTY(assemblage)
+                  PROPERTY(incident_lines) PROPERTY(critical_mode)
 #undef PROPERTY
                       ;
   py::class_<Field>(m, "PhaseField")
@@ -409,13 +456,24 @@ void bind_pseudosection(py::module_ &m) {
       .def_property_readonly(
           "settings", [](const Result &result) { return result.settings; },
           py::return_value_policy::copy)
+      .def_property_readonly(
+          "diagram_type",
+          [](const Result &r) { return diagram_name(r.section.type); })
+      .def_property_readonly(
+          "composition_end",
+          [](const Result &r) { return r.section.composition_end; })
+      .def_property_readonly(
+          "composition_range",
+          [](const Result &r) { return r.section.composition_range; })
+      .def_property_readonly("coordinate_ranges", &Result::coordinate_ranges)
 #define PROPERTY(name) .def_readonly(#name, &Result::name)
           PROPERTY(pressure_range) PROPERTY(temperature_range)
-              PROPERTY(phase_names) PROPERTY(samples) PROPERTY(fields)
-                  PROPERTY(boundaries) PROPERTY(nodes) PROPERTY(diagnostics)
-                      PROPERTY(resolved) PROPERTY(equilibrium_solves)
-                          PROPERTY(minimization_calls)
-                              PROPERTY(excluded_regions)
+              PROPERTY(composition_start) PROPERTY(phase_names)
+                  PROPERTY(samples) PROPERTY(fields) PROPERTY(boundaries)
+                      PROPERTY(nodes) PROPERTY(diagnostics) PROPERTY(resolved)
+                          PROPERTY(equilibrium_solves)
+                              PROPERTY(minimization_calls)
+                                  PROPERTY(excluded_regions)
 #undef PROPERTY
       ;
   py::class_<FieldPolygon>(m, "PhaseFieldPolygon")
@@ -468,10 +526,51 @@ void bind_pseudosection(py::module_ &m) {
         py::arg("phases"), py::arg("pressure"), py::arg("temperature"),
         py::arg("settings") = Settings{},
         py::call_guard<py::gil_scoped_release>());
-  m.def("pseudosection", &pseudosection, py::arg("composition"),
-        py::arg("phases"), py::arg("pressure_range"),
-        py::arg("temperature_range"), py::arg("settings") = Settings{},
-        py::call_guard<py::gil_scoped_release>());
+  m.def(
+      "pseudosection",
+      [](const types::FormulaMap &composition,
+         const std::vector<std::shared_ptr<Material>> &phases,
+         std::optional<std::array<double, 2>> pressure_range,
+         std::optional<std::array<double, 2>> temperature_range,
+         const Settings &settings, const std::string &diagram,
+         const types::FormulaMap &composition_end,
+         const std::array<double, 2> &composition_range,
+         std::optional<double> pressure, std::optional<double> temperature) {
+        CompositionSection section{diagram_type(diagram), composition_end,
+                                   composition_range};
+        if (pressure) {
+          if (pressure_range)
+            throw py::value_error(
+                "Supply pressure or pressure_range, not both.");
+          pressure_range = std::array<double, 2>{*pressure, *pressure};
+        }
+        if (temperature) {
+          if (temperature_range)
+            throw py::value_error(
+                "Supply temperature or temperature_range, not both.");
+          temperature_range = std::array<double, 2>{*temperature, *temperature};
+        }
+        if (!pressure_range || !temperature_range)
+          throw py::value_error(
+              "Specify both pressure and temperature domains; use a fixed "
+              "temperature for PX or a fixed pressure for TX.");
+        py::gil_scoped_release release;
+        return pseudosection(composition, phases, *pressure_range,
+                             *temperature_range, settings, section);
+      },
+      py::arg("composition"), py::arg("phases"),
+      py::arg("pressure_range") = py::none(),
+      py::arg("temperature_range") = py::none(),
+      py::arg("settings") = Settings{}, py::kw_only(),
+      py::arg("diagram") = "PT",
+      py::arg("composition_end") = types::FormulaMap{},
+      py::arg("composition_range") = std::array<double, 2>{0., 1.},
+      py::arg("pressure") = py::none(), py::arg("temperature") = py::none(),
+      "Trace PT, PX or TX phase fields using the same native equilibrate "
+      "continuation. PX fixes temperature; TX fixes pressure. For PX/TX, "
+      "bulk(X)=(1-X)*composition+X*composition_end, retaining supplied "
+      "amounts. "
+      "X lies in composition_range.");
   m.def(
       "refine_pseudosection",
       [](const types::FormulaMap &bulk,

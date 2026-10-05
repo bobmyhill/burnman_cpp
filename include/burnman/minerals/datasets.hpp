@@ -47,6 +47,10 @@ std::shared_ptr<Mineral> coe();
 
 namespace HGP_2018_ds633 {
 std::shared_ptr<Solution> silicate_melt();
+std::shared_ptr<Mineral> iron();
+std::shared_ptr<Mineral> wu();
+std::shared_ptr<Mineral> mt();
+std::shared_ptr<Mineral> hem();
 } // namespace HGP_2018_ds633
 
 namespace mb50NCKFMASHTO {
