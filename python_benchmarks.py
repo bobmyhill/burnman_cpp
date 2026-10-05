@@ -102,7 +102,6 @@ def mineral_property_benchmarks():
     # Set-up common mineral params
     params["T_0"] = 300.0
     params["P_0"] = 0.0
-    params["E_0"] = 0.0
     params["F_0"] = 0.0
     params["H_0"] = -1443030.0
     params["V_0"] = 11.24e-6
@@ -126,7 +125,7 @@ def mineral_property_benchmarks():
     eos_tags = [
         "mt",
         "vinet",
-        "bm2",
+        "bm3shear2",
         "bm3",
         "mgd2",
         "mgd3",
@@ -139,7 +138,7 @@ def mineral_property_benchmarks():
     eos_map = {
         "mt": "MT",
         "vinet": "Vinet",
-        "bm2": "BM2",
+        "bm3shear2": "BM3Shear2",
         "bm3": "BM3",
         "mgd2": "MGD2",
         "mgd3": "MGD3",
