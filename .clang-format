@@ -1,0 +1,7 @@
+BasedOnStyle: LLVM
+# These macros include their own statement terminators. Without this hint,
+# repeated formatting joins calls and changes the indentation after them.
+StatementMacros:
+  - SAVE
+  - SETTINGS_OPTIONS
+  - X

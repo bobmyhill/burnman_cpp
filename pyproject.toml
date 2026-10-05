@@ -31,3 +31,6 @@ sdist.exclude = [".venv/**", "build/**", "bin/**", "*.csv", "benchmark-report.xm
 
 [tool.pytest.ini_options]
 testpaths = ["python/tests"]
+
+[tool.black]
+target-version = ["py310"]

@@ -26,13 +26,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install formatters
-        run: python -m pip install clang-format==23.1.2 black==26.5.1
+        run: python -m pip install -r contrib/utilities/requirements-format.txt
 
-      - name: Format C++ files
-        run: git ls-files -z -- '*.cpp' '*.hpp' | xargs -0 -r clang-format -i --style=file --
-
-      - name: Format Python files
-        run: git ls-files -z -- '*.py' | xargs -0 -r black --
-
-      - name: Check for formatting changes
-        run: git diff --exit-code
+      - name: Check source formatting
+        run: ./contrib/utilities/indent.sh --check --tracked

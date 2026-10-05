@@ -13,6 +13,8 @@ if(Eigen3_VERSION VERSION_LESS 3.4)
   message(FATAL_ERROR "BurnMan requires Eigen >= 3.4 (found ${Eigen3_VERSION})")
 endif()
 find_package(GSL REQUIRED)
+find_path(NLOPT_INCLUDE_DIR NAMES nlopt.hpp REQUIRED)
+find_library(NLOPT_LIBRARY NAMES nlopt REQUIRED)
 find_path(CDD_INCLUDE_DIR NAMES cdd.h PATH_SUFFIXES cddlib cdd REQUIRED)
 find_library(CDD_GMP_LIBRARY NAMES cddgmp REQUIRED)
 find_path(GMP_INCLUDE_DIR NAMES gmp.h REQUIRED)
@@ -23,8 +25,8 @@ add_library(burnman_core STATIC ${BURNMAN_SOURCES})
 target_compile_features(burnman_core PUBLIC cxx_std_17)
 target_include_directories(burnman_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(burnman_core PUBLIC Eigen3::Eigen GSL::gsl GSL::gslcblas)
-target_include_directories(burnman_core PRIVATE ${CDD_INCLUDE_DIR} ${GMP_INCLUDE_DIR})
-target_link_libraries(burnman_core PUBLIC ${CDD_GMP_LIBRARY} ${GMP_LIBRARY})
+target_include_directories(burnman_core PRIVATE ${CDD_INCLUDE_DIR} ${GMP_INCLUDE_DIR} ${NLOPT_INCLUDE_DIR})
+target_link_libraries(burnman_core PUBLIC ${CDD_GMP_LIBRARY} ${GMP_LIBRARY} ${NLOPT_LIBRARY})
 set_target_properties(burnman_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 if(BURNMAN_BUILD_PYTHON)
@@ -40,6 +42,7 @@ if(BURNMAN_BUILD_PYTHON)
     python/bindings/solutions.cpp
     python/bindings/minerals.cpp
     python/bindings/polytope.cpp
+    python/bindings/pseudosection.cpp
     python/bindings/equilibration.cpp)
   target_link_libraries(_core PRIVATE burnman_core)
   target_compile_definitions(_core PRIVATE BURNMAN_VERSION="${PROJECT_VERSION}")
