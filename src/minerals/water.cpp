@@ -1,4 +1,17 @@
-/* GPL v3 or later. Pitzer & Sterner, JCP 101 (1994), 3111–3116,
+// ------------------------------------------------------
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
+//
+// This file is part of BurnMan.
+//
+// Detailed license information governing the source code
+// and contributions can be found in the LICENSE document.
+//
+// ------------------------------------------------------
+
+/* Pitzer & Sterner, JCP 101 (1994), 3111–3116,
  * doi:10.1063/1.467624, water coefficient table and Helmholtz EOS.
  * Ideal-gas thermal reference: Holland & Powell (2011), Table 2a,
  * doi:10.1111/j.1525-1314.2010.00923.x. NIST Chase (1998) is an alternative.

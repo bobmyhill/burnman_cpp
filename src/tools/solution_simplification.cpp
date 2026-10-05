@@ -1,8 +1,16 @@
-/*
- * Native solution transformations and polytope simplification, GPL v3 or later.
- * Adapted from BurnMan's tools/solution.py and tools/polytope.py, GPL v2 or
- * later.
- */
+// ------------------------------------------------------
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
+//
+// This file is part of BurnMan.
+//
+// Detailed license information governing the source code
+// and contributions can be found in the LICENSE document.
+//
+// ------------------------------------------------------
+
 #include "burnman/core/combined_mineral.hpp"
 #include "burnman/core/solution_models/asymmetric_regular_solution.hpp"
 #include "burnman/core/solution_models/ideal_solution.hpp"

@@ -15,6 +15,7 @@ import subprocess
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
+CPP_HEADER = (ROOT / "contrib/utilities/cpp_header.txt").read_text() + "\n"
 POLICY = json.loads((ROOT / "tests/reference/thermocalc_metapelite.json").read_text())
 OUTPUT = ROOT / "tests/include/thermocalc_reference.hpp"
 
@@ -113,7 +114,9 @@ def cpp_row(values):
 
 
 def render(phases, endmembers):
-    text = f"""/* Energy values extracted from the HPx-eos THERMOCALC benchmarks.
+    text = (
+        CPP_HEADER
+        + f"""/* Energy values extracted from the HPx-eos THERMOCALC benchmarks.
  * Source: {POLICY['archive']}
  * SHA256: {POLICY['sha256']}
  * Regenerate with tools/extract_thermocalc_reference.py --archive PATH --write.
@@ -138,6 +141,7 @@ struct EndmemberState {{
 inline constexpr double energy_tolerance = {POLICY['energy_tolerance_J_per_mol']};
 inline constexpr std::array<PhaseState, {len(phases)}> phases = {{{{
 """
+    )
     text += ",\n".join(cpp_row(row) for row in phases) + "\n}};\n"
     text += f"inline constexpr std::array<EndmemberState, {len(endmembers)}> endmembers = {{{{\n"
     text += ",\n".join(cpp_row(row) for row in endmembers)

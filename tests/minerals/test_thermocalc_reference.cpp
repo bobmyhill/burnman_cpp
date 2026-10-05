@@ -1,3 +1,16 @@
+// ------------------------------------------------------
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
+//
+// This file is part of BurnMan.
+//
+// Detailed license information governing the source code
+// and contributions can be found in the LICENSE document.
+//
+// ------------------------------------------------------
+
 /* Absolute energy benchmarks from Holland & Powell (2011), Table 2a, and
  * https://hpxeosandthermocalc.org/wp-content/uploads/2020/09/
  * 0_metapelite_benchmarks_2020-09-10.zip.
