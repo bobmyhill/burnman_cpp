@@ -10,15 +10,3 @@
 // and contributions can be found in the LICENSE document.
 //
 // ------------------------------------------------------
-
-#define CATCH_CONFIG_MAIN
-#include "burnman/utils/warnings.hpp"
-#include <catch2/catch_all.hpp>
-
-namespace {
-// Helper struct to suppress warnings across tests
-struct SuppressAllWarnings {
-  SuppressAllWarnings() { burnman::utils::suppress_warnings = true; }
-};
-SuppressAllWarnings suppress_warnings;
-} // namespace

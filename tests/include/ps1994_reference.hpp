@@ -1,4 +1,17 @@
-/* GPL v3 or later. Generated from Python BurnMan; no C++ output is used.
+// ------------------------------------------------------
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
+//
+// This file is part of BurnMan.
+//
+// Detailed license information governing the source code
+// and contributions can be found in the LICENSE document.
+//
+// ------------------------------------------------------
+
+/* Generated from Python BurnMan; no C++ output is used.
  * Reference: https://github.com/bobmyhill/burnman at
  * ffcb3688fdb4a28af9c76d5896d6df3abd55c7ba. Regenerate with
  * tools/generate_ps1994_reference.py --reference PATH --write. R is matched to

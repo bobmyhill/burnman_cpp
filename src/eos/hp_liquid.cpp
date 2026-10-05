@@ -1,6 +1,17 @@
-/* GPL v3 or later. Adapted from BurnMan HP_TMTL, GPL v2 or later.
- * HP2011: constant reference-pressure expansivity and linear K(T).
- */
+// ------------------------------------------------------
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
+//
+// This file is part of BurnMan.
+//
+// Detailed license information governing the source code
+// and contributions can be found in the LICENSE document.
+//
+// ------------------------------------------------------
+
+/* HP2011: constant reference-pressure expansivity and linear K(T). */
 #include "burnman/eos/hp_liquid.hpp"
 #include "burnman/eos/modified_tait.hpp"
 #include "burnman/utils/validate_optionals.hpp"

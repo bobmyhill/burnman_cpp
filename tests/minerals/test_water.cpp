@@ -1,4 +1,17 @@
-/* GPL v3 or later. PS1994 H2O regressions against Python BurnMan.
+// ------------------------------------------------------
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
+//
+// This file is part of BurnMan.
+//
+// Detailed license information governing the source code
+// and contributions can be found in the LICENSE document.
+//
+// ------------------------------------------------------
+
+/* PS1994 H2O regressions against Python BurnMan.
  * Reference policy and thermal-reference differences:
  * tests/reference/ps1994.json and docs/ps1994_reference.md. Regenerate with
  * tools/generate_ps1994_reference.py.
