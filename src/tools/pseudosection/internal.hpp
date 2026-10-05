@@ -17,9 +17,38 @@
 #include "burnman/tools/equilibration/equality_constraint_variants.hpp"
 #include "burnman/tools/equilibration/equilibrate.hpp"
 #include "burnman/tools/pseudosection.hpp"
+#include <algorithm>
 #include <map>
 namespace burnman::pseudosections::detail {
 using namespace equilibration;
+inline double cross(const Eigen::Vector2d &a, const Eigen::Vector2d &b) {
+  return a.x() * b.y() - a.y() * b.x();
+}
+inline double segment_distance(const Eigen::Vector2d &p,
+                               const Eigen::Vector2d &a,
+                               const Eigen::Vector2d &b) {
+  Eigen::Vector2d d = b - a;
+  double t = d.squaredNorm() > 0.
+                 ? std::clamp((p - a).dot(d) / d.squaredNorm(), 0., 1.)
+                 : 0.;
+  return (p - a - t * d).norm();
+}
+// One ring predicate for indexed planar faces and contour matrices:
+// -1 outside, 0 on the boundary, +1 inside.
+template <typename Vertex>
+int ring_location(std::size_t n, Vertex vertex, const Eigen::Vector2d &p,
+                  double tolerance) {
+  bool inside = false;
+  for (std::size_t i = 1; i < n; ++i) {
+    Eigen::Vector2d a = vertex(i - 1), b = vertex(i);
+    if (segment_distance(p, a, b) <= tolerance)
+      return 0;
+    if ((a.y() > p.y()) != (b.y() > p.y()) &&
+        p.x() < a.x() + (p.y() - a.y()) * (b.x() - a.x()) / (b.y() - a.y()))
+      inside = !inside;
+  }
+  return inside ? 1 : -1;
+}
 std::shared_ptr<Material> clone(const std::shared_ptr<Material> &);
 struct Phase {
   std::shared_ptr<Material> material;
@@ -134,6 +163,17 @@ struct Engine {
 };
 ConstraintList constraints(std::unique_ptr<EqualityConstraint>,
                            std::unique_ptr<EqualityConstraint>);
+// Continuation removes constraint row 1 (the moving section plane). This
+// shared tangent includes latent S/V amount directions as well as P/T/X.
+Eigen::VectorXd continuation_tangent(const Engine &,
+                                     const optim::roots::DampedNewtonResult &,
+                                     const Assemblage &,
+                                     const Eigen::Vector2d &,
+                                     int *coordinate_rank = nullptr);
+std::unique_ptr<EqualityConstraint>
+continuation_plane(const Engine &, const Assemblage &, Eigen::Index,
+                   const Eigen::Vector2d &target,
+                   const Eigen::Vector2d &weights);
 // A continuation plane in any two thermodynamic coordinates. Its derivatives
 // come from the same equality constraints used by equilibrate().
 class SectionConstraint : public EqualityConstraint {

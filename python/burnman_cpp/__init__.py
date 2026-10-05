@@ -223,6 +223,10 @@ __all__ = [
 
 from ._core import (
     pseudosection,
+    pseudosection_contours,
+    PseudosectionContourSettings,
+    PseudosectionContourLine,
+    PseudosectionContourResult,
     refine_pseudosection,
     stable_equilibrium,
     water_fluid,
@@ -238,10 +242,15 @@ from ._core import (
     PhaseFieldPolygon,
     PseudosectionPolygons,
 )
-from .tools.pseudosection import plot_pseudosection
+from .tools.pseudosection import plot_pseudosection, plot_pseudosection_contours
 
 __all__ += [
     "pseudosection",
+    "pseudosection_contours",
+    "PseudosectionContourSettings",
+    "PseudosectionContourLine",
+    "PseudosectionContourResult",
+    "plot_pseudosection_contours",
     "refine_pseudosection",
     "stable_equilibrium",
     "water_fluid",

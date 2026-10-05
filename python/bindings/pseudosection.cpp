@@ -98,6 +98,37 @@ py::list matrix_list(const Eigen::MatrixXd &matrix) {
     rows.append(vector_list(matrix.row(i).transpose()));
   return rows;
 }
+py::list
+phase_states_dict(const std::vector<pseudosections::PhaseState> &states) {
+  py::list records;
+  for (auto &state : states) {
+    py::dict record;
+#define SAVE(name) record[#name] = py::cast(state.name);
+    SAVE(id)
+    SAVE(candidate_index)
+    SAVE(name)
+    SAVE(amount)
+#undef SAVE
+    record["composition"] = vector_list(state.composition);
+    records.append(record);
+  }
+  return records;
+}
+py::dict boundary_point_dict(const pseudosections::BoundaryPoint &point) {
+  py::dict item;
+#define SAVE(name) item[#name] = py::cast(point.name);
+  SAVE(pressure)
+  SAVE(temperature)
+  SAVE(entropy)
+  SAVE(volume)
+  SAVE(composition_coordinate)
+  SAVE(mass_balance_error)
+  SAVE(minimum_affinity)
+  SAVE(residual)
+#undef SAVE
+  item["phases"] = phase_states_dict(point.phases);
+  return item;
+}
 py::dict result_dict(const pseudosections::Result &result) {
   py::dict data;
   data["schema_version"] = 3;
@@ -129,21 +160,6 @@ py::dict result_dict(const pseudosections::Result &result) {
   for (auto &ring : result.excluded_regions)
     excluded.append(matrix_list(ring));
   data["excluded_regions"] = excluded;
-  auto phases = [](const std::vector<pseudosections::PhaseState> &states) {
-    py::list records;
-    for (auto &state : states) {
-      py::dict record;
-#define SAVE(name) record[#name] = py::cast(state.name);
-      SAVE(id)
-      SAVE(candidate_index)
-      SAVE(name)
-      SAVE(amount)
-#undef SAVE
-      record["composition"] = vector_list(state.composition);
-      records.append(record);
-    }
-    return records;
-  };
   py::list fields, nodes, boundaries, samples;
   for (auto &field : result.fields) {
     py::dict record;
@@ -188,19 +204,7 @@ py::dict result_dict(const pseudosections::Result &result) {
 #undef SAVE
     py::list points;
     for (auto &point : line.points) {
-      py::dict item;
-#define SAVE(name) item[#name] = py::cast(point.name);
-      SAVE(pressure)
-      SAVE(temperature)
-      SAVE(entropy)
-      SAVE(volume)
-      SAVE(composition_coordinate)
-      SAVE(mass_balance_error)
-      SAVE(minimum_affinity)
-      SAVE(residual)
-#undef SAVE
-      item["phases"] = phases(point.phases);
-      points.append(item);
+      points.append(boundary_point_dict(point));
     }
     record["points"] = points;
     boundaries.append(record);
@@ -223,7 +227,7 @@ py::dict result_dict(const pseudosections::Result &result) {
     SAVE(minimum_affinity)
     SAVE(equilibrium_error)
 #undef SAVE
-    record["phases"] = phases(state.phases);
+    record["phases"] = phase_states_dict(state.phases);
     samples.append(record);
   }
   data["fields"] = fields;
@@ -568,6 +572,110 @@ void bind_pseudosection(py::module_ &m) {
       .def_readonly("diagnostics", &FieldPolygons::diagnostics)
       .def_readonly("boundary_segments", &FieldPolygons::boundary_segments)
       .def_readonly("boundary_nodes", &FieldPolygons::boundary_nodes);
+  py::class_<ContourSettings>(m, "PseudosectionContourSettings")
+      .def(py::init<>())
+      .def_readwrite("seed_grid", &ContourSettings::seed_grid)
+      .def_readwrite("step", &ContourSettings::step)
+      .def_readwrite("min_step", &ContourSettings::min_step)
+      .def_readwrite("max_trace_steps", &ContourSettings::max_trace_steps);
+  py::class_<ContourLine>(m, "PseudosectionContourLine")
+      .def_readonly("field_id", &ContourLine::field_id)
+      .def_readonly("phases", &ContourLine::phases)
+      .def_readonly("points", &ContourLine::points)
+      .def_readonly("closed", &ContourLine::closed)
+      .def_readonly("termination", &ContourLine::termination);
+  py::class_<ContourResult>(m, "PseudosectionContourResult")
+      .def_property_readonly(
+          "diagram_type",
+          [](const ContourResult &r) { return diagram_name(r.diagram_type); })
+      .def_readonly("lines", &ContourResult::lines)
+      .def_readonly("resolved", &ContourResult::resolved)
+      .def_readonly("diagnostics", &ContourResult::diagnostics)
+      .def_readonly("equilibrium_solves", &ContourResult::equilibrium_solves)
+      .def("to_dict", [](const ContourResult &r) {
+        py::dict data;
+        data["schema_version"] = 1;
+        data["diagram_type"] = diagram_name(r.diagram_type);
+        data["resolved"] = r.resolved;
+        data["diagnostics"] = r.diagnostics;
+        data["equilibrium_solves"] = r.equilibrium_solves;
+        py::list lines;
+        for (const auto &line : r.lines) {
+          py::dict record;
+          record["field_id"] = line.field_id;
+          record["phases"] = line.phases;
+          record["closed"] = line.closed;
+          record["termination"] = line.termination;
+          py::list points;
+          for (const auto &point : line.points)
+            points.append(boundary_point_dict(point));
+          record["points"] = points;
+          lines.append(record);
+        }
+        data["lines"] = lines;
+        return data;
+      });
+  m.def(
+      "pseudosection_contours",
+      [](py::object previous,
+         const std::vector<std::shared_ptr<Material>> &phases,
+         py::object constraint, const ContourSettings &settings,
+         const std::optional<types::FormulaMap> &composition) {
+        Result saved;
+        if (py::isinstance<Result>(previous))
+          saved = previous.cast<Result>();
+        else if (py::isinstance<py::dict>(previous))
+          saved = saved_result(previous.cast<py::dict>(), true);
+        else
+          throw py::type_error("Supply a PseudosectionResult or its full saved "
+                               "JSON dictionary.");
+        if (composition) {
+          if (!saved.composition_start.empty() &&
+              saved.composition_start != *composition)
+            throw py::value_error("composition must match the saved bulk.");
+          saved.composition_start = *composition;
+        }
+        using C = equilibration::EqualityConstraint;
+        ContourConstraintFactory factory;
+        if (py::isinstance<C>(constraint)) {
+          auto native = constraint.cast<std::shared_ptr<C>>();
+          factory = [native](const Assemblage &, const auto &, const auto &) {
+            return native->clone();
+          };
+        } else if (PyCallable_Check(constraint.ptr())) {
+          factory = [constraint](const Assemblage &a, const auto &prm,
+                                 const auto &ids) -> std::unique_ptr<C> {
+            py::gil_scoped_acquire acquire;
+            // Callbacks receive independent copies; they cannot mutate the
+            // native warm state or retain a reference to a temporary layout.
+            auto context = std::make_shared<Assemblage>(a);
+            py::object value = constraint(
+                context, py::cast(prm, py::return_value_policy::copy), ids);
+            if (value.is_none())
+              return nullptr;
+            if (!py::isinstance<C>(value))
+              throw py::type_error("Constraint factory must return an "
+                                   "EqualityConstraint or None.");
+            return value.cast<std::shared_ptr<C>>()->clone();
+          };
+        } else
+          throw py::type_error("constraint must be an EqualityConstraint or a "
+                               "callable factory.");
+        py::gil_scoped_release release;
+        return pseudosection_contours(saved, phases, factory, settings);
+      },
+      py::arg("result"), py::arg("phases"), py::arg("constraint"),
+      py::kw_only(), py::arg("settings") = ContourSettings{},
+      py::arg("composition") = py::none(),
+      "Trace any native equality constraint through saved closed fields. "
+      "Accept a constraint or factory(assemblage, parameters, phase_ids); "
+      "return None from the factory in fields where it is undefined. "
+      "Build PhaseFraction/PhaseComposition/LinearX constraints in a factory "
+      "using that field's parameter layout. The factory is called once per "
+      "field; all seeding, solves and continuation run in C++. Supply the same "
+      "candidate models in their original order. composition supplies the "
+      "elemental bulk for legacy JSON without composition_start. Increase "
+      "settings.seed_grid to check disconnected contour discovery.");
   m.def(
       "pseudosection_field_polygons",
       [](py::object object, double tolerance, bool close_domain,

@@ -1,0 +1,270 @@
+{
+  "settings": {
+    "pressure_seeds": 7,
+    "temperature_seeds": 7,
+    "max_refinement_iterations": 150,
+    "minimization_starts": 10,
+    "max_phase_instances": 3,
+    "max_trace_steps": 500,
+    "max_lines": 1000,
+    "max_recovery_passes": 2,
+    "step": 0.025,
+    "min_step": 1e-07,
+    "affinity_tolerance": 0.2,
+    "mass_balance_tolerance": 1e-08,
+    "amount_tolerance": 1e-07,
+    "composition_tolerance": 1e-05,
+    "node_tolerance": 0.0002,
+    "verbose": false,
+    "exclude_invalid_eos": true,
+    "active_solution_faces": true,
+    "required_eos_phases": []
+  },
+  "phase_names": [
+    "ms",
+    "ms #2",
+    "ms #3",
+    "bi",
+    "bi #2",
+    "bi #3",
+    "chl",
+    "chl #2",
+    "chl #3",
+    "ctd",
+    "ctd #2",
+    "ctd #3",
+    "st",
+    "st #2",
+    "st #3",
+    "cd",
+    "cd #2",
+    "cd #3",
+    "g",
+    "g #2",
+    "g #3",
+    "fsp",
+    "fsp #2",
+    "fsp #3",
+    "ep",
+    "ep #2",
+    "ep #3",
+    "opx",
+    "opx #2",
+    "opx #3",
+    "spr",
+    "spr #2",
+    "spr #3",
+    "sp",
+    "sp #2",
+    "sp #3",
+    "ilm",
+    "ilm #2",
+    "ilm #3",
+    "mt",
+    "mt #2",
+    "mt #3",
+    "melt",
+    "melt #2",
+    "melt #3",
+    "q",
+    "q #2",
+    "q #3",
+    "and",
+    "and #2",
+    "and #3",
+    "ky",
+    "ky #2",
+    "ky #3",
+    "sill",
+    "sill #2",
+    "sill #3",
+    "law",
+    "law #2",
+    "law #3",
+    "ru",
+    "ru #2",
+    "ru #3",
+    "H2O",
+    "H2O #2",
+    "H2O #3"
+  ],
+  "schema_version": 3,
+  "diagram_type": "PT",
+  "composition_start": {
+    "Si": 1.023561895536771,
+    "O": 3.014617371059679,
+    "Al": 0.39230609290592894,
+    "Fe": 0.08211925357881641,
+    "Mg": 0.06202796716983753,
+    "Ca": 0.01783249580044724,
+    "Na": 0.06453798867358299,
+    "K": 0.08492929636077966,
+    "Ti": 0.012521003984183468,
+    "H": 0.22203374024716793
+  },
+  "pressure_range": [
+    813391666.6666666,
+    853391666.6666666
+  ],
+  "temperature_range": [
+    663.15,
+    683.15
+  ],
+  "samples": [
+    {
+      "pressure": 833391666.6666666,
+      "temperature": 673.15,
+      "success": true,
+      "is_field_verification": false,
+      "outside_model_domain": false,
+      "message": "Stable equilibrium",
+      "excluded_phases": [],
+      "gibbs": -1480633.1317603926,
+      "mass_balance_error": 2.872236363542603e-16,
+      "minimum_affinity": -8.731149137020111e-10,
+      "equilibrium_error": 2.7939677238464355e-09,
+      "phases": [
+        {
+          "id": 0,
+          "candidate_index": 0,
+          "name": "ms",
+          "amount": 0.008705570230108522,
+          "composition": [
+            0.07892499516214724,
+            0.0001536190085319794,
+            5.314184106101339e-05,
+            0.9086084791945885,
+            0.012047835183544273,
+            0.0002119296101269685
+          ]
+        },
+        {
+          "id": 1,
+          "candidate_index": 0,
+          "name": "ms #2",
+          "amount": 0.06867250395448407,
+          "composition": [
+            0.7013089390930353,
+            0.021735570266873692,
+            0.00751904488598669,
+            0.2648666053586312,
+            0.001726840584640234,
+            0.0028429998108329404
+          ]
+        },
+        {
+          "id": 3,
+          "candidate_index": 1,
+          "name": "bi",
+          "amount": 0.033845117560860644,
+          "composition": [
+            0.33753061197467316,
+            0.32397925950220113,
+            0.11916908158935526,
+            0.07539426932015426,
+            0.0661808195141285,
+            0.07774595809948767
+          ]
+        },
+        {
+          "id": 18,
+          "candidate_index": 6,
+          "name": "g",
+          "amount": 0.013586506437530175,
+          "composition": [
+            0.04127286778668071,
+            0.7108650959036313,
+            0.20745085939932198,
+            0.04041117691036596
+          ]
+        },
+        {
+          "id": 21,
+          "candidate_index": 7,
+          "name": "fsp",
+          "amount": 0.039486687799814464,
+          "composition": [
+            0.973466828548776,
+            0.02580932525622631,
+            0.0007238461949977002
+          ]
+        },
+        {
+          "id": 24,
+          "candidate_index": 8,
+          "name": "ep",
+          "amount": 0.004067151989721006,
+          "composition": [
+            0.39665580114144305,
+            0.5912855136301586,
+            0.01205868522839837
+          ]
+        },
+        {
+          "id": 33,
+          "candidate_index": 11,
+          "name": "sp",
+          "amount": 0.003127687379540397,
+          "composition": [
+            -0.002761098697046771,
+            0.006658364360027452,
+            0.9743580044632053,
+            0.021744729873813918
+          ]
+        },
+        {
+          "id": 45,
+          "candidate_index": 15,
+          "name": "q",
+          "amount": 0.49974437121417054,
+          "composition": [
+            1.0
+          ]
+        },
+        {
+          "id": 51,
+          "candidate_index": 17,
+          "name": "ky",
+          "amount": 0.023141766270394857,
+          "composition": [
+            1.0
+          ]
+        },
+        {
+          "id": 60,
+          "candidate_index": 20,
+          "name": "ru",
+          "amount": 0.010213095650255846,
+          "composition": [
+            1.0
+          ]
+        }
+      ]
+    }
+  ],
+  "fields": [
+    {
+      "id": 0,
+      "phases": [
+        0,
+        1,
+        3,
+        18,
+        21,
+        24,
+        33,
+        45,
+        51,
+        60
+      ],
+      "sample_indices": [
+        0
+      ]
+    }
+  ],
+  "boundaries": [],
+  "nodes": [],
+  "resolved": true,
+  "diagnostics": [],
+  "description": "Saved interior fragment of the closed 2 wt% H2O metasediment example, with ferric-bearing garnet. The rectangular frame lies within one identified phase field."
+}
