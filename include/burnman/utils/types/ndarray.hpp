@@ -121,7 +121,7 @@ private:
   std::vector<T> storage_;
   std::vector<std::size_t> shape_;
   std::vector<std::size_t> strides_;
-  std::size_t size_;
+  std::size_t size_ = 0;
 
   static std::size_t compute_size(const std::vector<std::size_t> &shape) {
     std::size_t size = 1;

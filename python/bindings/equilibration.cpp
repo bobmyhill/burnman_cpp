@@ -142,10 +142,10 @@ void bind_equilibration(py::module_ &m) {
            py::arg("denominator"), py::arg("value"), py::arg("assemblage"),
            py::arg("parameters"));
 
-  auto parameters =
+  auto parameters_class =
       py::class_<EquilibrationParameters>(m, "EquilibrationParameters");
 #define PARAMETER(name)                                                        \
-  parameters.def_property_readonly(                                            \
+  parameters_class.def_property_readonly(                                      \
       #name, [](const EquilibrationParameters &self) { return self.name; })
   PARAMETER(parameter_names);
   PARAMETER(bulk_composition_vector);

@@ -7,6 +7,8 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
+// Numerical snapshots: Python BurnMan 69e700647ae7efeed91dfbce147c036bce619516.
+// Reproduce with tools/check_reference_data.py; see docs/reference_data.md.
 #include "burnman/eos/components/debye.hpp"
 #include "tolerances.hpp"
 #include <catch2/catch_test_macros.hpp>
@@ -30,10 +32,10 @@ TEST_CASE("Debye function integrand", "[debye][eos]") {
 }
 
 TEST_CASE("Debye function", "[debye][eos]") {
-  // Test values from GSL test suite
-  double ref_a = 0.962999940487211048;
-  double ref_b = 0.674415564077814667;
-  double ref_c = 0.0192957656903454886;
+  // Values regenerated from the pinned Python BurnMan Debye function.
+  double ref_a = 0.962999940487211;
+  double ref_b = 0.6744155640778144;
+  double ref_c = 0.019295765690345492;
   SECTION("GSL") {
     REQUIRE_THAT(debye_fn_cheb(0.1),
                  WithinRel(ref_a, tol_rel) || WithinAbs(ref_a, tol_abs));
@@ -100,7 +102,6 @@ TEST_CASE("Check zero returns in debye model functions", "[debye][eos]") {
   CHECK(compute_dmolar_heat_capacity_v_dT(small_val, debye_0, napfu) == 0);
 }
 
-// Reference values from Py burnman v2.1.1a0
 TEST_CASE("Debye napfu constant", "[debye][eos]") {
   double T = 800.0;
   double debye = 500.0;

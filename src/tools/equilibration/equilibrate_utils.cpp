@@ -54,7 +54,8 @@ EquilibrationParameters get_equilibration_parameters(
   prm.n_parameters = static_cast<Eigen::Index>(prm.parameter_names.size());
   // Map phase amount indices
   prm.phase_amount_indices = Eigen::Map<Eigen::ArrayXi>(
-      phase_amount_ind_temp.data(), phase_amount_ind_temp.size());
+      phase_amount_ind_temp.data(),
+      static_cast<Eigen::Index>(phase_amount_ind_temp.size()));
   // Process bulk composition vector
   const std::vector<std::string> &elements = assemblage.get_elements();
   Eigen::Index n_elements = static_cast<Eigen::Index>(elements.size());
@@ -190,8 +191,8 @@ Eigen::VectorXd get_parameter_vector(const Assemblage &assemblage,
   for (Eigen::Index i = 0; i < assemblage.get_n_phases(); ++i) {
     params(j) = n_moles_per_phase(i);
     if (auto ph = assemblage.get_phase<Solution>(static_cast<std::size_t>(i))) {
-      Eigen::Index n_embr =
-          static_cast<Eigen::Index>(embr_per_phase[i] - 1); // skip first embr
+      Eigen::Index n_embr = static_cast<Eigen::Index>(
+          embr_per_phase[static_cast<std::size_t>(i)] - 1); // skip first embr
       params.segment(j + 1, n_embr) = ph->get_molar_fractions().tail(n_embr);
     }
     j += embr_per_phase[static_cast<std::size_t>(i)];
@@ -207,7 +208,8 @@ Eigen::VectorXd get_endmember_amounts(const Assemblage &assemblage) {
   Eigen::Index j = 0;
   for (Eigen::Index i = 0; i < assemblage.get_n_phases(); ++i) {
     if (auto ph = assemblage.get_phase<Solution>(static_cast<std::size_t>(i))) {
-      abs_amounts.segment(j, static_cast<Eigen::Index>(embr_per_phase[i])) =
+      abs_amounts.segment(j, static_cast<Eigen::Index>(
+                                 embr_per_phase[static_cast<std::size_t>(i)])) =
           phase_amounts(i) * ph->get_molar_fractions();
     } else {
       abs_amounts(j) = phase_amounts(i);

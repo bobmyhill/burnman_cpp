@@ -305,7 +305,8 @@ equilibrate(const types::FormulaMap &composition, Assemblage &assemblage,
                 if (phase_amounts(i) < 0.0) {
                   // TODO: update to Eigen::Index
                   exhausted_phases.push_back(
-                      assemblage.get_phase(i)->get_name());
+                      assemblage.get_phase(static_cast<std::size_t>(i))
+                          ->get_name());
                 }
               }
               if (!exhausted_phases.empty()) {

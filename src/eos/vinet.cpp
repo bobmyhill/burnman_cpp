@@ -65,8 +65,8 @@ double Vinet::compute_volume(double pressure,
   // Set a, b limits
   double x_lo = 0.1 * (*params.V_0);
   double x_hi = 1.5 * (*params.V_0);
-  double volume_root =
-      optim::roots::brent(&vinet_gsl_wrapper, vinet_params, x_lo, x_hi);
+  double volume_root = optim::roots::brent(&vinet_gsl_wrapper, vinet_params,
+                                           x_lo, x_hi, 1.0e-18 * (*params.V_0));
   return volume_root;
 }
 

@@ -7,6 +7,8 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
+// Numerical snapshots: Python BurnMan 69e700647ae7efeed91dfbce147c036bce619516.
+// Reproduce with tools/check_reference_data.py; see docs/reference_data.md.
 #include "burnman/eos/birch_murnaghan.hpp"
 #include "burnman/utils/types/mineral_params.hpp"
 #include "tolerances.hpp"
@@ -71,12 +73,18 @@ TEST_CASE("Check reference volume", "[birch-murnaghan][eos]") {
   params_a.G_0 = 131.0e9;
   params_b.G_0 = 129.8e9;
   params_a.Gprime_0 = 2.1;
+  params_b.Gprime_0 = 2.1;
   // Set up test P, T, V
   auto P = GENERATE(0.0, 10.0, 25.e9);
   auto T = GENERATE(300.0, 2000.0);
   double V = *params_a.V_0;
   eos::BM3 bm3;
   eos::BM2 bm2;
+  // EOS calculations require validated parameters, including the E_0 default.
+  bm3.validate_parameters(params_a);
+  bm2.validate_parameters(params_b);
+  REQUIRE(params_a.E_0.has_value());
+  REQUIRE(*params_a.E_0 == 0.0);
   CHECK_THAT(bm3.compute_isothermal_bulk_modulus_reuss(P, T, V, params_a),
              WithinRel(*params_a.K_0, tol_rel) ||
                  WithinAbs(*params_a.K_0, tol_abs));

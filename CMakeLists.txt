@@ -1,8 +1,34 @@
 cmake_minimum_required(VERSION 3.18)
+
+# Match native dependency builds unless the caller selects a deployment target.
+if(APPLE AND NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET AND
+   "$ENV{MACOSX_DEPLOYMENT_TARGET}" STREQUAL "")
+  execute_process(COMMAND sw_vers -productVersion
+                  OUTPUT_VARIABLE BURNMAN_HOST_MACOS_VERSION
+                  OUTPUT_STRIP_TRAILING_WHITESPACE)
+  set(CMAKE_OSX_DEPLOYMENT_TARGET "${BURNMAN_HOST_MACOS_VERSION}"
+      CACHE STRING "Minimum supported macOS version")
+endif()
 project(burnman_cpp VERSION 0.1.0 LANGUAGES CXX)
 
 option(BURNMAN_BUILD_PYTHON "Build the Python extension" ON)
-option(BURNMAN_BUILD_TESTS "Build the existing C++ tests" OFF)
+option(BURNMAN_BUILD_TESTS "Build the C++ unit tests" OFF)
+option(BURNMAN_BUILD_BENCHMARKS "Build the C++ performance benchmarks" OFF)
+option(BURNMAN_WARNINGS_AS_ERRORS "Treat project compiler warnings as errors" OFF)
+
+function(burnman_compiler_warnings target)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Wconversion)
+    if(BURNMAN_WARNINGS_AS_ERRORS)
+      target_compile_options(${target} PRIVATE -Werror)
+    endif()
+  elseif(MSVC)
+    target_compile_options(${target} PRIVATE /W4)
+    if(BURNMAN_WARNINGS_AS_ERRORS)
+      target_compile_options(${target} PRIVATE /WX)
+    endif()
+  endif()
+endfunction()
 
 # Let CMake find standard Homebrew installations as well as system packages.
 if(APPLE)
@@ -25,9 +51,10 @@ add_library(burnman_core STATIC ${BURNMAN_SOURCES})
 target_compile_features(burnman_core PUBLIC cxx_std_17)
 target_include_directories(burnman_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(burnman_core PUBLIC Eigen3::Eigen GSL::gsl GSL::gslcblas)
-target_include_directories(burnman_core PRIVATE ${CDD_INCLUDE_DIR} ${GMP_INCLUDE_DIR} ${NLOPT_INCLUDE_DIR})
+target_include_directories(burnman_core SYSTEM PRIVATE ${CDD_INCLUDE_DIR} ${GMP_INCLUDE_DIR} ${NLOPT_INCLUDE_DIR})
 target_link_libraries(burnman_core PUBLIC ${CDD_GMP_LIBRARY} ${GMP_LIBRARY} ${NLOPT_LIBRARY})
 set_target_properties(burnman_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+burnman_compiler_warnings(burnman_core)
 
 if(BURNMAN_BUILD_PYTHON)
   find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
@@ -46,15 +73,33 @@ if(BURNMAN_BUILD_PYTHON)
     python/bindings/equilibration.cpp)
   target_link_libraries(_core PRIVATE burnman_core)
   target_compile_definitions(_core PRIVATE BURNMAN_VERSION="${PROJECT_VERSION}")
+  burnman_compiler_warnings(_core)
   install(TARGETS _core LIBRARY DESTINATION burnman_cpp RUNTIME DESTINATION burnman_cpp)
 endif()
 
-if(BURNMAN_BUILD_TESTS)
+if(BURNMAN_BUILD_TESTS OR BURNMAN_BUILD_BENCHMARKS)
   enable_testing()
   find_package(Catch2 3.4 REQUIRED)
+endif()
+
+if(BURNMAN_BUILD_TESTS)
   file(GLOB_RECURSE BURNMAN_TEST_SOURCES CONFIGURE_DEPENDS tests/*.cpp)
   add_executable(burnman_tests ${BURNMAN_TEST_SOURCES})
   target_include_directories(burnman_tests PRIVATE tests/include)
   target_link_libraries(burnman_tests PRIVATE burnman_core Catch2::Catch2WithMain)
-  add_test(NAME burnman_tests COMMAND burnman_tests "~[benchmark]")
+  burnman_compiler_warnings(burnman_tests)
+  add_test(NAME burnman_tests COMMAND burnman_tests)
+endif()
+
+if(BURNMAN_BUILD_BENCHMARKS)
+  file(GLOB_RECURSE BURNMAN_BENCHMARK_SOURCES CONFIGURE_DEPENDS benchmarks/*.cpp)
+  add_executable(burnman_benchmarks ${BURNMAN_BENCHMARK_SOURCES} tests/test_main.cpp)
+  target_include_directories(burnman_benchmarks PRIVATE tests/include)
+  target_link_libraries(burnman_benchmarks PRIVATE burnman_core Catch2::Catch2WithMain)
+  burnman_compiler_warnings(burnman_benchmarks)
+  add_test(NAME burnman_benchmarks COMMAND burnman_benchmarks "[!benchmark]"
+    --benchmark-samples 20 --benchmark-resamples 1000 --benchmark-warmup-time 10
+    --reporter "xml::out=${CMAKE_CURRENT_BINARY_DIR}/benchmark-report.xml"
+    --reporter console)
+  set_tests_properties(burnman_benchmarks PROPERTIES LABELS benchmarks TIMEOUT 300)
 endif()

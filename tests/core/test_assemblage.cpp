@@ -7,6 +7,8 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
+// Numerical snapshots: Python BurnMan 69e700647ae7efeed91dfbce147c036bce619516.
+// Reproduce with tools/check_reference_data.py; see docs/reference_data.md.
 #include "burnman/core/assemblage.hpp"
 #include "burnman/utils/types/simple_types.hpp"
 #include "solution_fixtures.hpp"
@@ -169,36 +171,38 @@ TEST_CASE_METHOD(PyroliteAssemblageFixture, "Assemblage reference values",
   std::vector<Eigen::Index> ref_independent_element_indices = {0, 1, 2, 3, 4};
   std::vector<Eigen::Index> ref_dependent_element_indices = {5};
   Eigen::MatrixXd ref_stoichiometric_matrix(6, 6);
-  ref_stoichiometric_matrix << 0, 1, 0, 0, 1, 3, 0, 0, 1, 0, 1, 3, 0, 0, 0, 2,
-      0, 3, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 1, 3;
+  ref_stoichiometric_matrix << 0.0, 1.0, 0.0, 0.0, 1.0, 3.0, 0.0, 0.0, 1.0, 0.0,
+      1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 0.0, 3.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0,
+      0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 3.0;
   Eigen::MatrixXd ref_compositional_basis(5, 6);
-  ref_compositional_basis << 1., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.,
-      0., 1., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 1.;
+  ref_compositional_basis << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 0.0, 1.0;
   Eigen::MatrixXd ref_compositional_null_basis(1, 6);
   ref_compositional_null_basis << -1.0, -1.0, -1.0, -1.5, -2.0, 1.0;
   Eigen::MatrixXd ref_reaction_basis(1, 6);
-  ref_reaction_basis << 1.0, -1.0, 0, -1.0, 1.0, 0;
+  ref_reaction_basis << 1.0, -1.0, 0.0, -1.0, 1.0, 0.0;
   // Material functions
-  double ref_molar_internal_energy = -974191.8211164112;
+  double ref_molar_internal_energy = -974191.8213846639;
   double ref_molar_gibbs = 999561205.8828137;
-  double ref_molar_helmholtz = -1419441.7062346758;
+  double ref_molar_helmholtz = -1419441.7066281182;
   double ref_molar_mass = 0.09218043750000002;
-  double ref_molar_volume = 0.020019612951780966;
-  double ref_density = 4.604506476824746;
-  double ref_molar_entropy = 222.62494255913217;
-  double ref_molar_enthalpy = 1000006455.7679318;
-  double ref_isothermal_bulk_modulus_reuss = 1824185011747062.2;
-  double ref_isentropic_bulk_modulus_reuss = 1898805807921876.2;
-  double ref_isothermal_compressibility_reuss = 5.481900100923853e-16;
-  double ref_isentropic_compressibility_reuss = 5.266467986499563e-16;
-  double ref_shear_modulus = 173600057512.71997;
-  double ref_p_wave_velocity = 20308376.231700655;
-  double ref_bulk_sound_velocity = 20307138.536943752;
-  double ref_shear_wave_velocity = 194170.56228630507;
-  double ref_grueneisen_parameter = 6648.456796536628;
-  double ref_thermal_expansivity = 1.9707992960705696e-08;
-  double ref_molar_heat_capacity_v = 108.2545371299868;
-  double ref_molar_heat_capacity_p = 114.40558099311642;
+  double ref_molar_volume = 0.020019612951788834;
+  double ref_density = 4.604506476822936;
+  double ref_molar_entropy = 222.62494262172714;
+  double ref_molar_enthalpy = 1000006455.7680572;
+  double ref_isothermal_bulk_modulus_reuss = 391190870683433.9;
+  double ref_isentropic_bulk_modulus_reuss = 413160929347368.0;
+  double ref_isothermal_compressibility_reuss = 2.556296874344077e-15;
+  double ref_isentropic_compressibility_reuss = 2.420364388229079e-15;
+  double ref_shear_modulus = 173600057792.58862;
+  double ref_p_wave_velocity = 20308376.2550252;
+  double ref_bulk_sound_velocity = 20307138.56026772;
+  double ref_shear_wave_velocity = 194170.56244285888;
+  double ref_grueneisen_parameter = 1424.8531625568785;
+  double ref_thermal_expansivity = 1.9707992994516333e-08;
+  double ref_molar_heat_capacity_v = 108.32200158712241;
+  double ref_molar_heat_capacity_p = 114.40558100528757;
 
   CHECK(assemblage.get_n_endmembers() == ref_n_endmembers);
   CHECK(assemblage.get_n_elements() == ref_n_elements);
@@ -274,6 +278,66 @@ TEST_CASE_METHOD(PyroliteAssemblageFixture, "Assemblage reference values",
   CHECK_THAT(assemblage.get_molar_heat_capacity_p(),
              WithinRel(ref_molar_heat_capacity_p, tol_rel) ||
                  WithinAbs(ref_molar_heat_capacity_p, tol_abs));
+}
+
+TEST_CASE_METHOD(CaPvStishAssemblageFixture,
+                 "Assemblage thermodynamics follow Gibbs derivatives",
+                 "[core][assemblage]") {
+  const double pressure = 40.0e9, temperature = 2000.0;
+  assemblage.set_method(types::EOSType::Auto);
+  assemblage.set_state(pressure, temperature);
+  const double volume = assemblage.get_molar_volume();
+  const double kt = assemblage.get_isothermal_bulk_modulus_reuss();
+  const double ks = assemblage.get_isentropic_bulk_modulus_reuss();
+  const double alpha = assemblage.get_thermal_expansivity();
+  const double cp = assemblage.get_molar_heat_capacity_p();
+  const double cv = assemblage.get_molar_heat_capacity_v();
+  const double dP = 1.0e7, dT = 0.1;
+  assemblage.set_state(pressure + dP, temperature);
+  const double v_plus_p = assemblage.get_molar_volume();
+  assemblage.set_state(pressure - dP, temperature);
+  const double v_minus_p = assemblage.get_molar_volume();
+  CHECK_THAT(kt,
+             WithinRel(-volume * 2.0 * dP / (v_plus_p - v_minus_p), 2.0e-6));
+  assemblage.set_state(pressure, temperature + dT);
+  const double v_plus_t = assemblage.get_molar_volume();
+  const double s_plus_t = assemblage.get_molar_entropy();
+  assemblage.set_state(pressure, temperature - dT);
+  const double v_minus_t = assemblage.get_molar_volume();
+  const double s_minus_t = assemblage.get_molar_entropy();
+  CHECK_THAT(alpha,
+             WithinRel((v_plus_t - v_minus_t) / (2.0 * dT * volume), 2.0e-6));
+  CHECK_THAT(
+      cp, WithinRel(temperature * (s_plus_t - s_minus_t) / (2.0 * dT), 2.0e-6));
+  // To first order, dP = alpha*K_T*dT keeps total volume fixed.
+  assemblage.set_state(pressure + alpha * kt * dT, temperature + dT);
+  const double s_plus_v = assemblage.get_molar_entropy();
+  assemblage.set_state(pressure - alpha * kt * dT, temperature - dT);
+  const double s_minus_v = assemblage.get_molar_entropy();
+  CHECK_THAT(
+      cv, WithinRel(temperature * (s_plus_v - s_minus_v) / (2.0 * dT), 2.0e-6));
+  CHECK_THAT(ks, WithinRel(kt * cp / cv, tol_rel));
+  for (auto scheme : {types::AveragingType::Reuss, types::AveragingType::Voigt,
+                      types::AveragingType::VRH}) {
+    assemblage.set_state(pressure, temperature);
+    assemblage.set_averaging_scheme(scheme);
+    CHECK_THAT(assemblage.get_isothermal_bulk_modulus_reuss(),
+               WithinRel(kt, tol_rel));
+    CHECK_THAT(assemblage.get_isentropic_bulk_modulus_reuss(),
+               WithinRel(ks, tol_rel));
+    CHECK_THAT(assemblage.get_molar_heat_capacity_v(), WithinRel(cv, tol_rel));
+  }
+}
+
+TEST_CASE_METHOD(CaPvStishAssemblageFixture,
+                 "Assemblage bulk modulus has a finite zero temperature limit",
+                 "[core][assemblage]") {
+  assemblage.set_method(types::EOSType::Auto);
+  assemblage.set_state(40.0e9, 0.0);
+  CHECK_THAT(
+      assemblage.get_isentropic_bulk_modulus_reuss(),
+      WithinRel(assemblage.get_isothermal_bulk_modulus_reuss(), tol_rel));
+  CHECK(assemblage.get_molar_heat_capacity_v() == 0.0);
 }
 
 // TODO:

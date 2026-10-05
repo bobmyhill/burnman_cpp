@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dry closed-system pyrolite, SLB2024, 0–150 GPa and 0–4000 K.
+"""Dry closed-system pyrolite, SLB2024, 0–25 GPa and 0–2500 K.
 
 All thermodynamics, polytope construction, Gibbs minimisation, equilibrium
 solves and phase-line continuation run in C++; Python writes JSON and plots.
@@ -36,6 +36,9 @@ from burnman_cpp.minerals import SLB_2024 as SLB
 
 PAPER_URL = "https://academic.oup.com/gji/article/237/3/1699/7640845"
 INITIAL_FERRIC_FRACTION = 0.03
+
+P_Pa = 25.0e9
+T_K = 2500.0
 
 
 def pyrolite_composition(ferric_fraction=INITIAL_FERRIC_FRACTION):
@@ -166,8 +169,8 @@ def calculate(seeds=9, quick=False, verbose=False):
     return bm.pseudosection(
         PYROLITE_COMPOSITION.atomic_composition,
         candidate_phases(),
-        (0.0, 150.0e9),
-        (0.0, 4000.0),
+        (0.0, P_Pa),
+        (0.0, T_K),
         settings(seeds, quick, verbose),
     )
 
@@ -203,7 +206,8 @@ def save_json(result, path):
         dataset_source=PAPER_URL,
         initial_ferric_fraction=INITIAL_FERRIC_FRACTION,
         solid_only=True,
-        display_temperature_range_K=[0.0, 4000.0],
+        display_pressure_range_GPa=[0.0, P_Pa / 1.0e9],
+        display_temperature_range_K=[0.0, T_K],
     )
     path.write_text(json.dumps(data, indent=2, allow_nan=False))
 
@@ -219,17 +223,18 @@ def plot(result, path, label_fontsize=7.0):
         ax=ax,
         pressure_unit="GPa",
         temperature_unit="K",
+        show_nodes=False,
         label_fontsize=label_fontsize,
         label_key_path=key_path,
     )
     if ax.get_legend() is not None:
         ax.get_legend().set_bbox_to_anchor((0.0, -0.11))
     ax.set(
-        xlim=(0, 4000),
-        ylim=(0, 150),
+        xlim=(0, T_K),
+        ylim=(0, P_Pa / 1.0e9),
         xlabel="Temperature (K)",
         ylabel="Pressure (GPa)",
-        title="Pyrolite, initially 3% Fe³⁺/ΣFe; metallic iron allowed",
+        title="Pyrolite, 3% Fe³⁺/ΣFe on a no metal-basis",
     )
     ax.grid(alpha=0.12)
     scope = "SLB2024 solids; closed oxygen; high/low spin populations equilibrated; no liquids"

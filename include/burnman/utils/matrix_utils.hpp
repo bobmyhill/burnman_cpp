@@ -162,7 +162,8 @@ inline Eigen::MatrixXd jagged2square(const std::vector<std::vector<double>> &v,
     std::ptrdiff_t col = static_cast<std::ptrdiff_t>(n) - 1;
     for (std::ptrdiff_t j = static_cast<std::ptrdiff_t>(v[i].size()) - 1;
          j >= 0; --j) {
-      mat(static_cast<Eigen::Index>(i), col) = v[i][j];
+      mat(static_cast<Eigen::Index>(i), col) =
+          v[i][static_cast<std::size_t>(j)];
       --col;
     }
   }

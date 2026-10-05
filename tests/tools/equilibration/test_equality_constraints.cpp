@@ -99,7 +99,8 @@ TEST_CASE_METHOD(PyroliteAssemblageFixture, "Assemblage based constraints",
         assemblage.get_molar_volume() * assemblage.get_n_moles();
     auto c = equilibration::make_constraint<equilibration::VolumeConstraint>(
         target_volume);
-    REQUIRE(c->evaluate(x, assemblage) == 0);
+    // A fused multiply-subtract can retain roundoff from the rounded target.
+    REQUIRE_THAT(c->evaluate(x, assemblage), WithinAbs(0.0, tol_abs));
     deriv_ref << -1.01238991e-16, 0.0, 2.14204549e-05, 6.72869416e-06,
         3.44588368e-06, 1.00009341e-01, 2.00000226e+00, 2.37812313e-05;
     // Check the temperature derivative against the volume response.

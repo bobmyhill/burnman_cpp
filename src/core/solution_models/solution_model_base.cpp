@@ -157,7 +157,8 @@ void SolutionModel::process_solution_chemistry() {
             }
           }
         } else {
-          i_el = std::distance(site_species.begin(), species_pos);
+          i_el = static_cast<std::size_t>(
+              std::distance(site_species.begin(), species_pos));
           // Check and resize inner if needed
           auto &site_occupancy = list_occupancies[i_mbr][i_site];
           if (site_occupancy.size() <= i_el) {

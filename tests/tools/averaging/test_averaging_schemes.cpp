@@ -7,6 +7,8 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
+// Numerical snapshots: Python BurnMan 69e700647ae7efeed91dfbce147c036bce619516.
+// Reproduce with tools/check_reference_data.py; see docs/reference_data.md.
 #include "burnman/tools/averaging/averaging_schemes.hpp"
 #include "tolerances.hpp"
 #include <catch2/catch_template_test_macros.hpp>
@@ -25,7 +27,7 @@ struct AveragingSchemeFixture {
       (Eigen::ArrayXd(4) << 120.0e9, 208.45e9, 264.2e9, 76.1e9).finished();
   Eigen::ArrayXd X_c =
       (Eigen::ArrayXd(4) << 96.0e9, 173.2e9, 207.35, 36.2).finished();
-  double ref_voigt = 186.4475e9;
+  double ref_voigt = 186447500000.0;
   double ref_reuss = 164668047448.38943;
   double ref_vrh = 175557773724.1947;
   double ref_hsl_K = 164668047455.9929;

@@ -7,6 +7,8 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
+// Numerical snapshots: Python BurnMan 69e700647ae7efeed91dfbce147c036bce619516.
+// Reproduce with tools/check_reference_data.py; see docs/reference_data.md.
 #include "burnman/eos/mie_grueneisen_debye.hpp"
 #include "burnman/utils/types/mineral_params.hpp"
 #include "tolerances.hpp"
@@ -357,10 +359,10 @@ TEST_CASE("MGD python reference values", "[mgd][eos]") {
         {{T3, x1}, 160124964007.1976},  {{T3, x2}, 342727116234.12994},
         {{T3, x3}, 2379913952857.0317}};
     std::map<std::tuple<double, double>, double> ref_KS = {
-        {{T1, x1}, 169374921707.40085}, {{T1, x2}, 350523917990.9041},
-        {{T1, x3}, 2384466361991.622},  {{T2, x1}, 172543537457.656},
-        {{T2, x2}, 352259329066.90717}, {{T2, x3}, 2384489154000.001},
-        {{T3, x1}, 184522621586.30026}, {{T3, x2}, 359293248443.23315},
+        {{T1, x1}, 169374921707.40085}, {{T1, x2}, 350523917990.90405},
+        {{T1, x3}, 2384466361991.6216}, {{T2, x1}, 172543537457.656},
+        {{T2, x2}, 352259329066.90717}, {{T2, x3}, 2384489154000.0015},
+        {{T3, x1}, 184522621586.30026}, {{T3, x2}, 359293248443.2332},
         {{T3, x3}, 2384605625111.078}};
     std::map<std::tuple<double, double>, double> ref_G2 = {
         {{T1, x1}, 134440941855.59421}, {{T1, x2}, 231811619814.15884},

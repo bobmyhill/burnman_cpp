@@ -128,6 +128,7 @@ py::dict result_dict(const pseudosections::Result &result) {
     SAVE(assemblage)
     SAVE(side_a)
     SAVE(side_b)
+    SAVE(is_solution_replacement)
     SAVE(start_node)
     SAVE(end_node)
     SAVE(termination)
@@ -267,6 +268,9 @@ pseudosections::Result saved_result(const py::dict &data, bool full = false) {
       line.side_a = value["side_a"].cast<std::vector<int>>();
     if (value.contains("side_b"))
       line.side_b = value["side_b"].cast<std::vector<int>>();
+    if (value.contains("is_solution_replacement"))
+      line.is_solution_replacement =
+          value["is_solution_replacement"].cast<bool>();
     for (auto point : value["points"]) {
       auto record = py::reinterpret_borrow<py::dict>(point);
       BoundaryPoint p;
@@ -365,9 +369,10 @@ void bind_pseudosection(py::module_ &m) {
 #define PROPERTY(name) .def_readonly(#name, &Boundary::name)
       PROPERTY(id) PROPERTY(zero_phase) PROPERTY(start_node) PROPERTY(end_node)
           PROPERTY(assemblage) PROPERTY(side_a) PROPERTY(side_b)
-              PROPERTY(points) PROPERTY(termination)
+              PROPERTY(is_solution_replacement) PROPERTY(points)
+                  PROPERTY(termination)
 #undef PROPERTY
-                  ;
+                      ;
   py::class_<Node>(m, "PhaseDiagramNode")
 #define PROPERTY(name) .def_readonly(#name, &Node::name)
       PROPERTY(id) PROPERTY(gibbs_variance) PROPERTY(pt_nullity) PROPERTY(kind)
@@ -478,6 +483,6 @@ void bind_pseudosection(py::module_ &m) {
       "same bulk and candidate models. Omitted settings reuse the saved "
       "calculation settings, including its EOS policy. All continuation runs "
       "in C++.");
-  m.def("water_fluid", &minerals::water_fluid);
+  m.def("water_fluid", py::overload_cast<>(&minerals::water_fluid));
 }
 } // namespace burnman::python

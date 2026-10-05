@@ -1,0 +1,123 @@
+name: Benchmarks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  MPLBACKEND: Agg
+
+jobs:
+  cpp:
+    name: C++ performance benchmarks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Configure plotting environment
+        run: echo "MPLCONFIGDIR=$RUNNER_TEMP/matplotlib" >> "$GITHUB_ENV"
+
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake g++ catch2 libeigen3-dev libgsl-dev \
+            libcdd-dev libgmp-dev libnlopt-cxx-dev
+
+      - name: Configure benchmarks
+        run: |
+          cmake -S . -B build/ci-benchmarks \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBURNMAN_BUILD_PYTHON=OFF \
+            -DBURNMAN_BUILD_TESTS=OFF \
+            -DBURNMAN_BUILD_BENCHMARKS=ON \
+            -DBURNMAN_WARNINGS_AS_ERRORS=ON
+
+      - name: Build benchmarks
+        run: cmake --build build/ci-benchmarks --parallel 2
+
+      - name: Run benchmarks
+        run: ctest --test-dir build/ci-benchmarks --output-on-failure -L benchmarks
+
+      - name: Install reporting dependencies
+        run: python -m pip install -r benchmarks/requirements.txt
+
+      - name: Process benchmark report
+        run: |
+          python benchmarks/parse_benchmarks.py \
+            build/ci-benchmarks/benchmark-report.xml ci \
+            --output-dir build/ci-benchmarks/results --no-plots
+
+      - name: Upload benchmark reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cpp-benchmark-reports
+          path: |
+            build/ci-benchmarks/benchmark-report.xml
+            build/ci-benchmarks/results/
+            build/ci-benchmarks/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore
+
+  python:
+    name: Python BurnMan reference benchmarks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Check out reference BurnMan
+        uses: actions/checkout@v7
+        with:
+          repository: geodynamics/burnman
+          ref: 69e700647ae7efeed91dfbce147c036bce619516
+          path: build/python-burnman-reference
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Configure plotting environment
+        run: echo "MPLCONFIGDIR=$RUNNER_TEMP/matplotlib" >> "$GITHUB_ENV"
+
+      - name: Install reference BurnMan
+        run: python -m pip install ./build/python-burnman-reference
+
+      - name: Run Python reference benchmarks
+        run: python benchmarks/python_benchmarks.py --output-dir build/ci-python-benchmarks
+
+      - name: Upload Python benchmark reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-benchmark-reports
+          path: build/ci-python-benchmarks/*.csv
+          if-no-files-found: ignore

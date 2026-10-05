@@ -16,6 +16,11 @@ import pandas as pd
 import re
 import textwrap
 import os
+import argparse
+import sys
+from pathlib import Path
+
+OUTPUT_DIR = Path(__file__).resolve().parents[1] / "build" / "benchmarks"
 
 
 def unique_filename(path: str) -> str:
@@ -31,14 +36,11 @@ def unique_filename(path: str) -> str:
 
 
 def ensure_in_benchmarks(path: str) -> str:
-    dirname = os.path.dirname(path)
-    basename = os.path.basename(path)
-    if os.path.basename(dirname) == "benchmarks":
-        new_path = path
-    else:
-        new_path = os.path.join(dirname, "benchmarks", basename)
-    os.makedirs(os.path.dirname(new_path), exist_ok=True)
-    return new_path
+    path = Path(path)
+    if not path.is_absolute():
+        path = OUTPUT_DIR / path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return str(path)
 
 
 def bar_plot(
@@ -183,9 +185,9 @@ def parse_mineral_benchmarks(case, verbose=0):
     return df_flat
 
 
-def compare_mineral_benchmarks(
-    data, baseline_fn="benchmarks/mineral_benchmarks_baseline.csv"
-):
+def compare_mineral_benchmarks(data, baseline_fn=None):
+    if baseline_fn is None:
+        baseline_fn = OUTPUT_DIR / "mineral_benchmarks_baseline.csv"
     if not os.path.exists(baseline_fn):
         print(
             format_title_line("Baseline Comparison"),
@@ -283,7 +285,9 @@ def parse_general_benchmarks(case, verbose=0):
     return df
 
 
-def compare_general_benchmarks(data, baseline_fn="benchmarks/benchmarks_baseline.csv"):
+def compare_general_benchmarks(data, baseline_fn=None):
+    if baseline_fn is None:
+        baseline_fn = OUTPUT_DIR / "benchmarks_baseline.csv"
     if not os.path.exists(baseline_fn):
         print(
             format_title_line("Baseline Comparison"),
@@ -510,7 +514,7 @@ def parse_catch2_benchmark_xml(
             prop_mod_data = parse_general_benchmarks(case)
             prop_mod_compare_data = compare_general_benchmarks(
                 prop_mod_data,
-                baseline_fn="benchmarks/property_modifier_benchmarks_baseline.csv",
+                baseline_fn=OUTPUT_DIR / "property_modifier_benchmarks_baseline.csv",
             )
             # save check and save
             if save_data:
@@ -545,18 +549,26 @@ def parse_catch2_benchmark_xml(
                         save_plots=save_plots,
                         out_file_ext=out_file_ext,
                     )
-        elif case.get("name") == "Assemblage benchmarks - soft reset":
+        elif case.get("name") in (
+            "Assemblage benchmarks - soft reset",
+            "Assemblage benchmarks",
+        ):
+            file_stem = (
+                "assemblage_benchmarks"
+                if case.get("name") == "Assemblage benchmarks - soft reset"
+                else "assemblage_full_reset_benchmarks"
+            )
             assemblage_data = parse_general_benchmarks(case)
             assemblage_compare_data = compare_general_benchmarks(
                 assemblage_data,
-                baseline_fn="benchmarks/assemblage_benchmarks_baseline.csv",
+                baseline_fn=OUTPUT_DIR / f"{file_stem}_baseline.csv",
             )
             if save_data:
                 assemblage_fname = unique_filename(
-                    "assemblage_benchmarks_" + out_file_ext + ".csv"
+                    file_stem + "_" + out_file_ext + ".csv"
                 )
                 comp_fname = unique_filename(
-                    "assemblage_benchmarks_compare_" + out_file_ext + ".csv"
+                    file_stem + "_compare_" + out_file_ext + ".csv"
                 )
                 assemblage_data.to_csv(assemblage_fname, index=False)
                 msg = (
@@ -592,22 +604,26 @@ def parse_catch2_benchmark_xml(
 
 
 if __name__ == "__main__":
-    import sys
-
-    # Get XML file and output fname to append to pass as args
-    n_args = len(sys.argv)
-    if n_args < 2:
-        print(
-            format_title_line("Error!"),
-            "\t\tPlease provide an xml file!\n",
-            format_title_line(),
-        )
-        sys.exit(1)
-    arg = sys.argv[1]
-    benchmarks_dir = "benchmarks"
+    parser = argparse.ArgumentParser(
+        description="Process Catch2 benchmark XML reports."
+    )
+    parser.add_argument("input", help="XML report, clear, or clear_all")
+    parser.add_argument(
+        "label", nargs="?", help="Output filename label, or directory to clear"
+    )
+    parser.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
+    parser.add_argument(
+        "--no-plots",
+        action="store_true",
+        help="Run without plots or interactive prompts",
+    )
+    args = parser.parse_args()
+    OUTPUT_DIR = args.output_dir.resolve()
+    arg = args.input
+    benchmarks_dir = str(OUTPUT_DIR)
     if arg in ("clear", "clear_all"):
-        if n_args >= 3:
-            benchmarks_dir = sys.argv[2]
+        if args.label:
+            benchmarks_dir = args.label
         if not os.path.isdir(benchmarks_dir):
             print(f"Error: Benchmark directory ({benchmarks_dir}) not found!")
             sys.exit(1)
@@ -629,11 +645,14 @@ if __name__ == "__main__":
         print(del_msg)
         sys.exit(0)
     xml_file = arg
-    if n_args < 3:
-        save = 0
-        out_ext = None
-    else:
-        save = 1
-        out_ext = sys.argv[2]
-    parse_catch2_benchmark_xml(xml_file, out_ext, save_data=save, save_plots=save)
-    input("Press <Enter> to close plots and exit...")
+    save = args.label is not None
+    parse_catch2_benchmark_xml(
+        xml_file,
+        args.label,
+        save_data=save,
+        plot_data=not args.no_plots,
+        show_plots=not args.no_plots,
+        save_plots=save and not args.no_plots,
+    )
+    if not args.no_plots:
+        plt.show()

@@ -111,8 +111,8 @@ struct BridgmaniteFixture {
 
 struct FerropericlaseFixture {
   // Declare variables to use
-  Mineral periclase;
-  Mineral wuestite;
+  Mineral periclase{};
+  Mineral wuestite{};
   eos::excesses::ExcessParamVector excess_params_wuestite;
   types::PairedEndmemberList fp_endmembers;
   std::shared_ptr<solution_models::SymmetricRegularSolution> fp_solution_model;

@@ -1,5 +1,8 @@
 """Analytic polygon geometry and phase counts, independent of thermodynamics."""
 
+import json
+from pathlib import Path
+
 import numpy as np
 import pytest
 import burnman_cpp as bm
@@ -280,6 +283,45 @@ def test_open_boundary_is_not_extended_to_close_a_field():
     assert result.diagnostics
 
 
+def test_roundoff_in_repeated_curves_does_not_create_unfinished_fields():
+    points = np.array(
+        [
+            (0.2, 0.0),
+            (0.21, 0.025),
+            (0.23, 0.05),
+            (0.3, 0.1),
+            (0.35, 0.2),
+            (0.34, 0.3),
+            (0.31, 0.4),
+            (0.3, 1.0),
+        ]
+    )
+    duplicate = points.copy()
+    duplicate[1:-1] += (
+        np.array([(3, -13), (9, 4), (-5, 6), (4, 3), (0.3, 5), (-7, -2)]) * 1.0e-15
+    )
+    geometry = bm.pseudosection_field_polygons(
+        diagram([line(points, [0], [1]), line(duplicate[::-1], [1], [0])])
+    )
+    assert not geometry.diagnostics
+    assert {tuple(p.phases) for p in geometry.polygons} == {(0,), (1,)}
+    assert len(geometry.polygons) == 2
+    assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
+
+
+def test_snapping_intersections_preserves_closed_thin_fields():
+    curves = json.loads(
+        (Path(__file__).parent / "data" / "pyrolite_narrow_curves.json").read_text()
+    )
+    geometry = bm.pseudosection_field_polygons(
+        diagram([line(points, [0], [0]) for points in curves]), merge_fields=False
+    )
+    assert not geometry.diagnostics
+    assert all(p.n_phases == 1 and not p.has_open_boundary for p in geometry.polygons)
+    assert min(p.area for p in geometry.polygons) < 1.0e-9
+    assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
+
+
 @pytest.mark.parametrize("tip,filled_count", [((0.1, 0.5), 2), ((0.3, 0.5), 1)])
 def test_unfinished_branch_only_invalidates_the_field_containing_it(tip, filled_count):
     data = diagram([line(square(), [0, 1], [0]), line([(0.2, 0.5), tip], [0], [0, 1])])
@@ -469,6 +511,7 @@ def test_uniform_font_and_numbered_assemblage_document(tmp_path):
     narrow = [(0.499, 0.1), (0.501, 0.1), (0.501, 0.9), (0.499, 0.9), (0.499, 0.1)]
     data = diagram([line(narrow, list(range(12)), [12])])
     data["phase_names"] = [f"phase{i}" for i in range(12)] + ["background"]
+    data["phase_names"][0] = "phase|0"
     key_path = tmp_path / "field_names.md"
     fig, ax = bm.plot_pseudosection(
         data,
@@ -487,7 +530,8 @@ def test_uniform_font_and_numbered_assemblage_document(tmp_path):
     assert key_path.is_file()
     key = key_path.read_text()
     for number, name in ax.pseudosection_label_key.items():
-        assert f"| {number} | {name} |" in key
+        escaped_name = name.replace("|", r"\|")
+        assert f"| {number} | {escaped_name} |" in key
     # The number does not fit in the narrow region either: retain the chosen
     # size and show its connection to the correct field.
     assert any(getattr(text, "arrow_patch", None) is not None for text in ax.texts)

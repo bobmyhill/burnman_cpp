@@ -1,4 +1,8 @@
 import pandas as pd
+import argparse
+from pathlib import Path
+
+DEFAULT_INPUT_DIR = Path(__file__).resolve().parents[1] / "build" / "benchmarks"
 
 
 def compare_simple_benchmarks(csv_cpp, csv_py):
@@ -29,17 +33,19 @@ def compare_multi_benchmarks(csv_cpp, csv_py):
     return df_multi
 
 
-def compute_cpp_speedup(save_data=0):
+def compute_cpp_speedup(save_data=0, input_dir=DEFAULT_INPUT_DIR):
+    input_dir = Path(input_dir)
     mineral_benchmarks = compare_multi_benchmarks(
-        "benchmarks/mineral_benchmarks_baseline.csv", "python_mineral_benchmarks.csv"
+        input_dir / "mineral_benchmarks_baseline.csv",
+        input_dir / "python_mineral_benchmarks.csv",
     )
     assemblage_benchmarks = compare_simple_benchmarks(
-        "benchmarks/assemblage_benchmarks_baseline.csv",
-        "python_assemblage_benchmarks.csv",
+        input_dir / "assemblage_benchmarks_baseline.csv",
+        input_dir / "python_assemblage_benchmarks.csv",
     )
     if save_data:
-        mineral_benchmarks.to_csv("mineral_benchmark_speedups.csv")
-        assemblage_benchmarks.to_csv("assemblage_benchmark_speedups.csv")
+        mineral_benchmarks.to_csv(input_dir / "mineral_benchmark_speedups.csv")
+        assemblage_benchmarks.to_csv(input_dir / "assemblage_benchmark_speedups.csv")
     avg_mineral_speedup = mineral_benchmarks["avg_speedup"].mean()
     avg_assemblage_speedup = assemblage_benchmarks["Speedup"].mean()
     avg_speedup = (avg_mineral_speedup + avg_assemblage_speedup) / 2.0
@@ -53,4 +59,10 @@ def compute_cpp_speedup(save_data=0):
 
 
 if __name__ == "__main__":
-    compute_cpp_speedup()
+    parser = argparse.ArgumentParser(
+        description="Compare C++ and Python BurnMan timings."
+    )
+    parser.add_argument("--input-dir", type=Path, default=DEFAULT_INPUT_DIR)
+    parser.add_argument("--save-data", action="store_true")
+    args = parser.parse_args()
+    compute_cpp_speedup(save_data=args.save_data, input_dir=args.input_dir)

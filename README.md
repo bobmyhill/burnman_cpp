@@ -3,13 +3,28 @@ C++ translation of burnman (https://github.com/geodynamics/burnman)
 Requires: C++17, Eigen >= 3.4, GSL
 Tests/Benchmarks require: Catch2 >= 3.4
 
-Install: make
-Build tests/benchmarks: make test
+Build the native static library (`bin/libburnman.a`): `make -j6`
+Build unit tests: `make -j6 test`
+Run unit tests: `./bin/run_tests`
+Build performance benchmarks: `make -j6 benchmarks`
+Run performance benchmarks: `./bin/run_benchmarks '[!benchmark]'`
 
-Run benchmarks with: ./bin/run_tests [!benchmark]
-Save output to xlm also with:
-./bin/run_tests [!benchmark] --reporter XML::out=./benchmark-report.xml --reporter console::out=-::colour-mode=ansi
-Use parse_benchmarks.py to process xml output
+Use `BUILD_MODE=debug` for a debug build, or `BUILD_MODE=test` for address and
+undefined-behaviour sanitizers. These modes use separate build directories and
+output names. Override `CXX`, `EXTRA_INCLUDE` or `EXTRA_LIB` on the command line
+for nonstandard installations. Dependency headers are treated as system headers;
+the project retains `-Wall -Wextra -Wpedantic -Wshadow -Wconversion` checks.
+Set `WARNINGS_AS_ERRORS=1` to make warnings fail the Make build.
+On macOS, native builds target the host OS by default; set
+`MACOSX_DEPLOYMENT_TARGET` explicitly when building for an older system, using
+dependencies built for that system. CMake accepts `CMAKE_OSX_DEPLOYMENT_TARGET`
+and `BURNMAN_WARNINGS_AS_ERRORS=ON` for the corresponding settings.
+If CMake reports that `-ld_classic` is deprecated, remove `-Wl,-ld_classic`
+from your shell's `LDFLAGS`; the default linker works with these builds.
+
+Benchmark sources and Python timing/reporting tools live in
+[benchmarks/](benchmarks/README.md). The dedicated GitHub benchmark workflow runs
+the native benchmarks and pinned Python BurnMan timings and saves their reports.
 
 Install the shared formatting tools with:
 

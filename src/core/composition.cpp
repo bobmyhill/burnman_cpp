@@ -45,9 +45,10 @@ double normalization_factor(const Amounts &amounts,
     for (const auto &entry : amounts)
       denominator = finite(denominator + entry.second);
   } else {
-    auto it = std::find_if(
-        amounts.begin(), amounts.end(),
-        [&component](const auto &entry) { return entry.first == component; });
+    auto it = std::find_if(amounts.begin(), amounts.end(),
+                           [&component](const auto &candidate) {
+                             return candidate.first == component;
+                           });
     if (it == amounts.end())
       throw std::invalid_argument("Normalization component is absent: " +
                                   component);
@@ -245,9 +246,10 @@ void Composition::add_components(const ComponentAmounts &input,
   for (const auto &entry : addition.mass_composition_) {
     const auto &component = entry.first;
     const double amount = entry.second;
-    auto it = std::find_if(
-        result.begin(), result.end(),
-        [&component](const auto &entry) { return entry.first == component; });
+    auto it = std::find_if(result.begin(), result.end(),
+                           [&component](const auto &candidate) {
+                             return candidate.first == component;
+                           });
     if (it == result.end())
       result.emplace_back(component, amount);
     else

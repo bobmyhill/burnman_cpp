@@ -2,16 +2,43 @@
 #include "burnman/eos/slb.hpp"
 #include "burnman/tools/polytope.hpp"
 #include "burnman/utils/constants.hpp"
+#include "burnman/utils/index_utils.hpp"
 #include "internal.hpp"
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <nlopt.hpp>
 #include <numeric>
 #include <set>
 #include <sstream>
 #include <stdexcept>
 namespace burnman::pseudosections::detail {
+namespace {
+bool flat_mixing(const Solution &solution, double pressure, double temperature,
+                 const Eigen::VectorXd &left, const Eigen::VectorXd &right) {
+  // Endmember energies are affine in composition. Only the excess term can
+  // distinguish separate copies from their homogeneous mixture.
+  const auto &model = solution.get_solution_model();
+  auto excess = [&](const Eigen::VectorXd &composition) {
+    return model->compute_excess_gibbs_free_energy(pressure, temperature,
+                                                   composition.array());
+  };
+  const double gl = excess(left), gr = excess(right);
+  if (!std::isfinite(gl) || !std::isfinite(gr))
+    return false;
+  for (double fraction : {.25, .5, .75}) {
+    double mixed = excess((1. - fraction) * left + fraction * right);
+    double linear = (1. - fraction) * gl + fraction * gr;
+    double tolerance =
+        32. * std::numeric_limits<double>::epsilon() *
+        std::max({1., std::abs(gl), std::abs(gr), std::abs(mixed)});
+    if (!std::isfinite(mixed) || std::abs(mixed - linear) > tolerance)
+      return false;
+  }
+  return true;
+}
+} // namespace
 std::shared_ptr<Material> clone(const std::shared_ptr<Material> &phase) {
   if (auto s = std::dynamic_pointer_cast<Solution>(phase)) {
     std::shared_ptr<Solution> out;
@@ -25,13 +52,15 @@ std::shared_ptr<Material> clone(const std::shared_ptr<Material> &phase) {
                 m.get()))
       out->set_solution_model(
           std::make_shared<solution_models::SymmetricRegularSolution>(*r));
-    else if (auto r = dynamic_cast<
+    else if (auto asymmetric = dynamic_cast<
                  const solution_models::AsymmetricRegularSolution *>(m.get()))
       out->set_solution_model(
-          std::make_shared<solution_models::AsymmetricRegularSolution>(*r));
-    else if (typeid(*m) == typeid(solution_models::IdealSolution))
+          std::make_shared<solution_models::AsymmetricRegularSolution>(
+              *asymmetric));
+    else if (const auto *model = m.get();
+             typeid(*model) == typeid(solution_models::IdealSolution))
       out->set_solution_model(std::make_shared<solution_models::IdealSolution>(
-          *static_cast<const solution_models::IdealSolution *>(m.get())));
+          *static_cast<const solution_models::IdealSolution *>(model)));
     else
       throw std::invalid_argument("Pseudosections support ideal and "
                                   "symmetric/asymmetric regular solutions.");
@@ -118,7 +147,7 @@ Engine::Engine(const types::FormulaMap &composition,
     phases.push_back(std::move(phase));
   }
   elements.assign(els.begin(), els.end());
-  full_bulk = Eigen::VectorXd::Zero(elements.size());
+  full_bulk = Eigen::VectorXd::Zero(static_cast<Eigen::Index>(elements.size()));
   for (auto &name : settings.required_eos_phases)
     if (!names.count(name))
       throw std::invalid_argument("Required EOS phase is not a candidate: " +
@@ -128,22 +157,23 @@ Engine::Engine(const types::FormulaMap &composition,
         "required_eos_phases requires exclude_invalid_eos.");
   for (std::size_t k = 0; k < elements.size(); ++k)
     if (bulk.count(elements[k]))
-      full_bulk[k] = bulk.at(elements[k]);
-  int rows = 0;
+      full_bulk[static_cast<Eigen::Index>(k)] = bulk.at(elements[k]);
+  Eigen::Index rows = 0;
   for (auto &phase : phases)
     rows += phase.vertices.cols();
   Eigen::MatrixXd full(rows, elements.size());
-  int offset = 0;
+  Eigen::Index offset = 0;
   for (auto &phase : phases) {
-    phase.a = Eigen::MatrixXd::Zero(phase.vertices.cols(), elements.size());
+    phase.a = Eigen::MatrixXd::Zero(phase.vertices.cols(),
+                                    static_cast<Eigen::Index>(elements.size()));
     for (int i = 0; i < phase.a.rows(); ++i) {
       auto f = phase.solution ? phase.solution->get_solution_model()
-                                    ->endmembers[i]
+                                    ->endmembers[static_cast<std::size_t>(i)]
                                     .get_formula()
                               : phase.material->get_formula();
       for (std::size_t k = 0; k < elements.size(); ++k)
         if (f.count(elements[k]))
-          phase.a(i, k) = f.at(elements[k]);
+          phase.a(i, static_cast<Eigen::Index>(k)) = f.at(elements[k]);
     }
     full.middleRows(offset, phase.a.rows()) = phase.a;
     offset += phase.a.rows();
@@ -160,9 +190,9 @@ Engine::Engine(const types::FormulaMap &composition,
   if ((full.transpose() * coefficients - full_bulk).norm() >
       settings.mass_balance_tolerance * full_bulk.norm())
     throw std::invalid_argument("Bulk is outside the candidate chemical span.");
-  b.resize(components.size());
+  b.resize(static_cast<Eigen::Index>(components.size()));
   for (std::size_t k = 0; k < components.size(); ++k)
-    b[k] = full_bulk[components[k]];
+    b[static_cast<Eigen::Index>(k)] = full_bulk[components[k]];
 }
 void Engine::set_pt(double p, double t) {
   for (auto &phase : phases) {
@@ -173,7 +203,8 @@ void Engine::set_pt(double p, double t) {
       phase.g.resize(phase.vertices.cols());
       if (phase.solution) {
         for (int i = 0; i < phase.g.size(); ++i) {
-          auto m = phase.solution->get_solution_model()->endmembers[i];
+          auto m = phase.solution->get_solution_model()
+                       ->endmembers[static_cast<std::size_t>(i)];
           m.set_state(p, t);
           phase.g[i] = m.get_molar_gibbs();
         }
@@ -189,7 +220,7 @@ void Engine::set_pt(double p, double t) {
 }
 bool Engine::eos_bulk_feasible(double p, double t) {
   set_pt(p, t);
-  int count = 0;
+  Eigen::Index count = 0;
   for (auto &ph : phases)
     if (ph.available)
       count += ph.vertices.rows();
@@ -202,14 +233,14 @@ bool Engine::eos_bulk_feasible(double p, double t) {
   if (!count)
     return false;
   Eigen::MatrixXd a(count, components.size());
-  int row = 0;
+  Eigen::Index row = 0;
   for (auto &ph : phases)
     if (ph.available)
       for (int i = 0; i < ph.vertices.rows(); ++i) {
         Eigen::VectorXd formula =
             ph.a.transpose() * ph.vertices.row(i).transpose();
         for (std::size_t j = 0; j < components.size(); ++j)
-          a(row, j) = formula[components[j]];
+          a(row, static_cast<Eigen::Index>(j)) = formula[components[j]];
         ++row;
       }
   try {
@@ -220,7 +251,7 @@ bool Engine::eos_bulk_feasible(double p, double t) {
   }
 }
 double Engine::energy(int index, const Eigen::VectorXd &p) const {
-  auto &ph = phases[index];
+  auto &ph = phases[static_cast<std::size_t>(index)];
   double g = ph.g.dot(p);
   if (ph.solution)
     g += ph.solution->get_solution_model()->compute_excess_gibbs_free_energy(
@@ -242,7 +273,9 @@ Eigen::VectorXd unpack(unsigned n, const double *x) {
 double objective(const std::vector<double> &x, std::vector<double> &grad,
                  void *ptr) {
   auto &d = *static_cast<Objective *>(ptr);
-  auto p = unpack(x.size(), x.data());
+  auto p =
+      unpack(static_cast<unsigned int>(burnman::utils::checked_int(x.size())),
+             x.data());
   auto &ph = *d.phase;
   double v = d.adjusted.dot(p);
   if (ph.solution) {
@@ -254,7 +287,7 @@ double objective(const std::vector<double> &x, std::vector<double> &grad,
                  m->compute_excess_partial_gibbs_free_energies(P, T, p.array()))
                     .eval();
       for (std::size_t i = 0; i < x.size(); ++i)
-        grad[i] = (mu[i + 1] - mu[0]) / d.scale;
+        grad[i] = (mu[static_cast<Eigen::Index>(i + 1)] - mu[0]) / d.scale;
     }
   }
   return v / d.scale;
@@ -273,11 +306,11 @@ void site_constraints(unsigned m, double *result, unsigned n, const double *x,
 } // namespace
 Minimum Engine::minimize(int index, const Eigen::VectorXd &mu,
                          const Eigen::VectorXd &start) {
-  auto &ph = phases[index];
+  auto &ph = phases[static_cast<std::size_t>(index)];
   Eigen::VectorXd adj = ph.g;
   for (int j = 0; j < adj.size(); ++j)
     for (std::size_t k = 0; k < components.size(); ++k)
-      adj[j] -= ph.a(j, components[k]) * mu[k];
+      adj[j] -= ph.a(j, components[k]) * mu[static_cast<Eigen::Index>(k)];
   if (!ph.solution || ph.g.size() == 1)
     return {Eigen::VectorXd::Ones(1), adj[0]};
   ++minimization_calls;
@@ -285,7 +318,9 @@ Minimum Engine::minimize(int index, const Eigen::VectorXd &mu,
       start.size() ? start : ph.vertices.colwise().mean().transpose();
   Objective data{&ph, adj,
                  std::max(1000., 8.314 * ph.material->get_temperature())};
-  nlopt::opt opt(nlopt::LD_SLSQP, ph.g.size() - 1);
+  nlopt::opt opt(
+      nlopt::LD_SLSQP,
+      static_cast<unsigned int>(burnman::utils::checked_int(ph.g.size() - 1)));
   opt.set_min_objective(objective, &data);
   std::vector<double> low, high, x;
   for (int i = 1; i < ph.g.size(); ++i) {
@@ -297,7 +332,8 @@ Minimum Engine::minimize(int index, const Eigen::VectorXd &mu,
   opt.set_upper_bounds(high);
   opt.add_inequality_mconstraint(
       site_constraints, &ph.occupancies,
-      std::vector<double>(ph.occupancies.cols(), 1.e-10));
+      std::vector<double>(static_cast<std::size_t>(ph.occupancies.cols()),
+                          1.e-10));
   opt.set_xtol_abs(settings.composition_tolerance * .01);
   opt.set_ftol_abs(1.e-11);
   opt.set_maxeval(250);
@@ -306,7 +342,8 @@ Minimum Engine::minimize(int index, const Eigen::VectorXd &mu,
     opt.optimize(x, value);
   } catch (const nlopt::roundoff_limited &) {
   } // validate below
-  p = unpack(x.size(), x.data());
+  p = unpack(static_cast<unsigned int>(burnman::utils::checked_int(x.size())),
+             x.data());
   if (!p.allFinite() || (ph.occupancies.transpose() * p).minCoeff() < -1.e-7)
     throw std::runtime_error(
         "Solution minimisation returned an infeasible composition.");
@@ -316,7 +353,7 @@ Minimum Engine::minimize(int index, const Eigen::VectorXd &mu,
 }
 std::vector<Minimum> Engine::minima(int index, const Eigen::VectorXd &mu,
                                     const Eigen::VectorXd &start) {
-  auto &ph = phases[index];
+  auto &ph = phases[static_cast<std::size_t>(index)];
   if (!ph.available)
     return {{ph.vertices.colwise().mean().transpose(),
              std::numeric_limits<double>::infinity()}};
@@ -330,7 +367,7 @@ std::vector<Minimum> Engine::minima(int index, const Eigen::VectorXd &mu,
   Eigen::VectorXd adjusted = ph.g;
   for (int i = 0; i < adjusted.size(); ++i)
     for (std::size_t k = 0; k < components.size(); ++k)
-      adjusted[i] -= ph.a(i, components[k]) * mu[k];
+      adjusted[i] -= ph.a(i, components[k]) * mu[static_cast<Eigen::Index>(k)];
   for (int i = 0; i < ph.vertices.rows(); ++i) {
     Eigen::VectorXd p = .995 * ph.vertices.row(i).transpose() + .005 * mean;
     double value =
@@ -340,20 +377,24 @@ std::vector<Minimum> Engine::minima(int index, const Eigen::VectorXd &mu,
             p.array());
     seeds.push_back({value, p});
   }
-  std::stable_sort(seeds.begin(), seeds.end(),
-                   [](auto &a, auto &b) { return a.first < b.first; });
+  std::stable_sort(seeds.begin(), seeds.end(), [](auto &left, auto &right) {
+    return left.first < right.first;
+  });
   std::vector<Minimum> out;
-  for (int i = 0; i < std::min<int>(settings.minimization_starts, seeds.size());
+  for (int i = 0; i < std::min<int>(settings.minimization_starts,
+                                    burnman::utils::checked_int(seeds.size()));
        ++i) {
     Minimum m;
     try {
-      m = minimize(index, mu, seeds[i].second);
+      m = minimize(index, mu, seeds[static_cast<std::size_t>(i)].second);
     } catch (const std::runtime_error &error) {
       // NLopt can exhaust its internal SQP loop at a vertex, especially at
       // zero kelvin. Retry away from that singular starting point. A failed
       // minimisation is never treated as an infinite (stable) phase affinity.
       try {
-        m = minimize(index, mu, .5 * seeds[i].second + .5 * mean);
+        m = minimize(index, mu,
+                     .5 * seeds[static_cast<std::size_t>(i)].second +
+                         .5 * mean);
       } catch (const std::runtime_error &) {
         if (settings.verbose)
           std::cerr << "Minimum start failed for " << ph.material->get_name()
@@ -375,8 +416,9 @@ std::vector<Minimum> Engine::minima(int index, const Eigen::VectorXd &mu,
   if (out.empty())
     throw std::runtime_error("All composition minimisation starts failed for " +
                              ph.material->get_name() + ".");
-  std::sort(out.begin(), out.end(),
-            [](auto &a, auto &b) { return a.affinity < b.affinity; });
+  std::sort(out.begin(), out.end(), [](auto &left, auto &right) {
+    return left.affinity < right.affinity;
+  });
   return out;
 }
 std::shared_ptr<Assemblage>
@@ -387,7 +429,7 @@ Engine::make_assemblage(const std::vector<int> &ids,
   Eigen::ArrayXd amounts(ids.size());
   for (std::size_t k = 0; k < ids.size(); ++k) {
     int base = ids[k] / settings.max_phase_instances;
-    auto m = clone(phases.at(base).material);
+    auto m = clone(phases.at(static_cast<std::size_t>(base)).material);
     auto s = std::dynamic_pointer_cast<Solution>(m);
     const PhaseState *init = nullptr;
     for (auto &old : states)
@@ -396,12 +438,15 @@ Engine::make_assemblage(const std::vector<int> &ids,
         break;
       }
     if (s) {
-      Eigen::VectorXd x =
-          init ? init->composition
-               : phases[base].vertices.colwise().mean().transpose().eval();
+      Eigen::VectorXd x = init ? init->composition
+                               : phases[static_cast<std::size_t>(base)]
+                                     .vertices.colwise()
+                                     .mean()
+                                     .transpose()
+                                     .eval();
       s->set_composition(x.array());
       if (settings.active_solution_faces && init) {
-        auto &ph = phases[base];
+        auto &ph = phases[static_cast<std::size_t>(base)];
         auto sites = (ph.occupancies.transpose() * x).eval();
         std::vector<int> vertices;
         for (int row = 0; row < ph.vertices.rows(); ++row) {
@@ -417,7 +462,8 @@ Engine::make_assemblage(const std::vector<int> &ids,
         if (!vertices.empty()) {
           Eigen::MatrixXd face(vertices.size(), x.size());
           for (std::size_t i = 0; i < vertices.size(); ++i)
-            face.row(i) = ph.vertices.row(vertices[i]);
+            face.row(static_cast<Eigen::Index>(i)) =
+                ph.vertices.row(vertices[i]);
           Eigen::ColPivHouseholderQR<Eigen::MatrixXd> qr(face.transpose());
           qr.setThreshold(1.e-10);
           if (qr.rank() < x.size()) {
@@ -444,7 +490,8 @@ Engine::make_assemblage(const std::vector<int> &ids,
       m->set_name(m->get_name() + " #" +
                   std::to_string(ids[k] % settings.max_phase_instances + 1));
     a->add_phases({m});
-    amounts[k] = init ? std::max(0., init->amount) : 0.;
+    amounts[static_cast<Eigen::Index>(k)] =
+        init ? std::max(0., init->amount) : 0.;
   }
   if (amounts.sum() == 0)
     amounts.setOnes();
@@ -457,7 +504,7 @@ std::shared_ptr<Assemblage>
 Engine::copy_assemblage(const Assemblage &input) const {
   auto out = std::make_shared<Assemblage>();
   for (int i = 0; i < input.get_n_phases(); ++i)
-    out->add_phases({clone(input.get_phase(i))});
+    out->add_phases({clone(input.get_phase(static_cast<std::size_t>(i)))});
   out->set_fractions(input.get_molar_fractions());
   out->set_n_moles(input.get_n_moles());
   out->set_state(input.get_pressure(), input.get_temperature());
@@ -533,16 +580,18 @@ Eigen::VectorXd Engine::potentials(const Assemblage &a) const {
   auto elems = a.get_elements();
   Eigen::MatrixXd reduced(stoich.rows(), components.size());
   for (std::size_t k = 0; k < components.size(); ++k) {
-    auto it = std::find(elems.begin(), elems.end(), elements[components[k]]);
+    auto it = std::find(elems.begin(), elems.end(),
+                        elements[static_cast<std::size_t>(components[k])]);
     if (it == elems.end())
-      reduced.col(k).setZero();
+      reduced.col(static_cast<Eigen::Index>(k)).setZero();
     else
-      reduced.col(k) = stoich.col(it - elems.begin());
+      reduced.col(static_cast<Eigen::Index>(k)) =
+          stoich.col(it - elems.begin());
   }
   Eigen::VectorXd prior =
       potential_seed.size() == static_cast<Eigen::Index>(components.size())
           ? potential_seed
-          : Eigen::VectorXd::Zero(components.size());
+          : Eigen::VectorXd::Zero(static_cast<Eigen::Index>(components.size()));
   return prior + reduced.completeOrthogonalDecomposition().solve(
                      a.get_partial_gibbs().matrix() - reduced * prior);
 }
@@ -560,7 +609,7 @@ double Engine::stability(const Assemblage &a, std::vector<Minimum> *output) {
   if (output)
     output->clear();
   for (std::size_t i = 0; i < phases.size(); ++i) {
-    auto ms = minima(i, mu);
+    auto ms = minima(burnman::utils::checked_int(i), mu);
     worst = std::min(worst, ms[0].affinity);
     if (output)
       output->push_back(ms[0]);
@@ -568,11 +617,13 @@ double Engine::stability(const Assemblage &a, std::vector<Minimum> *output) {
   return worst;
 }
 double Engine::mass_error(const Assemblage &a) const {
-  Eigen::VectorXd amount = Eigen::VectorXd::Zero(elements.size());
+  Eigen::VectorXd amount =
+      Eigen::VectorXd::Zero(static_cast<Eigen::Index>(elements.size()));
   auto formula = a.get_formula();
   for (std::size_t k = 0; k < elements.size(); ++k)
     if (formula.count(elements[k]))
-      amount[k] = formula.at(elements[k]) * a.get_n_moles();
+      amount[static_cast<Eigen::Index>(k)] =
+          formula.at(elements[k]) * a.get_n_moles();
   return (amount - full_bulk).norm() / full_bulk.norm();
 }
 std::vector<PhaseState> Engine::snapshot(const Assemblage &a,
@@ -584,7 +635,8 @@ std::vector<PhaseState> Engine::snapshot(const Assemblage &a,
     state.candidate_index = ids[k] / settings.max_phase_instances;
     auto m = a.get_phase(k);
     state.name = m->get_name();
-    state.amount = a.get_molar_fractions()[k] * a.get_n_moles();
+    state.amount =
+        a.get_molar_fractions()[static_cast<Eigen::Index>(k)] * a.get_n_moles();
     if (auto s = std::dynamic_pointer_cast<Solution>(m))
       state.composition = s->get_molar_fractions().matrix();
     else
@@ -601,8 +653,9 @@ Eigen::MatrixXd Engine::composition_basis(const Material &m, int index) const {
     return face->original_basis;
   if (auto face = dynamic_cast<const FaceMineral *>(&m))
     return face->original_basis;
-  return Eigen::MatrixXd::Identity(phases[index].vertices.cols(),
-                                   phases[index].vertices.cols());
+  return Eigen::MatrixXd::Identity(
+      phases[static_cast<std::size_t>(index)].vertices.cols(),
+      phases[static_cast<std::size_t>(index)].vertices.cols());
 }
 WorkState Engine::fixed_pt(const std::vector<int> &ids,
                            const std::vector<PhaseState> &states, double p,
@@ -619,6 +672,42 @@ WorkState Engine::fixed_pt(const std::vector<int> &ids,
                            std::make_unique<TemperatureConstraint>(t));
       sol = solve(*out.assemblage, c);
       out.state.phases = snapshot(*out.assemblage, out.ids);
+      bool merged = false;
+      for (std::size_t i = 0; i < out.state.phases.size(); ++i)
+        for (std::size_t j = i + 1; j < out.state.phases.size();) {
+          auto &first = out.state.phases[i];
+          const auto &second = out.state.phases[j];
+          double amount = first.amount + second.amount;
+          if (first.candidate_index == second.candidate_index && amount > 0. &&
+              ((first.composition - second.composition).norm() <
+                   settings.composition_tolerance ||
+               (settings.active_solution_faces &&
+                phases[static_cast<std::size_t>(first.candidate_index)]
+                    .solution &&
+                flat_mixing(
+                    *phases[static_cast<std::size_t>(first.candidate_index)]
+                         .solution,
+                    p, t, first.composition, second.composition)))) {
+            first.composition = (first.amount * first.composition +
+                                 second.amount * second.composition) /
+                                amount;
+            first.amount = amount;
+            out.state.phases.erase(out.state.phases.begin() +
+                                   static_cast<std::ptrdiff_t>(j));
+            out.ids.erase(out.ids.begin() + static_cast<std::ptrdiff_t>(j));
+            merged = true;
+          } else
+            ++j;
+        }
+      if (merged) {
+        // Coincident copies and compositions on one flat mixing face describe
+        // one field phase. At zero kelvin an LP can select separate vertices
+        // of an ideal mixing face. Their weighted mean preserves both the
+        // bulk and Gibbs energy; a genuine miscibility gap has a mixing
+        // barrier.
+        out.assemblage = make_assemblage(out.ids, out.state.phases, p, t);
+        continue;
+      }
       out.state.mass_balance_error = mass_error(*out.assemblage);
       out.state.minimum_affinity = stability(*out.assemblage);
       out.state.excluded_phases.clear();
@@ -637,6 +726,18 @@ WorkState Engine::fixed_pt(const std::vector<int> &ids,
           out.state.mass_balance_error <= settings.mass_balance_tolerance &&
           out.state.minimum_affinity >= -settings.affinity_tolerance;
       if (out.state.success) {
+        std::vector<int> copies(phases.size(), 0);
+        for (std::size_t i = 0; i < out.state.phases.size(); ++i) {
+          auto &phase = out.state.phases[i];
+          int copy = copies[static_cast<std::size_t>(phase.candidate_index)]++;
+          phase.id =
+              phase.candidate_index * settings.max_phase_instances + copy;
+          phase.name = phases[static_cast<std::size_t>(phase.candidate_index)]
+                           .material->get_name() +
+                       (copy ? " #" + std::to_string(copy + 1) : "");
+          out.ids[i] = phase.id;
+          out.assemblage->get_phase(i)->set_name(phase.name);
+        }
         out.state.message = "Stable equilibrium";
         return out;
       }
@@ -687,6 +788,16 @@ WorkState Engine::stable(double p, double t) {
   out.state.pressure = p;
   out.state.temperature = t;
   try {
+    if (t == 0. && settings.active_solution_faces) {
+      // Resolve flat zero-temperature solution faces with a warm seed, then
+      // validate the equilibrium at exactly zero kelvin.
+      auto warm = stable(p, .05);
+      if (warm.state.success) {
+        auto cold = fixed_pt(warm.ids, warm.state.phases, p, t);
+        if (cold.state.success)
+          return cold;
+      }
+    }
     set_pt(p, t);
     for (auto &ph : phases)
       if (!ph.available && std::find(settings.required_eos_phases.begin(),
@@ -711,17 +822,78 @@ WorkState Engine::stable(double p, double t) {
                              phases[i].vertices.colwise().mean().transpose()});
     }
     polytope::GibbsLPResult lp;
-    bool converged = false;
+    auto equilibrate_lp = [&]() {
+      std::vector<PhaseState> seeds;
+      std::vector<int> ids;
+      for (std::size_t i = 0; i < phases.size(); ++i) {
+        std::vector<PhaseState> clusters;
+        for (int j = 0; j < lp.amounts.size(); ++j)
+          if (compounds[static_cast<std::size_t>(j)].phase ==
+                  static_cast<int>(i) &&
+              lp.amounts[j] > settings.amount_tolerance * lp.amounts.sum()) {
+            auto &c = compounds[static_cast<std::size_t>(j)];
+            auto it =
+                std::find_if(clusters.begin(), clusters.end(), [&](auto &old) {
+                  return (old.composition - c.p).norm() < .05;
+                });
+            if (it == clusters.end()) {
+              PhaseState s;
+              s.candidate_index = burnman::utils::checked_int(i);
+              s.amount = lp.amounts[j];
+              s.composition = c.p;
+              clusters.push_back(s);
+            } else {
+              it->composition =
+                  (it->amount * it->composition + lp.amounts[j] * c.p) /
+                  (it->amount + lp.amounts[j]);
+              it->amount += lp.amounts[j];
+            }
+          }
+        if (clusters.size() >
+            static_cast<std::size_t>(settings.max_phase_instances))
+          throw std::runtime_error(
+              "More coexisting solution instances required; "
+              "increase max_phase_instances.");
+        std::sort(
+            clusters.begin(), clusters.end(), [](auto &first, auto &second) {
+              for (Eigen::Index j = 0; j < first.composition.size(); ++j) {
+                auto left = std::llround(first.composition[j] * 1.e7),
+                     right = std::llround(second.composition[j] * 1.e7);
+                if (left != right)
+                  return left < right;
+              }
+              return false;
+            });
+        for (std::size_t j = 0; j < clusters.size(); ++j) {
+          clusters[j].id = burnman::utils::checked_int(
+              i * static_cast<std::size_t>(settings.max_phase_instances) + j);
+          seeds.push_back(clusters[j]);
+          ids.push_back(clusters[j].id);
+        }
+      }
+      potential_seed = lp.chemical_potentials;
+      return fixed_pt(ids, seeds, p, t);
+    };
+    auto add_compound = [&](int phase, const Eigen::VectorXd &composition) {
+      for (const auto &old : compounds)
+        if (old.phase == phase && (old.p - composition).norm() < 1.e-9)
+          return false;
+      compounds.push_back({phase, composition});
+      return true;
+    };
     for (int iteration = 0; iteration < settings.max_refinement_iterations;
          ++iteration) {
       Eigen::MatrixXd a(compounds.size(), components.size());
       Eigen::VectorXd g(compounds.size());
       for (std::size_t i = 0; i < compounds.size(); ++i) {
         auto &c = compounds[i];
-        g[i] = energy(c.phase, c.p);
-        auto full = (phases[c.phase].a.transpose() * c.p).eval();
+        g[static_cast<Eigen::Index>(i)] = energy(c.phase, c.p);
+        auto full =
+            (phases[static_cast<std::size_t>(c.phase)].a.transpose() * c.p)
+                .eval();
         for (std::size_t k = 0; k < components.size(); ++k)
-          a(i, k) = full[components[k]];
+          a(static_cast<Eigen::Index>(i), static_cast<Eigen::Index>(k)) =
+              full[components[k]];
       }
       lp = polytope::gibbs_linear_program(a, g, b);
       double worst = 0.;
@@ -732,11 +904,12 @@ WorkState Engine::stable(double p, double t) {
         for (std::size_t j = 0; j < static_cast<std::size_t>(lp.amounts.size());
              ++j)
           if (compounds[j].phase == static_cast<int>(i) &&
-              lp.amounts[j] > maxamount) {
-            maxamount = lp.amounts[j];
+              lp.amounts[static_cast<Eigen::Index>(j)] > maxamount) {
+            maxamount = lp.amounts[static_cast<Eigen::Index>(j)];
             seed = compounds[j].p;
           }
-        for (auto &m : minima(i, lp.chemical_potentials, seed))
+        for (auto &m : minima(burnman::utils::checked_int(i),
+                              lp.chemical_potentials, seed))
           if (m.affinity < -settings.affinity_tolerance * .1) {
             worst = std::min(worst, m.affinity);
             bool exists = false;
@@ -758,61 +931,38 @@ WorkState Engine::stable(double p, double t) {
                   << " affinity=" << worst << " compounds=" << compounds.size()
                   << '\n';
       if (worst >= -settings.affinity_tolerance * .1) {
-        converged = true;
-        break;
+        auto equilibrium = equilibrate_lp();
+        if (equilibrium.state.success || !equilibrium.assemblage ||
+            equilibrium.state.minimum_affinity >= -settings.affinity_tolerance)
+          return equilibrium;
+        // The refined compositions must enter the LP too: frozen mesh points
+        // can otherwise hide a feasible direction towards a lower-energy phase.
+        for (const auto &state : equilibrium.state.phases) {
+          added += add_compound(state.candidate_index, state.composition);
+          const auto &vertices =
+              phases[static_cast<std::size_t>(state.candidate_index)].vertices;
+          // Neighbouring feasible compositions constrain chemical-potential
+          // slopes that a discrete LP otherwise leaves underdetermined.
+          for (int vertex = 0; vertex < vertices.rows(); ++vertex)
+            added += add_compound(
+                state.candidate_index,
+                state.composition + 1.e-7 * (vertices.row(vertex).transpose() -
+                                             state.composition));
+        }
+        std::vector<Minimum> missing;
+        stability(*equilibrium.assemblage, &missing);
+        for (std::size_t i = 0; i < missing.size(); ++i)
+          if (missing[i].affinity < -settings.affinity_tolerance)
+            added += add_compound(static_cast<int>(i), missing[i].p);
+        if (!added)
+          return equilibrium;
       }
       if (!added)
         break;
     }
-    if (!converged)
-      throw std::runtime_error(
-          "Tangent-plane refinement did not converge; increase "
-          "max_refinement_iterations or minimization_starts.");
-    std::vector<PhaseState> seeds;
-    for (std::size_t i = 0; i < phases.size(); ++i) {
-      std::vector<PhaseState> clusters;
-      for (int j = 0; j < lp.amounts.size(); ++j)
-        if (compounds[j].phase == static_cast<int>(i) &&
-            lp.amounts[j] > settings.amount_tolerance * lp.amounts.sum()) {
-          auto &c = compounds[j];
-          auto it =
-              std::find_if(clusters.begin(), clusters.end(), [&](auto &old) {
-                return (old.composition - c.p).norm() < .05;
-              });
-          if (it == clusters.end()) {
-            PhaseState s;
-            s.candidate_index = i;
-            s.amount = lp.amounts[j];
-            s.composition = c.p;
-            clusters.push_back(s);
-          } else {
-            it->composition =
-                (it->amount * it->composition + lp.amounts[j] * c.p) /
-                (it->amount + lp.amounts[j]);
-            it->amount += lp.amounts[j];
-          }
-        }
-      if (clusters.size() >
-          static_cast<std::size_t>(settings.max_phase_instances))
-        throw std::runtime_error("More coexisting solution instances required; "
-                                 "increase max_phase_instances.");
-      std::sort(clusters.begin(), clusters.end(), [](auto &a, auto &b) {
-        for (int j = 0; j < a.composition.size(); ++j) {
-          auto left = std::llround(a.composition[j] * 1.e7),
-               right = std::llround(b.composition[j] * 1.e7);
-          if (left != right)
-            return left < right;
-        }
-        return false;
-      });
-      for (std::size_t j = 0; j < clusters.size(); ++j) {
-        clusters[j].id = i * settings.max_phase_instances + j;
-        seeds.push_back(clusters[j]);
-        out.ids.push_back(clusters[j].id);
-      }
-    }
-    potential_seed = lp.chemical_potentials;
-    return fixed_pt(out.ids, seeds, p, t);
+    throw std::runtime_error(
+        "Tangent-plane refinement did not converge; increase "
+        "max_refinement_iterations or minimization_starts.");
   } catch (const polytope::InfeasibleBulk &e) {
     out.state.outside_model_domain = std::any_of(
         phases.begin(), phases.end(), [](auto &ph) { return !ph.available; });

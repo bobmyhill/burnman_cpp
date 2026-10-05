@@ -7,6 +7,8 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
+// Numerical snapshots: Python BurnMan 69e700647ae7efeed91dfbce147c036bce619516.
+// Reproduce with tools/check_reference_data.py; see docs/reference_data.md.
 #include "burnman/eos/components/bukowinski_electronic.hpp"
 #include "burnman/utils/types/mineral_params.hpp"
 #include "tolerances.hpp"
@@ -32,7 +34,6 @@ TEST_CASE("Check zero returns", "[eos][bukowinski]") {
   }
 }
 
-// Reference values from Py burnman v2.1.1a0
 TEST_CASE("Bukowinski functions python reference values", "[eos][bukowinski]") {
   types::MineralParams params;
   params.V_0 = 7.0e-6;

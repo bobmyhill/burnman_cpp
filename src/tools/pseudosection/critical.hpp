@@ -74,11 +74,13 @@ public:
   CriticalConstraint(const Assemblage &a, int phase,
                      const EquilibrationParameters &prm,
                      const Eigen::VectorXd &direction, bool third_order)
-      : model(a.get_phase<Solution>(phase)->get_solution_model()),
+      : model(a.get_phase<Solution>(static_cast<std::size_t>(phase))
+                  ->get_solution_model()),
         reference(direction), start(prm.phase_amount_indices[phase] + 1),
         third(third_order) {
-    Eigen::VectorXd p =
-        a.get_phase<Solution>(phase)->get_molar_fractions().matrix();
+    Eigen::VectorXd p = a.get_phase<Solution>(static_cast<std::size_t>(phase))
+                            ->get_molar_fractions()
+                            .matrix();
     Eigen::MatrixXd occupancies = model->get_endmember_occupancies().matrix();
     std::vector<Eigen::VectorXd> rows{Eigen::VectorXd::Ones(p.size())};
     for (int i = 0; i < occupancies.cols(); ++i)
@@ -87,7 +89,7 @@ public:
         rows.push_back(occupancies.col(i));
     Eigen::MatrixXd faces(rows.size(), p.size());
     for (std::size_t i = 0; i < rows.size(); ++i)
-      faces.row(i) = rows[i].transpose();
+      faces.row(static_cast<Eigen::Index>(i)) = rows[i].transpose();
     Eigen::FullPivLU<Eigen::MatrixXd> lu(faces);
     lu.setThreshold(1.e-10);
     Eigen::MatrixXd kernel = lu.kernel();
@@ -124,9 +126,10 @@ public:
     return result;
   }
   Eigen::VectorXd mode(const Assemblage &a, int phase) const {
-    return curvature(
-               a.get_pressure(), a.get_temperature(),
-               a.get_phase<Solution>(phase)->get_molar_fractions().matrix())
+    return curvature(a.get_pressure(), a.get_temperature(),
+                     a.get_phase<Solution>(static_cast<std::size_t>(phase))
+                         ->get_molar_fractions()
+                         .matrix())
         .second;
   }
 };

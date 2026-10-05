@@ -98,6 +98,12 @@ def test_pyrolite_example_resume_accepts_roundoff_but_rejects_changed_bulk(
         (30.0e9, 2000.0),
         (100.0e9, 3000.0),
         (150.0e9, 4000.0),
+        (3.783374614228008e9, 107.10340298680563),
+        (13.128688836293207e9, 81.53048463711893),
+        (10.927542604941271e9, 503.66832443192703),
+        (10.115633047541534e9, 145.77634354258817),
+        (24.722489944789903e9, 1125.5718075490313),
+        (9.4e9, 0.1),
     ],
 )
 def test_native_pyrolite_equilibria_conserve_bulk_and_verify_stability(
@@ -115,12 +121,118 @@ def test_native_pyrolite_equilibria_conserve_bulk_and_verify_stability(
     assert state.equilibrium_error < 0.02
     assert state.minimum_affinity > -0.2
     assert all(p.amount > 0.0 for p in state.phases)
+    for candidate in {p.candidate_index for p in state.phases}:
+        copies = [p for p in state.phases if p.candidate_index == candidate]
+        ids = [p.id for p in copies]
+        assert ids == list(range(candidate * 3, candidate * 3 + len(ids)))
+        for i, phase in enumerate(copies):
+            assert all(
+                np.linalg.norm(phase.composition - other.composition) > 1.0e-5
+                for other in copies[:i]
+            )
     # Ferric production is permitted to consume ferrous iron and generate
     # metal in an oxygen-closed bulk; the initial ferric ratio is not buffered.
     if pressure == 30.0e9:
         assert any(p.name.startswith("Fe-") for p in state.phases)
         bg = next(p for p in state.phases if p.name == "bg")
         assert bg.composition[3:6].sum() > 0.0
+
+
+def test_pyrolite_example_passes_pressure_in_pascals(example, monkeypatch):
+    def calculate(bulk, phases, pressure_range, temperature_range, opts):
+        assert pressure_range == (0.0, example["P_Pa"])
+        assert temperature_range == (0.0, example["T_K"])
+
+    monkeypatch.setattr(bm, "pseudosection", calculate)
+    example["calculate"](quick=True)
+
+
+@pytest.mark.parametrize(
+    "pressure_range,max_temperature",
+    [((9.4e9, 9.6e9), 1.0), ((10.7e9, 10.75e9), 10.0)],
+)
+@pytest.mark.parametrize("bulk_scale", [1.0, 0.5])
+def test_cold_pyrolite_boundaries_reach_zero_kelvin(
+    example, pressure_range, max_temperature, bulk_scale
+):
+    result = bm.pseudosection(
+        {
+            element: amount * bulk_scale
+            for element, amount in example[
+                "PYROLITE_COMPOSITION"
+            ].atomic_composition.items()
+        },
+        example["candidate_phases"](),
+        pressure_range,
+        (0.0, max_temperature),
+        example["settings"](seeds=3),
+    )
+    assert result.resolved, result.diagnostics
+    assert len(result.fields) == 2 and len(result.boundaries) == 1
+    line = result.boundaries[0]
+    assert line.start_node >= 0 and line.end_node >= 0
+    assert min(p.temperature for p in line.points) == pytest.approx(0.0, abs=1.0e-9)
+    assert all(p.mass_balance_error < 1.0e-8 for p in line.points)
+    assert all(p.minimum_affinity >= -0.2 for p in line.points)
+    polygons = bm.pseudosection_field_polygons(result)
+    assert not polygons.diagnostics
+    assert len(polygons.polygons) == 2
+
+
+def test_zero_kelvin_flat_garnet_mixing_does_not_create_an_extra_phase(example):
+    bulk = {
+        element: amount * 0.5
+        for element, amount in example[
+            "PYROLITE_COMPOSITION"
+        ].atomic_composition.items()
+    }
+    state = bm.stable_equilibrium(bulk, example["candidate_phases"](), 9.5e9, 0.0)
+    assert state.success, state.message
+    assert state.mass_balance_error < 1.0e-8
+    garnets = [p for p in state.phases if p.name.startswith("gt")]
+    # Two genuine garnet branches remain: mixing across their gap costs energy.
+    assert len(garnets) == 2
+
+
+def test_distinct_solution_branches_can_have_the_same_phase_counts(example):
+    previous = json.loads(
+        (
+            Path(__file__).parent / "data" / "pyrolite_solution_replacement.json"
+        ).read_text()
+    )
+    result = bm.refine_pseudosection(
+        example["PYROLITE_COMPOSITION"].atomic_composition,
+        example["candidate_phases"](),
+        previous,
+    )
+    line = result.boundaries[0]
+    assert line.is_solution_replacement and line.side_a == line.side_b
+    assert not any("neighbouring fields" in d for d in result.diagnostics)
+    states = [s for s in result.samples if not s.is_field_verification][-2:]
+    cf = [next(p for p in s.phases if p.candidate_index == 13) for s in states]
+    assert np.linalg.norm(cf[0].composition - cf[1].composition) > 0.01
+    restored = bm.PseudosectionResult.from_dict(result.to_dict())
+    assert restored.boundaries[0].is_solution_replacement
+
+
+def test_nearby_curve_does_not_hide_a_different_junctions_branches(example):
+    case = json.loads(
+        (
+            Path(__file__).parent / "data" / "pyrolite_neighbouring_branches.json"
+        ).read_text()
+    )
+    result = bm.refine_pseudosection(
+        example["PYROLITE_COMPOSITION"].atomic_composition,
+        example["candidate_phases"](),
+        case["previous"],
+    )
+    node = result.nodes[case["junction"]]
+    assert len(node.incident_lines) >= 3
+    for index in node.incident_lines:
+        line = result.boundaries[index]
+        endpoint = line.points[0 if line.start_node == node.id else -1]
+        assert endpoint.mass_balance_error < 1.0e-8
+        assert endpoint.minimum_affinity >= -0.2
 
 
 def test_infeasible_hot_low_pressure_bulk_is_an_explicit_model_limit(example):

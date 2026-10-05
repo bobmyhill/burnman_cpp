@@ -47,10 +47,13 @@ TEST_CASE("Test brent method", "[optim][roots]") {
     REQUIRE_THAT(root, WithinRel(-2.0, tol_rel) || WithinAbs(-2.0, tol_abs));
   }
   SECTION("No root") {
+    auto handler = +[](const char *, const char *, int, int) {};
+    auto previous_handler = gsl_set_error_handler(handler);
     double x_lo = 5.0;
     double x_hi = 6.0;
-    double root;
-    REQUIRE_THROWS(root = brent(&test_function, nullptr, x_lo, x_hi));
+    REQUIRE_THROWS(brent(&test_function, nullptr, x_lo, x_hi));
+    auto restored_handler = gsl_set_error_handler(previous_handler);
+    CHECK(restored_handler == handler);
   }
   SECTION("Root at edge") {
     double x_lo = 2.0;

@@ -23,7 +23,7 @@ def plot_pseudosection(
     fill_alpha=0.75,
     line_color="black",
     line_width=0.9,
-    show_nodes=True,
+    show_nodes=False,
     show_unresolved=True,
     close_domain=True,
     merge_fields=True,
@@ -406,9 +406,8 @@ def plot_pseudosection(
                 "| Field number | Assemblage |",
                 "| ---: | --- |",
             ]
-            rows.extend(
-                f"| {number} | {name.replace('|', r'\|')} |"
-                for number, name in ax.pseudosection_label_key.items()
-            )
+            for number, name in ax.pseudosection_label_key.items():
+                escaped_name = name.replace("|", r"\|")
+                rows.append(f"| {number} | {escaped_name} |")
             destination.write_text("\n".join(rows) + "\n", encoding="utf-8")
     return fig, ax

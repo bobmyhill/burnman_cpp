@@ -57,7 +57,10 @@ parse_modifiers(const py::iterable &modifiers) {
         }
         return xs;
       };
-      auto tc = finite_pair("curie_T"), moment = finite_pair("magnetic_moment");
+      // Pure Python BurnMan calls this parameter curie_temperature.
+      auto tc = finite_pair(p.contains("curie_T") ? "curie_T"
+                                                  : "curie_temperature"),
+           moment = finite_pair("magnetic_moment");
       result.emplace_back(MagneticChsParams{
           value("structural_parameter"), tc[0], tc[1], moment[0], moment[1]});
     } else if (name == "debye") {
