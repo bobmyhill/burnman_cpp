@@ -31,7 +31,7 @@ INCLUDE_DIR_TEST := $(TEST_DIR)/include
 EXTRA_INCLUDE := /opt/homebrew/include /opt/homebrew/include/eigen3 /opt/homebrew/opt/gsl/include
 # EXTRA_INCLUDE := /usr/local/include /usr/include/eigen3
 EXTRA_LIB := /usr/local/lib /opt/homebrew/lib
-LDFLAGS_COMMON := -lgsl -lgslcblas -lm
+LDFLAGS_COMMON := -lgsl -lgslcblas -lcddgmp -lgmp -lm
 LDFLAGS_TEST := -lCatch2Main -lCatch2
 
 # Expand to paths

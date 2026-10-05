@@ -81,6 +81,11 @@ public:
   compute_volume_hessian(double pressure, double temperature,
                          const Eigen::ArrayXd &molar_fractions) const override;
 
+  const Eigen::ArrayXd &get_alphas() const { return alphas; }
+  const Eigen::MatrixXd &get_energy_interactions() const { return W_e; }
+  const Eigen::MatrixXd &get_entropy_interactions() const { return W_s; }
+  const Eigen::MatrixXd &get_volume_interactions() const { return W_v; }
+
 private:
   // Alphas (van Laar) and interaction parameters
   Eigen::ArrayXd alphas;

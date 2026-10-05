@@ -112,3 +112,31 @@ def test_transformed_ordering_solution_signed_coordinates():
     np.testing.assert_allclose(native.molar_fractions, [0.55, -0.1, 0.55])
     with pytest.raises(ValueError, match="occupancies"):
         native.set_composition([1.1, -1.2, 1.1])
+
+
+@pytest.mark.parametrize(
+    "source,native_source",
+    [
+        (SLB.garnet, native_SLB.garnet),
+        (JH.orthopyroxene, native_JH.orthopyroxene),
+    ],
+)
+def test_native_polytope_vertices_match_reference(source, native_source):
+    from burnman.tools.polytope import solution_polytope_from_endmember_occupancies
+
+    reference = source()
+    native = native_source()
+    occupancies = reference.solution_model.endmember_occupancies
+    expected = solution_polytope_from_endmember_occupancies(occupancies)
+    actual = bm.solution_polytope_from_endmember_occupancies(
+        native.endmember_occupancies
+    )
+    expected_vertices = np.asarray(
+        expected.endmembers_as_independent_endmember_amounts, dtype=float
+    )
+    assert actual.vertices.shape == expected_vertices.shape
+    distances = np.linalg.norm(
+        actual.vertices[:, None, :] - expected_vertices[None, :, :], axis=2
+    )
+    assert np.max(np.min(distances, axis=0)) < 1.0e-10
+    assert np.max(np.min(distances, axis=1)) < 1.0e-10
