@@ -52,6 +52,11 @@ namespace equilibration {
  * @param store_assemblage Store assemblage object copies in result.
  * @param max_iterations Maximum allowed iterations.
  * @param verbose Print extra iteration info.
+ * @param parameter_tolerances Optional per-parameter step tolerances,
+ * overriding tol.
+ * @param parameter_scales Optional positive physical units per solver
+ * parameter. Internally equilibrates Jacobian rows; results remain in physical
+ * units.
  * @return EquilibrateResult with solution and parameters.
  */
 EquilibrateResult
@@ -60,7 +65,9 @@ equilibrate(const types::FormulaMap &composition, Assemblage &assemblage,
             const std::vector<FreeVectorMap> &free_compositional_vectors = {},
             double tol = 1.0e-3, bool store_iterates = false,
             bool store_assemblage = true, int max_iterations = 100,
-            bool verbose = false);
+            bool verbose = false,
+            const Eigen::VectorXd &parameter_tolerances = Eigen::VectorXd(),
+            const Eigen::VectorXd &parameter_scales = Eigen::VectorXd());
 
 } // namespace equilibration
 } // namespace burnman

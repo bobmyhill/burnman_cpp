@@ -64,6 +64,7 @@ void Solution::set_composition(const Eigen::ArrayXd &composition_vector) {
     throw std::runtime_error("Sum of molar fractions not equal to 1.0!");
   }
   molar_fractions = composition_vector;
+  reset_cache();
 }
 
 // Public setter overrides of Material

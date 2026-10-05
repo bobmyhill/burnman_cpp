@@ -193,6 +193,10 @@ double PTEllipseConstraint::evaluate(const Eigen::VectorXd &x,
 double LinearXConstraint::evaluate(const Eigen::VectorXd &x,
                                    const Assemblage &assemblage
                                    [[maybe_unused]]) const {
+  if (this->A_.size() != x.size()) {
+    throw std::invalid_argument(
+        "Linear constraint vector length must match n_parameters.");
+  }
   return this->A_.dot(x) - this->b_;
 }
 
@@ -252,7 +256,8 @@ Eigen::VectorXd VolumeConstraint::derivative(const Eigen::VectorXd &x
   Eigen::VectorXd row = Eigen::VectorXd::Zero(J_size);
   row(0) = -assemblage.get_n_moles() * assemblage.get_molar_volume() /
            assemblage.get_isothermal_bulk_modulus_reuss();
-  row(1) = assemblage.get_n_moles() * assemblage.get_molar_volume();
+  row(1) = assemblage.get_n_moles() * assemblage.get_molar_volume() *
+           assemblage.get_thermal_expansivity();
   std::vector<int> embr_per_phase = assemblage.get_endmembers_per_phase();
   Eigen::Index j = 2;
   for (std::size_t k = 0; k < embr_per_phase.size(); ++k) {
@@ -287,6 +292,10 @@ Eigen::VectorXd LinearXConstraint::derivative(const Eigen::VectorXd &x
                                               const Assemblage &assemblage
                                               [[maybe_unused]],
                                               Eigen::Index J_size) const {
+  if (this->A_.size() != J_size) {
+    throw std::invalid_argument(
+        "Linear constraint vector length must match n_parameters.");
+  }
   Eigen::VectorXd row = Eigen::VectorXd::Zero(J_size);
   row.head(this->A_.size()) = this->A_;
   return row;

@@ -21,6 +21,7 @@ Material::throw_not_implemented_error(const std::string &method) const {
 std::string Material::get_class_name() const { return typeid(*this).name(); }
 
 void Material::reset_cache() {
+  formula.reset();
   molar_internal_energy.reset();
   molar_gibbs.reset();
   molar_helmholtz.reset();

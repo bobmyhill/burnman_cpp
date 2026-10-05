@@ -16,6 +16,7 @@
 #include "burnman/tools/equilibration/equilibrate_objective.hpp"
 #include "burnman/tools/equilibration/equilibrate_utils.hpp"
 #include "burnman/utils/types/ndarray.hpp"
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <iostream>
@@ -30,7 +31,9 @@ equilibrate(const types::FormulaMap &composition, Assemblage &assemblage,
             const ConstraintList &equality_constraints,
             const std::vector<FreeVectorMap> &free_compositional_vectors,
             double tol, bool store_iterates, bool store_assemblage,
-            int max_iterations, bool verbose) {
+            int max_iterations, bool verbose,
+            const Eigen::VectorXd &parameter_tolerances,
+            const Eigen::VectorXd &parameter_scales) {
   // Check compositions of solutions set
   // TODO:: could implement a has_composition() for convenience here
   for (std::size_t i = 0;
@@ -116,6 +119,22 @@ equilibrate(const types::FormulaMap &composition, Assemblage &assemblage,
   // Get parameter vector (x)
   Eigen::VectorXd parameter_vector = get_parameter_vector(
       assemblage, static_cast<int>(n_free_compositional_vectors));
+  const bool scaled = parameter_scales.size() != 0;
+  Eigen::VectorXd scales = scaled
+                               ? parameter_scales
+                               : Eigen::VectorXd::Ones(parameter_vector.size());
+  if (scales.size() != parameter_vector.size() || !scales.allFinite() ||
+      (scales.array() <= 0.).any()) {
+    throw std::invalid_argument(
+        "Parameter scales must match x and be positive and finite.");
+  }
+  if (parameter_tolerances.size() &&
+      (parameter_tolerances.size() != parameter_vector.size() ||
+       !parameter_tolerances.allFinite() ||
+       (parameter_tolerances.array() <= 0.).any())) {
+    throw std::invalid_argument(
+        "Parameter tolerances must match x and be positive and finite.");
+  }
 
   // Set up solves constraint indices from ConstraintList
   std::vector<std::size_t> grid_shape;
@@ -133,11 +152,22 @@ equilibrate(const types::FormulaMap &composition, Assemblage &assemblage,
   solver_settings.store_iterates = store_iterates;
   solver_settings.max_iterations = max_iterations;
   solver_settings.tol = tol;
+  solver_settings.parameter_tolerances = parameter_tolerances;
+  if (scaled) {
+    const Eigen::VectorXd physical_tolerances =
+        parameter_tolerances.size()
+            ? parameter_tolerances
+            : Eigen::VectorXd::Constant(parameter_vector.size(), tol);
+    solver_settings.parameter_tolerances =
+        physical_tolerances.cwiseQuotient(scales);
+  }
   std::vector<int> embr_per_phase = assemblage.get_endmembers_per_phase();
-  solver_settings.lambda_bounds_func =
-      [embr_per_phase](const Eigen::VectorXd &dx, const Eigen::VectorXd &x) {
-        return lambda_bounds_func(dx, x, embr_per_phase);
-      };
+  solver_settings.lambda_bounds_func = [embr_per_phase,
+                                        scales](const Eigen::VectorXd &dx,
+                                                const Eigen::VectorXd &x) {
+    return lambda_bounds_func(dx.cwiseProduct(scales), x.cwiseProduct(scales),
+                              embr_per_phase);
+  };
   // Make solver object
   optim::roots::DampedNewtonSolver solver(solver_settings);
 
@@ -157,19 +187,52 @@ equilibrate(const types::FormulaMap &composition, Assemblage &assemblage,
           equality_constraints[i][constraint_indices[i]]->clone());
     }
 
+    // Fixed row weights keep the root unchanged while making constraint walks
+    // compare mass balance, reaction and imposed conditions in comparable
+    // units.
+    Eigen::VectorXd weights = Eigen::VectorXd::Ones(parameter_vector.size());
+    if (scaled) {
+      F(parameter_vector, assemblage, problem_constraints,
+        prm.reduced_composition_vector, prm.reduced_free_composition_vectors);
+      Eigen::MatrixXd initial_j =
+          J(parameter_vector, assemblage, problem_constraints,
+            prm.reduced_free_composition_vectors) *
+          scales.asDiagonal();
+      for (Eigen::Index i = 0; i < weights.size(); ++i) {
+        weights[i] = 1. / std::max(initial_j.row(i).norm(), 1.e-30);
+      }
+    }
     // Note - mutates assemblage object (might need to clone before)
     optim::roots::DampedNewtonResult sol = solver.solve(
-        parameter_vector,
-        [&](const Eigen::VectorXd &x) {
-          return F(x, assemblage, problem_constraints,
-                   prm.reduced_composition_vector,
-                   prm.reduced_free_composition_vectors);
+        parameter_vector.cwiseQuotient(scales),
+        [&](const Eigen::VectorXd &y) -> Eigen::VectorXd {
+          return weights.cwiseProduct(F(y.cwiseProduct(scales), assemblage,
+                                        problem_constraints,
+                                        prm.reduced_composition_vector,
+                                        prm.reduced_free_composition_vectors));
         },
-        [&](const Eigen::VectorXd &x) {
-          return J(x, assemblage, problem_constraints,
-                   prm.reduced_free_composition_vectors);
+        [&](const Eigen::VectorXd &y) -> Eigen::MatrixXd {
+          return weights.asDiagonal() *
+                 J(y.cwiseProduct(scales), assemblage, problem_constraints,
+                   prm.reduced_free_composition_vectors) *
+                 scales.asDiagonal();
         },
-        {prm.constraint_matrix, prm.constraint_vector});
+        {prm.constraint_matrix * scales.asDiagonal(), prm.constraint_vector});
+    if (scaled) {
+      sol.x = sol.x.cwiseProduct(scales).eval();
+      sol.F = F(sol.x, assemblage, problem_constraints,
+                prm.reduced_composition_vector,
+                prm.reduced_free_composition_vectors);
+      sol.J = J(sol.x, assemblage, problem_constraints,
+                prm.reduced_free_composition_vectors);
+      sol.F_norm = sol.F.norm();
+      if (sol.iteration_history) {
+        for (auto &x : sol.iteration_history->x)
+          x = x.cwiseProduct(scales).eval();
+        for (auto &f : sol.iteration_history->F)
+          f = f.cwiseQuotient(weights).eval();
+      }
+    }
 
     double maxres = 0.0;
     if (sol.success && assemblage.get_reaction_affinities().size() > 0) {

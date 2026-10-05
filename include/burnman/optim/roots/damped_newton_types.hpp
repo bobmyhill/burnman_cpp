@@ -45,7 +45,7 @@ using LambdaBoundsFunc = std::function<LambdaBounds(const Eigen::VectorXd &,
 struct DampedNewtonSettings {
   bool store_iterates = false; ///< Store iteration history (at each step)
   int max_iterations = 100;    ///< Maximum number of Newton iterations
-  double tol = 1.0e-6;         ///< Convergence tolerance on |F|
+  double tol = 1.0e-6;         ///< Scalar tolerance on Newton steps
   double regularisation =
       0.0; ///< Regularization parameter for the KKT system in Lagrangian solves
   double condition_threshold_lu = 1e12; ///< Condition number below which LU
@@ -59,6 +59,8 @@ struct DampedNewtonSettings {
       [](const Eigen::VectorXd &, const Eigen::VectorXd &) {
         return std::make_pair(1.0e-8, 1.0);
       };
+  Eigen::VectorXd
+      parameter_tolerances; ///< Optional per-parameter Newton step tolerances
 };
 
 /**
