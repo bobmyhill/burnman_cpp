@@ -98,13 +98,12 @@ Engine::Engine(const types::FormulaMap &composition,
                const Settings &opts, const CompositionSection &path)
     : bulk(composition), section(path), bulk_start(composition),
       settings(opts) {
-  if (section.type == DiagramType::PT && !section.composition_end.empty())
+  if (!has_composition_axis(section.type) && !section.composition_end.empty())
     throw std::invalid_argument(
-        "A composition endpoint requires a PX or TX diagram.");
-  if (section.type != DiagramType::PT) {
+        "A composition endpoint requires an X diagram.");
+  if (has_composition_axis(section.type)) {
     if (section.composition_end.empty())
-      throw std::invalid_argument(
-          "PX/TX diagrams require a composition endpoint.");
+      throw std::invalid_argument("X diagrams require a composition endpoint.");
     double end_total = 0.;
     for (const auto &entry : bulk_start)
       section.composition_end.try_emplace(entry.first, 0.);
@@ -124,8 +123,8 @@ Engine::Engine(const types::FormulaMap &composition,
     throw std::invalid_argument(
         "Supply a nonempty elemental bulk and candidate phases.");
   if (settings.pressure_seeds < 2 || settings.temperature_seeds < 2 ||
-      settings.composition_seeds < 2 ||
-      settings.max_refinement_iterations < 1 ||
+      settings.composition_seeds < 2 || settings.entropy_seeds < 2 ||
+      settings.volume_seeds < 2 || settings.max_refinement_iterations < 1 ||
       settings.minimization_starts < 1 || settings.max_phase_instances < 1 ||
       settings.max_trace_steps < 2 || settings.max_lines < 1 ||
       settings.max_recovery_passes < 0 || settings.max_recovery_passes > 5 ||
@@ -236,7 +235,7 @@ Engine::Engine(const types::FormulaMap &composition,
     const auto &element = elements[k];
     bulk.try_emplace(element, 0.);
     bulk_start.try_emplace(element, 0.);
-    if (section.type != DiagramType::PT) {
+    if (has_composition_axis(section.type)) {
       section.composition_end.try_emplace(element, 0.);
       double delta =
           section.composition_end.at(element) - bulk_start.at(element);
@@ -244,7 +243,7 @@ Engine::Engine(const types::FormulaMap &composition,
       direction[element] = delta;
     }
   }
-  if (section.type != DiagramType::PT) {
+  if (has_composition_axis(section.type)) {
     if (bulk_direction.squaredNorm() == 0.)
       throw std::invalid_argument("Composition endpoints must differ.");
     auto end = (full_start + bulk_direction).eval();
@@ -293,27 +292,102 @@ void Engine::set_coordinate(Assemblage &a, double x) const {
   }
 }
 Eigen::Vector2d Engine::coordinates(const Assemblage &a) const {
-  if (section.type == DiagramType::PT)
-    return {a.get_pressure(), a.get_temperature()};
-  return {section.type == DiagramType::PX ? a.get_pressure()
-                                          : a.get_temperature(),
-          composition_coordinate(a)};
+  State state;
+  record_coordinates(state, a);
+  return diagram_coordinates(state, section.type);
+}
+bool Engine::direct_coordinates() const {
+  const auto axes = diagram_axes(section.type);
+  auto direct = [](Coordinate c) {
+    return c == Coordinate::P || c == Coordinate::T;
+  };
+  return direct(axes[0]) &&
+         (direct(axes[1]) ||
+          (axes[1] == Coordinate::X && section.fixed_coordinate &&
+           direct(*section.fixed_coordinate)));
 }
 Eigen::Vector2d Engine::physical_coordinates(const Eigen::Vector2d &q) const {
-  if (section.type == DiagramType::PT)
-    return q;
-  return section.type == DiagramType::PX
-             ? Eigen::Vector2d(q[0], fixed_temperature)
-             : Eigen::Vector2d(fixed_pressure, q[0]);
+  auto physical = physical_seed;
+  const auto axes = diagram_axes(section.type);
+  auto set = [&](Coordinate axis, double value) {
+    if (axis == Coordinate::P)
+      physical[0] = value;
+    if (axis == Coordinate::T)
+      physical[1] = value;
+  };
+  for (int k = 0; k < 2; ++k)
+    set(axes[static_cast<std::size_t>(k)], q[k]);
+  if (section.fixed_coordinate)
+    set(*section.fixed_coordinate, section.fixed_value);
+  return physical;
 }
-std::array<Eigen::Index, 2> Engine::coordinate_indices(Eigen::Index n) const {
-  if (section.type == DiagramType::PT)
-    return {0, 1};
-  return {section.type == DiagramType::PX ? 0 : 1, n - 1};
+std::unique_ptr<EqualityConstraint>
+Engine::coordinate_constraint(Coordinate axis, double value, Eigen::Index n,
+                              double base_x, bool normalized) const {
+  if (normalized && (axis == Coordinate::S || axis == Coordinate::V))
+    return std::make_unique<SectionConstraint>(
+        coordinate_constraint(axis, value, n, base_x),
+        std::make_unique<PressureConstraint>(0.),
+        Eigen::Vector2d(1. / std::max(1.e-12, std::abs(value)), 0.));
+  switch (axis) {
+  case Coordinate::P:
+    return std::make_unique<PressureConstraint>(value);
+  case Coordinate::T:
+    return std::make_unique<TemperatureConstraint>(value);
+  case Coordinate::S:
+    return std::make_unique<EntropyConstraint>(value);
+  case Coordinate::V:
+    return std::make_unique<VolumeConstraint>(value);
+  case Coordinate::X: {
+    auto row = Eigen::VectorXd::Zero(n).eval();
+    row[n - 1] = 1.;
+    return std::make_unique<LinearXConstraint>(row, value - base_x);
+  }
+  }
+  throw std::invalid_argument("Unknown diagram coordinate.");
 }
-Eigen::Vector2d Engine::project_direction(const Eigen::VectorXd &x) const {
-  const auto indices = coordinate_indices(x.size());
-  return {x[indices[0]], x[indices[1]]};
+ConstraintList Engine::state_constraints(const Eigen::Vector2d &q) const {
+  auto axes = diagram_axes(section.type);
+  return constraints(
+      coordinate_constraint(axes[0], q[0], 0, 0., true),
+      coordinate_constraint(
+          axes[1] == Coordinate::X ? *section.fixed_coordinate : axes[1],
+          axes[1] == Coordinate::X ? section.fixed_value : q[1], 0, 0., true));
+}
+Eigen::MatrixXd Engine::coordinate_jacobian(const Assemblage &a,
+                                            Eigen::Index n) const {
+  const auto axes = diagram_axes(section.type);
+  Eigen::MatrixXd j(2, n);
+  auto x = get_parameter_vector(a, free_vectors.empty() ? 0 : 1);
+  for (int k = 0; k < 2; ++k)
+    j.row(k) = coordinate_constraint(axes[static_cast<std::size_t>(k)], 0., n)
+                   ->derivative(x, a, n)
+                   .transpose();
+  return j;
+}
+Eigen::VectorXd Engine::parameter_scales(const Assemblage &a, Eigen::Index n,
+                                         const Eigen::Vector2d &range) const {
+  auto scales = Eigen::VectorXd::Ones(n).eval();
+  scales[0] = 1.e9;
+  scales[1] = 1000.;
+  const auto axes = diagram_axes(section.type);
+  for (int k = 0; k < 2; ++k) {
+    auto axis = axes[static_cast<std::size_t>(k)];
+    if (axis == Coordinate::P)
+      scales[0] = range[k];
+    if (axis == Coordinate::T)
+      scales[1] = range[k];
+    if (axis == Coordinate::X)
+      scales[n - 1] = range[k];
+  }
+  auto prm = parameters(a);
+  for (int k = 0; k < prm.phase_amount_indices.size(); ++k)
+    scales[prm.phase_amount_indices[k]] = std::max(1.e-3, a.get_n_moles());
+  return scales;
+}
+Eigen::Vector2d Engine::project_direction(const Eigen::VectorXd &x,
+                                          const Assemblage &a) const {
+  return coordinate_jacobian(a, x.size()) * x;
 }
 EquilibrationParameters Engine::parameters(const Assemblage &a) const {
   // Rebase X on the accepted physical assemblage. Its free parameter starts
@@ -327,21 +401,127 @@ WorkState Engine::stable_at(const Eigen::Vector2d &q) {
   if (!free_vectors.empty())
     set_bulk(q[1]);
   const auto physical = physical_coordinates(q);
-  auto out = stable(physical[0], physical[1]);
-  out.state.composition_coordinate = free_vectors.empty() ? 0. : q[1];
-  return out;
+  if (direct_coordinates())
+    return stable(physical[0], physical[1]);
+  auto seed = stable(physical[0], physical[1]);
+  auto best = seed;
+  auto attempt = [&](const WorkState &first, const WorkState &second,
+                     const Eigen::Vector2d &guess) {
+    auto states = first.state.phases;
+    for (auto phase : second.state.phases) {
+      auto old =
+          std::find_if(states.begin(), states.end(),
+                       [&](const PhaseState &v) { return v.id == phase.id; });
+      if (old == states.end())
+        states.push_back(phase);
+      else {
+        const double amount = old->amount + phase.amount;
+        if (amount > 0.)
+          old->composition = (old->amount * old->composition +
+                              phase.amount * phase.composition) /
+                             amount;
+        old->amount = amount;
+      }
+    }
+    std::vector<int> ids;
+    for (auto &state : states)
+      ids.push_back(state.id);
+    if (!ids.empty())
+      best = fixed_pt(ids, states, guess[0], guess[1], q);
+    if (best.state.success)
+      physical_seed << best.state.pressure, best.state.temperature;
+    return best.state.success;
+  };
+  if (attempt(seed, WorkState{}, physical))
+    return best;
+  const auto axes = diagram_axes(section.type);
+  const bool unknown_p = axes[0] != Coordinate::P && axes[1] != Coordinate::P &&
+                         section.fixed_coordinate != Coordinate::P;
+  const bool unknown_t = axes[0] != Coordinate::T && axes[1] != Coordinate::T &&
+                         section.fixed_coordinate != Coordinate::T;
+  if (unknown_p != unknown_t) {
+    // Bracket the inverse coordinate with stable Gibbs assemblages. At a
+    // first-order jump, their union solves the latent S/V by the lever rule.
+    // Distant phases are discarded as the bracket narrows.
+    const int index = unknown_p ? 0 : 1;
+    auto bounds = unknown_p ? pressure_bounds : temperature_bounds;
+    Coordinate target_axis = axes[0];
+    double target = q[0];
+    if (target_axis == Coordinate::P || target_axis == Coordinate::T) {
+      target_axis = axes[1] == Coordinate::X
+      ? *section.fixed_coordinate : axes[1];
+      target = axes[1] == Coordinate::X
+      ? section.fixed_value : q[1];
+    }
+    auto at = [&](double value) {
+      auto pt = physical;
+      pt[index] = value;
+      return stable(pt[0], pt[1]);
+    };
+    auto low = at(bounds[0]), high = at(bounds[1]);
+    auto residual = [&](const WorkState &w) {
+      return coordinate_value(w.state, target_axis) - target;
+    };
+    if (low.state.success && high.state.success &&
+        residual(low) * residual(high) <= 0.) {
+      for (int iteration = 0; iteration < 40; ++iteration) {
+        auto guess = physical;
+        guess[index] = .5 * (bounds[0] + bounds[1]);
+        auto middle = at(guess[index]);
+        if (!middle.state.success)
+          break;
+        if (attempt(middle, WorkState{}, guess) || attempt(low, high, guess))
+          return best;
+        if (residual(low) * residual(middle) <= 0.) {
+          high = middle;
+          bounds[1] = guess[index];
+        } else {
+          low = middle;
+          bounds[0] = guess[index];
+        }
+      }
+    }
+  } else {
+    // S-V and X sections with a fixed S/V solve both physical coordinates.
+    // Alternate constrained equilibration with the existing phase stability
+    // search, retaining only the latest two assemblages at each iteration.
+    for (int iteration = 0; iteration < 20; ++iteration) {
+      auto guess = physical;
+      if (best.assemblage)
+        guess << best.assemblage->get_pressure(),
+            best.assemblage->get_temperature();
+      if (!guess.allFinite() || guess[0] < 0. || guess[1] <= 0.)
+        guess = physical;
+      auto previous = best;
+      auto next = stable(guess[0], guess[1]);
+      if (attempt(next, previous, guess))
+        return best;
+    }
+  }
+  best.state.success = false;
+  best.state.message =
+      "No stable equilibrium in the requested thermodynamic section: " +
+      best.state.message;
+  return best;
 }
+
 WorkState Engine::fixed_at(const std::vector<int> &ids,
                            const std::vector<PhaseState> &states,
                            const Eigen::Vector2d &q) {
   if (!free_vectors.empty())
     set_bulk(q[1]);
   const auto physical = physical_coordinates(q);
-  auto out = fixed_pt(ids, states, physical[0], physical[1]);
-  out.state.composition_coordinate = free_vectors.empty() ? 0. : q[1];
+  auto out = fixed_pt(ids, states, physical[0], physical[1],
+                      direct_coordinates() ? std::nullopt
+                                           : std::optional<Eigen::Vector2d>(q));
+  if (out.state.success)
+    physical_seed << out.state.pressure, out.state.temperature;
   return out;
 }
 bool Engine::eos_bulk_feasible_at(const Eigen::Vector2d &q) {
+  // An inverse solve failure is not evidence of an invalid EOS domain.
+  if (!direct_coordinates())
+    return true;
   if (!free_vectors.empty())
     set_bulk(q[1]);
   const auto physical = physical_coordinates(q);
@@ -805,11 +985,9 @@ optim::roots::DampedNewtonResult Engine::solve(Assemblage &a, ConstraintList &c,
   }
   if (varying) {
     ConstraintGroup group;
-    if (section.type == DiagramType::PX)
-      group.push_back(
-          std::make_unique<TemperatureConstraint>(fixed_temperature));
-    else
-      group.push_back(std::make_unique<PressureConstraint>(fixed_pressure));
+    group.push_back(coordinate_constraint(*section.fixed_coordinate,
+                                          section.fixed_value, prm.n_parameters,
+                                          0., true));
     fixed.push_back(std::move(group));
   }
   // Trace site fractions can be orders of magnitude smaller than 1e-9.
@@ -969,7 +1147,7 @@ Eigen::MatrixXd Engine::composition_basis(const Material &m, int index) const {
 }
 WorkState Engine::fixed_pt(const std::vector<int> &ids,
                            const std::vector<PhaseState> &states, double p,
-                           double t) {
+                           double t, std::optional<Eigen::Vector2d> requested) {
   WorkState out;
   out.ids = ids;
   out.state.pressure = p;
@@ -978,9 +1156,14 @@ WorkState Engine::fixed_pt(const std::vector<int> &ids,
     out.assemblage = make_assemblage(ids, states, p, t);
     optim::roots::DampedNewtonResult sol;
     for (std::size_t pass = 0; pass < ids.size(); ++pass) {
-      auto c = constraints(std::make_unique<PressureConstraint>(p),
-                           std::make_unique<TemperatureConstraint>(t));
+      auto c = requested
+                   ? state_constraints(*requested)
+                   : constraints(std::make_unique<PressureConstraint>(p),
+                                 std::make_unique<TemperatureConstraint>(t));
       sol = solve(*out.assemblage, c, false);
+      record_coordinates(out.state, *out.assemblage);
+      p = out.state.pressure;
+      t = out.state.temperature;
       out.state.phases = snapshot(*out.assemblage, out.ids);
       bool merged = false;
       for (std::size_t i = 0; i < out.state.phases.size(); ++i)

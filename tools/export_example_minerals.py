@@ -498,6 +498,14 @@ def main():
     groups["HGP_2018_ds633"] += [
         (name, getattr(HGP, name)()) for name in ["iron", "wu", "mt", "hem"]
     ]
+    # Keep existing endmember IDs when adding the pure Mg2SiO4 phase diagram.
+    for _, phase in groups["HGP_2018_ds633"]:
+        if not isinstance(phase, burnman.Solution):
+            exporter.mineral(phase)
+    groups["SLB_2011"] += [
+        (name, getattr(SLB, name)())
+        for name in ["periclase", "mg_perovskite", "mg_akimotoite", "mg_ringwoodite"]
+    ]
     for group, phases in groups.items():
         functions = []
         headers = []

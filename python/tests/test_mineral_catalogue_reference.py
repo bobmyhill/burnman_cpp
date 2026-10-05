@@ -48,7 +48,7 @@ def test_catalogue_check_is_independent_of_optimizer_choice(
     monkeypatch.setattr(sys, "argv", ["export_example_minerals.py", "--check"])
     before = [(ROOT / filename).read_bytes() for filename in CATALOGUE_FILES]
     exporter.main()
-    assert "Verified 257 endmembers and 159 factories" in capsys.readouterr().out
+    assert "Verified 258 endmembers and 163 factories" in capsys.readouterr().out
     assert [(ROOT / filename).read_bytes() for filename in CATALOGUE_FILES] == before
 
 
@@ -94,6 +94,21 @@ def test_fe_o_endmembers_match_pinned_holland_powell_reference(name, temperature
         "molar_volume",
         "molar_heat_capacity_p",
     ):
+        assert getattr(native, prop) == pytest.approx(
+            getattr(reference, prop), rel=5.0e-8, abs=1.0e-12
+        )
+
+
+@pytest.mark.parametrize(
+    "name", ["periclase", "mg_perovskite", "mg_akimotoite", "mg_ringwoodite"]
+)
+@pytest.mark.parametrize("pressure,temperature", [(23.2e9, 1400.0), (23.9e9, 1700.0)])
+def test_forsterite_section_phases_match_pinned_slb2011(name, pressure, temperature):
+    native, reference = getattr(SLB, name)(), getattr(pySLB, name)()
+    native.set_state(pressure, temperature)
+    reference.set_state(pressure, temperature)
+    assert native.formula == reference.formula
+    for prop in ("molar_gibbs", "molar_entropy", "molar_volume"):
         assert getattr(native, prop) == pytest.approx(
             getattr(reference, prop), rel=5.0e-8, abs=1.0e-12
         )

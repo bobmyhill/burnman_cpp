@@ -30,6 +30,9 @@ def plot_pseudosection(
     tolerance=1.0e-8,
     pressure_unit="kbar",
     temperature_unit="C",
+    entropy_unit="J/K",
+    volume_unit="m3",
+    swap_axes=False,
     composition_label="X",
     label_assemblages=True,
     phase_aliases=None,
@@ -54,13 +57,19 @@ def plot_pseudosection(
     cannot be evaluated there within its required mechanically stable EOS domain.
     Such regions have no assemblage count and are distinct from solve failures.
 
-    The result selects PT, PX or TX axes automatically. Composition diagrams
+    The result selects any pair of P, T, S, V and X axes automatically. Composition diagrams
     place the dimensionless bulk mixing coordinate X on the horizontal axis;
     ``composition_label`` supplies its axis label. Pressure/temperature units
     apply to the physical axes, including temperature on the vertical TX axis.
 
     Pressure units are ``'Pa'``, ``'GPa'`` or ``'kbar'``; temperature units are
-    ``'K'`` or ``'C'``. ``tolerance`` is a fraction of the calculation domain,
+    ``'K'`` or ``'C'``. Total entropy units are ``'J/K'`` or ``'kJ/K'``;
+    total volume units are ``'m3'`` or ``'cm3'``. For constant-composition
+    sections, ``entropy_unit='kB/atom'`` divides entropy by the supplied bulk
+    atom amount times the gas constant; ``volume_unit='kg/m3'`` displays
+    density, using the bulk mass divided by total volume. ``swap_axes=True``
+    places the first section coordinate on the horizontal axis. Both totals
+    retain the supplied bulk amount scale. ``tolerance`` is a fraction of the calculation domain,
     used to merge numerically identical vertices. The colourbar uses integer
     ticks and discrete colours. All thermodynamics and polygon work are native.
 
@@ -96,12 +105,46 @@ def plot_pseudosection(
     if isinstance(result, Mapping):
         result = dict(result)
     diagram = _value(result, "diagram_type", "PT")
-    if diagram not in ("PT", "PX", "TX"):
-        raise ValueError("diagram_type must be 'PT', 'PX' or 'TX'.")
-    axis_scale = np.array([1.0 if diagram == "TX" else p_scale, 1.0])
-    axis_offset = np.array(
-        [t_offset if diagram == "TX" else 0.0, t_offset if diagram == "PT" else 0.0]
+    if diagram not in ("PT", "PS", "PV", "TS", "TV", "SV", "PX", "TX", "SX", "VX"):
+        raise ValueError("diagram_type must select two of P, T, S, V and X.")
+    entropy_scales = {"J/K": 1.0, "kJ/K": 1000.0, "kB/atom": 1.0}
+    volume_scales = {"m3": 1.0, "cm3": 1.0e-6, "kg/m3": 1.0}
+    if entropy_unit not in entropy_scales or volume_unit not in volume_scales:
+        raise ValueError(
+            "entropy_unit must be 'J/K', 'kJ/K' or 'kB/atom'; "
+            "volume_unit must be 'm3', 'cm3' or 'kg/m3'."
+        )
+    density = "V" in diagram and volume_unit == "kg/m3"
+    per_atom = "S" in diagram and entropy_unit == "kB/atom"
+    if density or per_atom:
+        if "X" in diagram:
+            raise ValueError("Density and per-atom entropy require a constant bulk.")
+        bulk = _value(result, "composition_start", {})
+        if not bulk:
+            raise ValueError("Density and per-atom entropy require composition_start.")
+        composition = _core.Composition(bulk, "molar")
+        bulk_mass = sum(composition.mass_composition.values())
+        entropy_scales["kB/atom"] = (
+            sum(composition.atomic_composition.values()) * 8.31446261815324
+        )
+    names = dict(
+        P="pressure",
+        T="temperature",
+        S="entropy",
+        V="volume",
+        X="composition_coordinate",
     )
+    scales = dict(
+        P=p_scale,
+        T=1.0,
+        S=entropy_scales[entropy_unit],
+        V=volume_scales[volume_unit],
+        X=1.0,
+    )
+    axis_scale = np.array([scales[axis] for axis in diagram])
+    axis_offset = np.array([t_offset if axis == "T" else 0.0 for axis in diagram])
+    order = [0, 1] if swap_axes else [1, 0]
+    volume_axis = diagram.index("V") if density else None
     geometry = _core.pseudosection_field_polygons(
         result, tolerance, close_domain, merge_fields
     )
@@ -112,14 +155,18 @@ def plot_pseudosection(
 
     def coordinates(vertices):
         vertices = (np.asarray(vertices) - axis_offset) / axis_scale
-        return vertices[:, ::-1]
+        if density:
+            vertices[:, volume_axis] = bulk_mass / vertices[:, volume_axis]
+        return vertices[:, order]
+
+    def native_coordinates(vertices):
+        vertices = np.asarray(vertices)[:, order].copy()
+        if density:
+            vertices[:, volume_axis] = bulk_mass / vertices[:, volume_axis]
+        return vertices * axis_scale + axis_offset
 
     def point_coordinates(point):
-        first = _value(point, "temperature" if diagram == "TX" else "pressure")
-        second = _value(
-            point, "temperature" if diagram == "PT" else "composition_coordinate"
-        )
-        return coordinates([[first, second]])[0]
+        return coordinates([[_value(point, names[axis]) for axis in diagram]])[0]
 
     patches, counts, domain_patches = [], [], []
     for polygon in geometry.polygons:
@@ -286,17 +333,30 @@ def plot_pseudosection(
     temperature_range = _value(
         result, "temperature_range", _value(result, "temperature_range_K")
     )
-    first_range = temperature_range if diagram == "TX" else pressure_range
-    second_range = (
-        temperature_range if diagram == "PT" else _value(result, "composition_range")
+    ranges = dict(
+        P=pressure_range,
+        T=temperature_range,
+        S=_value(result, "entropy_range"),
+        V=_value(result, "volume_range"),
+        X=_value(result, "composition_range"),
     )
-    limits = coordinates(np.column_stack((first_range, second_range)))
-    temperature_label = f"Temperature ({'°C' if temperature_unit == 'C' else 'K'})"
+    limits = coordinates(np.column_stack([ranges[axis] for axis in diagram]))
+    labels = dict(
+        P=f"Pressure ({pressure_unit})",
+        T=f"Temperature ({'°C' if temperature_unit == 'C' else 'K'})",
+        S=(r"Entropy ($k_B$/atom)" if per_atom else f"Entropy ({entropy_unit})"),
+        V=(
+            "Density (kg/m³)"
+            if density
+            else f"Volume ({'cm³' if volume_unit == 'cm3' else 'm³'})"
+        ),
+        X=composition_label,
+    )
     ax.set(
-        xlim=limits[:, 0],
-        ylim=limits[:, 1],
-        xlabel=temperature_label if diagram == "PT" else composition_label,
-        ylabel=temperature_label if diagram == "TX" else f"Pressure ({pressure_unit})",
+        xlim=sorted(limits[:, 0]),
+        ylim=sorted(limits[:, 1]),
+        xlabel=labels[diagram[order[0]]],
+        ylabel=labels[diagram[order[1]]],
     )
     ax.pseudosection_label_key = {}
     if label_assemblages:
@@ -324,13 +384,12 @@ def plot_pseudosection(
             )
 
         def fits(polygon, bounds):
-            corners = ax.transData.inverted().transform(bounds.get_points())
+            corners = native_coordinates(
+                ax.transData.inverted().transform(bounds.get_points())
+            )
             centre = corners.mean(axis=0)
             half = np.abs(corners[1] - corners[0]) * 0.5
-            return polygon.contains_rectangle(
-                centre[::-1] * axis_scale + axis_offset,
-                half[::-1] * axis_scale,
-            )
+            return polygon.contains_rectangle(centre, half)
 
         for number, polygon in enumerate(geometry.polygons, 1):
             if polygon.n_phases <= 0 or not polygon.phases:

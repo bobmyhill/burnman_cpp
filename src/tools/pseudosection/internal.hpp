@@ -60,7 +60,9 @@ struct Engine {
   types::FormulaMap bulk_start;
   Eigen::VectorXd full_start, bulk_direction;
   std::vector<FreeVectorMap> free_vectors;
-  double fixed_pressure = 0., fixed_temperature = 0.;
+  Eigen::Vector2d physical_seed{1.e9, 1000.};
+  std::array<double, 2> pressure_bounds{0., 150.e9},
+      temperature_bounds{1., 6000.};
   Settings settings;
   std::vector<Phase> phases;
   std::vector<std::string> elements;
@@ -76,8 +78,24 @@ struct Engine {
   void set_coordinate(Assemblage &, double) const;
   Eigen::Vector2d coordinates(const Assemblage &) const;
   Eigen::Vector2d physical_coordinates(const Eigen::Vector2d &) const;
-  std::array<Eigen::Index, 2> coordinate_indices(Eigen::Index) const;
-  Eigen::Vector2d project_direction(const Eigen::VectorXd &) const;
+  std::unique_ptr<EqualityConstraint>
+  coordinate_constraint(Coordinate, double, Eigen::Index, double base_x = 0.,
+                        bool normalized = false) const;
+  ConstraintList state_constraints(const Eigen::Vector2d &) const;
+  Eigen::MatrixXd coordinate_jacobian(const Assemblage &, Eigen::Index) const;
+  Eigen::VectorXd parameter_scales(const Assemblage &, Eigen::Index,
+                                   const Eigen::Vector2d &) const;
+  Eigen::Vector2d project_direction(const Eigen::VectorXd &,
+                                    const Assemblage &) const;
+  bool direct_coordinates() const;
+  template <typename Point>
+  void record_coordinates(Point &p, const Assemblage &a) const {
+    p.pressure = a.get_pressure();
+    p.temperature = a.get_temperature();
+    p.entropy = a.get_n_moles() * a.get_molar_entropy();
+    p.volume = a.get_n_moles() * a.get_molar_volume();
+    p.composition_coordinate = composition_coordinate(a);
+  }
   EquilibrationParameters parameters(const Assemblage &) const;
   WorkState stable_at(const Eigen::Vector2d &);
   WorkState fixed_at(const std::vector<int> &, const std::vector<PhaseState> &,
@@ -98,7 +116,8 @@ struct Engine {
                               const Eigen::VectorXd &start = Eigen::VectorXd());
   WorkState stable(double, double);
   WorkState fixed_pt(const std::vector<int> &, const std::vector<PhaseState> &,
-                     double, double);
+                     double, double,
+                     std::optional<Eigen::Vector2d> = std::nullopt);
   std::shared_ptr<Assemblage> make_assemblage(const std::vector<int> &,
                                               const std::vector<PhaseState> &,
                                               double, double,
@@ -115,4 +134,31 @@ struct Engine {
 };
 ConstraintList constraints(std::unique_ptr<EqualityConstraint>,
                            std::unique_ptr<EqualityConstraint>);
+// A continuation plane in any two thermodynamic coordinates. Its derivatives
+// come from the same equality constraints used by equilibrate().
+class SectionConstraint : public EqualityConstraint {
+  std::unique_ptr<EqualityConstraint> first_, second_;
+  Eigen::Vector2d weights_;
+
+public:
+  SectionConstraint(std::unique_ptr<EqualityConstraint> first,
+                    std::unique_ptr<EqualityConstraint> second,
+                    const Eigen::Vector2d &weights)
+      : first_(std::move(first)), second_(std::move(second)),
+        weights_(weights) {}
+  std::unique_ptr<EqualityConstraint> clone() const override {
+    return std::make_unique<SectionConstraint>(first_->clone(),
+                                               second_->clone(), weights_);
+  }
+  double evaluate(const Eigen::VectorXd &x,
+                  const Assemblage &a) const override {
+    return weights_[0] * first_->evaluate(x, a) +
+           weights_[1] * second_->evaluate(x, a);
+  }
+  Eigen::VectorXd derivative(const Eigen::VectorXd &x, const Assemblage &a,
+                             Eigen::Index n) const override {
+    return weights_[0] * first_->derivative(x, a, n) +
+           weights_[1] * second_->derivative(x, a, n);
+  }
+};
 } // namespace burnman::pseudosections::detail

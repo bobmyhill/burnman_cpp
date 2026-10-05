@@ -16,31 +16,86 @@
 #include <Eigen/Dense>
 #include <array>
 #include <memory>
+#include <optional>
+#include <stdexcept>
 #include <string>
 #include <vector>
 namespace burnman::pseudosections {
 
-enum class DiagramType { PT, PX, TX };
+enum class Coordinate { P, T, S, V, X };
+enum class DiagramType { PT, PX, TX, PS, PV, TS, TV, SV, SX, VX };
+
+inline std::array<Coordinate, 2> diagram_axes(DiagramType type) {
+  using C = Coordinate;
+  switch (type) {
+  case DiagramType::PT:
+    return {C::P, C::T};
+  case DiagramType::PX:
+    return { C::P, C::X };
+  case DiagramType::TX:
+    return { C::T, C::X };
+  case DiagramType::PS:
+    return {C::P, C::S};
+  case DiagramType::PV:
+    return {C::P, C::V};
+  case DiagramType::TS:
+    return {C::T, C::S};
+  case DiagramType::TV:
+    return {C::T, C::V};
+  case DiagramType::SV:
+    return {C::S, C::V};
+  case DiagramType::SX:
+    return { C::S, C::X };
+  case DiagramType::VX:
+    return { C::V, C::X };
+  }
+  throw std::invalid_argument("Unknown diagram type.");
+}
+inline bool has_composition_axis(DiagramType type) {
+  return diagram_axes(type)[1] == Coordinate::X;
+}
 
 struct CompositionSection {
   DiagramType type = DiagramType::PT;
   // Bulk(X) = (1-X) bulk_start + X composition_end, retaining supplied amounts.
   types::FormulaMap composition_end;
   std::array<double, 2> composition_range{0., 1.};
+  // Extensive entropy (J/K) and volume (m^3), on the supplied bulk scale.
+  std::array<double, 2> entropy_range{0., 1.}, volume_range{1.e-6, 1.e-4};
+  // An X section fixes one thermodynamic coordinate outside its axes.
+  // Omitted for legacy PX/TX sections: infer fixed T/P from its range.
+  std::optional<Coordinate> fixed_coordinate;
+  double fixed_value = 0.;
 };
 
-// Geometry coordinates are [P,T], [P,X] or [T,X]; stored P,T stay physical.
+template <typename Point>
+double coordinate_value(const Point &point, Coordinate axis) {
+  switch (axis) {
+  case Coordinate::P:
+    return point.pressure;
+  case Coordinate::T:
+    return point.temperature;
+  case Coordinate::S:
+    return point.entropy;
+  case Coordinate::V:
+    return point.volume;
+  case Coordinate::X:
+    return point.composition_coordinate;
+  }
+  throw std::invalid_argument("Unknown diagram coordinate.");
+}
+
+// Geometry uses the selected pair; P,T always retain their physical values.
 template <typename Point>
 Eigen::Vector2d diagram_coordinates(const Point &point, DiagramType type) {
-  if (type == DiagramType::PT)
-    return {point.pressure, point.temperature};
-  return {type == DiagramType::PX ? point.pressure : point.temperature,
-          point.composition_coordinate};
+  const auto axes = diagram_axes(type);
+  return {coordinate_value(point, axes[0]), coordinate_value(point, axes[1])};
 }
 
 struct Settings {
   int pressure_seeds = 7, temperature_seeds = 7;
   int composition_seeds = 7;
+  int entropy_seeds = 7, volume_seeds = 7;
   int max_refinement_iterations = 150, minimization_starts = 10;
   int max_phase_instances = 3, max_trace_steps = 500, max_lines = 1000;
   int max_recovery_passes = 2;
@@ -73,6 +128,7 @@ struct PhaseState {
 struct State {
   double pressure = 0., temperature = 0.; // Pa, K
   double composition_coordinate = 0.;     // X on the supplied bulk path
+  double entropy = 0., volume = 0.;       // total J/K, m^3
   bool success = false;
   // A solve explicitly requested at the interior of a constructed face.
   bool is_field_verification = false;
@@ -88,6 +144,7 @@ struct State {
 struct BoundaryPoint {
   double pressure = 0., temperature = 0.;
   double composition_coordinate = 0.;
+  double entropy = 0., volume = 0.;
   std::vector<PhaseState> phases;
   double mass_balance_error = 0., minimum_affinity = 0., residual = 0.;
 };
@@ -106,6 +163,7 @@ struct Node {
   std::string kind;
   double pressure = 0., temperature = 0.;
   double composition_coordinate = 0.;
+  double entropy = 0., volume = 0.;
   std::vector<int> zero_phases, assemblage, incident_lines;
   Eigen::VectorXd critical_mode; // normalised endmember direction, if verified
 };
@@ -120,11 +178,23 @@ struct Result {
   CompositionSection section;
   types::FormulaMap composition_start;
   std::array<std::array<double, 2>, 2> coordinate_ranges() const {
-    if (section.type == DiagramType::PT)
-      return {pressure_range, temperature_range};
-    return {section.type == DiagramType::PX ? pressure_range
-                                            : temperature_range,
-            section.composition_range};
+    auto range = [&](Coordinate axis) {
+      switch (axis) {
+      case Coordinate::P:
+        return pressure_range;
+      case Coordinate::T:
+        return temperature_range;
+      case Coordinate::S:
+        return section.entropy_range;
+      case Coordinate::V:
+        return section.volume_range;
+      case Coordinate::X:
+        return section.composition_range;
+      }
+      throw std::invalid_argument("Unknown diagram coordinate.");
+    };
+    auto axes = diagram_axes(section.type);
+    return {range(axes[0]), range(axes[1])};
   }
   // Actual settings, retained so continuation uses the same composition
   // coordinates, numerical tolerances and EOS-domain policy by default.
@@ -150,7 +220,7 @@ struct FieldPolygon {
   std::vector<int> phases;
   // Zero-based faces in the original, unmerged planar subdivision.
   std::vector<int> source_regions;
-  // Closed rings in [P,T], [P,X] or [T,X] (Pa, K, dimensionless X). Holes
+  // Closed rings in the selected diagram coordinates (SI units). Holes
   // have opposite winding. Area is a fraction of the diagram domain.
   Eigen::MatrixXd vertices;
   std::vector<Eigen::MatrixXd> holes;
@@ -192,8 +262,10 @@ FieldPolygons field_polygons(const Result &result, double tolerance = 1.e-8,
 /// rank and stability checks prune reduced-variance/metastable branches.
 /// Finite seed sampling does not guarantee discovery of every disconnected
 /// field. Inspect resolved and diagnostics; increase seed density to assess it.
-/// For PX, supply a degenerate temperature_range; for TX, a degenerate
-/// pressure_range. section supplies the bulk mixing path and X range. Tracing,
+/// section selects any pair of P,T,S,V,X and supplies S/V/X ranges. X diagrams
+/// fix one other thermodynamic coordinate. S and V are extensive on the bulk
+/// amount scale. Unplotted P/T ranges provide bounds for inverse seed searches.
+/// For legacy PX/TX, supply a degenerate temperature/pressure range. Tracing,
 /// stability checks, junction recovery and polygons are shared by all diagrams.
 Result pseudosection(const types::FormulaMap &composition,
                      const std::vector<std::shared_ptr<Material>> &candidates,

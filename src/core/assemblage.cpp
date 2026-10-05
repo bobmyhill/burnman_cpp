@@ -331,7 +331,8 @@ double Assemblage::compute_thermal_expansivity() const {
   Eigen::ArrayXd volumes = get_volume_fractions();
   Eigen::ArrayXd alphas =
       map_phases_to_array(&Material::get_thermal_expansivity);
-  return averaging_scheme->average_thermal_expansivity(volumes, alphas);
+  // dV/dT is the sum of each phase's amount * volume * expansivity.
+  return (volumes * alphas).sum() / volumes.sum();
 }
 
 double Assemblage::compute_molar_heat_capacity_v() const {
@@ -342,7 +343,7 @@ double Assemblage::compute_molar_heat_capacity_v() const {
 double Assemblage::compute_molar_heat_capacity_p() const {
   Eigen::ArrayXd c_p =
       map_phases_to_array(&Material::get_molar_heat_capacity_p);
-  return averaging_scheme->average_heat_capacity_p(molar_fractions, c_p);
+  return (molar_fractions * c_p).sum();
 }
 
 types::FormulaMap Assemblage::compute_formula() const {
