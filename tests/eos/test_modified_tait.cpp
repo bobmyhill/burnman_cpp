@@ -7,6 +7,8 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
+// Numerical snapshots: Python BurnMan 69e700647ae7efeed91dfbce147c036bce619516.
+// Reproduce with tools/check_reference_data.py; see docs/reference_data.md.
 #include "burnman/eos/modified_tait.hpp"
 #include "burnman/utils/types/mineral_params.hpp"
 #include "tolerances.hpp"
@@ -211,7 +213,9 @@ TEST_CASE("MT python reference values", "[modified_tait][eos]") {
             WithinAbs(test_data.expected_K, tol_abs));
     CHECK_THAT(mt.compute_gibbs_free_energy(test_data.input, T, V, params),
                WithinRel(test_data.expected_G, tol_rel) ||
-                   WithinAbs(test_data.expected_G, tol_abs));
+                   // Near zero pressure the integral cancels V_0*P_0.
+                   WithinAbs(test_data.expected_G,
+                             roundoff_tolerance(*params.V_0 * *params.P_0)));
   }
   SECTION("Test P-V depedent") {
     double T = 300.0;

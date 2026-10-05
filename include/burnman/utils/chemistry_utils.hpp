@@ -69,7 +69,7 @@ sum_formulae(const std::vector<types::FormulaMap> &formulae,
   }
   types::FormulaMap summed_formula;
   for (std::size_t i = 0; i < n; ++i) {
-    summed_formula += formulae[i] * weights[i];
+    summed_formula += formulae[i] * weights[static_cast<Eigen::Index>(i)];
   }
   return summed_formula;
 }

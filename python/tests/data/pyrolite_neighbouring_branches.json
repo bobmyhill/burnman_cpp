@@ -1,0 +1,1737 @@
+{
+  "junction": 1,
+  "previous": {
+    "pressure_range": [
+      0.0,
+      25000000000.0
+    ],
+    "temperature_range": [
+      0.0,
+      2500.0
+    ],
+    "phase_names": [
+      "ol",
+      "ol #2",
+      "ol #3",
+      "wa",
+      "wa #2",
+      "wa #3",
+      "ri",
+      "ri #2",
+      "ri #3",
+      "opx",
+      "opx #2",
+      "opx #3",
+      "cpx",
+      "cpx #2",
+      "cpx #3",
+      "hpcpx",
+      "hpcpx #2",
+      "hpcpx #3",
+      "gt",
+      "gt #2",
+      "gt #3",
+      "sp",
+      "sp #2",
+      "sp #3",
+      "pl",
+      "pl #2",
+      "pl #3",
+      "ak",
+      "ak #2",
+      "ak #3",
+      "fp",
+      "fp #2",
+      "fp #3",
+      "bg",
+      "bg #2",
+      "bg #3",
+      "ppv",
+      "ppv #2",
+      "ppv #3",
+      "cf",
+      "cf #2",
+      "cf #3",
+      "nal",
+      "nal #2",
+      "nal #3",
+      "capv",
+      "capv #2",
+      "capv #3",
+      "neph",
+      "neph #2",
+      "neph #3",
+      "ky",
+      "ky #2",
+      "ky #3",
+      "q",
+      "q #2",
+      "q #3",
+      "coe",
+      "coe #2",
+      "coe #3",
+      "st",
+      "st #2",
+      "st #3",
+      "seif",
+      "seif #2",
+      "seif #3",
+      "wo",
+      "wo #2",
+      "wo #3",
+      "pwo",
+      "pwo #2",
+      "pwo #3",
+      "Fe-bcc",
+      "Fe-bcc #2",
+      "Fe-bcc #3",
+      "Fe-fcc",
+      "Fe-fcc #2",
+      "Fe-fcc #3",
+      "Fe-hcp",
+      "Fe-hcp #2",
+      "Fe-hcp #3"
+    ],
+    "settings": {
+      "pressure_seeds": 9,
+      "temperature_seeds": 9,
+      "max_refinement_iterations": 150,
+      "minimization_starts": 10,
+      "max_phase_instances": 3,
+      "max_trace_steps": 500,
+      "max_lines": 12,
+      "max_recovery_passes": 1,
+      "step": 0.025,
+      "min_step": 1e-07,
+      "affinity_tolerance": 0.2,
+      "mass_balance_tolerance": 1e-08,
+      "amount_tolerance": 1e-07,
+      "composition_tolerance": 1e-05,
+      "node_tolerance": 0.0002,
+      "verbose": false,
+      "exclude_invalid_eos": true,
+      "active_solution_faces": true,
+      "required_eos_phases": [
+        "opx"
+      ]
+    },
+    "boundaries": [
+      {
+        "id": 0,
+        "zero_phase": 9,
+        "assemblage": [
+          0,
+          9,
+          12,
+          13,
+          15,
+          18,
+          21,
+          27,
+          39
+        ],
+        "side_a": [
+          0,
+          9,
+          12,
+          13,
+          18,
+          21,
+          27,
+          39
+        ],
+        "side_b": [
+          0,
+          12,
+          13,
+          15,
+          18,
+          21,
+          27,
+          39
+        ],
+        "is_solution_replacement": false,
+        "start_node": 0,
+        "end_node": 1,
+        "termination": "junction; junction",
+        "points": [
+          {
+            "pressure": 3959082549.2079253,
+            "temperature": 135.8871529384632,
+            "mass_balance_error": 1.5119264337686326e-16,
+            "minimum_affinity": -8.927347839885609e-05,
+            "residual": 1.5197921059245344e-07,
+            "phases": [
+              {
+                "id": 0,
+                "candidate_index": 0,
+                "name": "ol",
+                "amount": 0.3862190966327107,
+                "composition": [
+                  0.9996992982686561,
+                  0.0003007017313438742
+                ]
+              },
+              {
+                "id": 9,
+                "candidate_index": 3,
+                "name": "opx",
+                "amount": 0.0,
+                "composition": [
+                  0.9998760629645899,
+                  0.00012393703541010217,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 12,
+                "candidate_index": 4,
+                "name": "cpx",
+                "amount": 0.00419387380135458,
+                "composition": [
+                  2.137251646305849e-05,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.9999786274835369,
+                  0.0
+                ]
+              },
+              {
+                "id": 13,
+                "candidate_index": 4,
+                "name": "cpx #2",
+                "amount": 0.05663309166399775,
+                "composition": [
+                  0.9999786274835369,
+                  0.0,
+                  0.0,
+                  0.0,
+                  2.1372516463053955e-05,
+                  0.0
+                ]
+              },
+              {
+                "id": 15,
+                "candidate_index": 5,
+                "name": "hpcpx",
+                "amount": 0.06483956998832535,
+                "composition": [
+                  0.9993894977563186,
+                  0.0006105022436814686
+                ]
+              },
+              {
+                "id": 18,
+                "candidate_index": 6,
+                "name": "gt",
+                "amount": 0.03713335901602743,
+                "composition": [
+                  0.03955906987055168,
+                  0.9597610471251482,
+                  0.0006796017210871718,
+                  0.0,
+                  0.0,
+                  0.0,
+                  2.812832129439613e-07
+                ]
+              },
+              {
+                "id": 21,
+                "candidate_index": 7,
+                "name": "sp",
+                "amount": 0.003750249025961344,
+                "composition": [
+                  -0.971883329022143,
+                  0.971883329022143,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "id": 27,
+                "candidate_index": 9,
+                "name": "ak",
+                "amount": 0.0,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "id": 39,
+                "candidate_index": 13,
+                "name": "cf",
+                "amount": 0.0017145417837135502,
+                "composition": [
+                  1.0,
+                  -1.0,
+                  0.0,
+                  1.0,
+                  0.0
+                ]
+              }
+            ]
+          },
+          {
+            "pressure": 3933771353.422754,
+            "temperature": 97.10392208446,
+            "mass_balance_error": 1.4683948220025083e-16,
+            "minimum_affinity": -1.0793996461613664e-07,
+            "residual": 2.6848468490994253e-06,
+            "phases": [
+              {
+                "id": 0,
+                "candidate_index": 0,
+                "name": "ol",
+                "amount": 0.38996934565867303,
+                "composition": [
+                  0.9999749316579611,
+                  2.5068342038863732e-05
+                ]
+              },
+              {
+                "id": 9,
+                "candidate_index": 3,
+                "name": "opx",
+                "amount": 0.0,
+                "composition": [
+                  0.9999924758790926,
+                  7.524120907450538e-06,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 12,
+                "candidate_index": 4,
+                "name": "cpx",
+                "amount": 0.004194979263252289,
+                "composition": [
+                  2.913003130933234e-07,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.9999997086996869,
+                  0.0
+                ]
+              },
+              {
+                "id": 13,
+                "candidate_index": 4,
+                "name": "cpx #2",
+                "amount": 0.05670487603097368,
+                "composition": [
+                  0.9999997086996869,
+                  0.0,
+                  0.0,
+                  0.0,
+                  2.913003131209216e-07,
+                  0.0
+                ]
+              },
+              {
+                "id": 15,
+                "candidate_index": 5,
+                "name": "hpcpx",
+                "amount": 0.06289157131395635,
+                "composition": [
+                  0.9999282394273273,
+                  7.176057267271602e-05
+                ]
+              },
+              {
+                "id": 18,
+                "candidate_index": 6,
+                "name": "gt",
+                "amount": 0.037133348571036895,
+                "composition": [
+                  0.004956047199987887,
+                  0.9950186578802529,
+                  2.5294919759222267e-05,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 21,
+                "candidate_index": 7,
+                "name": "sp",
+                "amount": 0.0,
+                "composition": [
+                  -0.9969280225771394,
+                  0.9969280225771394,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "id": 27,
+                "candidate_index": 9,
+                "name": "ak",
+                "amount": 0.003750259470951875,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "id": 39,
+                "candidate_index": 13,
+                "name": "cf",
+                "amount": 0.001714541783713253,
+                "composition": [
+                  1.0,
+                  -1.0,
+                  0.0,
+                  1.0,
+                  0.0
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": 1,
+        "zero_phase": 21,
+        "assemblage": [
+          0,
+          9,
+          12,
+          13,
+          18,
+          21,
+          27,
+          39
+        ],
+        "side_a": [
+          0,
+          9,
+          12,
+          13,
+          18,
+          27,
+          39
+        ],
+        "side_b": [
+          0,
+          9,
+          12,
+          13,
+          18,
+          21,
+          27,
+          39
+        ],
+        "is_solution_replacement": false,
+        "start_node": 2,
+        "end_node": 3,
+        "termination": "junction; junction",
+        "points": [
+          {
+            "pressure": 2988154994.996276,
+            "temperature": 58.8163336413674,
+            "mass_balance_error": 1.5174720822096154e-16,
+            "minimum_affinity": -0.004251421694725366,
+            "residual": 8.394828241934366e-10,
+            "phases": [
+              {
+                "id": 0,
+                "candidate_index": 0,
+                "name": "ol",
+                "amount": 0.38996934565867053,
+                "composition": [
+                  1.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 9,
+                "candidate_index": 3,
+                "name": "opx",
+                "amount": 0.06288875345874012,
+                "composition": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 12,
+                "candidate_index": 4,
+                "name": "cpx",
+                "amount": 0.004194994559401659,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 13,
+                "candidate_index": 4,
+                "name": "cpx #2",
+                "amount": 0.0567076785900418,
+                "composition": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 18,
+                "candidate_index": 6,
+                "name": "gt",
+                "amount": 0.03713334857103689,
+                "composition": [
+                  0.004724806854915987,
+                  0.9952751931450841,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 21,
+                "candidate_index": 7,
+                "name": "sp",
+                "amount": 0.0,
+                "composition": [
+                  -0.9988506078701926,
+                  0.9988506078701926,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "id": 27,
+                "candidate_index": 9,
+                "name": "ak",
+                "amount": 0.0037502594709518753,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "id": 39,
+                "candidate_index": 13,
+                "name": "cf",
+                "amount": 0.0017145417837140695,
+                "composition": [
+                  1.0,
+                  -1.0,
+                  0.0,
+                  1.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 51,
+                "candidate_index": 17,
+                "name": "ky",
+                "amount": 0.0,
+                "composition": [
+                  1.0
+                ]
+              }
+            ]
+          },
+          {
+            "pressure": 3933486096.3423533,
+            "temperature": 96.42419189357868,
+            "mass_balance_error": 6.482319469035916e-18,
+            "minimum_affinity": -0.037845240834671834,
+            "residual": 8.02843815161227e-09,
+            "phases": [
+              {
+                "id": 0,
+                "candidate_index": 0,
+                "name": "ol",
+                "amount": 0.3899693456586713,
+                "composition": [
+                  1.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 9,
+                "candidate_index": 3,
+                "name": "opx",
+                "amount": 0.06289133769280823,
+                "composition": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 12,
+                "candidate_index": 4,
+                "name": "cpx",
+                "amount": 0.004194994559401659,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 13,
+                "candidate_index": 4,
+                "name": "cpx #2",
+                "amount": 0.0567050943559733,
+                "composition": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 15,
+                "candidate_index": 5,
+                "name": "hpcpx",
+                "amount": 0.0,
+                "composition": [
+                  0.9999318776923495,
+                  6.812230765052461e-05
+                ]
+              },
+              {
+                "id": 18,
+                "candidate_index": 6,
+                "name": "gt",
+                "amount": 0.0371333485710369,
+                "composition": [
+                  0.0047016090720740315,
+                  0.9952751931450889,
+                  2.3197782836992253e-05,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 21,
+                "candidate_index": 7,
+                "name": "sp",
+                "amount": 0.0,
+                "composition": [
+                  -0.9970962411021256,
+                  0.9970962411021256,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "id": 27,
+                "candidate_index": 9,
+                "name": "ak",
+                "amount": 0.0037502594709518753,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "id": 39,
+                "candidate_index": 13,
+                "name": "cf",
+                "amount": 0.001714541783713795,
+                "composition": [
+                  1.0,
+                  -1.0,
+                  0.0,
+                  1.0,
+                  0.0
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "zero_phase": 9,
+        "assemblage": [
+          0,
+          9,
+          12,
+          13,
+          15,
+          18,
+          27,
+          39
+        ],
+        "side_a": [
+          0,
+          9,
+          12,
+          13,
+          18,
+          27,
+          39
+        ],
+        "side_b": [
+          0,
+          12,
+          13,
+          15,
+          18,
+          27,
+          39
+        ],
+        "is_solution_replacement": false,
+        "start_node": 4,
+        "end_node": 5,
+        "termination": "junction; junction",
+        "points": [
+          {
+            "pressure": 3933547942.247481,
+            "temperature": 96.42666682178518,
+            "mass_balance_error": 1.5571065701523605e-16,
+            "minimum_affinity": -0.10927220525124448,
+            "residual": 3.242955607637793e-09,
+            "phases": [
+              {
+                "id": 0,
+                "candidate_index": 0,
+                "name": "ol",
+                "amount": 0.38996934565867186,
+                "composition": [
+                  1.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 9,
+                "candidate_index": 3,
+                "name": "opx",
+                "amount": 0.0,
+                "composition": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 12,
+                "candidate_index": 4,
+                "name": "cpx",
+                "amount": 0.004194994559401659,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 13,
+                "candidate_index": 4,
+                "name": "cpx #2",
+                "amount": 0.05670509414281037,
+                "composition": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 15,
+                "candidate_index": 5,
+                "name": "hpcpx",
+                "amount": 0.06289133790597086,
+                "composition": [
+                  1.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 18,
+                "candidate_index": 6,
+                "name": "gt",
+                "amount": 0.037133348571036895,
+                "composition": [
+                  0.004701607158580262,
+                  0.995275193145092,
+                  2.3199696327691477e-05,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 21,
+                "candidate_index": 7,
+                "name": "sp",
+                "amount": 0.0,
+                "composition": [
+                  -0.9970961312802838,
+                  0.9970961312802838,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "id": 27,
+                "candidate_index": 9,
+                "name": "ak",
+                "amount": 0.0037502594709518753,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "id": 39,
+                "candidate_index": 13,
+                "name": "cf",
+                "amount": 0.0017145417837136302,
+                "composition": [
+                  1.0,
+                  -1.0,
+                  0.0,
+                  1.0,
+                  0.0
+                ]
+              }
+            ]
+          },
+          {
+            "pressure": 3923282895.2420487,
+            "temperature": 21.352254163593614,
+            "mass_balance_error": 3.702701398493086e-17,
+            "minimum_affinity": -4.213295650146165e-07,
+            "residual": 1.3170890159654479e-09,
+            "phases": [
+              {
+                "id": 0,
+                "candidate_index": 0,
+                "name": "ol",
+                "amount": 0.38996934565867253,
+                "composition": [
+                  1.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 9,
+                "candidate_index": 3,
+                "name": "opx",
+                "amount": 0.0,
+                "composition": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 12,
+                "candidate_index": 4,
+                "name": "cpx",
+                "amount": 0.004194994559401659,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 13,
+                "candidate_index": 4,
+                "name": "cpx #2",
+                "amount": 0.056707678590041805,
+                "composition": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 15,
+                "candidate_index": 5,
+                "name": "hpcpx",
+                "amount": 0.06288875345873912,
+                "composition": [
+                  1.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 18,
+                "candidate_index": 6,
+                "name": "gt",
+                "amount": 0.037133348571036895,
+                "composition": [
+                  0.004724806854904831,
+                  0.9952751931450952,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 27,
+                "candidate_index": 9,
+                "name": "ak",
+                "amount": 0.003750259470951875,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "id": 39,
+                "candidate_index": 13,
+                "name": "cf",
+                "amount": 0.0017145417837134557,
+                "composition": [
+                  1.0,
+                  -1.0,
+                  0.0,
+                  1.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 51,
+                "candidate_index": 17,
+                "name": "ky",
+                "amount": 0.0,
+                "composition": [
+                  1.0
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "zero_phase": 21,
+        "assemblage": [
+          0,
+          9,
+          12,
+          13,
+          15,
+          18,
+          21,
+          27,
+          39
+        ],
+        "side_a": [
+          0,
+          9,
+          12,
+          13,
+          18,
+          21,
+          27,
+          39
+        ],
+        "side_b": [
+          0,
+          12,
+          13,
+          15,
+          18,
+          27,
+          39
+        ],
+        "is_solution_replacement": false,
+        "start_node": 4,
+        "end_node": 3,
+        "termination": "junction; junction",
+        "points": [
+          {
+            "pressure": 3933571435.287798,
+            "temperature": 96.6338100244913,
+            "mass_balance_error": 3.751913646267075e-17,
+            "minimum_affinity": -0.03864103121297807,
+            "residual": 1.779593927228951e-08,
+            "phases": [
+              {
+                "id": 0,
+                "candidate_index": 0,
+                "name": "ol",
+                "amount": 0.38996934565867153,
+                "composition": [
+                  1.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 9,
+                "candidate_index": 3,
+                "name": "opx",
+                "amount": 0.0,
+                "composition": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 12,
+                "candidate_index": 4,
+                "name": "cpx",
+                "amount": 0.004194994559401659,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 13,
+                "candidate_index": 4,
+                "name": "cpx #2",
+                "amount": 0.05670502402422108,
+                "composition": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 15,
+                "candidate_index": 5,
+                "name": "hpcpx",
+                "amount": 0.06289140802456022,
+                "composition": [
+                  0.9999307719368639,
+                  6.92280631361929e-05
+                ]
+              },
+              {
+                "id": 18,
+                "candidate_index": 6,
+                "name": "gt",
+                "amount": 0.037133348571036895,
+                "composition": [
+                  0.004779143770765988,
+                  0.9951970271023811,
+                  2.3829126852947802e-05,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 21,
+                "candidate_index": 7,
+                "name": "sp",
+                "amount": 0.0,
+                "composition": [
+                  -0.997045050816197,
+                  0.997045050816197,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "id": 27,
+                "candidate_index": 9,
+                "name": "ak",
+                "amount": 0.0037502594709518753,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "id": 39,
+                "candidate_index": 13,
+                "name": "cf",
+                "amount": 0.001714541783713777,
+                "composition": [
+                  1.0,
+                  -1.0,
+                  0.0,
+                  1.0,
+                  0.0
+                ]
+              }
+            ]
+          },
+          {
+            "pressure": 3933486096.34235,
+            "temperature": 96.42419189357076,
+            "mass_balance_error": 1.5183371823780616e-16,
+            "minimum_affinity": -0.03784524054363031,
+            "residual": 3.1582685108879903e-09,
+            "phases": [
+              {
+                "id": 0,
+                "candidate_index": 0,
+                "name": "ol",
+                "amount": 0.38996934565867236,
+                "composition": [
+                  1.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 9,
+                "candidate_index": 3,
+                "name": "opx",
+                "amount": 0.06289133769280765,
+                "composition": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 12,
+                "candidate_index": 4,
+                "name": "cpx",
+                "amount": 0.004194994559401659,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 13,
+                "candidate_index": 4,
+                "name": "cpx #2",
+                "amount": 0.05670509435597332,
+                "composition": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 15,
+                "candidate_index": 5,
+                "name": "hpcpx",
+                "amount": 0.0,
+                "composition": [
+                  0.9999318776923496,
+                  6.812230765044353e-05
+                ]
+              },
+              {
+                "id": 18,
+                "candidate_index": 6,
+                "name": "gt",
+                "amount": 0.0371333485710369,
+                "composition": [
+                  0.004701609072068408,
+                  0.9952751931450946,
+                  2.3197782836992253e-05,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 21,
+                "candidate_index": 7,
+                "name": "sp",
+                "amount": 0.0,
+                "composition": [
+                  -0.9970962411021266,
+                  0.9970962411021266,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "id": 27,
+                "candidate_index": 9,
+                "name": "ak",
+                "amount": 0.0037502594709518753,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "id": 39,
+                "candidate_index": 13,
+                "name": "cf",
+                "amount": 0.0017145417837134919,
+                "composition": [
+                  1.0,
+                  -1.0,
+                  0.0,
+                  1.0,
+                  0.0
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "zero_phase": 21,
+        "assemblage": [
+          0,
+          12,
+          13,
+          15,
+          18,
+          21,
+          27,
+          39
+        ],
+        "side_a": [
+          0,
+          12,
+          13,
+          15,
+          18,
+          21,
+          27,
+          39
+        ],
+        "side_b": [
+          0,
+          12,
+          13,
+          15,
+          18,
+          27,
+          39
+        ],
+        "is_solution_replacement": false,
+        "start_node": 6,
+        "end_node": 4,
+        "termination": "junction; junction",
+        "points": [
+          {
+            "pressure": 4927774170.332188,
+            "temperature": 142.58277706042318,
+            "mass_balance_error": 3.0466901504468804e-16,
+            "minimum_affinity": -0.08441114589669728,
+            "residual": 8.04193133449673e-09,
+            "phases": [
+              {
+                "id": 0,
+                "candidate_index": 0,
+                "name": "ol",
+                "amount": 0.38996934565867175,
+                "composition": [
+                  0.9989762962887501,
+                  0.0010237037112499783
+                ]
+              },
+              {
+                "id": 12,
+                "candidate_index": 4,
+                "name": "cpx",
+                "amount": 0.004194994559401659,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 13,
+                "candidate_index": 4,
+                "name": "cpx #2",
+                "amount": 0.056619596320997854,
+                "composition": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 15,
+                "candidate_index": 5,
+                "name": "hpcpx",
+                "amount": 0.06297683572778338,
+                "composition": [
+                  0.9982277203809874,
+                  0.001772279619012578
+                ]
+              },
+              {
+                "id": 18,
+                "candidate_index": 6,
+                "name": "gt",
+                "amount": 0.037133348571036895,
+                "composition": [
+                  0.013105135450732334,
+                  0.9861041802323978,
+                  0.0007906843168699051,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 19,
+                "candidate_index": 6,
+                "name": "gt #2",
+                "amount": 0.0,
+                "composition": [
+                  -0.9999743509595495,
+                  0.0002774276469975634,
+                  0.9997225031445146,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.9999744201680372
+                ]
+              },
+              {
+                "id": 21,
+                "candidate_index": 7,
+                "name": "sp",
+                "amount": 0.0,
+                "composition": [
+                  -0.9873337419879326,
+                  0.9873337419879326,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "id": 27,
+                "candidate_index": 9,
+                "name": "ak",
+                "amount": 0.0037502594709518753,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "id": 39,
+                "candidate_index": 13,
+                "name": "cf",
+                "amount": 0.0017145417837137005,
+                "composition": [
+                  1.0,
+                  -1.0,
+                  0.0,
+                  1.0,
+                  0.0
+                ]
+              }
+            ]
+          },
+          {
+            "pressure": 3933577929.003572,
+            "temperature": 96.63398372989508,
+            "mass_balance_error": 3.702701398493086e-17,
+            "minimum_affinity": -0.038642070876715784,
+            "residual": 1.4969518212150266e-05,
+            "phases": [
+              {
+                "id": 0,
+                "candidate_index": 0,
+                "name": "ol",
+                "amount": 0.389969345658671,
+                "composition": [
+                  1.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 9,
+                "candidate_index": 3,
+                "name": "opx",
+                "amount": 3.0968535418937904e-30,
+                "composition": [
+                  0.9999928219231055,
+                  7.178076894536294e-06,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 12,
+                "candidate_index": 4,
+                "name": "cpx",
+                "amount": 0.004194994559401659,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 13,
+                "candidate_index": 4,
+                "name": "cpx #2",
+                "amount": 0.05670502397480708,
+                "composition": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 15,
+                "candidate_index": 5,
+                "name": "hpcpx",
+                "amount": 0.06289140807397461,
+                "composition": [
+                  0.999930770480816,
+                  6.922951918395993e-05
+                ]
+              },
+              {
+                "id": 18,
+                "candidate_index": 6,
+                "name": "gt",
+                "amount": 0.0371333485710369,
+                "composition": [
+                  0.004779144971294454,
+                  0.99519702545828,
+                  2.3829570425459856e-05,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 21,
+                "candidate_index": 7,
+                "name": "sp",
+                "amount": 0.0,
+                "composition": [
+                  -0.9970450397054907,
+                  0.9970450397054907,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "id": 27,
+                "candidate_index": 9,
+                "name": "ak",
+                "amount": 0.0037502594709518757,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "id": 39,
+                "candidate_index": 13,
+                "name": "cf",
+                "amount": 0.001714541783713926,
+                "composition": [
+                  1.0,
+                  -1.0,
+                  0.0,
+                  1.0,
+                  0.0
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "pressure": 3959082552.365482,
+        "temperature": 135.88715642922386,
+        "kind": "junction",
+        "zero_phases": [
+          9,
+          27
+        ],
+        "assemblage": [
+          0,
+          9,
+          12,
+          13,
+          15,
+          18,
+          21,
+          27,
+          39
+        ],
+        "gibbs_variance": 1,
+        "pt_nullity": 0,
+        "incident_lines": [
+          0
+        ],
+        "critical_mode": []
+      },
+      {
+        "id": 1,
+        "pressure": 3933771353.422754,
+        "temperature": 97.10392208446,
+        "kind": "junction",
+        "zero_phases": [
+          9,
+          21
+        ],
+        "assemblage": [
+          0,
+          9,
+          12,
+          13,
+          15,
+          18,
+          21,
+          27,
+          39
+        ],
+        "gibbs_variance": 1,
+        "pt_nullity": 0,
+        "incident_lines": [
+          0
+        ],
+        "critical_mode": []
+      },
+      {
+        "id": 2,
+        "pressure": 2988154994.9963546,
+        "temperature": 58.81633364135996,
+        "kind": "junction",
+        "zero_phases": [
+          21,
+          51
+        ],
+        "assemblage": [
+          0,
+          9,
+          12,
+          13,
+          18,
+          21,
+          27,
+          39,
+          51
+        ],
+        "gibbs_variance": 1,
+        "pt_nullity": 0,
+        "incident_lines": [
+          1
+        ],
+        "critical_mode": []
+      },
+      {
+        "id": 3,
+        "pressure": 3933486096.3423533,
+        "temperature": 96.42419189357868,
+        "kind": "junction",
+        "zero_phases": [
+          21,
+          15
+        ],
+        "assemblage": [
+          0,
+          9,
+          12,
+          13,
+          15,
+          18,
+          21,
+          27,
+          39
+        ],
+        "gibbs_variance": 1,
+        "pt_nullity": 0,
+        "incident_lines": [
+          1,
+          3
+        ],
+        "critical_mode": []
+      },
+      {
+        "id": 4,
+        "pressure": 3933547942.247481,
+        "temperature": 96.42666682178518,
+        "kind": "junction",
+        "zero_phases": [
+          9,
+          21
+        ],
+        "assemblage": [
+          0,
+          9,
+          12,
+          13,
+          15,
+          18,
+          21,
+          27,
+          39
+        ],
+        "gibbs_variance": 1,
+        "pt_nullity": 0,
+        "incident_lines": [
+          2,
+          3,
+          4
+        ],
+        "critical_mode": []
+      },
+      {
+        "id": 5,
+        "pressure": 3923282895.241789,
+        "temperature": 21.352254163606325,
+        "kind": "junction",
+        "zero_phases": [
+          9,
+          51
+        ],
+        "assemblage": [
+          0,
+          9,
+          12,
+          13,
+          15,
+          18,
+          27,
+          39,
+          51
+        ],
+        "gibbs_variance": 1,
+        "pt_nullity": 0,
+        "incident_lines": [
+          2
+        ],
+        "critical_mode": []
+      },
+      {
+        "id": 6,
+        "pressure": 4927774170.332188,
+        "temperature": 142.58277706042318,
+        "kind": "junction",
+        "zero_phases": [
+          21,
+          19
+        ],
+        "assemblage": [
+          0,
+          12,
+          13,
+          15,
+          18,
+          19,
+          21,
+          27,
+          39
+        ],
+        "gibbs_variance": 1,
+        "pt_nullity": 0,
+        "incident_lines": [
+          4
+        ],
+        "critical_mode": []
+      }
+    ],
+    "samples": [],
+    "fields": [],
+    "diagnostics": [],
+    "resolved": false,
+    "equilibrium_solves": 0,
+    "minimization_calls": 0
+  }
+}

@@ -7,6 +7,8 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
+// Numerical snapshots: Python BurnMan 69e700647ae7efeed91dfbce147c036bce619516.
+// Reproduce with tools/check_reference_data.py; see docs/reference_data.md.
 #include "burnman/eos/components/einstein.hpp"
 #include "tolerances.hpp"
 #include <catch2/catch_test_macros.hpp>
@@ -88,7 +90,6 @@ TEST_CASE("Einstein napfu constant", "[eos][einstein]") {
              WithinRel(half_dCdT, tol_rel) || WithinAbs(half_dCdT, tol_abs));
 }
 
-// Reference values from Py burnman v2.1.1a0
 TEST_CASE("Einstein functions python reference values", "[eos][einstein]") {
   double T_a = 2000.0;
   double theta_a = 543.0;

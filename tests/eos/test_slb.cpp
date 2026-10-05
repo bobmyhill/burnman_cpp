@@ -7,6 +7,8 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
+// Numerical snapshots: Python BurnMan 69e700647ae7efeed91dfbce147c036bce619516.
+// Reproduce with tools/check_reference_data.py; see docs/reference_data.md.
 #include "burnman/eos/slb.hpp"
 #include "burnman/minerals/datasets.hpp"
 #include "burnman/utils/types/mineral_params.hpp"
@@ -392,9 +394,9 @@ TEST_CASE("SLB python reference values", "[eos][slb]") {
         {{T3, x3}, 5152031301904.44}};
     std::map<std::tuple<double, double>, double> ref_KS = {
         {{T1, x1}, 263861771077.48422}, {{T1, x2}, 585892410050.0793},
-        {{T1, x3}, 5144220790689.566},  {{T2, x1}, 269089945746.04807},
+        {{T1, x3}, 5144220790689.567},  {{T2, x1}, 269089945746.04807},
         {{T2, x2}, 591184634672.8638},  {{T2, x3}, 5149148995109.341},
-        {{T3, x1}, 288663292469.2158},  {{T3, x2}, 612469616901.9039},
+        {{T3, x1}, 288663292469.2159},  {{T3, x2}, 612469616901.9042},
         {{T3, x3}, 5179309450284.324}};
     std::map<std::tuple<double, double>, double> ref_G2 = {
         {{T1, x1}, 177206739110.75482}, {{T1, x2}, 297965839231.14703},
@@ -423,8 +425,8 @@ TEST_CASE("SLB python reference values", "[eos][slb]") {
     std::map<std::tuple<double, double>, double> ref_Cp = {
         {{T1, x1}, 94.31357344544068},  {{T1, x2}, 75.6800665490344},
         {{T1, x3}, 23.320153638516846}, {{T2, x1}, 123.81790430764259},
-        {{T2, x2}, 116.93838854511215}, {{T2, x3}, 90.07165596718679},
-        {{T3, x1}, 138.95697491833235}, {{T3, x2}, 129.21140066141018},
+        {{T2, x2}, 116.93838854511215}, {{T2, x3}, 90.07165596718677},
+        {{T3, x1}, 138.95697491833238}, {{T3, x2}, 129.2114006614102},
         {{T3, x3}, 120.98161115920557}};
     std::map<std::tuple<double, double>, double> ref_S = {
         {{T1, x1}, 70.12285643892892}, {{T1, x2}, 44.776311261247045},

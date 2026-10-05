@@ -1,3 +1,3 @@
 # Shared by the local formatter and the GitHub formatting check.
 clang-format==23.1.2
-black==26.5.1
+black==26.3.1

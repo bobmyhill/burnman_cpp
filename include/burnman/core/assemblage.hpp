@@ -327,6 +327,10 @@ protected:
   Eigen::VectorXd compute_reaction_affinities() const;
 
 private:
+  // Seismic bulk modulus uses the selected averaging scheme; thermodynamic
+  // Reuss moduli are computed from summed Gibbs derivatives instead.
+  double compute_effective_isentropic_bulk_modulus() const;
+
   // Vector of pointers to phases in the assemblage
   std::vector<std::shared_ptr<Material>> phases;
 

@@ -130,7 +130,8 @@ void Assemblage::set_fractions(const Eigen::ArrayXd &fractions,
 void Assemblage::set_fractions(std::initializer_list<double> fractions,
                                const types::FractionType fraction_type) {
   this->set_fractions(
-      Eigen::Map<const Eigen::ArrayXd>(fractions.begin(), fractions.size()),
+      Eigen::Map<const Eigen::ArrayXd>(
+          fractions.begin(), static_cast<Eigen::Index>(fractions.size())),
       fraction_type);
 }
 
@@ -259,14 +260,25 @@ double Assemblage::compute_molar_enthalpy() const {
 }
 
 double Assemblage::compute_isothermal_bulk_modulus_reuss() const {
-  Eigen::ArrayXd V_frac = get_volume_fractions();
+  Eigen::ArrayXd volumes = get_volume_fractions();
   Eigen::ArrayXd K_ph =
       map_phases_to_array(&Material::get_isothermal_bulk_modulus_reuss);
-  Eigen::ArrayXd G_ph = map_phases_to_array(&Material::get_shear_modulus);
-  return averaging_scheme->average_bulk_moduli(V_frac, K_ph, G_ph);
+  // -d2G/dP2 = sum(x_i V_i/K_Ti), independent of seismic averaging.
+  return volumes.sum() / (volumes / K_ph).sum();
 }
 
 double Assemblage::compute_isentropic_bulk_modulus_reuss() const {
+  // Phases remain at a common temperature during isentropic compression.
+  const double K_T = get_isothermal_bulk_modulus_reuss();
+  if (get_temperature() == 0.0) {
+    return K_T;
+  }
+  const double alpha = get_thermal_expansivity();
+  return K_T / (1.0 - alpha * alpha * K_T * get_temperature() *
+                          get_molar_volume() / get_molar_heat_capacity_p());
+}
+
+double Assemblage::compute_effective_isentropic_bulk_modulus() const {
   Eigen::ArrayXd V_frac = get_volume_fractions();
   Eigen::ArrayXd K_ph =
       map_phases_to_array(&Material::get_isentropic_bulk_modulus_reuss);
@@ -293,13 +305,13 @@ double Assemblage::compute_shear_modulus() const {
 // TODO: think about redunancy/replication with `Solution::compute_p_wave...'
 double Assemblage::compute_p_wave_velocity() const {
   constexpr double FOUR_THIRDS = 4.0 / 3.0;
-  return std::sqrt((get_isentropic_bulk_modulus_reuss() +
+  return std::sqrt((compute_effective_isentropic_bulk_modulus() +
                     FOUR_THIRDS * get_shear_modulus()) /
                    get_density());
 }
 
 double Assemblage::compute_bulk_sound_velocity() const {
-  return std::sqrt(get_isentropic_bulk_modulus_reuss() / get_density());
+  return std::sqrt(compute_effective_isentropic_bulk_modulus() / get_density());
 }
 
 double Assemblage::compute_shear_wave_velocity() const {
@@ -319,9 +331,8 @@ double Assemblage::compute_thermal_expansivity() const {
 }
 
 double Assemblage::compute_molar_heat_capacity_v() const {
-  Eigen::ArrayXd c_v =
-      map_phases_to_array(&Material::get_molar_heat_capacity_v);
-  return averaging_scheme->average_heat_capacity_v(molar_fractions, c_v);
+  return get_molar_heat_capacity_p() * get_isothermal_bulk_modulus_reuss() /
+         get_isentropic_bulk_modulus_reuss();
 }
 
 double Assemblage::compute_molar_heat_capacity_p() const {

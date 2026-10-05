@@ -30,12 +30,16 @@ namespace roots {
  * @param bm_params Parameter object for the GSL functor.
  * @param x_lo Low limit of starting interval.
  * @param x_hi High limit of starting interval.
+ * @param atol Absolute interval tolerance in the units of x.
+ * @param rtol Relative interval tolerance.
  *
  * @return root x at f(x) = 0
  */
 template <typename SolverParamsType>
 double brent(double (*gsl_wrapper)(double, void *),
-             SolverParamsType gsl_wrapper_params, double x_lo, double x_hi) {
+             SolverParamsType gsl_wrapper_params, double x_lo, double x_hi,
+             double atol = constants::precision::abs_tolerance,
+             double rtol = constants::precision::rel_tolerance_eps) {
   // Find root in [P(V) - P] to find V that fits P
   // Set up GSL function object and params
   gsl_function obj_func;
@@ -53,6 +57,7 @@ double brent(double (*gsl_wrapper)(double, void *),
   int solver_set_status = gsl_root_fsolver_set(solver, &obj_func, x_lo, x_hi);
   if (solver_set_status != GSL_SUCCESS) {
     gsl_root_fsolver_free(solver);
+    gsl_set_error_handler(old_handler);
     throw std::runtime_error(std::string("Failed to initialise brent solver: "
                                          "invalid interval or function.") +
                              "Interval: [" + std::to_string(x_lo) + ", " +
@@ -63,8 +68,6 @@ double brent(double (*gsl_wrapper)(double, void *),
   int maxiter = 100;
   int status;
   double root;
-  double atol = constants::precision::abs_tolerance;
-  double rtol = constants::precision::rel_tolerance_eps;
   do {
     iter++;
     status = gsl_root_fsolver_iterate(solver);

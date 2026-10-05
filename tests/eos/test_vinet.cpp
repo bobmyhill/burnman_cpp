@@ -7,6 +7,8 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
+// Numerical snapshots: Python BurnMan 69e700647ae7efeed91dfbce147c036bce619516.
+// Reproduce with tools/check_reference_data.py; see docs/reference_data.md.
 #include "burnman/eos/vinet.hpp"
 #include "burnman/utils/types/mineral_params.hpp"
 #include "tolerances.hpp"
@@ -72,6 +74,10 @@ TEST_CASE("Check reference volume", "[vinet][eos]") {
   auto T = GENERATE(300.0, 2000.0);
   double V = *params.V_0;
   eos::Vinet vinet;
+  // EOS calculations require validated parameters, including the E_0 default.
+  vinet.validate_parameters(params);
+  REQUIRE(params.E_0.has_value());
+  REQUIRE(*params.E_0 == 0.0);
   CHECK_THAT(vinet.compute_isothermal_bulk_modulus_reuss(P, T, V, params),
              WithinRel(*params.K_0, tol_rel) ||
                  WithinAbs(*params.K_0, tol_abs));
@@ -152,7 +158,7 @@ TEST_CASE("Vinet python reference values", "[vinet][eos]") {
     double P = 0.0;
     double T = 300.0;
     auto test_data = GENERATE(
-        TestData{0.990, 1649261647.56626, 167226180887.78818, 91.947133283917},
+        TestData{0.990, 1649261647.56626, 167226180887.78818, 91.9471332840195},
         TestData{0.98, 3379601215.972409, 173674689377.5619, 373.79147656404},
         TestData{0.95, 9098123097.310312, 194449338236.78143,
                  2454.3925457405157},

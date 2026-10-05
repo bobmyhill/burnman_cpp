@@ -229,10 +229,10 @@ void DampedNewtonSolver::lagrangian_walk_along_constraints(
       inact_ind_temp.push_back(i);
     }
   }
-  Eigen::VectorXi active_constraint_indices =
-      Eigen::Map<Eigen::VectorXi>(act_ind_temp.data(), act_ind_temp.size());
-  Eigen::VectorXi inactive_constraint_indices =
-      Eigen::Map<Eigen::VectorXi>(inact_ind_temp.data(), inact_ind_temp.size());
+  Eigen::VectorXi active_constraint_indices = Eigen::Map<Eigen::VectorXi>(
+      act_ind_temp.data(), static_cast<Eigen::Index>(act_ind_temp.size()));
+  Eigen::VectorXi inactive_constraint_indices = Eigen::Map<Eigen::VectorXi>(
+      inact_ind_temp.data(), static_cast<Eigen::Index>(inact_ind_temp.size()));
   Eigen::VectorXd x_n = state.x + state.dx;
   Eigen::VectorXd c_newton =
       evaluate_constraints(x_n, state)(active_constraint_indices);
@@ -251,7 +251,8 @@ void DampedNewtonSolver::lagrangian_walk_along_constraints(
         }
       }
       Eigen::VectorXi potential_active_indices = Eigen::Map<Eigen::VectorXi>(
-          p_act_ind_temp.data(), p_act_ind_temp.size());
+          p_act_ind_temp.data(),
+          static_cast<Eigen::Index>(p_act_ind_temp.size()));
       c_newton = evaluate_constraints(state.x + state.dx,
                                       state)(potential_active_indices);
       c_A = (state.linear_constraints.first)(potential_active_indices,

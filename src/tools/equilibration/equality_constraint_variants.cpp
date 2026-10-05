@@ -238,11 +238,12 @@ Eigen::VectorXd EntropyConstraint::derivative(const Eigen::VectorXd &x,
       auto ph = assemblage.get_phase<Solution>(k);
       // could do: auto ph  = std::static_pointer_cast<Solution>(phase); (with
       // phase stored)
-      row.segment(j + 1, n - 1) = assemblage.get_n_moles() *
-                                  assemblage.get_molar_fractions()(k) *
-                                  (ph->get_partial_entropies().tail(n - 1) -
-                                   ph->get_partial_entropies()(0))
-                                      .matrix();
+      row.segment(j + 1, n - 1) =
+          assemblage.get_n_moles() *
+          assemblage.get_molar_fractions()(static_cast<Eigen::Index>(k)) *
+          (ph->get_partial_entropies().tail(n - 1) -
+           ph->get_partial_entropies()(0))
+              .matrix();
     }
     j += n;
   }
@@ -266,7 +267,8 @@ Eigen::VectorXd VolumeConstraint::derivative(const Eigen::VectorXd &x
     if (n > 1) {
       auto ph = assemblage.get_phase<Solution>(k);
       row.segment(j + 1, n - 1) =
-          assemblage.get_n_moles() * assemblage.get_molar_fractions()(k) *
+          assemblage.get_n_moles() *
+          assemblage.get_molar_fractions()(static_cast<Eigen::Index>(k)) *
           (ph->get_partial_volumes().tail(n - 1) - ph->get_partial_volumes()(0))
               .matrix();
     }

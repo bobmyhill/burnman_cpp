@@ -1,6 +1,24 @@
 import pytest
+from importlib.util import find_spec
+from pathlib import Path
+import runpy
 
 import burnman_cpp as bm
+
+
+def pytest_sessionstart(session):
+    """Prevent optional comparisons from silently using another BurnMan version."""
+    if find_spec("burnman") is None:
+        return
+    import burnman
+
+    helper = runpy.run_path(
+        str(Path(__file__).resolve().parents[2] / "tools/burnman_reference.py")
+    )
+    try:
+        helper["verify_reference"](burnman)
+    except RuntimeError as exc:
+        raise pytest.UsageError(str(exc)) from exc
 
 
 def oxide_params(element="Mg", energy_shift=0.0):

@@ -3,6 +3,10 @@ import timeit
 import statistics
 import csv
 import burnman as bm
+import argparse
+from pathlib import Path
+
+DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parents[1] / "build" / "benchmarks"
 
 
 def make_mineral_benchmarks(test_mineral):
@@ -94,7 +98,7 @@ def run_benchmarks(test_mineral, repeat=5, number=100):
     return results
 
 
-def mineral_property_benchmarks():
+def mineral_property_benchmarks(output_dir=DEFAULT_OUTPUT_DIR):
     # Mineral per property benchmarks
     eos_type = "mgd3"
     # Make params
@@ -138,7 +142,8 @@ def mineral_property_benchmarks():
     eos_map = {
         "mt": "MT",
         "vinet": "Vinet",
-        "bm3shear2": "BM3Shear2",
+        # C++ BM2 uses third-order compression and second-order shear.
+        "bm3shear2": "BM2",
         "bm3": "BM3",
         "mgd2": "MGD2",
         "mgd3": "MGD3",
@@ -166,7 +171,9 @@ def mineral_property_benchmarks():
     for eos in eos_tags:
         key = eos_map[eos]
         columns.extend([key, f"{key}_std"])
-    with open("python_mineral_benchmarks.csv", "w", newline="") as f:
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with (output_dir / "python_mineral_benchmarks.csv").open("w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(columns)
         for bench_name, vals in all_results.items():
@@ -213,7 +220,7 @@ def time_func(func, number=5, repeat=10000):
     return mean_ns, stdev_ns
 
 
-def assemblage_benchmarks():
+def assemblage_benchmarks(output_dir=DEFAULT_OUTPUT_DIR):
     # MgPv
     p_mgpv = {}
     p_mgpv["name"] = "MgSiO3 perovskite"
@@ -379,7 +386,7 @@ def assemblage_benchmarks():
         "get_isentropic_bulk_modulus_reuss": "isentropic_bulk_modulus_reuss",
         "get_isothermal_compressibility_reuss": "isothermal_compressibility_reuss",
         "get_isentropic_compressibility_reuss": "isentropic_compressibility_reuss",
-        "get_shear_modulus": "shear_modulus",
+        "get_shear_modulus": "effective_shear_modulus",
         "get_p_wave_velocity": "p_wave_velocity",
         "get_bulk_sound_velocity": "bulk_sound_velocity",
         "get_shear_wave_velocity": "shear_wave_velocity",
@@ -423,14 +430,19 @@ def assemblage_benchmarks():
 
         mean_ns, stdev_ns = time_func(wrapped, number=number, repeat=repeat)
         results.append((col_name, mean_ns, stdev_ns))
-    with open("python_assemblage_benchmarks.csv", "w", newline="") as f:
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with (output_dir / "python_assemblage_benchmarks.csv").open("w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["Benchmark", "Mean", "Std_dev"])
         writer.writerows(results)
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Time pure Python BurnMan properties.")
+    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
+    args = parser.parse_args()
     print("Running Mineral Property Benchmarks...")
-    mineral_property_benchmarks()
+    mineral_property_benchmarks(args.output_dir)
     print("Running Assemblage Benchmarks...")
-    assemblage_benchmarks()
+    assemblage_benchmarks(args.output_dir)

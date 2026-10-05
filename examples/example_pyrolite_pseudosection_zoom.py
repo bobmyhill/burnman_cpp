@@ -37,8 +37,10 @@ from burnman_cpp.minerals import SLB_2024 as SLB
 PAPER_URL = "https://academic.oup.com/gji/article/237/3/1699/7640845"
 INITIAL_FERRIC_FRACTION = 0.03
 
-P_Pa = 25.0e9
-T_K = 2500.0
+P_Pa_low = 23.0e9
+P_Pa_high = 25.0e9
+T_K_low = 500.0
+T_K_high = 1500.0
 
 
 def pyrolite_composition(ferric_fraction=INITIAL_FERRIC_FRACTION):
@@ -169,8 +171,8 @@ def calculate(seeds=9, quick=False, verbose=False):
     return bm.pseudosection(
         PYROLITE_COMPOSITION.atomic_composition,
         candidate_phases(),
-        (0.0, P_Pa),
-        (0.0, T_K),
+        (P_Pa_low, P_Pa_high),
+        (T_K_low, T_K_high),
         settings(seeds, quick, verbose),
     )
 
@@ -206,8 +208,8 @@ def save_json(result, path):
         dataset_source=PAPER_URL,
         initial_ferric_fraction=INITIAL_FERRIC_FRACTION,
         solid_only=True,
-        display_pressure_range_GPa=[0.0, P_Pa / 1.0e9],
-        display_temperature_range_K=[0.0, T_K],
+        display_pressure_range_GPa=[P_Pa_low / 1.0e9, P_Pa_high / 1.0e9],
+        display_temperature_range_K=[T_K_low, T_K_high],
     )
     path.write_text(json.dumps(data, indent=2, allow_nan=False))
 
@@ -230,8 +232,8 @@ def plot(result, path, label_fontsize=7.0):
     if ax.get_legend() is not None:
         ax.get_legend().set_bbox_to_anchor((0.0, -0.11))
     ax.set(
-        xlim=(0, T_K),
-        ylim=(0, P_Pa / 1.0e9),
+        xlim=(T_K_low, T_K_high),
+        ylim=(P_Pa_low / 1.0e9, P_Pa_high / 1.0e9),
         xlabel="Temperature (K)",
         ylabel="Pressure (GPa)",
         title="Pyrolite, 3% Fe³⁺/ΣFe on a no metal-basis",
@@ -305,7 +307,7 @@ def main():
         help="Resume unfinished lines from saved successful equilibrium states in C++.",
     )
     parser.add_argument(
-        "--output-dir", type=Path, default=Path("pyrolite_pseudosection_output")
+        "--output-dir", type=Path, default=Path("pyrolite_pseudosection_zoom_output")
     )
     args = parser.parse_args()
     if args.plot_json:

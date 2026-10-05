@@ -7,6 +7,8 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
+// Numerical snapshots: Python BurnMan 69e700647ae7efeed91dfbce147c036bce619516.
+// Reproduce with tools/check_reference_data.py; see docs/reference_data.md.
 #include "burnman/core/solution.hpp"
 #include "burnman/core/solution_model.hpp"
 #include "burnman/utils/types/simple_types.hpp"
@@ -77,39 +79,39 @@ TEST_CASE_METHOD(BridgmaniteFixture, "Test interface", "[core][solution]") {
 
 TEST_CASE_METHOD(BridgmaniteFixture, "Test reference values",
                  "[core][solution]") {
-  // Reference data
   // Solution functions
   double ref_excess_gibbs = -10757.973872013106;
   double ref_excess_volume = 0.0;
   double ref_excess_entropy = 5.378986936006553;
   double ref_excess_enthalpy = 0.0;
   Eigen::ArrayXd ref_activities(3);
-  ref_activities << 0.836, 0.0665, 0.0025;
+  ref_activities << 0.836, 0.0665, 0.0025000000000000005;
   Eigen::ArrayXd ref_activity_coefficients(3);
-  ref_activity_coefficients << 1., 1., 1.;
+  ref_activity_coefficients << 1.0, 1.0, 1.0;
   Eigen::ArrayXd ref_excess_partial_gibbs(3);
   ref_excess_partial_gibbs << -2978.683935037304, -45073.58869554721,
       -99631.61600983949;
   Eigen::ArrayXd ref_excess_partial_volumes(3);
-  ref_excess_partial_volumes << 0., 0., 0.;
+  ref_excess_partial_volumes << 0.0, 0.0, 0.0;
   Eigen::ArrayXd ref_excess_partial_entropies(3);
-  ref_excess_partial_entropies << 1.48934196751865, 22.5367943477736,
-      49.81580800491975;
+  ref_excess_partial_entropies << 1.4893419675186519, 22.536794347773604,
+      49.815808004919745;
   Eigen::ArrayXd ref_partial_gibbs(3);
-  ref_partial_gibbs << -740818.9553017676, -429520.9819551775,
+  ref_partial_gibbs << -740818.9553017678, -429520.98195517773,
       -988122.8420793302;
   Eigen::ArrayXd ref_partial_entropies(3);
-  ref_partial_entropies << 250.55024892868906, 277.1966162401331,
-      301.75523166155415;
+  ref_partial_entropies << 250.5502490938234, 277.19661697059763,
+      301.75523194572224;
   Eigen::MatrixXd ref_gibbs_hessian(3, 3);
   ref_gibbs_hessian << 3142.787305426345, -15753.718644921928,
       -33257.85047261296, -15753.718644921928, 221802.3561594563,
       -33257.85047261296, -33257.85047261296, -33257.85047261296,
       631899.1589796463;
   Eigen::MatrixXd ref_entropy_hessian(3, 3);
-  ref_entropy_hessian << -1.57139365271317, 7.87685932246096, 16.62892523630648,
-      7.87685932246096, -110.90117807972815, 16.62892523630648,
-      16.62892523630648, 16.62892523630648, -315.9495794898231;
+  ref_entropy_hessian << -1.5713936527131724, 7.876859322460964,
+      16.62892523630648, 7.876859322460964, -110.90117807972815,
+      16.62892523630648, 16.62892523630648, 16.62892523630648,
+      -315.9495794898231;
   Eigen::MatrixXd ref_volume_hessian =
       Eigen::MatrixXd::Zero(3, 3); // DO ISZERO INSTEAD
   // Composite Material functions
@@ -119,35 +121,37 @@ TEST_CASE_METHOD(BridgmaniteFixture, "Test reference values",
   std::vector<Eigen::Index> ref_independent_element_indices = {0, 1, 2};
   std::vector<Eigen::Index> ref_dependent_element_indices = {3, 4};
   Eigen::MatrixXd ref_stoichiometric_matrix(3, 5);
-  ref_stoichiometric_matrix << 1, 0, 0, 1, 3, 0, 1, 0, 1, 3, 0, 0, 2, 0, 3;
+  ref_stoichiometric_matrix << 1.0, 0.0, 0.0, 1.0, 3.0, 0.0, 1.0, 0.0, 1.0, 3.0,
+      0.0, 0.0, 2.0, 0.0, 3.0;
   Eigen::MatrixXd ref_compositional_basis(3, 3);
-  ref_compositional_basis << 1., 0., 0., 0., 1., 0., 0., 0., 1.;
+  ref_compositional_basis << 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0;
   Eigen::MatrixXd ref_compositional_null_basis(2, 5);
-  ref_compositional_null_basis << -1, -1, 0, 1, 0, -3, -3, -1.5, 0, 1;
+  ref_compositional_null_basis << -1.0, -1.0, 0.0, 1.0, 0.0, -3.0, -3.0, -1.5,
+      0.0, 1.0;
   Eigen::MatrixXd ref_reaction_basis(0, 3);
   // ref_reaction_basis << []; // ? Check what to do here....
   //  Material functions
-  double ref_molar_internal_energy = -1118021.6956653593;
-  double ref_molar_gibbs = -731393.2915063845;
-  double ref_molar_helmholtz = -1627973.183219626;
+  double ref_molar_internal_energy = -1118021.6963208097;
+  double ref_molar_gibbs = -731393.2915063847;
+  double ref_molar_helmholtz = -1627973.1842963947;
   double ref_molar_mass = 0.102675125;
-  double ref_molar_volume = 2.2414497292831042e-05;
-  double ref_density = 4580.746275886329;
-  double ref_molar_entropy = 254.97574377713337;
-  double ref_molar_enthalpy = -221441.80395211757;
-  double ref_isothermal_bulk_modulus_reuss = 359295734163.2916;
-  double ref_isentropic_bulk_modulus_reuss = 381900523901.2901;
-  double ref_isothermal_compressibility_reuss = 2.783222579385045e-12;
-  double ref_isentropic_compressibility_reuss = 2.618482922685045e-12;
-  double ref_shear_modulus = 193760526087.90207;
-  double ref_p_wave_velocity = 11822.408460993425;
-  double ref_bulk_sound_velocity = 9130.761700467749;
-  double ref_shear_wave_velocity = 6503.76040770877;
-  double ref_grueneisen_parameter = 1.4347327542714985;
-  double ref_thermal_expansivity = 2.1925393775858323e-05;
-  double ref_molar_heat_capacity_v = 123.07148837536111;
-  double ref_molar_heat_capacity_p = 130.81442783426158;
-  double ref_isentropic_thermal_gradient = 7.513646431353596e-09;
+  double ref_molar_volume = 2.241449731975025e-05;
+  double ref_density = 4580.746270384976;
+  double ref_molar_entropy = 254.97574398779255;
+  double ref_molar_enthalpy = -221441.8035307995;
+  double ref_isothermal_bulk_modulus_reuss = 359295732518.51135;
+  double ref_isentropic_bulk_modulus_reuss = 381900522278.24774;
+  double ref_isothermal_compressibility_reuss = 2.7832225921260526e-12;
+  double ref_isentropic_compressibility_reuss = 2.6184829338133582e-12;
+  double ref_shear_modulus = 193760525424.63242;
+  double ref_p_wave_velocity = 11822.408444942579;
+  double ref_bulk_sound_velocity = 9130.761686548198;
+  double ref_shear_wave_velocity = 6503.760400482546;
+  double ref_grueneisen_parameter = 1.434732755790773;
+  double ref_thermal_expansivity = 2.1925393874095368e-05;
+  double ref_molar_heat_capacity_v = 123.07148838087139;
+  double ref_molar_heat_capacity_p = 130.81442788301007;
+  double ref_isentropic_thermal_gradient = 7.513646471242295e-09;
 
   // Make solution
   Solution bdg;
@@ -164,9 +168,9 @@ TEST_CASE_METHOD(BridgmaniteFixture, "Test reference values",
   CHECK_THAT(bdg.get_excess_entropy(),
              WithinRel(ref_excess_entropy, tol_rel) ||
                  WithinAbs(ref_excess_entropy, tol_abs));
-  CHECK_THAT(bdg.get_excess_enthalpy(),
-             WithinRel(ref_excess_enthalpy, tol_rel) ||
-                 WithinAbs(ref_excess_enthalpy, tol_abs));
+  CHECK_THAT(
+      bdg.get_excess_enthalpy(),
+      WithinAbs(ref_excess_enthalpy, roundoff_tolerance(ref_excess_gibbs)));
   CHECK_THAT(bdg.get_molar_internal_energy(),
              WithinRel(ref_molar_internal_energy, tol_rel) ||
                  WithinAbs(ref_molar_internal_energy, tol_abs));

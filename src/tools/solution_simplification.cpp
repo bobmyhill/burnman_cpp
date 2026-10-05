@@ -219,9 +219,11 @@ std::shared_ptr<Material> transform_solution_to_new_basis(
     }
     Eigen::MatrixXd b = regular->get_alphas().matrix().asDiagonal() *
                         basis.transpose() * alphas.cwiseInverse().asDiagonal();
-    qe = b.transpose() * regular->get_energy_interactions() * b;
-    qs = b.transpose() * regular->get_entropy_interactions() * b;
-    qv = b.transpose() * regular->get_volume_interactions() * b;
+    // Materialize the first product before applying the second basis factor.
+    // This also avoids GCC's uninitialized temporary warning for lazy products.
+    qe = (b.transpose() * regular->get_energy_interactions()).eval() * b;
+    qs = (b.transpose() * regular->get_entropy_interactions()).eval() * b;
+    qv = (b.transpose() * regular->get_volume_interactions()).eval() * b;
     corrections.col(0) = qe.diagonal().cwiseProduct(alphas);
     corrections.col(1) = qs.diagonal().cwiseProduct(alphas);
     corrections.col(2) = qv.diagonal().cwiseProduct(alphas);

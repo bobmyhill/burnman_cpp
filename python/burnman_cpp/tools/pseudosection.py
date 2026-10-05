@@ -23,7 +23,7 @@ def plot_pseudosection(
     fill_alpha=0.75,
     line_color="black",
     line_width=0.9,
-    show_nodes=True,
+    show_nodes=False,
     show_unresolved=True,
     close_domain=True,
     merge_fields=True,

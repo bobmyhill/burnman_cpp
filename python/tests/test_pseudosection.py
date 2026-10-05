@@ -6,6 +6,7 @@ import runpy
 import numpy as np
 import pytest
 import burnman_cpp as bm
+from conftest import make_model
 from burnman_cpp.minerals import (
     HP_2011_ds62 as HP,
     mb50NCKFMASHTO as MB,
@@ -155,6 +156,26 @@ def test_settings_dictionary_rejects_unknown_options():
         bm.PseudosectionSettings.from_dict({"minimum_step": 1.0e-7})
 
 
+def test_verified_closed_fields_count_as_resolved_when_edge_labels_are_stale():
+    bulk = {"Mg": 1.0, "Fe": 1.0, "O": 2.0}
+    previous = bm.pseudosection(
+        bulk, crossing_phases(), (0.0, 2e9), (600.0, 1400.0), settings()
+    ).to_dict()
+    labels = [f["phases"] for f in previous["fields"][:2]]
+    for line in previous["boundaries"]:
+        line["side_a"], line["side_b"] = labels
+    previous["samples"] = previous["fields"] = []
+    opts = settings()
+    opts.max_lines = 4
+    opts.max_recovery_passes = 0
+    result = bm.refine_pseudosection(bulk, crossing_phases(), previous, opts)
+    assert not any("No field edge" in d for d in result.diagnostics)
+    polygons = bm.pseudosection_field_polygons(result, merge_fields=False)
+    assert len(polygons.polygons) == 4
+    assert all(p.n_phases == 2 and p.phases for p in polygons.polygons)
+    assert len({tuple(p.phases) for p in polygons.polygons}) == 4
+
+
 @pytest.mark.parametrize("case_index", range(3))
 def test_metasediment_phase_entry_recovers_verified_junction(case_index):
     """Real failures: a solvus, a polymorph swap and a solution entering."""
@@ -224,7 +245,7 @@ def test_metasediment_phase_entry_recovers_verified_junction(case_index):
 )
 def test_basalt_fixed_pt_drops_blocked_zero_amount_phase(pressure, temperature, absent):
     example = runpy.run_path(
-        str(Path(__file__).parents[2] / "examples" / "example_pseudosection.py")
+        str(Path(__file__).parents[2] / "examples" / "example_basalt_pseudosection.py")
     )
     state = bm.stable_equilibrium(
         example["BASALT_COMPOSITION"].atomic_composition,
@@ -338,7 +359,10 @@ def test_water_eos_thermodynamic_derivatives_and_gas_limit():
 def test_basalt_setup_exact_water_and_native_stable_state(pressure, temperature):
     reference_loaded = "burnman" in sys.modules
     example = runpy.run_path(
-        str(Path(__file__).resolve().parents[2] / "examples/example_pseudosection.py")
+        str(
+            Path(__file__).resolve().parents[2]
+            / "examples/example_basalt_pseudosection.py"
+        )
     )
     oxides = example["BASALT_OXIDES"]
     assert sum(oxides.values()) == 100.0
@@ -440,6 +464,19 @@ def test_stability_of_bulk_on_a_chemical_face():
     state = bm.stable_equilibrium({"Mg": 1.0, "O": 1.0}, crossing_phases(), 5e8, 800.0)
     assert state.success, state.message
     assert [p.name for p in state.phases] == ["A low"]
+
+
+@pytest.mark.parametrize("temperature", [0.0, 0.05, 0.1])
+def test_cold_ideal_solution_has_one_mass_balanced_composition(temperature):
+    phase = bm.Solution(make_model(), [0.4, 0.6], name="oxide")
+    state = bm.stable_equilibrium(
+        {"Mg": 0.4, "Fe": 0.6, "O": 1.0}, [phase], 1.0e9, temperature
+    )
+    assert state.success, state.message
+    assert len(state.phases) == 1
+    assert state.phases[0].amount == pytest.approx(1.0, abs=1.0e-9)
+    np.testing.assert_allclose(state.phases[0].composition, [0.4, 0.6], atol=1.0e-9)
+    assert state.mass_balance_error < 1.0e-9
 
 
 def test_stability_finds_two_solution_instances_and_merges_above_solvus():
@@ -568,7 +605,10 @@ def test_two_solvus_arms_close_at_composition_critical_point(alphas, tmp_path):
     import json
 
     example = runpy.run_path(
-        str(Path(__file__).resolve().parents[2] / "examples/example_pseudosection.py")
+        str(
+            Path(__file__).resolve().parents[2]
+            / "examples/example_basalt_pseudosection.py"
+        )
     )
     path = tmp_path / "critical.json"
     example["save_json"](r, path)

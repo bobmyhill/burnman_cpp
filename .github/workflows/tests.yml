@@ -45,7 +45,7 @@ jobs:
       - name: Build C++ tests
         run: cmake --build build/ci-cpp --parallel 2
 
-      - name: Run C++ tests (excluding benchmarks)
+      - name: Run C++ unit tests
         run: ctest --test-dir build/ci-cpp --output-on-failure
 
   python:

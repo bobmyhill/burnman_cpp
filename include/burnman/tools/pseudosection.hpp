@@ -61,6 +61,8 @@ struct BoundaryPoint {
 
 struct Boundary {
   int id = -1, zero_phase = -1, start_node = -1, end_node = -1;
+  // Verified exchange of distinct solution compositions at unchanged counts.
+  bool is_solution_replacement = false;
   std::vector<int> assemblage, side_a, side_b;
   std::vector<BoundaryPoint> points;
   std::string termination;

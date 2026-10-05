@@ -7,6 +7,8 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
+// Numerical snapshots: Python BurnMan 69e700647ae7efeed91dfbce147c036bce619516.
+// Reproduce with tools/check_reference_data.py; see docs/reference_data.md.
 #include "burnman/eos/components/excess_params.hpp"
 #include "burnman/eos/components/property_modifiers.hpp"
 #include "tolerances.hpp"
@@ -241,7 +243,10 @@ TEST_CASE("Test Bragg-Williams", "[prop_mod][eos]") {
     double T = 2000.0;
     double G_ref = -12442.06822926073;
     double dGdT_ref = -9.221034114634676;
-    double dGdP_ref = 1.0000000111176633e-07;
+    // At Q=0 the exact pressure derivative is the disordering volume.
+    double dGdP_ref = params.deltaV;
+    // The central difference subtracts G values across a 1000 Pa step.
+    double dGdP_roundoff = roundoff_tolerance(G_ref) / 1000.0;
     double d2GdT2_ref = 0.0;
     double d2GdP2_ref = 0.0;
     double d2GdPdT_ref = 0.0;
@@ -251,8 +256,8 @@ TEST_CASE("Test Bragg-Williams", "[prop_mod][eos]") {
                WithinRel(G_ref, tol_rel) || WithinAbs(G_ref, tol_abs));
     CHECK_THAT(calc_excess.dGdT,
                WithinRel(dGdT_ref, tol_rel) || WithinAbs(dGdT_ref, tol_abs));
-    CHECK_THAT(calc_excess.dGdP,
-               WithinRel(dGdP_ref, tol_rel) || WithinAbs(dGdP_ref, tol_abs));
+    CHECK_THAT(calc_excess.dGdP, WithinRel(dGdP_ref, tol_rel) ||
+                                     WithinAbs(dGdP_ref, dGdP_roundoff));
     CHECK_THAT(calc_excess.d2GdT2, WithinRel(d2GdT2_ref, tol_rel) ||
                                        WithinAbs(d2GdT2_ref, tol_abs));
     CHECK_THAT(calc_excess.d2GdP2, WithinRel(d2GdP2_ref, tol_rel) ||
@@ -269,9 +274,9 @@ TEST_CASE("Test Magnetic Chs", "[prop_mod][eos]") {
     double G_ref = -14069.155333136323;
     double dGdT_ref = 19.194307974919088;
     double dGdP_ref = -2.2610537234163914e-07;
-    double d2GdT2_ref = -0.0068214881170452;
+    double d2GdT2_ref = -0.006821488117045222;
     double d2GdP2_ref = -9.82760289180444e-19;
-    double d2GdPdT_ref = 9.425343695892169e-11;
+    double d2GdPdT_ref = 9.425343695892178e-11;
     eos::excesses::MagneticChsParams params = {0.4, 800.0, 1.0e-8, 2.2,
                                                1.0e-10};
     eos::excesses::Excesses calc_excess =
@@ -291,11 +296,11 @@ TEST_CASE("Test Magnetic Chs", "[prop_mod][eos]") {
   }
   SECTION("Magnetic Chs B") {
     double G_ref = -21582.56374006573;
-    double dGdT_ref = 20.218806497890633;
-    double dGdP_ref = -2.5337465107094005e-07;
-    double d2GdT2_ref = -0.003710226214794699;
-    double d2GdP2_ref = -7.123458198725806e-19;
-    double d2GdPdT_ref = 7.62289687062366e-11;
+    double dGdT_ref = 20.218806497890625;
+    double dGdP_ref = -2.5337465107094e-07;
+    double d2GdT2_ref = -0.003710226214794708;
+    double d2GdP2_ref = -7.123458198725801e-19;
+    double d2GdPdT_ref = 7.622896870623661e-11;
     eos::excesses::MagneticChsParams params = {0.4, 1200.0, 1.0e-8, 2.2,
                                                1.0e-10};
     eos::excesses::Excesses calc_excess =

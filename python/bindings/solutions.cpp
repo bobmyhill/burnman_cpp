@@ -44,10 +44,10 @@ void check_interactions(const Interactions &interactions, std::size_t size,
 
 void bind_solutions(py::module_ &m) {
   using namespace solution_models;
-  auto model = py::class_<SolutionModel, std::shared_ptr<SolutionModel>>(
+  auto model_class = py::class_<SolutionModel, std::shared_ptr<SolutionModel>>(
       m, "SolutionModel");
 #define MODEL_PROPERTY(name)                                                   \
-  model.def_property_readonly(                                                 \
+  model_class.def_property_readonly(                                           \
       #name, [](const SolutionModel &self) { return self.get_##name(); })
   MODEL_PROPERTY(n_endmembers);
   MODEL_PROPERTY(n_sites);
@@ -59,7 +59,7 @@ void bind_solutions(py::module_ &m) {
   MODEL_PROPERTY(sites);
 #undef MODEL_PROPERTY
 #define MODEL_COMPUTE(name)                                                    \
-  model.def(                                                                   \
+  model_class.def(                                                             \
       #name,                                                                   \
       [](const SolutionModel &self, double pressure, double temperature,       \
          const Eigen::ArrayXd &fractions) {                                    \

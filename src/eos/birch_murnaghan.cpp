@@ -61,8 +61,8 @@ double BM3::compute_volume(double pressure, double temperature [[maybe_unused]],
   // Set a, b limits
   double x_lo = 0.1 * (*params.V_0);
   double x_hi = 1.5 * (*params.V_0);
-  double volume_root =
-      optim::roots::brent(&bm_gsl_wrapper, bm_params, x_lo, x_hi);
+  double volume_root = optim::roots::brent(&bm_gsl_wrapper, bm_params, x_lo,
+                                           x_hi, 1.0e-18 * (*params.V_0));
   return volume_root;
 }
 

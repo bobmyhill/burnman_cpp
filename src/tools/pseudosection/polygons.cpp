@@ -1,5 +1,6 @@
 /* GPL v3 or later. Native planar faces for phase-count pseudosection plots. */
 #include "burnman/tools/pseudosection.hpp"
+#include "burnman/utils/index_utils.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -13,7 +14,9 @@
 namespace burnman::pseudosections {
 namespace {
 using Point = Eigen::Vector2d;
-using Ring = std::vector<int>;
+using Index = std::size_t;
+constexpr Index no_index = std::numeric_limits<Index>::max();
+using Ring = std::vector<Index>;
 using Phases = std::vector<int>;
 
 double cross(const Point &a, const Point &b) {
@@ -27,8 +30,8 @@ struct Segment {
 };
 
 struct Edge {
-  int from, to, next = -1;
-  std::set<Phases> labels;
+  Index from, to, next = no_index;
+  std::set<Phases> labels{};
 };
 
 struct Walk {
@@ -54,31 +57,31 @@ struct Hole {
 // Snap numerical duplicates, rather than connecting nearby unfinished traces.
 class Vertices {
   double tolerance;
-  std::map<std::pair<long long, long long>, std::vector<int>> bins;
+  std::map<std::pair<long long, long long>, std::vector<Index>> bins;
 
 public:
   std::vector<Point> points;
   explicit Vertices(double tol) : tolerance(tol) {}
-  int find(const Point &p) const {
-    long long x = std::floor(p.x() / tolerance),
-              y = std::floor(p.y() / tolerance);
+  Index find(const Point &p) const {
+    long long x = static_cast<long long>(std::floor(p.x() / tolerance)),
+              y = static_cast<long long>(std::floor(p.y() / tolerance));
     for (int dx = -1; dx <= 1; ++dx)
       for (int dy = -1; dy <= 1; ++dy) {
         auto it = bins.find({x + dx, y + dy});
         if (it != bins.end())
-          for (int index : it->second)
+          for (Index index : it->second)
             if ((points[index] - p).norm() <= tolerance)
               return index;
       }
-    return -1;
+    return no_index;
   }
-  int insert(const Point &p) {
-    int existing = find(p);
-    if (existing >= 0)
+  Index insert(const Point &p) {
+    Index existing = find(p);
+    if (existing != no_index)
       return existing;
-    long long x = std::floor(p.x() / tolerance),
-              y = std::floor(p.y() / tolerance);
-    int index = points.size();
+    long long x = static_cast<long long>(std::floor(p.x() / tolerance)),
+              y = static_cast<long long>(std::floor(p.y() / tolerance));
+    Index index = points.size();
     points.push_back(p);
     bins[{x, y}].push_back(index);
     return index;
@@ -96,7 +99,7 @@ double area(const Ring &ring, const std::vector<Point> &points) {
 
 double distance(const Point &p, const Point &a, const Point &b) {
   Point d = b - a;
-  double t = d.squaredNorm()
+  double t = d.squaredNorm() != 0.
                  ? std::clamp((p - a).dot(d) / d.squaredNorm(), 0., 1.)
                  : 0.;
   return (p - a - t * d).norm();
@@ -140,15 +143,7 @@ void intersect(Segment &first, Segment &second, double tolerance) {
   Point a = first.b - first.a, b = second.b - second.a,
         offset = second.a - first.a;
   double denominator = cross(a, b);
-  if (std::abs(denominator) > 1.e-14 * a.norm() * b.norm()) {
-    double t = cross(offset, b) / denominator,
-           u = cross(offset, a) / denominator;
-    double t_tol = tolerance / a.norm(), u_tol = tolerance / b.norm();
-    if (t >= -t_tol && t <= 1. + t_tol && u >= -u_tol && u <= 1. + u_tol) {
-      first.cuts.push_back(std::clamp(t, 0., 1.));
-      second.cuts.push_back(std::clamp(u, 0., 1.));
-    }
-  } else if (std::abs(cross(a, offset)) <= tolerance * a.norm()) {
+  auto split_overlap = [&]() {
     // Collinear duplicate edges and domain-frame overlaps must be split
     // before merging. Otherwise the half-edge graph contains false faces.
     for (auto &p : {second.a, second.b}) {
@@ -161,23 +156,43 @@ void intersect(Segment &first, Segment &second, double tolerance) {
       if (u >= 0. && u <= 1.)
         second.cuts.push_back(u);
     }
-  }
+  };
+  // Repeated chords differ by roundoff. Dividing their tiny determinants can
+  // invent crossings; use coordinate precision here to retain real thin fields.
+  double roundoff =
+      std::min(tolerance, 256. * std::numeric_limits<double>::epsilon());
+  if (std::abs(cross(a, offset)) <= roundoff * a.norm() &&
+      std::abs(cross(a, second.b - first.a)) <= roundoff * a.norm() &&
+      std::abs(cross(b, -offset)) <= roundoff * b.norm() &&
+      std::abs(cross(b, first.b - second.a)) <= roundoff * b.norm()) {
+    split_overlap();
+  } else if (std::abs(denominator) > 1.e-14 * a.norm() * b.norm()) {
+    double t = cross(offset, b) / denominator,
+           u = cross(offset, a) / denominator;
+    double t_tol = tolerance / a.norm(), u_tol = tolerance / b.norm();
+    if (t >= -t_tol && t <= 1. + t_tol && u >= -u_tol && u <= 1. + u_tol) {
+      first.cuts.push_back(std::clamp(t, 0., 1.));
+      second.cuts.push_back(std::clamp(u, 0., 1.));
+    }
+  } else if (std::abs(cross(a, offset)) <= tolerance * a.norm())
+    split_overlap();
 }
 
-std::vector<Ring> rings(const std::vector<int> &walk) {
+std::vector<Ring> rings(const Ring &walk) {
   // A dangling branch is traversed twice. Remove its zero-area excursion,
   // retaining any actual exterior/hole cycles in the same face walk.
   std::vector<Ring> result;
   Ring stack;
-  std::map<int, int> positions;
-  for (int vertex : walk) {
+  std::map<Index, Index> positions;
+  for (Index vertex : walk) {
     auto it = positions.find(vertex);
     if (it == positions.end()) {
       positions[vertex] = stack.size();
       stack.push_back(vertex);
     } else {
-      int start = it->second;
-      Ring ring(stack.begin() + start, stack.end());
+      Index start = it->second;
+      Ring ring(stack.begin() + static_cast<Ring::difference_type>(start),
+                stack.end());
       ring.push_back(vertex);
       if (ring.size() >= 4)
         result.push_back(std::move(ring));
@@ -193,7 +208,8 @@ Eigen::MatrixXd coordinates(const Ring &ring, const std::vector<Point> &points,
                             const Point &origin, const Point &scale) {
   Eigen::MatrixXd output(ring.size(), 2);
   for (std::size_t i = 0; i < ring.size(); ++i)
-    output.row(i) = (origin + points[ring[i]].cwiseProduct(scale)).transpose();
+    output.row(static_cast<Eigen::Index>(i)) =
+        (origin + points[ring[i]].cwiseProduct(scale)).transpose();
   return output;
 }
 
@@ -214,7 +230,7 @@ std::pair<Point, double> label_point(const Face &face,
     return contains(face, points, p, 0.) ? d : -d;
   };
   Point low = points[face.exterior[0]], high = low;
-  for (int i : face.exterior) {
+  for (Index i : face.exterior) {
     low = low.cwiseMin(points[i]);
     high = high.cwiseMax(points[i]);
   }
@@ -402,7 +418,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
   if (close_domain) {
     std::array<Point, 5> corners{Point(0., 0.), Point(1., 0.), Point(1., 1.),
                                  Point(0., 1.), Point(0., 0.)};
-    for (int i = 1; i < 5; ++i)
+    for (Index i = 1; i < corners.size(); ++i)
       segments.push_back({corners[i - 1], corners[i], {}, {}});
   }
   std::vector<std::vector<Point>> excluded;
@@ -421,7 +437,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
 
   Vertices vertices(tolerance);
   std::vector<Edge> edges;
-  std::map<std::pair<int, int>, int> edge_index;
+  std::map<std::pair<Index, Index>, Index> edge_index;
   for (auto &segment : segments) {
     std::sort(segment.cuts.begin(), segment.cuts.end());
     segment.cuts.erase(
@@ -432,15 +448,15 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
                     }),
         segment.cuts.end());
     for (std::size_t i = 1; i < segment.cuts.size(); ++i) {
-      int a = vertices.insert(segment.a +
-                              segment.cuts[i - 1] * (segment.b - segment.a));
-      int b = vertices.insert(segment.a +
-                              segment.cuts[i] * (segment.b - segment.a));
+      Index a = vertices.insert(segment.a +
+                                segment.cuts[i - 1] * (segment.b - segment.a));
+      Index b = vertices.insert(segment.a +
+                                segment.cuts[i] * (segment.b - segment.a));
       if (a == b)
         continue;
       auto key = std::minmax(a, b);
       auto it = edge_index.find(key);
-      int index;
+      Index index;
       if (it == edge_index.end()) {
         index = edges.size();
         edges.push_back({a, b});
@@ -457,12 +473,12 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
         edges[index ^ 1].labels.insert(segment.right);
     }
   }
-  std::vector<std::vector<int>> outgoing(vertices.points.size());
+  std::vector<std::vector<Index>> outgoing(vertices.points.size());
   for (std::size_t i = 0; i < edges.size(); ++i)
     outgoing[edges[i].from].push_back(i);
-  std::vector<int> positions(edges.size());
+  std::vector<Index> positions(edges.size());
   for (auto &list : outgoing) {
-    std::sort(list.begin(), list.end(), [&](int a, int b) {
+    std::sort(list.begin(), list.end(), [&](Index a, Index b) {
       Point da = vertices.points[edges[a].to] - vertices.points[edges[a].from];
       Point db = vertices.points[edges[b].to] - vertices.points[edges[b].from];
       return std::atan2(da.y(), da.x()) < std::atan2(db.y(), db.x());
@@ -474,28 +490,55 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     auto &list = outgoing[edges[i].to];
     edges[i].next = list[(positions[i ^ 1] + list.size() - 1) % list.size()];
   }
+  auto in_cycle = [&](Index edge) {
+    std::vector<bool> seen(outgoing.size(), false);
+    std::vector<Index> pending{edges[edge].from};
+    seen[pending.front()] = true;
+    for (Index i = 0; i < pending.size(); ++i)
+      for (Index candidate : outgoing[pending[i]]) {
+        if (candidate / 2 == edge / 2)
+          continue;
+        Index next = edges[candidate].to;
+        if (next == edges[edge].to)
+          return true;
+        if (!seen[next]) {
+          seen[next] = true;
+          pending.push_back(next);
+        }
+      }
+    return false;
+  };
   std::vector<Walk> walks;
   std::vector<bool> visited(edges.size(), false);
+  bool finer = false;
   for (std::size_t start = 0; start < edges.size(); ++start)
     if (!visited[start]) {
       Walk walk;
-      std::vector<int> path;
-      std::set<int> traversed;
-      int current = start;
+      Ring path;
+      std::set<Index> traversed;
+      Index current = start;
       do {
         visited[current] = true;
-        if (traversed.count(current ^ 1))
+        if (traversed.count(current ^ 1)) {
           walk.dangling = true;
+          finer = finer || in_cycle(current);
+        }
         traversed.insert(current);
         path.push_back(edges[current].from);
         walk.labels.insert(edges[current].labels.begin(),
                            edges[current].labels.end());
         current = edges[current].next;
-      } while (current != static_cast<int>(start));
+      } while (current != start);
       path.push_back(edges[start].from);
       walk.rings = rings(path);
       walks.push_back(std::move(walk));
     }
+  // A cycle edge cannot border the same face on both sides in a planar graph.
+  // Snapping has crossed thin fields; retry more precisely. True dangling
+  // branches have no alternate path and retain their unresolved diagnostics.
+  if (finer && tolerance > 1.e-12)
+    return field_polygons(result, std::max(1.e-12, tolerance * .1),
+                          close_domain, merge_fields);
   std::vector<Face> faces;
   std::vector<Hole> holes;
   const double area_tolerance = tolerance * tolerance * 4.;
@@ -528,13 +571,13 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
   };
   for (auto &[ring, labels, dangling] : holes) {
     double hole_area = -area(ring, vertices.points);
-    int parent = -1;
+    Index parent = no_index;
     for (std::size_t i = 0; i < faces.size(); ++i)
       if (faces[i].area > hole_area + area_tolerance &&
           encloses(faces[i].exterior, ring) &&
-          (parent < 0 || faces[i].area < faces[parent].area))
+          (parent == no_index || faces[i].area < faces[parent].area))
         parent = i;
-    if (parent >= 0) {
+    if (parent != no_index) {
       faces[parent].holes.push_back(ring);
       faces[parent].labels.insert(labels.begin(), labels.end());
       faces[parent].dangling = faces[parent].dangling || dangling;
@@ -546,7 +589,8 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
   FieldPolygons output;
   for (auto &face : faces) {
     FieldPolygon polygon;
-    polygon.source_regions.push_back(output.polygons.size());
+    polygon.source_regions.push_back(
+        burnman::utils::checked_int(output.polygons.size()));
     polygon.has_open_boundary = face.dangling;
     polygon.area = face.area;
     polygon.vertices =
@@ -611,7 +655,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
       if (margin > clearance) {
         clearance = margin;
         sample_phases = canonical(phases);
-        polygon.sample_index = index;
+        polygon.sample_index = burnman::utils::checked_int(index);
       }
     }
     // Use the verified state furthest from the polygon boundary. Close to a
@@ -621,7 +665,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
         sample_phases.empty() ? face.labels : std::set<Phases>{sample_phases};
     std::set<int> counts;
     for (auto &phases : labels)
-      counts.insert(phases.size());
+      counts.insert(burnman::utils::checked_int(phases.size()));
     if (!face.dangling && counts.size() == 1) {
       polygon.n_phases = *counts.begin();
       if (labels.size() == 1) {
@@ -643,7 +687,8 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     }
     Point sample;
     if (polygon.sample_index >= 0) {
-      auto &state = result.samples[polygon.sample_index];
+      auto &state =
+          result.samples[static_cast<std::size_t>(polygon.sample_index)];
       sample = normalise(state.pressure, state.temperature);
     }
     auto label = label_point(face, vertices.points,
@@ -655,24 +700,24 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
   // Assign each directed edge to its face on the left. Hole rings have the
   // reverse winding and belong to the surrounding face. Zero-area dangling
   // excursions intentionally remain unassigned and cannot be dissolved.
-  std::vector<int> edge_faces(edges.size(), -1);
+  std::vector<Index> edge_faces(edges.size(), no_index);
   auto ring_edges = [&](const Ring &ring, auto action) {
     for (std::size_t j = 1; j < ring.size(); ++j) {
-      int edge = edge_index.at(std::minmax(ring[j - 1], ring[j]));
+      Index edge = edge_index.at(std::minmax(ring[j - 1], ring[j]));
       if (edges[edge].from != ring[j - 1])
         edge ^= 1;
       action(edge);
     }
   };
   for (std::size_t i = 0; i < faces.size(); ++i) {
-    auto assign = [&](int edge) { edge_faces[edge] = i; };
+    auto assign = [&](Index edge) { edge_faces[edge] = i; };
     ring_edges(faces[i].exterior, assign);
     for (auto &hole : faces[i].holes)
       ring_edges(hole, assign);
   }
-  std::vector<int> parent(faces.size());
-  std::iota(parent.begin(), parent.end(), 0);
-  auto root = [&](int i) {
+  std::vector<Index> parent(faces.size());
+  std::iota(parent.begin(), parent.end(), Index{0});
+  auto root = [&](Index i) {
     while (parent[i] != i) {
       parent[i] = parent[parent[i]];
       i = parent[i];
@@ -681,8 +726,8 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
   };
   if (merge_fields)
     for (std::size_t i = 0; i < edges.size(); i += 2) {
-      int a = edge_faces[i], b = edge_faces[i ^ 1];
-      if (a < 0 || b < 0 || a == b)
+      Index a = edge_faces[i], b = edge_faces[i ^ 1];
+      if (a == no_index || b == no_index || a == b)
         continue;
       auto &first = output.polygons[a];
       auto &second = output.polygons[b];
@@ -695,7 +740,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
       b = root(b);
       parent[std::max(a, b)] = std::min(a, b);
     }
-  std::map<int, std::vector<int>> groups;
+  std::map<Index, std::vector<Index>> groups;
   for (std::size_t i = 0; i < faces.size(); ++i)
     groups[root(i)].push_back(i);
   std::vector<bool> removed(edges.size(), false);
@@ -707,14 +752,15 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     }
     std::vector<bool> boundary(edges.size(), false), seen(edges.size(), false);
     for (std::size_t i = 0; i < edges.size(); ++i)
-      boundary[i] = edge_faces[i] >= 0 && root(edge_faces[i]) == group &&
-                    (edge_faces[i ^ 1] < 0 || root(edge_faces[i ^ 1]) != group);
+      boundary[i] =
+          edge_faces[i] != no_index && root(edge_faces[i]) == group &&
+          (edge_faces[i ^ 1] == no_index || root(edge_faces[i ^ 1]) != group);
     std::vector<Ring> exteriors, interiors;
     bool valid = true;
     for (std::size_t start = 0; start < edges.size() && valid; ++start)
       if (boundary[start] && !seen[start]) {
-        std::vector<int> path;
-        int current = start;
+        Ring path;
+        Index current = start;
         do {
           if (seen[current]) {
             valid = false;
@@ -725,21 +771,22 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
           // Rotate clockwise from the twin, skipping internal edges. This
           // follows the exterior of the union even at multi-line crossings.
           auto &list = outgoing[edges[current].to];
-          int next = -1;
+          Index next = no_index;
           for (std::size_t turn = 1; turn <= list.size(); ++turn) {
-            int candidate = list[(positions[current ^ 1] + list.size() - turn) %
-                                 list.size()];
+            Index candidate =
+                list[(positions[current ^ 1] + list.size() - turn) %
+                     list.size()];
             if (boundary[candidate]) {
               next = candidate;
               break;
             }
           }
-          if (next < 0) {
+          if (next == no_index) {
             valid = false;
             break;
           }
           current = next;
-        } while (current != static_cast<int>(start));
+        } while (current != start);
         if (!valid)
           break;
         path.push_back(edges[start].from);
@@ -755,7 +802,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     // boundaries if numerical topology or area checks contradict that.
     valid = valid && exteriors.size() == 1;
     double expected = 0.;
-    for (int i : members)
+    for (Index i : members)
       expected += output.polygons[i].area;
     Face combined;
     double combined_area = 0.;
@@ -782,12 +829,14 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
           std::to_string(exteriors.size()) +
           " exterior rings; area difference " +
           std::to_string(combined_area - expected) + ").");
-      for (int i : members)
+      for (Index i : members)
         polygons.push_back(std::move(output.polygons[i]));
       continue;
     }
     FieldPolygon polygon = output.polygons[members[0]];
-    polygon.source_regions = members;
+    polygon.source_regions.clear();
+    for (Index member : members)
+      polygon.source_regions.push_back(utils::checked_int(member));
     polygon.area = combined_area;
     polygon.vertices =
         coordinates(combined.exterior, vertices.points, origin, scale);
@@ -795,8 +844,8 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     for (auto &hole : combined.holes)
       polygon.holes.push_back(
           coordinates(hole, vertices.points, origin, scale));
-    int seed = members[0];
-    for (int i : members)
+    Index seed = members[0];
+    for (Index i : members)
       if (output.polygons[i].label_clearance >
           output.polygons[seed].label_clearance)
         seed = i;
@@ -808,7 +857,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     polygon.sample_index = output.polygons[seed].sample_index;
     polygons.push_back(std::move(polygon));
     for (std::size_t i = 0; i < edges.size(); i += 2)
-      if (edge_faces[i] >= 0 && edge_faces[i ^ 1] >= 0 &&
+      if (edge_faces[i] != no_index && edge_faces[i ^ 1] != no_index &&
           root(edge_faces[i]) == group && root(edge_faces[i ^ 1]) == group)
         removed[i] = removed[i ^ 1] = true;
   }
@@ -834,8 +883,8 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
       ++degree[edges[i].to];
     }
   for (auto &[id, point] : nodes) {
-    int vertex = vertices.find(point);
-    if (vertex >= 0 && degree[vertex] >= 3)
+    Index vertex = vertices.find(point);
+    if (vertex != no_index && degree[vertex] >= 3)
       output.boundary_nodes.push_back(id);
   }
   return output;

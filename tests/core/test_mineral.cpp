@@ -7,6 +7,8 @@
  *
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
+// Numerical snapshots: Python BurnMan 69e700647ae7efeed91dfbce147c036bce619516.
+// Reproduce with tools/check_reference_data.py; see docs/reference_data.md.
 #include "burnman/core/equation_of_state.hpp"
 #include "burnman/core/mineral.hpp"
 #include "burnman/eos/birch_murnaghan.hpp"
@@ -42,11 +44,13 @@ TEST_CASE("Set method", "[core][mineral]") {
   // Check parameter has not been changed
   REQUIRE(test_mineral.params.equation_of_state == types::EOSType::BM3);
   // Check eos_method created
-  REQUIRE(typeid(*test_mineral.eos_method) == typeid(eos::BM3));
+  const auto *initial_eos = test_mineral.eos_method.get();
+  REQUIRE(typeid(*initial_eos) == typeid(eos::BM3));
   // Test update EOS
   REQUIRE_NOTHROW(test_mineral.set_method(types::EOSType::MGD3));
   REQUIRE(test_mineral.params.equation_of_state == types::EOSType::MGD3);
-  REQUIRE(typeid(*test_mineral.eos_method) == typeid(eos::MGD3));
+  const auto *updated_eos = test_mineral.eos_method.get();
+  REQUIRE(typeid(*updated_eos) == typeid(eos::MGD3));
   // Test setting custom EOS (derived from EquationOfState)
   // Using non-derived class will not compile - so no test needed
   class CustomEOS : public EquationOfState {
@@ -60,7 +64,8 @@ TEST_CASE("Set method", "[core][mineral]") {
   CustomEOS custom_eos;
   REQUIRE_NOTHROW(test_mineral.set_method(std::make_shared<CustomEOS>()));
   REQUIRE(test_mineral.params.equation_of_state == types::EOSType::Custom);
-  REQUIRE(typeid(*test_mineral.eos_method) == typeid(CustomEOS));
+  const auto *custom_method = test_mineral.eos_method.get();
+  REQUIRE(typeid(*custom_method) == typeid(CustomEOS));
 }
 
 TEST_CASE("Set state", "[core][mineral]") {
@@ -176,29 +181,28 @@ TEST_CASE("Check py reference values", "[core][mineral]") {
   SECTION("No excess") {
     test_mineral.set_method(types::EOSType::Auto);
     test_mineral.set_state(P, T);
-    // Define reference values
-    double ref_Vo = 9.081760466382554e-06;
-    double ref_V = 9.081760466382554e-06;
+    double ref_Vo = 9.081760459987282e-06;
+    double ref_V = 9.081760459987282e-06;
     double ref_m = 0.0403;
-    double ref_rho = 4437.465637766628;
-    double ref_E = 81891.74478872975;
-    double ref_G = 514418.0184366068;
-    double ref_F = 14921.192785566382;
-    double ref_S = 66.97055200316336;
-    double ref_H = 581388.5704397701;
-    double ref_KT = 335432555918.34296;
-    double ref_KS = 341627283344.15936;
-    double ref_invKT = 2.9812252339735266e-12;
-    double ref_invKS = 2.9271666777052704e-12;
-    double ref_mu = 212373867679.2852;
-    double ref_gamma = 1.0894237950619814;
-    double ref_alpha = 1.6951968373686158e-05;
-    double ref_Cv = 47.40220358077695;
-    double ref_Cp = 48.27762168013835;
-    double ref_grad = 3.188925030804647e-09;
-    double ref_vp = 11865.891735926718;
-    double ref_vphi = 8774.225105744063;
-    double ref_vs = 6918.039488312308;
+    double ref_rho = 4437.46564089144;
+    double ref_E = 81891.74510410453;
+    double ref_G = 514418.0184366067;
+    double ref_F = 14921.193137306196;
+    double ref_S = 66.97055196679833;
+    double ref_H = 581388.570403405;
+    double ref_KT = 335432556688.9797;
+    double ref_KS = 341627284105.5913;
+    double ref_invKT = 2.9812252271243354e-12;
+    double ref_invKS = 2.9271666711810893e-12;
+    double ref_mu = 212373868023.6077;
+    double ref_gamma = 1.0894237939112419;
+    double ref_alpha = 1.6951968327457014e-05;
+    double ref_Cv = 47.40220357710183;
+    double ref_Cp = 48.27762167308335;
+    double ref_grad = 3.188925020328643e-09;
+    double ref_vp = 11865.891743338783;
+    double ref_vphi = 8774.225112432872;
+    double ref_vs = 6918.039491484627;
     double test_Vo = test_mineral.get_molar_volume_unmodified();
     double test_V = test_mineral.get_molar_volume();
     double test_m = test_mineral.get_molar_mass();
@@ -266,29 +270,28 @@ TEST_CASE("Check py reference values", "[core][mineral]") {
     test_mineral.set_property_modifier_params(excess_params);
     test_mineral.set_method(types::EOSType::Auto);
     test_mineral.set_state(P, T);
-    // Define reference values
-    double ref_Vo = 9.081760466382554e-06;
-    double ref_V = 8.917144831176037e-06;
+    double ref_Vo = 9.081760459987282e-06;
+    double ref_V = 8.917144824780765e-06;
     double ref_m = 0.0403;
-    double ref_rho = 4519.3838120811415;
-    double ref_E = 72397.12933495894;
-    double ref_G = 509295.0567600913;
-    double ref_F = 18852.091045409266;
-    double ref_S = 53.54503828954968;
-    double ref_H = 562840.095049641;
-    double ref_KT = 307455565306.87885;
-    double ref_KS = 327195790142.47736;
-    double ref_invKT = 1.0 / ref_KT; // 3.25250251691452e-12
-    double ref_invKS = 1.0 / ref_KS; // 3.0562740418039917e-12
-    double ref_mu = 212373867679.2852;
-    double ref_gamma = 1.7310765377441932;
-    double ref_alpha = 3.70897124201741e-05;
-    double ref_Cv = 58.741546346304965;
-    double ref_Cp = 62.51305502239413;
-    double ref_grad = 5.2906442866835055e-09;
-    double ref_vp = 11621.274412079585;
-    double ref_vphi = 8508.720164047194;
-    double ref_vs = 6855.0547115317995;
+    double ref_rho = 4519.383815322391;
+    double ref_E = 72397.12965033372;
+    double ref_G = 509295.05676009116;
+    double ref_F = 18852.09139714908;
+    double ref_S = 53.54503825318464;
+    double ref_H = 562840.0950132757;
+    double ref_KT = 307455565947.8865;
+    double ref_KS = 327195790818.7691;
+    double ref_invKT = 3.252502510133446e-12;
+    double ref_invKS = 3.0562740354868784e-12;
+    double ref_mu = 212373868023.6077;
+    double ref_gamma = 1.7310765387526708;
+    double ref_alpha = 3.708971238753409e-05;
+    double ref_Cv = 58.741546340729776;
+    double ref_Cp = 62.51305501533913;
+    double ref_grad = 5.2906442788302825e-09;
+    double ref_vp = 11621.274418721165;
+    double ref_vphi = 8508.720169789493;
+    double ref_vs = 6855.05471463068;
     double test_Vo = test_mineral.get_molar_volume_unmodified();
     double test_V = test_mineral.get_molar_volume();
     double test_m = test_mineral.get_molar_mass();
