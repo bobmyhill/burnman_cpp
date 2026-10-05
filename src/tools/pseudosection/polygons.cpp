@@ -13,6 +13,7 @@
 
 #include "burnman/tools/pseudosection.hpp"
 #include "burnman/utils/index_utils.hpp"
+#include "internal.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -30,10 +31,8 @@ using Index = std::size_t;
 constexpr Index no_index = std::numeric_limits<Index>::max();
 using Ring = std::vector<Index>;
 using Phases = std::vector<int>;
-
-double cross(const Point &a, const Point &b) {
-  return a.x() * b.y() - a.y() * b.x();
-}
+using detail::cross;
+using detail::segment_distance;
 
 struct Segment {
   Point a, b;
@@ -109,29 +108,13 @@ double area(const Ring &ring, const std::vector<Point> &points) {
   return .5 * total;
 }
 
-double distance(const Point &p, const Point &a, const Point &b) {
-  Point d = b - a;
-  double t = d.squaredNorm() != 0.
-                 ? std::clamp((p - a).dot(d) / d.squaredNorm(), 0., 1.)
-                 : 0.;
-  return (p - a - t * d).norm();
-}
-
 // Boundary points are excluded for classification: zero-amount states can
 // have either neighbouring assemblage, and chord approximation adds roundoff.
 int contains(const Ring &ring, const std::vector<Point> &points, const Point &p,
              double tolerance) {
-  bool inside = false;
-  for (std::size_t i = 1; i < ring.size(); ++i) {
-    const auto &a = points[ring[i - 1]];
-    const auto &b = points[ring[i]];
-    if (distance(p, a, b) <= tolerance)
-      return 0;
-    if ((a.y() > p.y()) != (b.y() > p.y()) &&
-        p.x() < a.x() + (p.y() - a.y()) * (b.x() - a.x()) / (b.y() - a.y()))
-      inside = !inside;
-  }
-  return inside ? 1 : -1;
+  return detail::ring_location(
+      ring.size(), [&](std::size_t i) { return points[ring[i]]; }, p,
+      tolerance);
 }
 
 bool contains(const Face &face, const std::vector<Point> &points,
@@ -234,7 +217,8 @@ std::pair<Point, double> label_point(const Face &face,
     double d = std::numeric_limits<double>::infinity();
     auto measure = [&](const Ring &ring) {
       for (std::size_t i = 1; i < ring.size(); ++i)
-        d = std::min(d, distance(p, points[ring[i - 1]], points[ring[i]]));
+        d = std::min(d,
+                     segment_distance(p, points[ring[i - 1]], points[ring[i]]));
     };
     measure(face.exterior);
     for (auto &ring : face.holes)
@@ -659,9 +643,9 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
       double margin = std::numeric_limits<double>::infinity();
       auto measure = [&](const Ring &ring) {
         for (std::size_t i = 1; i < ring.size(); ++i)
-          margin =
-              std::min(margin, distance(location, vertices.points[ring[i - 1]],
-                                        vertices.points[ring[i]]));
+          margin = std::min(
+              margin, segment_distance(location, vertices.points[ring[i - 1]],
+                                       vertices.points[ring[i]]));
       };
       measure(face.exterior);
       for (auto &hole : face.holes)

@@ -13,8 +13,11 @@
 
 #pragma once
 #include "burnman/core/assemblage.hpp"
+#include "burnman/tools/equilibration/equality_constraint_base.hpp"
+#include "burnman/tools/equilibration/equilibrate_types.hpp"
 #include <Eigen/Dense>
 #include <array>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -293,5 +296,46 @@ State stable_equilibrium(
     const types::FormulaMap &composition,
     const std::vector<std::shared_ptr<Material>> &candidates, double pressure,
     double temperature, const Settings &settings = Settings{});
+
+struct ContourSettings {
+  int seed_grid = 5, max_trace_steps = 1000;
+  double step = .02, min_step = 1.e-6;
+};
+
+struct ContourLine {
+  int field_id = -1;
+  std::vector<int> phases;
+  std::vector<BoundaryPoint> points;
+  bool closed = false;
+  std::string termination;
+};
+
+struct ContourResult {
+  DiagramType diagram_type = DiagramType::PT;
+  std::vector<ContourLine> lines;
+  std::vector<std::string> diagnostics;
+  int equilibrium_solves = 0;
+  bool resolved = true;
+};
+
+/// Construct any equilibrate equality constraint for the field's actual
+/// assemblage and parameter layout. Return nullptr where it is undefined
+/// (e.g. a garnet composition in a field without garnet). Called once per
+/// field; the constraint and its native derivatives drive continuation.
+using ContourConstraintFactory =
+    std::function<std::unique_ptr<equilibration::EqualityConstraint>(
+        const Assemblage &, const equilibration::EquilibrationParameters &,
+        const std::vector<int> &)>;
+
+/// Trace a constraint through saved, identified closed fields, using their
+/// accepted phase amounts/compositions as warm starts. No phase boundaries
+/// are recalculated and the source is not modified. Candidates and phase-ID
+/// stride must match the original calculation. Finite seed sampling can miss
+/// disconnected contours; increase seed_grid to assess their discovery.
+ContourResult
+pseudosection_contours(const Result &previous,
+                       const std::vector<std::shared_ptr<Material>> &candidates,
+                       const ContourConstraintFactory &constraint,
+                       const ContourSettings &settings = ContourSettings{});
 
 } // namespace burnman::pseudosections

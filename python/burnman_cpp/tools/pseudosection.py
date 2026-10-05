@@ -14,6 +14,83 @@ def _value(record, name, default=None):
     )
 
 
+def _coordinate_transforms(
+    result,
+    pressure_unit="kbar",
+    temperature_unit="C",
+    entropy_unit="J/K",
+    volume_unit="m3",
+    swap_axes=False,
+):
+    """Shared native-to-display transforms for phase lines and overlays."""
+    import numpy as np
+
+    pressure_scales = {"Pa": 1.0, "GPa": 1.0e9, "kbar": 1.0e8}
+    if pressure_unit not in pressure_scales:
+        raise ValueError("pressure_unit must be 'Pa', 'GPa' or 'kbar'.")
+    if temperature_unit not in ("K", "C"):
+        raise ValueError("temperature_unit must be 'K' or 'C'.")
+    p_scale = pressure_scales[pressure_unit]
+    t_offset = 273.15 if temperature_unit == "C" else 0.0
+    if isinstance(result, Mapping):
+        result = dict(result)
+    diagram = _value(result, "diagram_type", "PT")
+    if diagram not in ("PT", "PS", "PV", "TS", "TV", "SV", "PX", "TX", "SX", "VX"):
+        raise ValueError("diagram_type must select two of P, T, S, V and X.")
+    entropy_scales = {"J/K": 1.0, "kJ/K": 1000.0, "kB/atom": 1.0}
+    volume_scales = {"m3": 1.0, "cm3": 1.0e-6, "kg/m3": 1.0}
+    if entropy_unit not in entropy_scales or volume_unit not in volume_scales:
+        raise ValueError(
+            "entropy_unit must be 'J/K', 'kJ/K' or 'kB/atom'; "
+            "volume_unit must be 'm3', 'cm3' or 'kg/m3'."
+        )
+    density = "V" in diagram and volume_unit == "kg/m3"
+    per_atom = "S" in diagram and entropy_unit == "kB/atom"
+    if density or per_atom:
+        if "X" in diagram:
+            raise ValueError("Density and per-atom entropy require a constant bulk.")
+        bulk = _value(result, "composition_start", {})
+        if not bulk:
+            raise ValueError("Density and per-atom entropy require composition_start.")
+        composition = _core.Composition(bulk, "molar")
+        bulk_mass = sum(composition.mass_composition.values())
+        entropy_scales["kB/atom"] = (
+            sum(composition.atomic_composition.values()) * 8.31446261815324
+        )
+    names = dict(
+        P="pressure",
+        T="temperature",
+        S="entropy",
+        V="volume",
+        X="composition_coordinate",
+    )
+    scales = dict(
+        P=p_scale,
+        T=1.0,
+        S=entropy_scales[entropy_unit],
+        V=volume_scales[volume_unit],
+        X=1.0,
+    )
+    axis_scale = np.array([scales[axis] for axis in diagram])
+    axis_offset = np.array([t_offset if axis == "T" else 0.0 for axis in diagram])
+    order = [0, 1] if swap_axes else [1, 0]
+    volume_axis = diagram.index("V") if density else None
+
+    def coordinates(vertices):
+        vertices = (np.asarray(vertices) - axis_offset) / axis_scale
+        if density:
+            vertices[:, volume_axis] = bulk_mass / vertices[:, volume_axis]
+        return vertices[:, order]
+
+    def native_coordinates(vertices):
+        vertices = np.asarray(vertices)[:, order].copy()
+        if density:
+            vertices[:, volume_axis] = bulk_mass / vertices[:, volume_axis]
+        return vertices * axis_scale + axis_offset
+
+    return diagram, names, order, density, per_atom, coordinates, native_coordinates
+
+
 def plot_pseudosection(
     result,
     ax=None,
@@ -93,58 +170,18 @@ def plot_pseudosection(
     from matplotlib.transforms import Bbox
     from pathlib import Path as FilePath
 
-    pressure_scales = {"Pa": 1.0, "GPa": 1.0e9, "kbar": 1.0e8}
-    if pressure_unit not in pressure_scales:
-        raise ValueError("pressure_unit must be 'Pa', 'GPa' or 'kbar'.")
-    if temperature_unit not in ("K", "C"):
-        raise ValueError("temperature_unit must be 'K' or 'C'.")
     if not np.isfinite(label_fontsize) or label_fontsize <= 0.0:
         raise ValueError("label_fontsize must be positive and finite.")
-    p_scale = pressure_scales[pressure_unit]
-    t_offset = 273.15 if temperature_unit == "C" else 0.0
-    if isinstance(result, Mapping):
-        result = dict(result)
-    diagram = _value(result, "diagram_type", "PT")
-    if diagram not in ("PT", "PS", "PV", "TS", "TV", "SV", "PX", "TX", "SX", "VX"):
-        raise ValueError("diagram_type must select two of P, T, S, V and X.")
-    entropy_scales = {"J/K": 1.0, "kJ/K": 1000.0, "kB/atom": 1.0}
-    volume_scales = {"m3": 1.0, "cm3": 1.0e-6, "kg/m3": 1.0}
-    if entropy_unit not in entropy_scales or volume_unit not in volume_scales:
-        raise ValueError(
-            "entropy_unit must be 'J/K', 'kJ/K' or 'kB/atom'; "
-            "volume_unit must be 'm3', 'cm3' or 'kg/m3'."
-        )
-    density = "V" in diagram and volume_unit == "kg/m3"
-    per_atom = "S" in diagram and entropy_unit == "kB/atom"
-    if density or per_atom:
-        if "X" in diagram:
-            raise ValueError("Density and per-atom entropy require a constant bulk.")
-        bulk = _value(result, "composition_start", {})
-        if not bulk:
-            raise ValueError("Density and per-atom entropy require composition_start.")
-        composition = _core.Composition(bulk, "molar")
-        bulk_mass = sum(composition.mass_composition.values())
-        entropy_scales["kB/atom"] = (
-            sum(composition.atomic_composition.values()) * 8.31446261815324
-        )
-    names = dict(
-        P="pressure",
-        T="temperature",
-        S="entropy",
-        V="volume",
-        X="composition_coordinate",
+    display_options = dict(
+        pressure_unit=pressure_unit,
+        temperature_unit=temperature_unit,
+        entropy_unit=entropy_unit,
+        volume_unit=volume_unit,
+        swap_axes=swap_axes,
     )
-    scales = dict(
-        P=p_scale,
-        T=1.0,
-        S=entropy_scales[entropy_unit],
-        V=volume_scales[volume_unit],
-        X=1.0,
+    diagram, names, order, density, per_atom, coordinates, native_coordinates = (
+        _coordinate_transforms(result, **display_options)
     )
-    axis_scale = np.array([scales[axis] for axis in diagram])
-    axis_offset = np.array([t_offset if axis == "T" else 0.0 for axis in diagram])
-    order = [0, 1] if swap_axes else [1, 0]
-    volume_axis = diagram.index("V") if density else None
     geometry = _core.pseudosection_field_polygons(
         result, tolerance, close_domain, merge_fields
     )
@@ -152,18 +189,7 @@ def plot_pseudosection(
         _, ax = plt.subplots(figsize=(9, 8))
     fig = ax.figure
     ax.pseudosection_geometry = geometry
-
-    def coordinates(vertices):
-        vertices = (np.asarray(vertices) - axis_offset) / axis_scale
-        if density:
-            vertices[:, volume_axis] = bulk_mass / vertices[:, volume_axis]
-        return vertices[:, order]
-
-    def native_coordinates(vertices):
-        vertices = np.asarray(vertices)[:, order].copy()
-        if density:
-            vertices[:, volume_axis] = bulk_mass / vertices[:, volume_axis]
-        return vertices * axis_scale + axis_offset
+    ax._pseudosection_display_options = display_options
 
     def point_coordinates(point):
         return coordinates([[_value(point, names[axis]) for axis in diagram]])[0]
@@ -492,3 +518,63 @@ def plot_pseudosection(
                 rows.append(f"| {number} | {escaped_name} |")
             destination.write_text("\n".join(rows) + "\n", encoding="utf-8")
     return fig, ax
+
+
+def plot_pseudosection_contours(
+    result,
+    contours,
+    ax,
+    *,
+    color="crimson",
+    line_width=0.8,
+    line_style="solid",
+    label=None,
+    label_fontsize=7.0,
+    inline_labels=True,
+    **display_options,
+):
+    """Overlay previously calculated constraint contours on an axes.
+
+    This performs no equilibrium solves. Contours are the result of
+    pseudosection_contours or its JSON dictionary. Display units and axis
+    order inherit those of plot_pseudosection on the supplied axes.
+    For other axes, supply the units used to draw their phase diagram.
+    The label names this contour level in the legend and, optionally, along
+    sufficiently long segments; all text uses label_fontsize.
+    Return (figure, axes).
+    """
+    import numpy as np
+    from matplotlib.contour import ContourSet
+
+    if not np.isfinite(label_fontsize) or label_fontsize <= 0.0:
+        raise ValueError("label_fontsize must be positive and finite.")
+    options = dict(getattr(ax, "_pseudosection_display_options", {}))
+    for key, value in display_options.items():
+        if value is not None:
+            if key in options and options[key] != value:
+                raise ValueError("Contour display units must match the phase diagram.")
+            options[key] = value
+    diagram, names, _, _, _, coordinates, _ = _coordinate_transforms(result, **options)
+    if _value(contours, "diagram_type") != diagram:
+        raise ValueError("Contours and pseudosection must use the same diagram type.")
+    segments = []
+    for line in _value(contours, "lines", []):
+        points = _value(line, "points", [])
+        if len(points) >= 2:
+            segments.append(
+                coordinates([[_value(p, names[c]) for c in diagram] for p in points])
+            )
+    if segments:
+        lines = ContourSet(
+            ax,
+            [0.0],
+            [segments],
+            colors=color,
+            linewidths=line_width,
+            linestyles=line_style,
+            zorder=3,
+        )
+        ax.collections[-1].set_label(label)
+        if label is not None and inline_labels:
+            lines.clabel(fmt={0.0: str(label)}, fontsize=label_fontsize, inline=True)
+    return ax.figure, ax

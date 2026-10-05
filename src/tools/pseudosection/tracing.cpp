@@ -69,14 +69,9 @@ class Tracer {
   std::unique_ptr<EqualityConstraint>
   section(const Assemblage &a, int n, const Eigen::Vector2d &u,
           const Eigen::Vector2d &normal) const {
-    auto axes = diagram_axes(result.section.type);
     const auto target = (origin + u.cwiseProduct(range)).eval();
-    return std::make_unique<SectionConstraint>(
-        engine.coordinate_constraint(axes[0], target[0], n,
-                                     engine.composition_coordinate(a)),
-        engine.coordinate_constraint(axes[1], target[1], n,
-                                     engine.composition_coordinate(a)),
-        normal.cwiseQuotient(range));
+    return continuation_plane(engine, a, n, target,
+                              normal.cwiseQuotient(range));
   }
   ConstraintList boundary_constraints(const Assemblage &a, int zero,
                                       const Eigen::Vector2d &u,
@@ -135,44 +130,7 @@ class Tracer {
   // Amount changes can span latent S/V; invisible directions produce no line.
   Eigen::VectorXd tangent(const optim::roots::DampedNewtonResult &s,
                           const Assemblage &a, int *pt_rank = nullptr) {
-    if (s.x.size() != engine.parameters(a).n_parameters) {
-      if (pt_rank)
-        *pt_rank = 0;
-      return Eigen::VectorXd();
-    }
-    auto scales = engine.parameter_scales(a, s.x.size(), range);
-    Eigen::MatrixXd j(s.J.rows() - 1, s.J.cols());
-    j.topRows(1) = s.J.topRows(1);
-    j.bottomRows(s.J.rows() - 2) = s.J.bottomRows(s.J.rows() - 2);
-    j = j * scales.asDiagonal();
-    for (int k = 0; k < j.rows(); ++k) {
-      double norm = j.row(k).norm();
-      if (norm > 0)
-        j.row(k) /= norm;
-    }
-    // Trace populations produce strongly separated singular values even after
-    // row scaling. Retain their coupling to P,T when using active faces.
-    double rank_tolerance =
-        engine.settings.active_solution_faces ? 1.e-12 : 1.e-9;
-    Eigen::JacobiSVD<Eigen::MatrixXd> svd(j, Eigen::ComputeFullV);
-    int rank = burnman::utils::checked_int(
-        (svd.singularValues().array() > rank_tolerance).count());
-    Eigen::MatrixXd null = svd.matrixV().rightCols(j.cols() - rank);
-    Eigen::JacobiSVD<Eigen::MatrixXd> projection(
-        range.cwiseInverse().asDiagonal() *
-            engine.coordinate_jacobian(a, s.x.size()) * scales.asDiagonal() *
-            null,
-        Eigen::ComputeThinU | Eigen::ComputeThinV);
-    int dim = burnman::utils::checked_int(
-        (projection.singularValues().array() > 1.e-7).count());
-    if (pt_rank)
-      *pt_rank = dim;
-    if (dim != 1)
-      return Eigen::VectorXd();
-    auto d = (null * projection.matrixV().col(0)).eval();
-    auto physical = (scales.asDiagonal() * d).eval();
-    return physical /
-           engine.project_direction(physical, a).cwiseQuotient(range).norm();
+    return continuation_tangent(engine, s, a, range, pt_rank);
   }
   BoundaryPoint point(const Assemblage &a, const std::vector<int> &ids,
                       const optim::roots::DampedNewtonResult &solve,
