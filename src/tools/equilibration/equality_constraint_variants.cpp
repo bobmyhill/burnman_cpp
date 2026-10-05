@@ -111,8 +111,8 @@ std::pair<Eigen::VectorXd, double> PhaseCompositionConstraint::compute_Ab(
   Eigen::MatrixXd numer_denom(2, numerator.size());
   numer_denom.row(0) = numerator;
   numer_denom.row(1) = denominator;
-  Eigen::MatrixXd embr_c =
-      n_occ(Eigen::all, site_indices).matrix() * numer_denom.transpose();
+  Eigen::MatrixXd embr_c = n_occ(Eigen::indexing::all, site_indices).matrix() *
+                           numer_denom.transpose();
   // Compute b using 1st two values
   double b = value * embr_c(0, 1) - embr_c(0, 0);
   // Compute A

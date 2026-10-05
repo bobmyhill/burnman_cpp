@@ -1,0 +1,31 @@
+cmake_minimum_required(VERSION 3.18)
+project(burnman_cpp VERSION 0.1.0 LANGUAGES CXX)
+
+option(BURNMAN_BUILD_TESTS "Build the existing C++ tests" OFF)
+
+# Let CMake find standard Homebrew installations as well as system packages.
+if(APPLE)
+  list(APPEND CMAKE_PREFIX_PATH /opt/homebrew /usr/local)
+endif()
+find_package(Eigen3 REQUIRED NO_MODULE)
+if(Eigen3_VERSION VERSION_LESS 3.4)
+  message(FATAL_ERROR "BurnMan requires Eigen >= 3.4 (found ${Eigen3_VERSION})")
+endif()
+find_package(GSL REQUIRED)
+
+file(GLOB_RECURSE BURNMAN_SOURCES CONFIGURE_DEPENDS src/*.cpp)
+add_library(burnman_core STATIC ${BURNMAN_SOURCES})
+target_compile_features(burnman_core PUBLIC cxx_std_17)
+target_include_directories(burnman_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(burnman_core PUBLIC Eigen3::Eigen GSL::gsl GSL::gslcblas)
+set_target_properties(burnman_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+if(BURNMAN_BUILD_TESTS)
+  enable_testing()
+  find_package(Catch2 3.4 REQUIRED)
+  file(GLOB_RECURSE BURNMAN_TEST_SOURCES CONFIGURE_DEPENDS tests/*.cpp)
+  add_executable(burnman_tests ${BURNMAN_TEST_SOURCES})
+  target_include_directories(burnman_tests PRIVATE tests/include)
+  target_link_libraries(burnman_tests PRIVATE burnman_core Catch2::Catch2WithMain)
+  add_test(NAME burnman_tests COMMAND burnman_tests "~[benchmark]")
+endif()

@@ -112,7 +112,7 @@ EquilibrationParameters get_equilibration_parameters(
   const auto &indep = assemblage.get_independent_element_indices();
   prm.reduced_composition_vector = prm.bulk_composition_vector(indep);
   prm.reduced_free_composition_vectors =
-      prm.free_compositional_vectors(Eigen::all, indep);
+      prm.free_compositional_vectors(Eigen::indexing::all, indep);
   // Process constraints
   auto [constraint_matrix, constraint_vector] = calculate_constraints(
       assemblage, static_cast<int>(n_free_compositional_vectors));
