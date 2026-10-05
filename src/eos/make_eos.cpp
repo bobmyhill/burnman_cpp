@@ -40,6 +40,8 @@ std::shared_ptr<EquationOfState> make_eos(types::EOSType eos_type) {
     return std::make_shared<SLB3>();
   case types::EOSType::SLB3Conductive:
     return std::make_shared<SLB3Conductive>();
+  case types::EOSType::SLB3Stishovite:
+    return std::make_shared<SLB3Stishovite>();
   case types::EOSType::HPTMTL:
     return std::make_shared<HP_TMTL>();
   case types::EOSType::HPTMT:

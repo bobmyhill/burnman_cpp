@@ -284,6 +284,39 @@ Excesses compute_excesses(double pressure, double temperature,
   double mu = params.magnetic_moment_0 + pressure * params.magnetic_moment_p;
   double dmudP = params.magnetic_moment_p;
   double A = (518.0 / 1125.0) + (11692.0 / 15975.0) * ((1.0 / p) - 1.0);
+  if (tau < 1.) {
+    // Work with h=T*f directly. The original f ~ 1/T expression gives
+    // inf*0 and cancellation at zero temperature, although G is finite.
+    double c = 79. / (140. * p * A), d = (474. / 497.) * (1. / p - 1.) / A;
+    double h = temperature - c * curie_T -
+               d * curie_T *
+                   (std::pow(tau, 4) / 6. + std::pow(tau, 10) / 135. +
+                    std::pow(tau, 16) / 600.);
+    double ht =
+        1. - d * (4. * std::pow(tau, 3) / 6. + 10. * std::pow(tau, 9) / 135. +
+                  16. * std::pow(tau, 15) / 600.);
+    double htt = -d / curie_T *
+                 (12. * std::pow(tau, 2) / 6. + 90. * std::pow(tau, 8) / 135. +
+                  240. * std::pow(tau, 14) / 600.);
+    double hc =
+        -c + d * (3. * std::pow(tau, 4) / 6. + 9. * std::pow(tau, 10) / 135. +
+                  15. * std::pow(tau, 16) / 600.);
+    double hcc = -d / curie_T *
+                 (12. * std::pow(tau, 4) / 6. + 90. * std::pow(tau, 10) / 135. +
+                  240. * std::pow(tau, 16) / 600.);
+    double htc = d / curie_T *
+                 (12. * std::pow(tau, 3) / 6. + 90. * std::pow(tau, 9) / 135. +
+                  240. * std::pow(tau, 15) / 600.);
+    double l = std::log1p(mu), lp = dmudP / (1. + mu), lpp = -lp * lp,
+           cp = params.curie_T_p;
+    double r = constants::physics::gas_constant;
+    return {r * l * h,
+            r * l * ht,
+            r * (lp * h + l * hc * cp),
+            r * l * htt,
+            r * (lpp * h + 2. * lp * hc * cp + l * hcc * cp * cp),
+            r * (lp * ht + l * htc * cp)};
+  }
   double f;
   double dfdtau;
   double d2fdtau2;
