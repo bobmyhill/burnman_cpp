@@ -5432,6 +5432,30 @@ Mineral endmember_256() {
       {eos::excesses::LandauHPParams{298.15, 100000.0, 955.0, 0.0, 15.6}});
   return m;
 }
+
+Mineral endmember_257() {
+  Mineral m;
+  m.params.debye_0 = 935.9778;
+  m.params.F_0 = -1410850.0;
+  m.params.G_0 = 132000000000.0;
+  m.params.Gprime_0 = 1.57889;
+  m.params.K_0 = 210706000000.0;
+  m.params.Kprime_0 = 5.62088;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.6354e-05;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.80782;
+  m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 3.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.18984;
+  m.params.molar_mass = 0.1003887;
+  m.params.napfu = 5.0;
+  m.params.name = "Mg_Akimotoite";
+  m.params.q_0 = 2.34514;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Mg_Akimotoite");
+  return m;
+}
 } // namespace
 
 namespace HP_2011_ds62 {
@@ -6194,6 +6218,22 @@ std::shared_ptr<Solution> mg_fe_bridgmanite_binary() {
   solution->set_name("magnesium silicate perovskite/bridgmanite (transformed)");
   solution->set_composition(Eigen::ArrayXd::Constant(2, 1.0 / 2.0));
   return solution;
+}
+
+std::shared_ptr<Mineral> periclase() {
+  return std::make_shared<Mineral>(endmember_131());
+}
+
+std::shared_ptr<Mineral> mg_perovskite() {
+  return std::make_shared<Mineral>(endmember_125());
+}
+
+std::shared_ptr<Mineral> mg_akimotoite() {
+  return std::make_shared<Mineral>(endmember_257());
+}
+
+std::shared_ptr<Mineral> mg_ringwoodite() {
+  return std::make_shared<Mineral>(endmember_123());
 }
 } // namespace SLB_2011
 

@@ -31,11 +31,13 @@ def calculate(quick=False, verbose=False, *, diagram="PX"):
     domains = {
         "PX": dict(pressure_range=(0.0, 20.0e9), temperature=1673.0),
         "TX": dict(temperature_range=(1000.0, 3000.0), pressure=14.0e9),
+        "VX": dict(volume_range=(36.0e-6, 45.0e-6), temperature=1673.0),
     }
     if diagram not in domains:
-        raise ValueError("The olivine example supports PX or TX diagrams.")
+        raise ValueError("The olivine example supports PX, TX or VX diagrams.")
     settings = bm.PseudosectionSettings()
     settings.pressure_seeds = settings.temperature_seeds = 5 if quick else 9
+    settings.volume_seeds = settings.pressure_seeds
     settings.composition_seeds = 5 if quick else 17
     settings.max_phase_instances = 1
     settings.verbose = verbose
@@ -51,7 +53,7 @@ def calculate(quick=False, verbose=False, *, diagram="PX"):
 
 def main(diagram="PX"):
     stem = f"olivine_{diagram.lower()}"
-    condition = "1673 K" if diagram == "PX" else "14 GPa"
+    condition = "14 GPa" if diagram == "TX" else "1673 K"
     parser = argparse.ArgumentParser(
         description=f"Olivine-polymorph {diagram[0]}-X diagram at {condition}."
     )
@@ -75,12 +77,15 @@ def main(diagram="PX"):
             result,
             pressure_unit="GPa",
             temperature_unit="K",
+            volume_unit="cm3",
             composition_label=r"$X_{\mathrm{Fe}} = \mathrm{Fe}/(\mathrm{Mg}+\mathrm{Fe})$",
             phase_aliases={"ol": "ol", "wa": "wa", "ri": "ri"},
             label_fontsize=args.label_fontsize,
             label_key_path=args.output_dir / f"{stem}_labels.md",
             show_nodes=True,
         )
+        if diagram == "VX":
+            ax.set_ylabel("Volume (cm³ per mole of bulk formula units)")
         ax.set_title(f"Olivine polymorphs at {condition}")
         fig.savefig(args.output_dir / f"{stem}.png", dpi=200, bbox_inches="tight")
         fig.savefig(args.output_dir / f"{stem}.pdf", bbox_inches="tight")

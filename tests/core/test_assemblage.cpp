@@ -290,6 +290,9 @@ TEST_CASE_METHOD(CaPvStishAssemblageFixture,
   const double pressure = 40.0e9, temperature = 2000.0;
   assemblage.set_method(types::EOSType::Auto);
   assemblage.set_state(pressure, temperature);
+  // Thermodynamic derivatives are additive; they need no seismic averaging.
+  assemblage.set_averaging_scheme(
+      std::shared_ptr<averaging::AveragingScheme>{});
   const double volume = assemblage.get_molar_volume();
   const double kt = assemblage.get_isothermal_bulk_modulus_reuss();
   const double ks = assemblage.get_isentropic_bulk_modulus_reuss();

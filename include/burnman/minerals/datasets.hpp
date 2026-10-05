@@ -87,6 +87,10 @@ std::shared_ptr<Solution> garnet();
 std::shared_ptr<Mineral> ca_perovskite();
 std::shared_ptr<Solution> pyrope_grossular();
 std::shared_ptr<Solution> mg_fe_bridgmanite_binary();
+std::shared_ptr<Mineral> periclase();
+std::shared_ptr<Mineral> mg_perovskite();
+std::shared_ptr<Mineral> mg_akimotoite();
+std::shared_ptr<Mineral> mg_ringwoodite();
 } // namespace SLB_2011
 
 namespace JH_2015 {

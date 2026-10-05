@@ -541,7 +541,8 @@ def test_regular_solution_solvus_boundary_keeps_distinct_compositions():
 
 
 @pytest.mark.parametrize("alphas", [(1.0, 1.0), (1.5, 1.0)])
-def test_two_solvus_arms_close_at_composition_critical_point(alphas, tmp_path):
+@pytest.mark.parametrize("step", [0.025, 0.05, 0.1])
+def test_two_solvus_arms_close_at_composition_critical_point(alphas, step, tmp_path):
     R, W = 8.31446261815324, 13000.0
     a, b = alphas
     x = b / (a + np.sqrt(a * a - (a - b) * b))
@@ -575,6 +576,7 @@ def test_two_solvus_arms_close_at_composition_critical_point(alphas, tmp_path):
     )
     bulk = {"Mg": 0.6 * x + 0.2, "Fe": 0.8 - 0.6 * x, "O": 1.4}
     s = settings()
+    s.step = step
     s.pressure_seeds = s.temperature_seeds = 5
     r = bm.pseudosection(bulk, [main, auxiliary], (0.0, 2.0e9), (600.0, 900.0), s)
     assert r.resolved, r.diagnostics
@@ -591,6 +593,15 @@ def test_two_solvus_arms_close_at_composition_critical_point(alphas, tmp_path):
     assert np.linalg.norm(node.critical_mode) == pytest.approx(1.0)
     for index in node.incident_lines:
         edge = r.boundaries[index]
+        other = r.nodes[
+            edge.end_node if edge.start_node == node.id else edge.start_node
+        ]
+        # In this model each arm approaches its critical pressure from one
+        # side. Nearly identical-copy roots must not overshoot and double back.
+        lower, upper = sorted([node.pressure, other.pressure])
+        pressures = [p.pressure for p in edge.points]
+        assert min(pressures) >= lower - 0.3
+        assert max(pressures) <= upper + 0.3
         point = edge.points[0 if edge.start_node == node.id else -1]
         copies = [p.composition for p in point.phases if p.candidate_index == 0]
         assert len(copies) == 2

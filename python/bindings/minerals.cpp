@@ -72,6 +72,10 @@ void bind_minerals(py::module_ &m) {
   SLB_2011.def("pyrope_grossular", &minerals::SLB_2011::pyrope_grossular);
   SLB_2011.def("mg_fe_bridgmanite_binary",
                &minerals::SLB_2011::mg_fe_bridgmanite_binary);
+  SLB_2011.def("periclase", &minerals::SLB_2011::periclase);
+  SLB_2011.def("mg_perovskite", &minerals::SLB_2011::mg_perovskite);
+  SLB_2011.def("mg_akimotoite", &minerals::SLB_2011::mg_akimotoite);
+  SLB_2011.def("mg_ringwoodite", &minerals::SLB_2011::mg_ringwoodite);
   auto JH_2015 = catalog.def_submodule("JH_2015");
   JH_2015.def("orthopyroxene", &minerals::JH_2015::orthopyroxene);
   JH_2015.def("mg_fe_orthopyroxene", &minerals::JH_2015::mg_fe_orthopyroxene);

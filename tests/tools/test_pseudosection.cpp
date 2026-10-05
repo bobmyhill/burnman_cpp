@@ -19,6 +19,39 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 using namespace burnman;
 
+TEST_CASE("Entropy-volume sections solve physical P and T", "[pseudosection]") {
+  namespace ps = pseudosections;
+  auto mineral = minerals::SLB_2011::ca_perovskite();
+  mineral->set_state(4.e9, 1000.);
+  ps::CompositionSection section;
+  section.type = ps::DiagramType::SV;
+  section.entropy_range = {mineral->get_molar_entropy() - .05,
+                           mineral->get_molar_entropy() + .05};
+  section.volume_range = {mineral->get_molar_volume() - 1.e-9,
+                          mineral->get_molar_volume() + 1.e-9};
+  ps::Settings settings;
+  settings.entropy_seeds = settings.volume_seeds = 2;
+  auto result =
+      ps::pseudosection({{"Ca", 1.}, {"Si", 1.}, {"O", 3.}}, {mineral},
+                        {0., 8.e9}, {500., 1500.}, settings, section);
+  REQUIRE(result.resolved);
+  CHECK(result.coordinate_ranges()[0] == section.entropy_range);
+  CHECK(result.coordinate_ranges()[1] == section.volume_range);
+  for (const auto &sample : result.samples) {
+    REQUIRE(sample.success);
+    mineral->set_state(sample.pressure, sample.temperature);
+    CHECK_THAT(sample.entropy,
+               Catch::Matchers::WithinRel(mineral->get_molar_entropy(), 1.e-9));
+    CHECK_THAT(sample.volume,
+               Catch::Matchers::WithinRel(mineral->get_molar_volume(), 1.e-9));
+    CHECK(sample.mass_balance_error < 1.e-8);
+  }
+  auto geometry = ps::field_polygons(result);
+  REQUIRE(geometry.polygons.size() == 1);
+  CHECK(geometry.polygons[0].n_phases == 1);
+  CHECK_THAT(geometry.polygons[0].area, Catch::Matchers::WithinAbs(1., 1.e-9));
+}
+
 TEST_CASE("Fe-O TX closes fields with unequal composition endpoints",
           "[pseudosection]") {
   namespace ps = pseudosections;
