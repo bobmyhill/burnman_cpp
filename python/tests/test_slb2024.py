@@ -151,11 +151,17 @@ def test_pyrolite_example_passes_pressure_in_pascals(example, monkeypatch):
     "pressure_range,max_temperature",
     [((9.4e9, 9.6e9), 1.0), ((10.7e9, 10.75e9), 10.0)],
 )
+@pytest.mark.parametrize("bulk_scale", [1.0, 0.5])
 def test_cold_pyrolite_boundaries_reach_zero_kelvin(
-    example, pressure_range, max_temperature
+    example, pressure_range, max_temperature, bulk_scale
 ):
     result = bm.pseudosection(
-        example["PYROLITE_COMPOSITION"].atomic_composition,
+        {
+            element: amount * bulk_scale
+            for element, amount in example[
+                "PYROLITE_COMPOSITION"
+            ].atomic_composition.items()
+        },
         example["candidate_phases"](),
         pressure_range,
         (0.0, max_temperature),
@@ -171,6 +177,21 @@ def test_cold_pyrolite_boundaries_reach_zero_kelvin(
     polygons = bm.pseudosection_field_polygons(result)
     assert not polygons.diagnostics
     assert len(polygons.polygons) == 2
+
+
+def test_zero_kelvin_flat_garnet_mixing_does_not_create_an_extra_phase(example):
+    bulk = {
+        element: amount * 0.5
+        for element, amount in example[
+            "PYROLITE_COMPOSITION"
+        ].atomic_composition.items()
+    }
+    state = bm.stable_equilibrium(bulk, example["candidate_phases"](), 9.5e9, 0.0)
+    assert state.success, state.message
+    assert state.mass_balance_error < 1.0e-8
+    garnets = [p for p in state.phases if p.name.startswith("gt")]
+    # Two genuine garnet branches remain: mixing across their gap costs energy.
+    assert len(garnets) == 2
 
 
 def test_distinct_solution_branches_can_have_the_same_phase_counts(example):

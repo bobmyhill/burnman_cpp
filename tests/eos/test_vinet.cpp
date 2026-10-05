@@ -178,10 +178,15 @@ TEST_CASE("Vinet python reference values", "[vinet][eos]") {
                    P, T, test_data.input * (*params_a.V_0), params_a),
                WithinRel(test_data.expected_K, tol_rel) ||
                    WithinAbs(test_data.expected_K, tol_abs));
-    CHECK_THAT(vinet.compute_molar_internal_energy(
-                   P, T, test_data.input * (*params_a.V_0), params_a),
-               WithinRel(test_data.expected_E, tol_rel) ||
-                   WithinAbs(test_data.expected_E, tol_abs));
+    // Vinet's integral subtracts two numbers close to one. Roundoff is set
+    // by the prefactor, not the small energy near the reference volume.
+    double energy_scale = 9.0 * (*params_a.V_0) * (*params_a.K_0) /
+                          std::pow(1.5 * (*params_a.Kprime_0 - 1.0), 2);
+    CHECK_THAT(
+        vinet.compute_molar_internal_energy(
+            P, T, test_data.input * (*params_a.V_0), params_a),
+        WithinRel(test_data.expected_E, tol_rel) ||
+            WithinAbs(test_data.expected_E, roundoff_tolerance(energy_scale)));
   }
   SECTION("Test volume dependent functions B") {
     eos::Vinet vinet;
@@ -210,10 +215,13 @@ TEST_CASE("Vinet python reference values", "[vinet][eos]") {
                    P, T, test_data.input * (*params_b.V_0), params_b),
                WithinRel(test_data.expected_K, tol_rel) ||
                    WithinAbs(test_data.expected_K, tol_abs));
-    CHECK_THAT(vinet.compute_molar_internal_energy(
-                   P, T, test_data.input * (*params_b.V_0), params_b),
-               WithinRel(test_data.expected_E, tol_rel) ||
-                   WithinAbs(test_data.expected_E, tol_abs));
+    double energy_scale = 9.0 * (*params_b.V_0) * (*params_b.K_0) /
+                          std::pow(1.5 * (*params_b.Kprime_0 - 1.0), 2);
+    CHECK_THAT(
+        vinet.compute_molar_internal_energy(
+            P, T, test_data.input * (*params_b.V_0), params_b),
+        WithinRel(test_data.expected_E, tol_rel) ||
+            WithinAbs(test_data.expected_E, roundoff_tolerance(energy_scale)));
   }
   SECTION("Test Gibbs") {
     eos::Vinet vinet;

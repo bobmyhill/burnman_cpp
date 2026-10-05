@@ -406,9 +406,8 @@ def plot_pseudosection(
                 "| Field number | Assemblage |",
                 "| ---: | --- |",
             ]
-            rows.extend(
-                f"| {number} | {name.replace('|', r'\|')} |"
-                for number, name in ax.pseudosection_label_key.items()
-            )
+            for number, name in ax.pseudosection_label_key.items():
+                escaped_name = name.replace("|", r"\|")
+                rows.append(f"| {number} | {escaped_name} |")
             destination.write_text("\n".join(rows) + "\n", encoding="utf-8")
     return fig, ax

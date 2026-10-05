@@ -7,12 +7,38 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <nlopt.hpp>
 #include <numeric>
 #include <set>
 #include <sstream>
 #include <stdexcept>
 namespace burnman::pseudosections::detail {
+namespace {
+bool flat_mixing(const Solution &solution, double pressure, double temperature,
+                 const Eigen::VectorXd &left, const Eigen::VectorXd &right) {
+  // Endmember energies are affine in composition. Only the excess term can
+  // distinguish separate copies from their homogeneous mixture.
+  const auto &model = solution.get_solution_model();
+  auto excess = [&](const Eigen::VectorXd &composition) {
+    return model->compute_excess_gibbs_free_energy(pressure, temperature,
+                                                   composition.array());
+  };
+  const double gl = excess(left), gr = excess(right);
+  if (!std::isfinite(gl) || !std::isfinite(gr))
+    return false;
+  for (double fraction : {.25, .5, .75}) {
+    double mixed = excess((1. - fraction) * left + fraction * right);
+    double linear = (1. - fraction) * gl + fraction * gr;
+    double tolerance =
+        32. * std::numeric_limits<double>::epsilon() *
+        std::max({1., std::abs(gl), std::abs(gr), std::abs(mixed)});
+    if (!std::isfinite(mixed) || std::abs(mixed - linear) > tolerance)
+      return false;
+  }
+  return true;
+}
+} // namespace
 std::shared_ptr<Material> clone(const std::shared_ptr<Material> &phase) {
   if (auto s = std::dynamic_pointer_cast<Solution>(phase)) {
     std::shared_ptr<Solution> out;
@@ -653,8 +679,15 @@ WorkState Engine::fixed_pt(const std::vector<int> &ids,
           const auto &second = out.state.phases[j];
           double amount = first.amount + second.amount;
           if (first.candidate_index == second.candidate_index && amount > 0. &&
-              (first.composition - second.composition).norm() <
-                  settings.composition_tolerance) {
+              ((first.composition - second.composition).norm() <
+                   settings.composition_tolerance ||
+               (settings.active_solution_faces &&
+                phases[static_cast<std::size_t>(first.candidate_index)]
+                    .solution &&
+                flat_mixing(
+                    *phases[static_cast<std::size_t>(first.candidate_index)]
+                         .solution,
+                    p, t, first.composition, second.composition)))) {
             first.composition = (first.amount * first.composition +
                                  second.amount * second.composition) /
                                 amount;
@@ -667,8 +700,11 @@ WorkState Engine::fixed_pt(const std::vector<int> &ids,
             ++j;
         }
       if (merged) {
-        // Coincident solution copies describe one field phase. Rebuild its
-        // equations while preserving the bulk, including at zero kelvin.
+        // Coincident copies and compositions on one flat mixing face describe
+        // one field phase. At zero kelvin an LP can select separate vertices
+        // of an ideal mixing face. Their weighted mean preserves both the
+        // bulk and Gibbs energy; a genuine miscibility gap has a mixing
+        // barrier.
         out.assemblage = make_assemblage(out.ids, out.state.phases, p, t);
         continue;
       }

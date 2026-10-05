@@ -7,6 +7,7 @@ the latter change only scipy's root tolerance, without changing the EOS.
 """
 
 import ast
+import importlib
 from pathlib import Path
 import re
 
@@ -21,6 +22,37 @@ from burnman.tools import equilibration
 
 import burnman_cpp as bm
 from burnman_cpp.adapters import from_burnman
+
+
+@pytest.mark.parametrize(
+    "value,operand_scale,agrees",
+    [
+        (-1.8189894035458565e-12, 20000.0, True),
+        (1.0e-8, 20000.0, False),
+        (-1.8189894035458565e-12, 0.0, False),
+        (0.0, 0.0, True),
+    ],
+)
+def test_reference_audit_allows_only_operand_scaled_roundoff(
+    tmp_path, monkeypatch, value, operand_scale, agrees
+):
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2] / "tools"))
+    reference_audit = importlib.import_module("check_reference_data")
+    monkeypatch.setattr(reference_audit, "ROOT", tmp_path)
+    path = tmp_path / "reference.cpp"
+    source = "double ref_excess_enthalpy = 0.0;"
+    path.write_text(source)
+    audit = reference_audit.Audit()
+    audit.scalars(
+        path,
+        0,
+        source,
+        {"ref_excess_enthalpy": value},
+        {"ref_excess_enthalpy": operand_scale},
+    )
+    assert audit.records[0]["agrees"] == agrees
+    assert audit.records[0]["value"] == value
+    assert path.read_text() == source
 
 
 def fixture_mineral(name):

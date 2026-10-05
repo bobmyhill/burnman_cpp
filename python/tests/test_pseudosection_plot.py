@@ -511,6 +511,7 @@ def test_uniform_font_and_numbered_assemblage_document(tmp_path):
     narrow = [(0.499, 0.1), (0.501, 0.1), (0.501, 0.9), (0.499, 0.9), (0.499, 0.1)]
     data = diagram([line(narrow, list(range(12)), [12])])
     data["phase_names"] = [f"phase{i}" for i in range(12)] + ["background"]
+    data["phase_names"][0] = "phase|0"
     key_path = tmp_path / "field_names.md"
     fig, ax = bm.plot_pseudosection(
         data,
@@ -529,7 +530,8 @@ def test_uniform_font_and_numbered_assemblage_document(tmp_path):
     assert key_path.is_file()
     key = key_path.read_text()
     for number, name in ax.pseudosection_label_key.items():
-        assert f"| {number} | {name} |" in key
+        escaped_name = name.replace("|", r"\|")
+        assert f"| {number} | {escaped_name} |" in key
     # The number does not fit in the narrow region either: retain the chosen
     # size and show its connection to the correct field.
     assert any(getattr(text, "arrow_patch", None) is not None for text in ax.texts)

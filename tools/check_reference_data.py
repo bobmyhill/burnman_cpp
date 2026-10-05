@@ -169,7 +169,9 @@ class Audit:
         self.edits = {}
         self.records = []
 
-    def expect(self, path, start, end, value, label, as_integer=False):
+    def expect(
+        self, path, start, end, value, label, as_integer=False, operand_scale=0.0
+    ):
         value = float(value)
         if not math.isfinite(value):
             raise ValueError(f"Nonfinite reference: {path}: {label}")
@@ -183,11 +185,18 @@ class Audit:
                 label=label,
                 value=value,
                 previous=previous,
-                agrees=math.isclose(previous, value, rel_tol=1e-12, abs_tol=1e-16),
+                agrees=math.isclose(
+                    previous,
+                    value,
+                    rel_tol=1e-12,
+                    abs_tol=max(
+                        1e-16, 8.0 * sys.float_info.epsilon * abs(operand_scale)
+                    ),
+                ),
             )
         )
 
-    def scalars(self, path, offset, text, values):
+    def scalars(self, path, offset, text, values, operand_scales=None):
         matched = set()
         for match in re.finditer(
             rf"\b(?:double|Eigen::Index)\s+(\w+)\s*=\s*({NUMBER})\s*;", text
@@ -200,6 +209,7 @@ class Audit:
                     values[match[1]],
                     match[1],
                     as_integer=match[0].startswith("Eigen::Index"),
+                    operand_scale=(operand_scales or {}).get(match[1], 0.0),
                 )
                 matched.add(match[1])
         missing = set(values) - matched
@@ -647,7 +657,15 @@ def audit_materials(audit):
                     if prop == "n_elements"
                     else getattr(phase, prop)
                 )
-            audit.scalars(path, case[1] + start, section, values)
+            operand_scales = {}
+            if filename == "solution":
+                # H_ex = G_ex + T S_ex cancels for an ideal solution. Match
+                # the native test's operand-based roundoff allowance, rather
+                # than applying a relative tolerance to a near-zero result.
+                operand_scales["ref_excess_enthalpy"] = max(
+                    abs(phase.excess_gibbs), abs(temperature * phase.excess_entropy)
+                )
+            audit.scalars(path, case[1] + start, section, values, operand_scales)
             arrays = {}
             for match in re.finditer(r"\b(ref_\w+)\s*<<", section):
                 prop = match[1].removeprefix("ref_")
