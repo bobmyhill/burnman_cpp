@@ -30,6 +30,20 @@ def test_mineral_parameters_and_reference_properties():
     )
 
 
+@pytest.mark.parametrize("alias", ["n", "napfu"])
+def test_fractional_atom_count_parameters(alias):
+    params = oxide_params()
+    params.pop("n")
+    params[alias] = 2.5
+    params["formula"] = {"Mg": 1.25, "O": 1.25}
+    mineral = bm.Mineral(params)
+    assert mineral.params.napfu == 2.5
+    assert mineral.formula == params["formula"]
+    typed = bm.MineralParams()
+    typed.napfu = 81.5
+    assert typed.napfu == 81.5
+
+
 def test_ideal_solution_and_composition_cache(solution):
     solution.set_state(1e9, 2000.0)
     np.testing.assert_allclose(solution.activities, [0.8, 0.2])

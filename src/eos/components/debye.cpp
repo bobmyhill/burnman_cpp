@@ -43,9 +43,8 @@ double debye::debye_fn_quad(double x) {
 // result.val, result.err
 double debye::debye_fn_cheb(double x) { return gsl_sf_debye_3(x); }
 
-double debye::compute_thermal_energy_impl(double temperature,
-                                          double debye_temperature,
-                                          double napfu) {
+double debye::compute_thermal_energy(double temperature,
+                                     double debye_temperature, double napfu) {
   if (temperature <= constants::precision::double_eps) {
     return 0.0;
   }
@@ -54,9 +53,9 @@ double debye::compute_thermal_energy_impl(double temperature,
          debye_fn_cheb(debye_temperature / temperature);
 }
 
-double debye::compute_molar_heat_capacity_v_impl(double temperature,
-                                                 double debye_temperature,
-                                                 double napfu) {
+double debye::compute_molar_heat_capacity_v(double temperature,
+                                            double debye_temperature,
+                                            double napfu) {
   if (temperature < constants::precision::double_eps) {
     return 0.0;
   }
@@ -66,9 +65,9 @@ double debye::compute_molar_heat_capacity_v_impl(double temperature,
          (4.0 * debye_fn_cheb(x) - 3.0 * x / std::expm1(x));
 }
 
-double debye::compute_helmholtz_free_energy_impl(double temperature,
-                                                 double debye_temperature,
-                                                 double napfu) {
+double debye::compute_helmholtz_free_energy(double temperature,
+                                            double debye_temperature,
+                                            double napfu) {
   if (temperature <= constants::precision::double_eps) {
     return 0.0;
   }
@@ -78,8 +77,8 @@ double debye::compute_helmholtz_free_energy_impl(double temperature,
          (3.0 * std::log1p(-std::exp(-x)) - debye_fn_cheb(x));
 }
 
-double debye::compute_entropy_impl(double temperature, double debye_temperature,
-                                   double napfu) {
+double debye::compute_entropy(double temperature, double debye_temperature,
+                              double napfu) {
   if (temperature <= constants::precision::double_eps) {
     return 0.0;
   }
@@ -89,87 +88,22 @@ double debye::compute_entropy_impl(double temperature, double debye_temperature,
          (4.0 * debye_fn_cheb(x) - 3.0 * std::log1p(-std::exp(-x)));
 }
 
-double debye::compute_dmolar_heat_capacity_v_dT_impl(double temperature,
-                                                     double debye_temperature,
-                                                     double napfu) {
+double debye::compute_dmolar_heat_capacity_v_dT(double temperature,
+                                                double debye_temperature,
+                                                double napfu) {
   if (temperature <= constants::precision::double_eps) {
     return 0.0;
   }
   double x = debye_temperature / temperature;
-  double Cv_over_T = compute_molar_heat_capacity_v_impl(
-                         temperature, debye_temperature, napfu) /
-                     temperature;
+  double Cv_over_T =
+      compute_molar_heat_capacity_v(temperature, debye_temperature, napfu) /
+      temperature;
   double E_over_Tsqr =
-      compute_thermal_energy_impl(temperature, debye_temperature, napfu) /
+      compute_thermal_energy(temperature, debye_temperature, napfu) /
       (temperature * temperature);
   // dCvdT
   return 3.0 * Cv_over_T +
          (Cv_over_T - 4.0 * E_over_Tsqr) * x / (1.0 - std::exp(-x));
-}
-
-double debye::compute_thermal_energy(double temperature,
-                                     double debye_temperature, int napfu) {
-  return compute_thermal_energy_impl(temperature, debye_temperature,
-                                     static_cast<double>(napfu));
-}
-
-double debye::compute_thermal_energy(double temperature,
-                                     double debye_temperature,
-                                     types::ExplicitDouble f) {
-  return compute_thermal_energy_impl(temperature, debye_temperature, f.value);
-}
-
-double debye::compute_molar_heat_capacity_v(double temperature,
-                                            double debye_temperature,
-                                            int napfu) {
-  return compute_molar_heat_capacity_v_impl(temperature, debye_temperature,
-                                            static_cast<double>(napfu));
-}
-
-double debye::compute_molar_heat_capacity_v(double temperature,
-                                            double debye_temperature,
-                                            types::ExplicitDouble f) {
-  return compute_molar_heat_capacity_v_impl(temperature, debye_temperature,
-                                            f.value);
-}
-
-double debye::compute_helmholtz_free_energy(double temperature,
-                                            double debye_temperature,
-                                            int napfu) {
-  return compute_helmholtz_free_energy_impl(temperature, debye_temperature,
-                                            static_cast<double>(napfu));
-}
-
-double debye::compute_helmholtz_free_energy(double temperature,
-                                            double debye_temperature,
-                                            types::ExplicitDouble f) {
-  return compute_helmholtz_free_energy_impl(temperature, debye_temperature,
-                                            f.value);
-}
-
-double debye::compute_entropy(double temperature, double debye_temperature,
-                              int napfu) {
-  return compute_entropy_impl(temperature, debye_temperature,
-                              static_cast<double>(napfu));
-}
-
-double debye::compute_entropy(double temperature, double debye_temperature,
-                              types::ExplicitDouble f) {
-  return compute_entropy_impl(temperature, debye_temperature, f.value);
-}
-
-double debye::compute_dmolar_heat_capacity_v_dT(double temperature,
-                                                double debye_temperature,
-                                                int napfu) {
-  return compute_dmolar_heat_capacity_v_dT_impl(temperature, debye_temperature,
-                                                static_cast<double>(napfu));
-}
-
-double debye::compute_dmolar_heat_capacity_v_dT(double temperature,
-                                                double debye_temperature,
-                                                types::ExplicitDouble f) {
-  return compute_dmolar_heat_capacity_v_dT_impl(temperature, debye_temperature,
-                                                f.value);
 }
 
 } // namespace burnman::eos

@@ -61,37 +61,6 @@ class Exporter:
 
     def mineral(self, phase):
         """Deduplicate minerals by complete thermodynamic definition."""
-        if not isinstance(phase, burnman.CombinedMineral) and phase.params["n"] != int(
-            phase.params["n"]
-        ):
-            # Staurolite is tabulated per 81.5 atoms. The native thermal API
-            # takes an integer atom count. Evaluate HP per one-atom formula
-            # unit, then restore the original molar unit with CombinedMineral.
-            # All extensive properties and formula amounts scale together;
-            # intensives (including K, alpha and Einstein T) remain identical.
-            if (
-                phase.params["equation_of_state"] != "hp_tmt"
-                or phase.property_modifiers
-            ):
-                raise ValueError(
-                    "Fractional formula-unit export requires an unmodified HP mineral."
-                )
-            count = phase.params["n"]
-            params = dict(phase.params)
-            for quantity in ("H_0", "S_0", "V_0", "F_0", "E_0", "molar_mass"):
-                if quantity in params:
-                    params[quantity] /= count
-            params["Cp"] = (np.asarray(params["Cp"]) / count).tolist()
-            params["formula"] = {
-                element: amount / count for element, amount in params["formula"].items()
-            }
-            params["n"] = 1
-            params["name"] = phase.name + " (one-atom formula unit)"
-            return self.mineral(
-                burnman.CombinedMineral(
-                    [burnman.Mineral(params)], [count], [0.0, 0.0, 0.0], phase.name
-                )
-            )
         if isinstance(phase, burnman.CombinedMineral):
             components = [self.mineral(m) for m, _ in phase.mixture.endmembers]
             key = (
@@ -127,9 +96,6 @@ class Exporter:
                     setup.append(
                         f"  m.params.equation_of_state = types::EOSType::{enums[value]};"
                     )
-                elif name == "n":
-                    assert value == int(value)
-                    setup.append(f"  m.params.napfu = {int(value)};")
                 elif name == "Cp":
                     setup.append(f"  m.params.Cp = types::CpParams{literal(value)};")
                 elif name == "formula":
@@ -137,7 +103,7 @@ class Exporter:
                         f"  m.params.formula = types::FormulaMap{literal(value)};"
                     )
                 else:
-                    field = {"Debye_0": "debye_0"}.get(name, name)
+                    field = {"Debye_0": "debye_0", "n": "napfu"}.get(name, name)
                     setup.append(f"  m.params.{field} = {literal(value)};")
             setup.append("  m.set_method(types::EOSType::Auto);")
             setup.append(f"  m.set_name({literal(phase.name)});")

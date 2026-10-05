@@ -171,8 +171,6 @@ def test_endmember_volumes_and_all_eos_properties_against_python(
 def test_eos_orders_and_electronic_terms_at_fixed_volume(method, temperature, ratio):
     params = deepcopy(pySLB.fo().params)
     params.pop("Z", None)
-    assert params["n"].is_integer()
-    params["n"] = int(params["n"])  # Native EOS parameters use an integer atom count.
     params.update(equation_of_state=method, bel_0=0.004, gel=1.5)
     pure = reference.Mineral(params)
     native = bm.Mineral(params)
