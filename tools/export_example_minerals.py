@@ -8,10 +8,12 @@ the examples now use the general C++ polytope simplifier at runtime.
 """
 
 import argparse
+import difflib
 import json
 import math
 from pathlib import Path
 import subprocess
+import sys
 
 import numpy as np
 import burnman
@@ -25,7 +27,7 @@ from burnman.minerals import (
 from burnman.minerals import mp50NCKFMASHTO as MP
 from burnman.minerals import SLB_2024 as SLB24
 from burnman.classes import solutionmodel as models
-from burnman.tools.polytope import simplify_composite_with_composition
+from burnman.tools.solution import transform_solution_to_new_basis
 
 from burnman_reference import REFERENCE, verify_reference
 
@@ -251,10 +253,25 @@ class Exporter:
         return f"std::shared_ptr<Solution> {name}() {{\n" + "\n".join(setup) + "\n}\n"
 
 
-def reduced(phase, composition):
-    return simplify_composite_with_composition(
-        burnman.Composite([phase]), composition
-    ).phases[0]
+def reduced(phase, basis):
+    """Export a fixed compatibility model in its intended endmember basis.
+
+    The general polytope simplifier selects independent rows by sorting QP
+    weights. Equal weights can exchange order with solver/platform roundoff,
+    or select another equivalent basis. These three legacy factories need
+    reproducible definitions; their parameters still come exclusively from
+    the pinned Python BurnMan basis transformation.
+    """
+    solution = transform_solution_to_new_basis(
+        phase, basis, solution_name=f"{phase.name} (transformed)"
+    )
+    # Retain the names used by the reference polytope simplifier.
+    for i, name in enumerate(solution.endmember_names):
+        if name == "User-created endmember":
+            name = f"Derived member (occupancies: {solution.endmembers[i][1]})"
+            solution.endmembers[i][0].name = name
+            solution.endmember_names[i] = name
+    return solution
 
 
 def main():
@@ -356,18 +373,26 @@ def main():
         + [
             (
                 "pyrope_grossular",
-                reduced(SLB.garnet(), dict(Mg=1.5, Ca=1.5, Al=2.0, Si=3.0, O=12.0)),
+                reduced(SLB.garnet(), [[1, 0, 0, 0, 0], [0, 0, 1, 0, 0]]),
             ),
             (
                 "mg_fe_bridgmanite_binary",
-                reduced(SLB.mg_fe_bridgmanite(), dict(Mg=0.9, Fe=0.1, Si=1.0, O=3.0)),
+                reduced(SLB.mg_fe_bridgmanite(), [[1, 0, 0], [0, 1, 0]]),
             ),
         ],
         "JH_2015": [
             ("orthopyroxene", JH.orthopyroxene()),
             (
                 "mg_fe_orthopyroxene",
-                reduced(JH.orthopyroxene(), dict(Mg=1.0, Fe=1.0, Si=2.0, O=6.0)),
+                # en, en + fs - ordered ferroenstatite, fs.
+                reduced(
+                    JH.orthopyroxene(),
+                    [
+                        [1, 0, 0, 0, 0, 0, 0],
+                        [1, 1, -1, 0, 0, 0, 0],
+                        [0, 1, 0, 0, 0, 0, 0],
+                    ],
+                ),
             ),
         ],
         "mp50NCKFMASHTO": [
@@ -559,6 +584,17 @@ def main():
             actual = subprocess.check_output(command, input=path.read_text(), text=True)
             if actual != expected:
                 mismatches.append(filename)
+                diff = list(
+                    difflib.unified_diff(
+                        actual.splitlines(keepends=True),
+                        expected.splitlines(keepends=True),
+                        fromfile=filename,
+                        tofile=f"{filename} (pinned Python BurnMan)",
+                    )
+                )
+                sys.stderr.write("".join(diff[:80]))
+                if len(diff) > 80:
+                    print(f"... {len(diff) - 80} further diff lines", file=sys.stderr)
         else:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text)
