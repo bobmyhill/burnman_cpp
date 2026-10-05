@@ -51,6 +51,7 @@ enum class EOSType {
   MGD2,
   MGD3,
   HPTMT,
+  HPTMTL,
   SLB2,
   SLB3,
   SLB3Conductive
