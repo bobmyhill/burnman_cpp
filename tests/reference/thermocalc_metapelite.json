@@ -1,0 +1,19 @@
+{
+  "archive": "https://hpxeosandthermocalc.org/wp-content/uploads/2020/09/0_metapelite_benchmarks_2020-09-10.zip",
+  "sha256": "6bed1dcf3848a8457977a761863d71fd165ccf790f68c21d1c366b4de83442c8",
+  "thermocalc": "tc350beta1",
+  "dataset": "tc-ds62.txt",
+  "endmember_model_files": ["tc-mp50KFMASH.txt", "tc-mp50NCKFMASHTO.txt"],
+  "pure_phases": ["H2O", "q", "and", "sill"],
+  "excluded_endmember_phases": ["liq"],
+  "energy_tolerance_J_per_mol": 10.0,
+  "water_thermal_reference": {
+    "paper": "https://doi.org/10.1111/j.1525-1314.2010.00923.x",
+    "table": "2a, water gas, page 341",
+    "temperature_K": 298.15,
+    "pressure_Pa": 100000.0,
+    "enthalpy_of_formation_J_per_mol": -241810.0,
+    "entropy_J_per_mol_K": 188.80,
+    "heat_capacity_coefficients_SI": [40.1, 0.008656, 487500.0, -251.2]
+  }
+}

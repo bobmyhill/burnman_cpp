@@ -8,6 +8,7 @@
  * burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
  */
 #include "burnman/eos/slb.hpp"
+#include "burnman/minerals/datasets.hpp"
 #include "burnman/utils/types/mineral_params.hpp"
 #include "tolerances.hpp"
 #include <catch2/catch_test_macros.hpp>
@@ -19,6 +20,52 @@
 
 using namespace Catch::Matchers;
 using namespace burnman;
+
+TEST_CASE("SLB thermal spinodal matches independent Python roots",
+          "[eos][slb]") {
+  // Python BurnMan SLB2024 forsterite, T=4000 K: solve K_T=0 with
+  // scipy.optimize.brentq in V/V0, then its volume() above that pressure.
+  // These fixtures also exercise the safeguarded Newton/bisection transition.
+  auto params = minerals::SLB_2024::fo()->params;
+  eos::SLB3 slb;
+  const double temperature = 4000., minimum_pressure = 2992114107.980507;
+  const double critical_ratio = 1.228288593743338;
+  struct Case {
+    double overpressure, volume_ratio;
+  };
+  const auto sample =
+      GENERATE(Case{1.e8, 1.2056883610142133}, Case{1.e6, 1.2260319220386076},
+               Case{1.e4, 1.2280629777180971}, Case{100., 1.228266032669985});
+  const double pressure = minimum_pressure + sample.overpressure;
+  const double volume = slb.compute_volume(pressure, temperature, params);
+  CAPTURE(sample.overpressure);
+  CHECK_THAT(volume / (*params.V_0), WithinRel(sample.volume_ratio, 2.e-11));
+  CHECK(volume / (*params.V_0) < critical_ratio);
+  CHECK(slb.compute_isothermal_bulk_modulus_reuss(pressure, temperature, volume,
+                                                  params) > 0.);
+  CHECK_THAT(slb.compute_pressure(temperature, volume, params),
+             WithinAbs(pressure, .002));
+  CHECK_THROWS_AS(
+      slb.compute_volume(minimum_pressure - 100., temperature, params),
+      eos::SLBDomainError);
+}
+
+TEST_CASE("SLB distinguishes domain failures from invalid inputs",
+          "[eos][slb]") {
+  eos::SLB3 slb;
+  auto params = minerals::SLB_2024::en()->params;
+  CHECK_THROWS_AS(slb.compute_pressure(1600., .3 * (*params.V_0), params),
+                  eos::SLBDomainError);
+  CHECK_THROWS_AS(slb.compute_volume(0., -1., params), std::invalid_argument);
+  CHECK_THROWS_AS(slb.compute_volume(std::nan(""), 300., params),
+                  std::invalid_argument);
+  eos::SLB3Conductive iron;
+  auto fe = minerals::SLB_2024::fea()->params;
+  // Python can find a second expanded positive-K_T root at 4000 K. Native
+  // solving retains the reference-connected branch, whose P_min is 9.897 GPa.
+  CHECK_THROWS_AS(iron.compute_volume(0., 4000., fe), eos::SLBDomainError);
+  CHECK_THROWS_AS(iron.compute_volume(3.e9, 4000., fe), eos::SLBDomainError);
+}
 
 TEST_CASE("Test validate parameters", "[eos][slb]") {
   types::MineralParams params;
