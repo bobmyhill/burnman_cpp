@@ -9,12 +9,21 @@ namespace {
   X(temperature_seeds)                                                         \
   X(max_refinement_iterations)                                                 \
   X(minimization_starts)                                                       \
-  X(max_phase_instances) X(max_trace_steps) X(max_lines)                       \
-      X(max_recovery_passes) X(step) X(min_step) X(affinity_tolerance)         \
-          X(mass_balance_tolerance) X(amount_tolerance)                        \
-              X(composition_tolerance) X(node_tolerance) X(verbose)            \
-                  X(exclude_invalid_eos) X(active_solution_faces)              \
-                      X(required_eos_phases)
+  X(max_phase_instances)                                                       \
+  X(max_trace_steps)                                                           \
+  X(max_lines)                                                                 \
+  X(max_recovery_passes)                                                       \
+  X(step)                                                                      \
+  X(min_step)                                                                  \
+  X(affinity_tolerance)                                                        \
+  X(mass_balance_tolerance)                                                    \
+  X(amount_tolerance)                                                          \
+  X(composition_tolerance)                                                     \
+  X(node_tolerance)                                                            \
+  X(verbose)                                                                   \
+  X(exclude_invalid_eos)                                                       \
+  X(active_solution_faces)                                                     \
+  X(required_eos_phases)
 
 py::dict settings_dict(const pseudosections::Settings &settings) {
   py::dict data;
@@ -58,10 +67,12 @@ py::dict result_dict(const pseudosections::Result &result) {
   SAVE(temperature_range)
   SAVE(phase_names)
   SAVE(diagnostics)
-  SAVE(resolved) SAVE(equilibrium_solves) SAVE(minimization_calls)
+  SAVE(resolved)
+  SAVE(equilibrium_solves)
+  SAVE(minimization_calls)
 #undef SAVE
-      // Preserve the SI range keys used by the original example JSON files.
-      data["calculation_pressure_range_Pa"] = data["pressure_range"];
+  // Preserve the SI range keys used by the original example JSON files.
+  data["calculation_pressure_range_Pa"] = data["pressure_range"];
   data["temperature_range_K"] = data["temperature_range"];
   data["settings"] = settings_dict(result.settings);
   py::list excluded;
@@ -100,10 +111,13 @@ py::dict result_dict(const pseudosections::Result &result) {
     SAVE(pressure)
     SAVE(temperature)
     SAVE(kind)
-    SAVE(zero_phases) SAVE(assemblage) SAVE(gibbs_variance) SAVE(pt_nullity)
-        SAVE(incident_lines)
+    SAVE(zero_phases)
+    SAVE(assemblage)
+    SAVE(gibbs_variance)
+    SAVE(pt_nullity)
+    SAVE(incident_lines)
 #undef SAVE
-            record["critical_mode"] = vector_list(node.critical_mode);
+    record["critical_mode"] = vector_list(node.critical_mode);
     nodes.append(record);
   }
   for (auto &line : result.boundaries) {
@@ -113,9 +127,12 @@ py::dict result_dict(const pseudosections::Result &result) {
     SAVE(zero_phase)
     SAVE(assemblage)
     SAVE(side_a)
-    SAVE(side_b) SAVE(start_node) SAVE(end_node) SAVE(termination)
+    SAVE(side_b)
+    SAVE(start_node)
+    SAVE(end_node)
+    SAVE(termination)
 #undef SAVE
-        py::list points;
+    py::list points;
     for (auto &point : line.points) {
       py::dict item;
 #define SAVE(name) item[#name] = py::cast(point.name);
@@ -125,7 +142,7 @@ py::dict result_dict(const pseudosections::Result &result) {
       SAVE(minimum_affinity)
       SAVE(residual)
 #undef SAVE
-          item["phases"] = phases(point.phases);
+      item["phases"] = phases(point.phases);
       points.append(item);
     }
     record["points"] = points;
@@ -138,10 +155,15 @@ py::dict result_dict(const pseudosections::Result &result) {
     SAVE(temperature)
     SAVE(success)
     SAVE(is_field_verification)
-    SAVE(outside_model_domain) SAVE(message) SAVE(excluded_phases) SAVE(gibbs)
-        SAVE(mass_balance_error) SAVE(minimum_affinity) SAVE(equilibrium_error)
+    SAVE(outside_model_domain)
+    SAVE(message)
+    SAVE(excluded_phases)
+    SAVE(gibbs)
+    SAVE(mass_balance_error)
+    SAVE(minimum_affinity)
+    SAVE(equilibrium_error)
 #undef SAVE
-            record["phases"] = phases(state.phases);
+    record["phases"] = phases(state.phases);
     samples.append(record);
   }
   data["fields"] = fields;
