@@ -30,6 +30,7 @@ def plot_pseudosection(
     tolerance=1.0e-8,
     pressure_unit="kbar",
     temperature_unit="C",
+    composition_label="X",
     label_assemblages=True,
     phase_aliases=None,
     label_fontsize=7.0,
@@ -52,6 +53,11 @@ def plot_pseudosection(
     Native ``excluded_regions`` are drawn with grey hatching: the solid model
     cannot be evaluated there within its required mechanically stable EOS domain.
     Such regions have no assemblage count and are distinct from solve failures.
+
+    The result selects PT, PX or TX axes automatically. Composition diagrams
+    place the dimensionless bulk mixing coordinate X on the horizontal axis;
+    ``composition_label`` supplies its axis label. Pressure/temperature units
+    apply to the physical axes, including temperature on the vertical TX axis.
 
     Pressure units are ``'Pa'``, ``'GPa'`` or ``'kbar'``; temperature units are
     ``'K'`` or ``'C'``. ``tolerance`` is a fraction of the calculation domain,
@@ -89,6 +95,13 @@ def plot_pseudosection(
     t_offset = 273.15 if temperature_unit == "C" else 0.0
     if isinstance(result, Mapping):
         result = dict(result)
+    diagram = _value(result, "diagram_type", "PT")
+    if diagram not in ("PT", "PX", "TX"):
+        raise ValueError("diagram_type must be 'PT', 'PX' or 'TX'.")
+    axis_scale = np.array([1.0 if diagram == "TX" else p_scale, 1.0])
+    axis_offset = np.array(
+        [t_offset if diagram == "TX" else 0.0, t_offset if diagram == "PT" else 0.0]
+    )
     geometry = _core.pseudosection_field_polygons(
         result, tolerance, close_domain, merge_fields
     )
@@ -98,8 +111,15 @@ def plot_pseudosection(
     ax.pseudosection_geometry = geometry
 
     def coordinates(vertices):
-        vertices = np.asarray(vertices)
-        return np.column_stack((vertices[:, 1] - t_offset, vertices[:, 0] / p_scale))
+        vertices = (np.asarray(vertices) - axis_offset) / axis_scale
+        return vertices[:, ::-1]
+
+    def point_coordinates(point):
+        first = _value(point, "temperature" if diagram == "TX" else "pressure")
+        second = _value(
+            point, "temperature" if diagram == "PT" else "composition_coordinate"
+        )
+        return coordinates([[first, second]])[0]
 
     patches, counts, domain_patches = [], [], []
     for polygon in geometry.polygons:
@@ -211,8 +231,7 @@ def plot_pseudosection(
                 and (not merge_fields or _value(node, "id") in visible_nodes)
             ):
                 ax.plot(
-                    _value(node, "temperature") - t_offset,
-                    _value(node, "pressure") / p_scale,
+                    *point_coordinates(node),
                     "o",
                     color=line_color,
                     ms=3,
@@ -227,8 +246,8 @@ def plot_pseudosection(
                 incomplete.append(node)
         if incomplete:
             ax.scatter(
-                [_value(p, "temperature") - t_offset for p in incomplete],
-                [_value(p, "pressure") / p_scale for p in incomplete],
+                [point_coordinates(p)[0] for p in incomplete],
+                [point_coordinates(p)[1] for p in incomplete],
                 marker="o",
                 facecolors="none",
                 edgecolors="crimson",
@@ -244,8 +263,8 @@ def plot_pseudosection(
         ]
         if failures:
             ax.scatter(
-                [_value(s, "temperature") - t_offset for s in failures],
-                [_value(s, "pressure") / p_scale for s in failures],
+                [point_coordinates(s)[0] for s in failures],
+                [point_coordinates(s)[1] for s in failures],
                 marker="x",
                 color="crimson",
                 s=15,
@@ -267,11 +286,17 @@ def plot_pseudosection(
     temperature_range = _value(
         result, "temperature_range", _value(result, "temperature_range_K")
     )
+    first_range = temperature_range if diagram == "TX" else pressure_range
+    second_range = (
+        temperature_range if diagram == "PT" else _value(result, "composition_range")
+    )
+    limits = coordinates(np.column_stack((first_range, second_range)))
+    temperature_label = f"Temperature ({'°C' if temperature_unit == 'C' else 'K'})"
     ax.set(
-        xlim=tuple(t - t_offset for t in temperature_range),
-        ylim=tuple(p / p_scale for p in pressure_range),
-        xlabel=f"Temperature ({'°C' if temperature_unit == 'C' else 'K'})",
-        ylabel=f"Pressure ({pressure_unit})",
+        xlim=limits[:, 0],
+        ylim=limits[:, 1],
+        xlabel=temperature_label if diagram == "PT" else composition_label,
+        ylabel=temperature_label if diagram == "TX" else f"Pressure ({pressure_unit})",
     )
     ax.pseudosection_label_key = {}
     if label_assemblages:
@@ -303,8 +328,8 @@ def plot_pseudosection(
             centre = corners.mean(axis=0)
             half = np.abs(corners[1] - corners[0]) * 0.5
             return polygon.contains_rectangle(
-                [centre[1] * p_scale, centre[0] + t_offset],
-                [half[1] * p_scale, half[0]],
+                centre[::-1] * axis_scale + axis_offset,
+                half[::-1] * axis_scale,
             )
 
         for number, polygon in enumerate(geometry.polygons, 1):
@@ -313,10 +338,7 @@ def plot_pseudosection(
             name = assemblage_text(polygon.phases)
             if not name:
                 continue
-            location = (
-                polygon.label_position[1] - t_offset,
-                polygon.label_position[0] / p_scale,
-            )
+            location = coordinates([polygon.label_position])[0]
             text = ax.text(*location, name, **text_style)
             fitted = False
             variants = [name] + [

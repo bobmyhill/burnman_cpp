@@ -5322,6 +5322,116 @@ Mineral endmember_252() {
   m.set_name("Wollastonite");
   return m;
 }
+
+Mineral endmember_253() {
+  Mineral m;
+  m.params.Cp = types::CpParams{46.2, 0.005159, 723100.0, -556.2};
+  m.params.F_0 = 0.0;
+  m.params.G_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.Gprime_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.H_0 = -0.0;
+  m.params.K_0 = 164000000000.0;
+  m.params.Kdprime_0 = -3.1e-11;
+  m.params.Kprime_0 = 5.16;
+  m.params.P_0 = 100000.0;
+  m.params.S_0 = 27.09;
+  m.params.T_0 = 298.15;
+  m.params.T_einstein = 317.2084700268416;
+  m.params.V_0 = 7.09e-06;
+  m.params.a_0 = 3.56e-05;
+  m.params.equation_of_state = types::EOSType::HPTMT;
+  m.params.formula = types::FormulaMap{{"Fe", 1.0}};
+  m.params.molar_mass = 0.055845;
+  m.params.napfu = 1.0;
+  m.params.name = "iron";
+  m.set_method(types::EOSType::Auto);
+  m.set_name("iron");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauHPParams{298.15, 100000.0, 1042.0, 0.0, 8.3}});
+  return m;
+}
+
+Mineral endmember_254() {
+  Mineral m;
+  m.params.Cp = types::CpParams{67.4, 0.003758, 315700.0, -381.7};
+  m.params.F_0 = 0.0;
+  m.params.G_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.Gprime_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.H_0 = -262430.0;
+  m.params.K_0 = 152000000000.0;
+  m.params.Kdprime_0 = -3.2e-11;
+  m.params.Kprime_0 = 4.0;
+  m.params.P_0 = 100000.0;
+  m.params.S_0 = 63.0;
+  m.params.T_0 = 298.15;
+  m.params.T_einstein = 280.33737480231946;
+  m.params.V_0 = 1.206e-05;
+  m.params.a_0 = 3.22e-05;
+  m.params.equation_of_state = types::EOSType::HPTMT;
+  m.params.formula = types::FormulaMap{{"Fe", 1.0}, {"O", 1.0}};
+  m.params.molar_mass = 0.0718444;
+  m.params.napfu = 2.0;
+  m.params.name = "wu";
+  m.set_method(types::EOSType::Auto);
+  m.set_name("wu");
+  return m;
+}
+
+Mineral endmember_255() {
+  Mineral m;
+  m.params.Cp = types::CpParams{262.5, -0.007205, -1926200.0, -1655.7};
+  m.params.F_0 = 0.0;
+  m.params.G_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.Gprime_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.H_0 = -1114200.0;
+  m.params.K_0 = 185700000000.0;
+  m.params.Kdprime_0 = -2.2e-11;
+  m.params.Kprime_0 = 4.05;
+  m.params.P_0 = 100000.0;
+  m.params.S_0 = 146.9;
+  m.params.T_0 = 298.15;
+  m.params.T_einstein = 387.81123033649334;
+  m.params.V_0 = 4.452e-05;
+  m.params.a_0 = 3.71e-05;
+  m.params.equation_of_state = types::EOSType::HPTMT;
+  m.params.formula = types::FormulaMap{{"Fe", 3.0}, {"O", 4.0}};
+  m.params.molar_mass = 0.2315326;
+  m.params.napfu = 7.0;
+  m.params.name = "mt";
+  m.set_method(types::EOSType::Auto);
+  m.set_name("mt");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauHPParams{298.15, 100000.0, 848.0, 0.0, 35.0}});
+  return m;
+}
+
+Mineral endmember_256() {
+  Mineral m;
+  m.params.Cp = types::CpParams{163.9, 0.0, -2257200.0, -657.6};
+  m.params.F_0 = 0.0;
+  m.params.G_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.Gprime_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.H_0 = -825420.0;
+  m.params.K_0 = 223000000000.0;
+  m.params.Kdprime_0 = -1.8e-11;
+  m.params.Kprime_0 = 4.04;
+  m.params.P_0 = 100000.0;
+  m.params.S_0 = 87.4;
+  m.params.T_0 = 298.15;
+  m.params.T_einstein = 444.6488294314381;
+  m.params.V_0 = 3.027e-05;
+  m.params.a_0 = 2.79e-05;
+  m.params.equation_of_state = types::EOSType::HPTMT;
+  m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 3.0}};
+  m.params.molar_mass = 0.1596882;
+  m.params.napfu = 5.0;
+  m.params.name = "hem";
+  m.set_method(types::EOSType::Auto);
+  m.set_name("hem");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauHPParams{298.15, 100000.0, 955.0, 0.0, 15.6}});
+  return m;
+}
 } // namespace
 
 namespace HP_2011_ds62 {
@@ -5443,6 +5553,22 @@ std::shared_ptr<Solution> silicate_melt() {
   solution->set_name("Holland et al. (2018) melt model");
   solution->set_composition(Eigen::ArrayXd::Constant(11, 1.0 / 11.0));
   return solution;
+}
+
+std::shared_ptr<Mineral> iron() {
+  return std::make_shared<Mineral>(endmember_253());
+}
+
+std::shared_ptr<Mineral> wu() {
+  return std::make_shared<Mineral>(endmember_254());
+}
+
+std::shared_ptr<Mineral> mt() {
+  return std::make_shared<Mineral>(endmember_255());
+}
+
+std::shared_ptr<Mineral> hem() {
+  return std::make_shared<Mineral>(endmember_256());
 }
 } // namespace HGP_2018_ds633
 

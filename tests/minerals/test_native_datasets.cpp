@@ -22,6 +22,24 @@ using namespace burnman;
 using namespace burnman::equilibration;
 using namespace Catch::Matchers;
 
+TEST_CASE("Free composition vectors can change total atom amounts",
+          "[equilibration]") {
+  Assemblage a;
+  auto mineral = minerals::HP_2011_ds62::sill();
+  a.add_phases({mineral});
+  const auto bulk = mineral->get_formula();
+  ConstraintList constraints(3);
+  constraints[0].push_back(std::make_unique<PressureConstraint>(1.e5));
+  constraints[1].push_back(std::make_unique<TemperatureConstraint>(800.));
+  Eigen::VectorXd direction = Eigen::VectorXd::Zero(4);
+  direction[3] = 1.;
+  constraints[2].push_back(std::make_unique<LinearXConstraint>(direction, .4));
+  auto result = equilibrate(bulk, a, constraints, {bulk});
+  REQUIRE(result.sol_array(0).success);
+  CHECK_THAT(a.get_n_moles(), WithinAbs(1.4, 1.e-9));
+  CHECK_THAT(result.sol_array(0).x[3], WithinAbs(.4, 1.e-9));
+}
+
 TEST_CASE("Native datasets and combined endmembers need no Python",
           "[native_datasets]") {
   auto sill = minerals::HP_2011_ds62::sill();

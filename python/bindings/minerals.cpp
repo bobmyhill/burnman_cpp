@@ -35,6 +35,10 @@ void bind_minerals(py::module_ &m) {
   HP_2011_ds62.def("coe", &minerals::HP_2011_ds62::coe);
   auto HGP_2018_ds633 = catalog.def_submodule("HGP_2018_ds633");
   HGP_2018_ds633.def("silicate_melt", &minerals::HGP_2018_ds633::silicate_melt);
+  HGP_2018_ds633.def("iron", &minerals::HGP_2018_ds633::iron);
+  HGP_2018_ds633.def("wu", &minerals::HGP_2018_ds633::wu);
+  HGP_2018_ds633.def("mt", &minerals::HGP_2018_ds633::mt);
+  HGP_2018_ds633.def("hem", &minerals::HGP_2018_ds633::hem);
   auto mb50NCKFMASHTO = catalog.def_submodule("mb50NCKFMASHTO");
   mb50NCKFMASHTO.def("hb", &minerals::mb50NCKFMASHTO::hb);
   mb50NCKFMASHTO.def("aug", &minerals::mb50NCKFMASHTO::aug);

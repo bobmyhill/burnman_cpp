@@ -487,6 +487,17 @@ def main():
             ]
         ],
     }
+    # Register the existing catalogue first to preserve its internal IDs when
+    # adding public factories for the Fe-O composition section.
+    for phases in groups.values():
+        for name, phase in phases:
+            if isinstance(phase, burnman.Solution):
+                exporter.solution(phase, name)
+            else:
+                exporter.mineral(phase)
+    groups["HGP_2018_ds633"] += [
+        (name, getattr(HGP, name)()) for name in ["iron", "wu", "mt", "hem"]
+    ]
     for group, phases in groups.items():
         functions = []
         headers = []

@@ -352,6 +352,7 @@ def test_cold_frame_critical_and_close_redox_endpoints(
         previous,
         opts,
     )
+    assert len(result.boundaries) == 1, result.diagnostics
     line = result.boundaries[0]
     point = line.points[-1]
     assert line.termination.split("; ")[1] == termination

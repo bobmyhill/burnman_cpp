@@ -95,12 +95,36 @@ ConstraintList constraints(std::unique_ptr<EqualityConstraint> a,
 }
 Engine::Engine(const types::FormulaMap &composition,
                const std::vector<std::shared_ptr<Material>> &candidates,
-               const Settings &opts)
-    : bulk(composition), settings(opts) {
+               const Settings &opts, const CompositionSection &path)
+    : bulk(composition), section(path), bulk_start(composition),
+      settings(opts) {
+  if (section.type == DiagramType::PT && !section.composition_end.empty())
+    throw std::invalid_argument(
+        "A composition endpoint requires a PX or TX diagram.");
+  if (section.type != DiagramType::PT) {
+    if (section.composition_end.empty())
+      throw std::invalid_argument(
+          "PX/TX diagrams require a composition endpoint.");
+    double end_total = 0.;
+    for (const auto &entry : bulk_start)
+      section.composition_end.try_emplace(entry.first, 0.);
+    for (const auto &[element, amount] : section.composition_end) {
+      if (!std::isfinite(amount) || amount < 0.)
+        throw std::invalid_argument(
+            "Composition endpoints must be finite and nonnegative.");
+      end_total += amount;
+      bulk.try_emplace(element, 0.);
+      bulk_start.try_emplace(element, 0.);
+    }
+    if (end_total <= 0.)
+      throw std::invalid_argument(
+          "Composition endpoints must have positive amounts.");
+  }
   if (candidates.empty() || bulk.empty())
     throw std::invalid_argument(
         "Supply a nonempty elemental bulk and candidate phases.");
   if (settings.pressure_seeds < 2 || settings.temperature_seeds < 2 ||
+      settings.composition_seeds < 2 ||
       settings.max_refinement_iterations < 1 ||
       settings.minimization_starts < 1 || settings.max_phase_instances < 1 ||
       settings.max_trace_steps < 2 || settings.max_lines < 1 ||
@@ -205,6 +229,159 @@ Engine::Engine(const types::FormulaMap &composition,
   b.resize(static_cast<Eigen::Index>(components.size()));
   for (std::size_t k = 0; k < components.size(); ++k)
     b[static_cast<Eigen::Index>(k)] = full_bulk[components[k]];
+  full_start = full_bulk;
+  bulk_direction = Eigen::VectorXd::Zero(full_bulk.size());
+  FreeVectorMap direction;
+  for (std::size_t k = 0; k < elements.size(); ++k) {
+    const auto &element = elements[k];
+    bulk.try_emplace(element, 0.);
+    bulk_start.try_emplace(element, 0.);
+    if (section.type != DiagramType::PT) {
+      section.composition_end.try_emplace(element, 0.);
+      double delta =
+          section.composition_end.at(element) - bulk_start.at(element);
+      bulk_direction[static_cast<Eigen::Index>(k)] = delta;
+      direction[element] = delta;
+    }
+  }
+  if (section.type != DiagramType::PT) {
+    if (bulk_direction.squaredNorm() == 0.)
+      throw std::invalid_argument("Composition endpoints must differ.");
+    auto end = (full_start + bulk_direction).eval();
+    auto end_coefficients =
+        full.transpose().completeOrthogonalDecomposition().solve(end).eval();
+    if ((full.transpose() * end_coefficients - end).norm() >
+        settings.mass_balance_tolerance * end.norm())
+      throw std::invalid_argument(
+          "Composition endpoint is outside the candidate chemical span.");
+    free_vectors.push_back(std::move(direction));
+  }
+}
+
+types::FormulaMap Engine::composition_at(double x) const {
+  auto composition = bulk_start;
+  if (!free_vectors.empty())
+    for (const auto &[element, delta] : free_vectors.front())
+      composition[element] += x * delta;
+  return composition;
+}
+void Engine::set_bulk(double x) {
+  bulk = composition_at(x);
+  full_bulk = full_start + x * bulk_direction;
+  for (std::size_t k = 0; k < components.size(); ++k)
+    b[static_cast<Eigen::Index>(k)] = full_bulk[components[k]];
+}
+double Engine::composition_coordinate(const Assemblage &a) const {
+  if (free_vectors.empty())
+    return 0.;
+  if (const auto *section_assemblage =
+          dynamic_cast<const SectionAssemblage *>(&a);
+      section_assemblage && section_assemblage->has_coordinate)
+    return section_assemblage->coordinate;
+  const auto formula = a.get_formula();
+  Eigen::VectorXd amount = Eigen::VectorXd::Zero(full_start.size());
+  for (std::size_t k = 0; k < elements.size(); ++k)
+    if (formula.count(elements[k]))
+      amount[static_cast<Eigen::Index>(k)] =
+          formula.at(elements[k]) * a.get_n_moles();
+  return bulk_direction.dot(amount - full_start) / bulk_direction.squaredNorm();
+}
+void Engine::set_coordinate(Assemblage &a, double x) const {
+  if (auto *section_assemblage = dynamic_cast<SectionAssemblage *>(&a)) {
+    section_assemblage->coordinate = x;
+    section_assemblage->has_coordinate = true;
+  }
+}
+Eigen::Vector2d Engine::coordinates(const Assemblage &a) const {
+  if (section.type == DiagramType::PT)
+    return {a.get_pressure(), a.get_temperature()};
+  return {section.type == DiagramType::PX ? a.get_pressure()
+                                          : a.get_temperature(),
+          composition_coordinate(a)};
+}
+Eigen::Vector2d Engine::physical_coordinates(const Eigen::Vector2d &q) const {
+  if (section.type == DiagramType::PT)
+    return q;
+  return section.type == DiagramType::PX
+             ? Eigen::Vector2d(q[0], fixed_temperature)
+             : Eigen::Vector2d(fixed_pressure, q[0]);
+}
+std::array<Eigen::Index, 2> Engine::coordinate_indices(Eigen::Index n) const {
+  if (section.type == DiagramType::PT)
+    return {0, 1};
+  return {section.type == DiagramType::PX ? 0 : 1, n - 1};
+}
+Eigen::Vector2d Engine::project_direction(const Eigen::VectorXd &x) const {
+  const auto indices = coordinate_indices(x.size());
+  return {x[indices[0]], x[indices[1]]};
+}
+EquilibrationParameters Engine::parameters(const Assemblage &a) const {
+  // Rebase X on the accepted physical assemblage. Its free parameter starts
+  // at zero, preserving the same warm start used by P-T continuation.
+  return get_equilibration_parameters(
+      a,
+      free_vectors.empty() ? bulk : composition_at(composition_coordinate(a)),
+      free_vectors);
+}
+WorkState Engine::stable_at(const Eigen::Vector2d &q) {
+  if (!free_vectors.empty())
+    set_bulk(q[1]);
+  const auto physical = physical_coordinates(q);
+  auto out = stable(physical[0], physical[1]);
+  out.state.composition_coordinate = free_vectors.empty() ? 0. : q[1];
+  return out;
+}
+WorkState Engine::fixed_at(const std::vector<int> &ids,
+                           const std::vector<PhaseState> &states,
+                           const Eigen::Vector2d &q) {
+  if (!free_vectors.empty())
+    set_bulk(q[1]);
+  const auto physical = physical_coordinates(q);
+  auto out = fixed_pt(ids, states, physical[0], physical[1]);
+  out.state.composition_coordinate = free_vectors.empty() ? 0. : q[1];
+  return out;
+}
+bool Engine::eos_bulk_feasible_at(const Eigen::Vector2d &q) {
+  if (!free_vectors.empty())
+    set_bulk(q[1]);
+  const auto physical = physical_coordinates(q);
+  return eos_bulk_feasible(physical[0], physical[1]);
+}
+std::shared_ptr<Assemblage>
+Engine::make_at(const std::vector<int> &ids,
+                const std::vector<PhaseState> &states,
+                const Eigen::Vector2d &q) {
+  const auto physical = physical_coordinates(q);
+  auto initial = states;
+  if (!free_vectors.empty() && settings.active_solution_faces) {
+    set_bulk(q[1]);
+    for (auto &state : initial) {
+      const auto &phase =
+          phases.at(static_cast<std::size_t>(state.candidate_index));
+      const auto vertices = feasible_vertices(phase);
+      if (!phase.solution || !vertices.rows() ||
+          vertices.rows() == phase.vertices.rows())
+        continue;
+      // Even a zero-amount phase must approach the feasible chemical face at
+      // an endmember edge. Its unconstrained trace composition can otherwise
+      // move the apparent coexistence pressure away from the pure transition.
+      auto weights = vertices.transpose()
+                         .completeOrthogonalDecomposition()
+                         .solve(state.composition)
+                         .eval();
+      auto projected = (vertices.transpose() * weights).eval();
+      if (std::abs(projected.sum()) > 1.e-12)
+        projected /= projected.sum();
+      if (!projected.allFinite() || std::abs(projected.sum() - 1.) > 1.e-10 ||
+          (phase.occupancies.transpose() * projected).minCoeff() < -1.e-10)
+        projected = vertices.colwise().mean().transpose();
+      state.composition = projected;
+    }
+  }
+  auto a = make_assemblage(ids, initial, physical[0], physical[1]);
+  if (!free_vectors.empty())
+    set_coordinate(*a, q[1]);
+  return a;
 }
 void Engine::set_pt(double p, double t) {
   for (auto &phase : phases) {
@@ -316,9 +493,86 @@ void site_constraints(unsigned m, double *result, unsigned n, const double *x,
   }
 }
 } // namespace
+Eigen::MatrixXd Engine::feasible_vertices(const Phase &ph) const {
+  // Nonnegative elemental inventories force absent elements to be absent in
+  // every phase. Restrict tangent-plane searches to that chemical face; the
+  // chemical potentials of absent elements are otherwise undetermined.
+  const double tolerance = 1.e-12 * full_bulk.norm();
+  if ((full_bulk.array().abs() > tolerance).all())
+    return ph.vertices;
+  std::vector<Eigen::Index> rows;
+  for (Eigen::Index i = 0; i < ph.vertices.rows(); ++i) {
+    bool feasible = true;
+    for (Eigen::Index k = 0; k < full_bulk.size(); ++k)
+      if (std::abs(full_bulk[k]) <= tolerance &&
+          std::abs(ph.vertices.row(i).dot(ph.a.col(k))) > 1.e-10)
+        feasible = false;
+    if (feasible)
+      rows.push_back(i);
+  }
+  Eigen::MatrixXd vertices(rows.size(), ph.vertices.cols());
+  for (std::size_t i = 0; i < rows.size(); ++i)
+    vertices.row(static_cast<Eigen::Index>(i)) = ph.vertices.row(rows[i]);
+  return vertices;
+}
 Minimum Engine::minimize(int index, const Eigen::VectorXd &mu,
                          const Eigen::VectorXd &start) {
-  auto &ph = phases[static_cast<std::size_t>(index)];
+  const auto &ph = phases[static_cast<std::size_t>(index)];
+  auto vertices = feasible_vertices(ph);
+  if (!vertices.rows())
+    return {ph.vertices.colwise().mean().transpose(),
+            std::numeric_limits<double>::infinity()};
+  if (vertices.rows() == ph.vertices.rows())
+    return minimize_phase(ph, mu, start);
+  Eigen::ColPivHouseholderQR<Eigen::MatrixXd> qr(vertices.transpose());
+  qr.setThreshold(1.e-10);
+  Eigen::MatrixXd basis(qr.rank(), vertices.cols());
+  for (Eigen::Index i = 0; i < qr.rank(); ++i)
+    basis.row(i) = vertices.row(qr.colsPermutation().indices()[i]);
+  auto composition = vertices.colwise().mean().transpose().eval();
+  Eigen::VectorXd reduced =
+      basis.transpose().completeOrthogonalDecomposition().solve(composition);
+  reduced /= reduced.sum();
+  Phase face;
+  face.material = polytope::transform_solution_to_new_basis(
+      *ph.solution, basis, reduced.array(), ph.material->get_name());
+  face.material->set_state(ph.material->get_pressure(),
+                           ph.material->get_temperature());
+  face.solution = std::dynamic_pointer_cast<Solution>(face.material);
+  face.a = basis * ph.a;
+  face.g.resize(basis.rows());
+  if (face.solution) {
+    for (Eigen::Index i = 0; i < face.g.size(); ++i) {
+      auto member = face.solution->get_solution_model()
+                        ->endmembers[static_cast<std::size_t>(i)];
+      member.set_state(ph.material->get_pressure(),
+                       ph.material->get_temperature());
+      face.g[i] = member.get_molar_gibbs();
+    }
+  } else
+    face.g[0] = face.material->get_molar_gibbs();
+  face.occupancies = face.solution ? face.solution->get_solution_model()
+                                         ->get_endmember_occupancies()
+                                         .matrix()
+                                         .eval()
+                                   : Eigen::MatrixXd::Ones(1, 1);
+  face.vertices = face.solution
+                      ? polytope::solution_polytope_from_endmember_occupancies(
+                            face.occupancies)
+                            .get_vertices()
+                      : Eigen::MatrixXd::Ones(1, 1);
+  if (start.size()) {
+    auto guess =
+        basis.transpose().completeOrthogonalDecomposition().solve(start).eval();
+    if ((basis.transpose() * guess - start).norm() < 1.e-10)
+      reduced = guess;
+  }
+  auto result = minimize_phase(face, mu, reduced);
+  result.p = basis.transpose() * result.p;
+  return result;
+}
+Minimum Engine::minimize_phase(const Phase &ph, const Eigen::VectorXd &mu,
+                               const Eigen::VectorXd &start) {
   Eigen::VectorXd adj = ph.g;
   for (int j = 0; j < adj.size(); ++j)
     for (std::size_t k = 0; k < components.size(); ++k)
@@ -342,8 +596,9 @@ Minimum Engine::minimize(int index, const Eigen::VectorXd &mu,
   }
   opt.set_lower_bounds(low);
   opt.set_upper_bounds(high);
+  auto occupancies = ph.occupancies;
   opt.add_inequality_mconstraint(
-      site_constraints, &ph.occupancies,
+      site_constraints, &occupancies,
       std::vector<double>(static_cast<std::size_t>(ph.occupancies.cols()),
                           1.e-10));
   opt.set_xtol_abs(settings.composition_tolerance * .01);
@@ -371,7 +626,11 @@ std::vector<Minimum> Engine::minima(int index, const Eigen::VectorXd &mu,
              std::numeric_limits<double>::infinity()}};
   if (!ph.solution || ph.g.size() == 1)
     return {minimize(index, mu, start)};
-  auto mean = ph.vertices.colwise().mean().transpose().eval();
+  auto vertices = feasible_vertices(ph);
+  if (!vertices.rows())
+    return {{ph.vertices.colwise().mean().transpose(),
+             std::numeric_limits<double>::infinity()}};
+  auto mean = vertices.colwise().mean().transpose().eval();
   std::vector<std::pair<double, Eigen::VectorXd>> seeds;
   if (start.size())
     seeds.push_back({-std::numeric_limits<double>::infinity(), start});
@@ -380,8 +639,8 @@ std::vector<Minimum> Engine::minima(int index, const Eigen::VectorXd &mu,
   for (int i = 0; i < adjusted.size(); ++i)
     for (std::size_t k = 0; k < components.size(); ++k)
       adjusted[i] -= ph.a(i, components[k]) * mu[static_cast<Eigen::Index>(k)];
-  for (int i = 0; i < ph.vertices.rows(); ++i) {
-    Eigen::VectorXd p = .995 * ph.vertices.row(i).transpose() + .005 * mean;
+  for (int i = 0; i < vertices.rows(); ++i) {
+    Eigen::VectorXd p = .995 * vertices.row(i).transpose() + .005 * mean;
     double value =
         adjusted.dot(p) +
         ph.solution->get_solution_model()->compute_excess_gibbs_free_energy(
@@ -437,7 +696,9 @@ std::shared_ptr<Assemblage>
 Engine::make_assemblage(const std::vector<int> &ids,
                         const std::vector<PhaseState> &states, double p,
                         double t, double face_tolerance) {
-  auto a = std::make_shared<Assemblage>();
+  std::shared_ptr<Assemblage> a = free_vectors.empty()
+                                      ? std::make_shared<Assemblage>()
+                                      : std::make_shared<SectionAssemblage>();
   Eigen::ArrayXd amounts(ids.size());
   for (std::size_t k = 0; k < ids.size(); ++k) {
     int base = ids[k] / settings.max_phase_instances;
@@ -514,18 +775,43 @@ Engine::make_assemblage(const std::vector<int> &ids,
 }
 std::shared_ptr<Assemblage>
 Engine::copy_assemblage(const Assemblage &input) const {
-  auto out = std::make_shared<Assemblage>();
+  std::shared_ptr<Assemblage> out = free_vectors.empty()
+                                        ? std::make_shared<Assemblage>()
+                                        : std::make_shared<SectionAssemblage>();
   for (int i = 0; i < input.get_n_phases(); ++i)
     out->add_phases({clone(input.get_phase(static_cast<std::size_t>(i)))});
   out->set_fractions(input.get_molar_fractions());
   out->set_n_moles(input.get_n_moles());
   out->set_state(input.get_pressure(), input.get_temperature());
+  if (!free_vectors.empty())
+    set_coordinate(*out, composition_coordinate(input));
   return out;
 }
-optim::roots::DampedNewtonResult Engine::solve(Assemblage &a,
-                                               ConstraintList &c) {
-  auto prm = get_equilibration_parameters(a, bulk, {});
-  auto initial = get_parameter_vector(a, 0);
+optim::roots::DampedNewtonResult Engine::solve(Assemblage &a, ConstraintList &c,
+                                               bool vary_composition) {
+  const bool varying = vary_composition && !free_vectors.empty();
+  const double base_x = composition_coordinate(a);
+  const auto composition =
+      varying ? composition_at(composition_coordinate(a)) : bulk;
+  const auto vectors = varying ? free_vectors : std::vector<FreeVectorMap>{};
+  auto prm = get_equilibration_parameters(a, composition, vectors);
+  auto initial = get_parameter_vector(a, varying ? 1 : 0);
+  ConstraintList fixed;
+  for (const auto &group : c) {
+    ConstraintGroup copy;
+    for (const auto &constraint : group)
+      copy.push_back(constraint->clone());
+    fixed.push_back(std::move(copy));
+  }
+  if (varying) {
+    ConstraintGroup group;
+    if (section.type == DiagramType::PX)
+      group.push_back(
+          std::make_unique<TemperatureConstraint>(fixed_temperature));
+    else
+      group.push_back(std::make_unique<PressureConstraint>(fixed_pressure));
+    fixed.push_back(std::move(group));
+  }
   // Trace site fractions can be orders of magnitude smaller than 1e-9.
   // Tight composition steps are needed to resolve their chemical potentials.
   Eigen::VectorXd tol = Eigen::VectorXd::Constant(prm.n_parameters, 1.e-12);
@@ -541,16 +827,20 @@ optim::roots::DampedNewtonResult Engine::solve(Assemblage &a,
   auto verify = [&](optim::roots::DampedNewtonResult &s) {
     if (s.x.allFinite()) {
       set_composition_and_state_from_parameters(a, s.x);
+      if (!free_vectors.empty())
+        set_coordinate(a, varying ? base_x + s.x[s.x.size() - 1]
+                                  : bulk_direction.dot(full_bulk - full_start) /
+                                        bulk_direction.squaredNorm());
       double reactions = a.get_n_reactions()
                              ? a.get_reaction_affinities().cwiseAbs().maxCoeff()
                              : 0.;
       bool verified = reactions <= settings.affinity_tolerance * .1 &&
-                      mass_error(a) <= settings.mass_balance_tolerance;
-      auto inequalities = calculate_constraints(a, 0);
+                      mass_error(a, varying) <= settings.mass_balance_tolerance;
+      auto inequalities = calculate_constraints(a, varying ? 1 : 0);
       verified =
           verified &&
           (inequalities.first * s.x + inequalities.second).maxCoeff() <= 1.e-9;
-      for (auto &group : c) {
+      for (auto &group : fixed) {
         auto &constraint = group[0];
         auto derivative = constraint->derivative(s.x, a, s.x.size());
         double allowance =
@@ -572,17 +862,19 @@ optim::roots::DampedNewtonResult Engine::solve(Assemblage &a,
   // the original accepted state if an ill-conditioned constraint walk fails.
   try {
     ++equilibrium_solves;
-    auto result =
-        equilibrate(bulk, a, c, {}, 1.e-9, false, false, 150, false, tol);
+    auto result = equilibrate(composition, a, fixed, vectors, 1.e-9, false,
+                              false, 150, false, tol);
     auto s = result.sol_array(0);
     if (verify(s))
       return s;
   } catch (const std::exception &) {
   }
   set_composition_and_state_from_parameters(a, initial);
+  if (varying)
+    set_coordinate(a, base_x);
   ++equilibrium_solves;
-  auto result =
-      equilibrate(bulk, a, c, {}, 1.e-9, false, false, 150, false, tol, scales);
+  auto result = equilibrate(composition, a, fixed, vectors, 1.e-9, false, false,
+                            150, false, tol, scales);
   auto s = result.sol_array(0);
   verify(s);
   return s;
@@ -608,6 +900,8 @@ Eigen::VectorXd Engine::potentials(const Assemblage &a) const {
                      a.get_partial_gibbs().matrix() - reduced * prior);
 }
 double Engine::stability(const Assemblage &a, std::vector<Minimum> *output) {
+  if (!free_vectors.empty())
+    set_bulk(composition_coordinate(a));
   set_pt(a.get_pressure(), a.get_temperature());
   auto mu = potentials(a);
   double worst = 0.;
@@ -628,7 +922,7 @@ double Engine::stability(const Assemblage &a, std::vector<Minimum> *output) {
   }
   return worst;
 }
-double Engine::mass_error(const Assemblage &a) const {
+double Engine::mass_error(const Assemblage &a, bool vary_composition) const {
   Eigen::VectorXd amount =
       Eigen::VectorXd::Zero(static_cast<Eigen::Index>(elements.size()));
   auto formula = a.get_formula();
@@ -636,7 +930,11 @@ double Engine::mass_error(const Assemblage &a) const {
     if (formula.count(elements[k]))
       amount[static_cast<Eigen::Index>(k)] =
           formula.at(elements[k]) * a.get_n_moles();
-  return (amount - full_bulk).norm() / full_bulk.norm();
+  const Eigen::VectorXd target =
+      vary_composition && !free_vectors.empty()
+          ? (full_start + composition_coordinate(a) * bulk_direction).eval()
+          : full_bulk;
+  return (amount - target).norm() / target.norm();
 }
 std::vector<PhaseState> Engine::snapshot(const Assemblage &a,
                                          const std::vector<int> &ids) const {
@@ -682,7 +980,7 @@ WorkState Engine::fixed_pt(const std::vector<int> &ids,
     for (std::size_t pass = 0; pass < ids.size(); ++pass) {
       auto c = constraints(std::make_unique<PressureConstraint>(p),
                            std::make_unique<TemperatureConstraint>(t));
-      sol = solve(*out.assemblage, c);
+      sol = solve(*out.assemblage, c, false);
       out.state.phases = snapshot(*out.assemblage, out.ids);
       bool merged = false;
       for (std::size_t i = 0; i < out.state.phases.size(); ++i)
@@ -720,7 +1018,7 @@ WorkState Engine::fixed_pt(const std::vector<int> &ids,
         out.assemblage = make_assemblage(out.ids, out.state.phases, p, t);
         continue;
       }
-      out.state.mass_balance_error = mass_error(*out.assemblage);
+      out.state.mass_balance_error = mass_error(*out.assemblage, false);
       out.state.minimum_affinity = stability(*out.assemblage);
       out.state.excluded_phases.clear();
       for (auto &ph : phases)
