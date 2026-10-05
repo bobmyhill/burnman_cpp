@@ -11,6 +11,7 @@
 // Reproduce with tools/check_reference_data.py; see docs/reference_data.md.
 #include "burnman/eos/components/einstein.hpp"
 #include "tolerances.hpp"
+#include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
@@ -35,36 +36,19 @@ TEST_CASE("Check zero returns in einstein model functions", "[eos][einstein]") {
   CHECK(compute_dmolar_heat_capacity_v_dT(small_val, theta_0, napfu) == 0);
 }
 
-TEST_CASE("ExplicitDouble overloads", "[eos][einstein]") {
-  double theta_0 = 773.0;
-  double T = 1000.0;
-  int int_napfu = 2;
-  types::ExplicitDouble dbl_napfu = types::ExplicitDouble(2.0);
-  // Using int
-  double int_E = compute_thermal_energy(T, theta_0, int_napfu);
-  double int_C = compute_molar_heat_capacity_v(T, theta_0, int_napfu);
-  double int_F = compute_helmholtz_free_energy(T, theta_0, int_napfu);
-  double int_S = compute_entropy(T, theta_0, int_napfu);
-  double int_dCdT = compute_dmolar_heat_capacity_v_dT(T, theta_0, int_napfu);
-  // Using ExplicitDouble
-  double dbl_E = compute_thermal_energy(T, theta_0, dbl_napfu);
-  double dbl_C = compute_molar_heat_capacity_v(T, theta_0, dbl_napfu);
-  double dbl_F = compute_helmholtz_free_energy(T, theta_0, dbl_napfu);
-  double dbl_S = compute_entropy(T, theta_0, dbl_napfu);
-  double dbl_dCdT = compute_dmolar_heat_capacity_v_dT(T, theta_0, dbl_napfu);
-  CHECK_THAT(int_E, WithinRel(dbl_E, tol_rel) || WithinAbs(dbl_E, tol_abs));
-  CHECK_THAT(int_C, WithinRel(dbl_C, tol_rel) || WithinAbs(dbl_C, tol_abs));
-  CHECK_THAT(int_F, WithinRel(dbl_F, tol_rel) || WithinAbs(dbl_F, tol_abs));
-  CHECK_THAT(int_S, WithinRel(dbl_S, tol_rel) || WithinAbs(dbl_S, tol_abs));
-  CHECK_THAT(int_dCdT,
-             WithinRel(dbl_dCdT, tol_rel) || WithinAbs(dbl_dCdT, tol_abs));
-  // Can't check for a deleted overload... can do positive case:
-  // STATIC_REQUIRE(
-  //   std::is_invocable_v<
-  //     decltype(static_cast<double(*)(double, double,
-  //     int)>(&compute_thermal_energy)), double, double, int
-  //   >
-  // );
+TEST_CASE("Fractional atom counts", "[eos][einstein]") {
+  const std::array functions = {
+      &compute_thermal_energy, &compute_molar_heat_capacity_v,
+      &compute_helmholtz_free_energy, &compute_entropy,
+      &compute_dmolar_heat_capacity_v_dT};
+  for (auto function : functions) {
+    const double per_atom = function(1000.0, 773.0, 1.0);
+    for (double napfu : {0.5, 81.5}) {
+      const double expected = napfu * per_atom;
+      CHECK_THAT(function(1000.0, 773.0, napfu),
+                 WithinRel(expected, tol_rel) || WithinAbs(expected, tol_abs));
+    }
+  }
 }
 
 TEST_CASE("Einstein napfu constant", "[eos][einstein]") {

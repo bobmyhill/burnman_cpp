@@ -87,7 +87,7 @@ def mineral_params(params=None, **kwargs):
     """Build typed parameters from a dictionary or keyword arguments.
 
     Accepts BurnMan's ``n`` and ``Debye_0`` as aliases for ``napfu`` and
-    ``debye_0``. ``Cp`` can be CpParams or a four-element sequence.
+    ``debye_0``. Atom counts may be fractional. ``Cp`` accepts four coefficients.
     """
     if isinstance(params, MineralParams):
         if kwargs:

@@ -69,14 +69,6 @@ def from_burnman(phase):
         native.set_property_modifiers(phase.property_modifiers)
     elif isinstance(phase, burnman.Mineral):
         params = dict(phase.params)
-        # BurnMan uses floating point atom counts even for integral formulae.
-        if "n" in params:
-            n = params["n"]
-            if n != int(n):
-                raise ValueError(
-                    "The native EOS requires an integral number of atoms per formula unit."
-                )
-            params["n"] = int(n)
         # These optional fields describe provenance, not the EOS.
         params.pop("param_uncertainties", None)
         params.pop("property_modifiers", None)

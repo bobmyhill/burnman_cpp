@@ -66,7 +66,9 @@ def test_native_metapelite_models_match_published_reference(name):
             )
 
 
-@pytest.mark.parametrize("source", [HP.sill, SLB.ferropericlase, JH.orthopyroxene])
+@pytest.mark.parametrize(
+    "source", [HP.sill, HP.mst, HP.fst, SLB.ferropericlase, JH.orthopyroxene]
+)
 def test_adapter_thermodynamic_properties(source):
     reference = source()
     if isinstance(reference, burnman.Solution):
@@ -93,6 +95,41 @@ def test_adapter_thermodynamic_properties(source):
             atol=1.0e-10,
             err_msg=property_name,
         )
+
+
+@pytest.mark.parametrize("method", ["hp_tmt", "mgd3", "slb3"])
+@pytest.mark.parametrize("pressure,temperature", [(1.0e5, 298.15), (3.0e9, 1200.0)])
+def test_fractional_formula_units_match_python(method, pressure, temperature):
+    reference = HP.mst() if method == "hp_tmt" else SLB.forsterite()
+    params = dict(reference.params)
+    params["equation_of_state"] = method
+    # Half a formula unit exercises every thermal EOS with a fractional n.
+    params["n"] *= 0.5
+    params["formula"] = {
+        element: amount * 0.5 for element, amount in params["formula"].items()
+    }
+    for key in ("molar_mass", "V_0", "H_0", "S_0", "F_0", "E_0"):
+        if key in params:
+            params[key] *= 0.5
+    if "Cp" in params:
+        params["Cp"] = (np.asarray(params["Cp"]) * 0.5).tolist()
+    reference = burnman.Mineral(params)
+    native = from_burnman(reference)
+    assert native.params.napfu == params["n"]
+    assert native.formula == params["formula"]
+    reference.set_state(pressure, temperature)
+    native.set_state(pressure, temperature)
+    for prop in (
+        "molar_gibbs",
+        "molar_entropy",
+        "molar_volume",
+        "molar_heat_capacity_p",
+        "molar_heat_capacity_v",
+        "thermal_expansivity",
+    ):
+        assert getattr(native, prop) == pytest.approx(
+            getattr(reference, prop), rel=1.0e-6, abs=1.0e-12
+        ), prop
 
 
 def test_transformed_ordering_solution_signed_coordinates():

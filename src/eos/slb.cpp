@@ -47,7 +47,7 @@ void SLB3::validate_parameters(types::MineralParams &params) {
   utils::check_in_range(params.Gprime_0, -5.0, 10.0, "Gprime_0");
   utils::check_in_range(params.T_0, 0.0, 1.0e5, "T_0");
   utils::check_in_range(params.molar_mass, 0.001, 1.0, "molar_mass");
-  utils::check_in_range(params.napfu, 1, 1000, "napfu");
+  utils::check_in_range(params.napfu, 1.0, 1000.0, "napfu");
   utils::check_in_range(params.debye_0, 1.0, 10000.0, "debye_0");
   utils::check_in_range(params.grueneisen_0, -1.0, 10.0, "gruneisen_0");
   utils::check_in_range(params.q_0, -20.0, 10.0, "q_0");

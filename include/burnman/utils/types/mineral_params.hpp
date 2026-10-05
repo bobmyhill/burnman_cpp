@@ -44,7 +44,7 @@ struct MineralParams {
   std::optional<std::string> name;
   std::optional<FormulaMap> formula;
   std::optional<EOSType> equation_of_state;
-  std::optional<int> napfu;
+  std::optional<double> napfu; // Atoms per formula unit; may be fractional.
   std::optional<double> molar_mass;
 
   // Reference conditions

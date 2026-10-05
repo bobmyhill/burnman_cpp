@@ -25,15 +25,6 @@ class Mineral;
 namespace types {
 
 /**
- * Wrapper type to force explicit calls of functions with
- * double instead of int.
- */
-struct ExplicitDouble {
-  double value;
-  explicit ExplicitDouble(double v) : value(v) {}
-};
-
-/**
  * Custom type alias for chemical formulae.
  */
 using FormulaMap = std::unordered_map<std::string, double>;
