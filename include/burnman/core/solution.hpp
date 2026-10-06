@@ -130,7 +130,7 @@ public:
    * @throws RuntimeError if sum(composition_vector) != 1.
    * @throws RuntimeError if length(composition_vector) != n_endmembers.
    */
-  void set_composition(const Eigen::ArrayXd &composition_vector);
+  virtual void set_composition(const Eigen::ArrayXd &composition_vector);
 
   // Public getters for extra Solution functions
   /**

@@ -46,6 +46,9 @@ namespace solution_models {
 class AsymmetricRegularSolution : public IdealSolution {
 
 public:
+  std::shared_ptr<SolutionModel> clone() const override {
+    return std::make_shared<AsymmetricRegularSolution>(*this);
+  }
   AsymmetricRegularSolution(
       const types::PairedEndmemberList &endmember_list,
       std::vector<double> alphas,

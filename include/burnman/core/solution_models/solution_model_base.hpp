@@ -18,6 +18,8 @@
 #include "burnman/utils/types/simple_types.hpp"
 #include <Eigen/Dense>
 #include <map>
+#include <memory>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -43,6 +45,10 @@ public:
   SolutionModel(const types::PairedEndmemberList &endmember_list);
 
   virtual ~SolutionModel() = default;
+  /// Copy a model and its mutable endmember state.
+  virtual std::shared_ptr<SolutionModel> clone() const {
+    throw std::logic_error("This solution model does not implement clone().");
+  }
 
   // Public getters for solution properties
   /**

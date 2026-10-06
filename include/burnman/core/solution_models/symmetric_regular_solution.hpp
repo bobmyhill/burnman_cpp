@@ -31,6 +31,9 @@ namespace solution_models {
  */
 class SymmetricRegularSolution : public AsymmetricRegularSolution {
 public:
+  std::shared_ptr<SolutionModel> clone() const override {
+    return std::make_shared<SymmetricRegularSolution>(*this);
+  }
   SymmetricRegularSolution(
       const types::PairedEndmemberList &endmember_list,
       std::vector<std::vector<double>> energy_interaction,

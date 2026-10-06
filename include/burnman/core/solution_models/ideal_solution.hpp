@@ -39,6 +39,9 @@ class IdealSolution : public SolutionModel {
 public:
   // Extend constructor
   IdealSolution(const types::PairedEndmemberList &endmember_list);
+  std::shared_ptr<SolutionModel> clone() const override {
+    return std::make_shared<IdealSolution>(*this);
+  }
 
   // Public functions overriden from base class
   Eigen::ArrayXd compute_excess_partial_gibbs_free_energies(
