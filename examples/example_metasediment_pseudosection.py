@@ -67,7 +67,7 @@ def candidate_phases():
         (MP.sp, "sp"),
         (MP.ilmm, "ilm"),
         (MP.mt1, "mt"),
-        (HGP.silicate_melt, "melt"),
+        (HGP.silicate_melt_cr_free, "melt"),
     ]
     pure = [
         (HP.q, "q"),

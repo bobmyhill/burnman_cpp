@@ -12,6 +12,7 @@
 // ------------------------------------------------------
 
 #include "bindings.hpp"
+#include "burnman/core/relaxed_solution.hpp"
 #include "burnman/core/solution.hpp"
 
 namespace burnman::python {
@@ -157,21 +158,7 @@ void bind_solutions(py::module_ &m) {
                                   model->get_endmember_occupancies());
              // Models hold mutable endmember state. Give each solution its own
              // copy.
-             std::shared_ptr<SolutionModel> owned;
-             if (const auto *symmetric =
-                     dynamic_cast<const SymmetricRegularSolution *>(
-                         model.get())) {
-               owned = std::make_shared<SymmetricRegularSolution>(*symmetric);
-             } else if (const auto *asymmetric =
-                            dynamic_cast<const AsymmetricRegularSolution *>(
-                                model.get())) {
-               owned = std::make_shared<AsymmetricRegularSolution>(*asymmetric);
-             } else if (const auto *ideal =
-                            dynamic_cast<const IdealSolution *>(model.get())) {
-               owned = std::make_shared<IdealSolution>(*ideal);
-             } else {
-               throw std::invalid_argument("Unsupported solution model.");
-             }
+             auto owned = model->clone();
              auto self = std::make_shared<Solution>();
              self->set_solution_model(owned);
              // Incoming endmembers already have validated EOS objects. Combined
@@ -220,5 +207,34 @@ void bind_solutions(py::module_ &m) {
   bind_property<Solution>(solution, "endmember_n_occupancies",
                           "get_endmember_n_occupancies",
                           &Solution::get_endmember_n_occupancies);
+  py::class_<RelaxedSolution, Solution, std::shared_ptr<RelaxedSolution>>(
+      m, "RelaxedSolution")
+      .def(py::init<Solution, const Eigen::MatrixXd &,
+                    const Eigen::MatrixXd &>(),
+           py::arg("solution"), py::arg("relaxation_vectors"),
+           py::arg("unrelaxed_vectors"))
+      .def(
+          "set_composition",
+          [](RelaxedSolution &self, const Eigen::ArrayXd &fractions,
+             const std::optional<Eigen::VectorXd> &q, bool relaxed) {
+            self.set_composition(
+                fractions,
+                q.value_or(Eigen::VectorXd::Zero(self.get_dndq().cols())),
+                relaxed);
+          },
+          py::arg("molar_fractions"), py::arg("q_initial") = py::none(),
+          py::arg("relaxed") = true)
+      .def(
+          "set_state",
+          [](RelaxedSolution &self, double p, double t, bool relaxed) {
+            check_pt(p, t);
+            self.set_state(p, t, relaxed);
+          },
+          py::arg("pressure"), py::arg("temperature"),
+          py::arg("relaxed") = true)
+      .def_property_readonly("dndq", &RelaxedSolution::get_dndq)
+      .def_property_readonly("dndx", &RelaxedSolution::get_dndx)
+      .def_property_readonly("unrelaxed_vectors",
+                             &RelaxedSolution::get_unrelaxed_vectors);
 }
 } // namespace burnman::python

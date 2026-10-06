@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Developer utility: copy example published mineral data into C++.
+"""Developer utility: copy complete published mineral datasets into C++.
 
 This script requires the reference BurnMan package to regenerate the checked-in
 catalogue. Neither the C++ build nor the examples execute this script or import
@@ -10,6 +10,7 @@ the examples now use the general C++ polytope simplifier at runtime.
 import argparse
 import difflib
 import json
+import inspect
 import math
 from pathlib import Path
 import subprocess
@@ -125,6 +126,11 @@ class Exporter:
                     "eos::excesses::LandauHPParams"
                     + literal([p[k] for k in ["T_0", "P_0", "Tc_0", "V_D", "S_D"]])
                 )
+            elif kind == "landau":
+                modifiers.append(
+                    "eos::excesses::LandauParams"
+                    + literal([p[k] for k in ["Tc_0", "V_D", "S_D"]])
+                )
             elif kind == "landau_slb_2022":
                 modifiers.append(
                     "eos::excesses::LandauSLB2022Params"
@@ -179,6 +185,13 @@ class Exporter:
             ",\n".join(f"    {{{m}(), {literal(sites)}}}" for m, sites in members),
             "  };",
         ]
+        if isinstance(phase, burnman.RelaxedSolution):
+            parent = type(phase.unrelaxed).__name__
+            return (
+                f"std::shared_ptr<Solution> {name}() {{\n"
+                f"  return std::make_shared<RelaxedSolution>(*{parent}(),\n"
+                f"    matrix({literal(phase.dndq.T)}), matrix({literal(phase.dndx.T)}));\n}}\n"
+            )
         if isinstance(model, models.AsymmetricRegularSolution):
             alphas = np.asarray(model.alphas)
 
@@ -221,6 +234,23 @@ class Exporter:
         return f"std::shared_ptr<Solution> {name}() {{\n" + "\n".join(setup) + "\n}\n"
 
 
+def dataset_entries(module):
+    """Public mineral/solution classes, aliases and preconstructed endmembers."""
+    entries = []
+    for name, value in vars(module).items():
+        if name.startswith("_"):
+            continue
+        if (
+            inspect.isclass(value)
+            and issubclass(value, burnman.Mineral)
+            and value.__module__ == module.__name__
+        ):
+            entries.append((name, value()))
+        elif isinstance(value, burnman.Mineral):
+            entries.append((name, value))
+    return entries
+
+
 def reduced(phase, basis):
     """Export a fixed compatibility model in its intended endmember basis.
 
@@ -259,260 +289,48 @@ def main():
     declarations = []
     bindings = []
     groups = {
-        "HP_2011_ds62": [
-            ("sill", HP.sill()),
-            ("andalusite", HP.andalusite()),
-            ("ky", HP.ky()),
-        ]
-        + [
-            (name, getattr(HP, name)())
-            for name in [
-                "q",
-                "law",
-                "zo",
-                "ru",
-                "sph",
-                "ab",
-                "ta",
-                "pre",
-                "pa",
-                "ma",
-                "coe",
-            ]
-        ],
-        "HGP_2018_ds633": [
-            (
-                "silicate_melt",
-                HGP.make_melt_class(
-                    [
-                        HGP.q4L,
-                        HGP.sl1L,
-                        HGP.wo1L,
-                        HGP.fo2L,
-                        HGP.fa2L,
-                        HGP.jdL,
-                        HGP.hmL,
-                        HGP.tiL,
-                        HGP.kjL,
-                        HGP.ctL,
-                        HGP.h2o1L,
-                    ]
-                )(),
-            )
-        ],
-        "mb50NCKFMASHTO": [
-            (name, getattr(MB, name)())
-            for name in [
-                "hb",
-                "aug",
-                "dio",
-                "opx",
-                "g",
-                "ol",
-                "pl4tr",
-                "abc",
-                "k4tr",
-                "ksp",
-                "plc",
-                "pli",
-                "sp",
-                "ilm",
-                "ilmm",
-                "ep",
-                "bi",
-                "mu",
-                "chl",
-            ]
-        ],
-        "SLB_2011": [
-            (name, getattr(SLB, name)())
-            for name in [
-                "mg_fe_olivine",
-                "mg_fe_wadsleyite",
-                "mg_fe_ringwoodite",
-                "mg_fe_bridgmanite",
-                "post_perovskite",
-                "ferropericlase",
-                "orthopyroxene",
-                "garnet",
-                "ca_perovskite",
-            ]
-        ]
-        + [
-            (
-                "pyrope_grossular",
-                reduced(SLB.garnet(), [[1, 0, 0, 0, 0], [0, 0, 1, 0, 0]]),
-            ),
-            (
-                "mg_fe_bridgmanite_binary",
-                reduced(SLB.mg_fe_bridgmanite(), [[1, 0, 0], [0, 1, 0]]),
-            ),
-        ],
-        "JH_2015": [
-            ("orthopyroxene", JH.orthopyroxene()),
-            (
-                "mg_fe_orthopyroxene",
-                # en, en + fs - ordered ferroenstatite, fs.
-                reduced(
-                    JH.orthopyroxene(),
-                    [
-                        [1, 0, 0, 0, 0, 0, 0],
-                        [1, 1, -1, 0, 0, 0, 0],
-                        [0, 1, 0, 0, 0, 0, 0],
-                    ],
-                ),
-            ),
-        ],
-        "mp50NCKFMASHTO": [
-            (name, getattr(MP, name)())
-            for name in [
-                "g",
-                "pl4tr",
-                "k4tr",
-                "plc",
-                "ksp",
-                "ep",
-                "ma",
-                "mu",
-                "bi",
-                "opx",
-                "sa",
-                "cd",
-                "st",
-                "chl",
-                "ctd",
-                "sp",
-                "ilmm",
-                "ilm",
-                "mt1",
-            ]
-        ],
-        "SLB_2024": [
-            (name, getattr(SLB24, name)())
-            for name in [
-                "c2c_pyroxene",
-                "calcium_ferrite_structured_phase",
-                "clinopyroxene",
-                "garnet",
-                "ilmenite",
-                "ferropericlase",
-                "new_aluminous_phase",
-                "olivine",
-                "orthopyroxene",
-                "plagioclase",
-                "post_perovskite",
-                "bridgmanite",
-                "ringwoodite",
-                "mg_fe_aluminous_spinel",
-                "wadsleyite",
-            ]
-        ]
-        + [
-            (name, getattr(SLB24, name)())
-            for name in [
-                "ab",
-                "acm",
-                "al",
-                "alpv",
-                "an",
-                "anao",
-                "andr",
-                "apbo",
-                "appv",
-                "capv",
-                "cats",
-                "cen",
-                "co",
-                "coes",
-                "cppv",
-                "crcf",
-                "crpv",
-                "di",
-                "en",
-                "esk",
-                "fa",
-                "fapv",
-                "fea",
-                "fec2",
-                "fecf",
-                "fee",
-                "feg",
-                "feil",
-                "fepv",
-                "feri",
-                "fewa",
-                "fnal",
-                "fo",
-                "fppv",
-                "fs",
-                "gr",
-                "hc",
-                "he",
-                "hem",
-                "hepv",
-                "hlpv",
-                "hmag",
-                "hppv",
-                "jd",
-                "knor",
-                "ky",
-                "lppv",
-                "mag",
-                "mgc2",
-                "mgcf",
-                "mgil",
-                "mgmj",
-                "mgpv",
-                "mgri",
-                "mgts",
-                "mgwa",
-                "mnal",
-                "mppv",
-                "nacf",
-                "namj",
-                "neph",
-                "nnal",
-                "odi",
-                "pe",
-                "picr",
-                "pwo",
-                "py",
-                "qtz",
-                "smag",
-                "sp",
-                "st",
-                "wo",
-                "wu",
-                "wuls",
-            ]
-        ],
+        module.__name__.rsplit(".", 1)[-1]: dataset_entries(module)
+        for module in (HP, HGP, MB, SLB, JH, MP, SLB24)
     }
-    # Register the existing catalogue first to preserve its internal IDs when
-    # adding public factories for the Fe-O composition section.
-    for phases in groups.values():
-        for name, phase in phases:
-            if isinstance(phase, burnman.Solution):
-                exporter.solution(phase, name)
-            else:
-                exporter.mineral(phase)
-    groups["HGP_2018_ds633"] += [
-        (name, getattr(HGP, name)()) for name in ["iron", "wu", "mt", "hem"]
-    ]
-    # Keep existing endmember IDs when adding the pure Mg2SiO4 phase diagram.
-    for _, phase in groups["HGP_2018_ds633"]:
-        if not isinstance(phase, burnman.Solution):
-            exporter.mineral(phase)
+    # Retain the fixed reduced factories used before the complete catalogues.
     groups["SLB_2011"] += [
-        (name, getattr(SLB, name)())
-        for name in ["periclase", "mg_perovskite", "mg_akimotoite", "mg_ringwoodite"]
+        ("pyrope_grossular", reduced(SLB.garnet(), [[1, 0, 0, 0, 0], [0, 0, 1, 0, 0]])),
+        (
+            "mg_fe_bridgmanite_binary",
+            reduced(SLB.mg_fe_bridgmanite(), [[1, 0, 0], [0, 1, 0]]),
+        ),
     ]
+    groups["JH_2015"].append(
+        (
+            "mg_fe_orthopyroxene",
+            reduced(
+                JH.orthopyroxene(),
+                [[1, 0, 0, 0, 0, 0, 0], [1, 1, -1, 0, 0, 0, 0], [0, 1, 0, 0, 0, 0, 0]],
+            ),
+        )
+    )
+    groups["HGP_2018_ds633"].append(
+        (
+            "silicate_melt_cr_free",
+            HGP.make_melt_class(
+                [getattr(HGP, name) for name in HGP.site_formulae if name != "ekL"]
+            )(),
+        )
+    )
     for group, phases in groups.items():
         functions = []
         headers = []
         bind = [f'  auto {group} = catalog.def_submodule("{group}");']
+        aliases = {}
         for name, phase in phases:
             if isinstance(phase, burnman.Solution):
-                functions.append(exporter.solution(phase, name))
+                if type(phase) is not burnman.Solution and type(phase) in aliases:
+                    functions.append(
+                        f"std::shared_ptr<Solution> {name}() {{ return {aliases[type(phase)]}(); }}\n"
+                    )
+                else:
+                    functions.append(exporter.solution(phase, name))
+                    aliases[type(phase)] = name
                 headers.append(f"std::shared_ptr<Solution> {name}();")
             else:
                 mineral = exporter.mineral(phase)
@@ -539,7 +357,7 @@ def main():
     )
     cpp = (
         notice
-        + '#include "burnman/minerals/datasets.hpp"\n#include "burnman/core/combined_mineral.hpp"\n#include "burnman/core/solution_model.hpp"\n#include <limits>\n\nnamespace burnman::minerals {\nnamespace {\nusing Interactions = std::vector<std::vector<double>>;\nEigen::ArrayXd array(std::initializer_list<double> values) {\n  return Eigen::Map<const Eigen::ArrayXd>(values.begin(), static_cast<Eigen::Index>(values.size()));\n}\n\n'
+        + '#include "burnman/minerals/datasets.hpp"\n#include "burnman/core/combined_mineral.hpp"\n#include "burnman/core/solution_model.hpp"\n#include "burnman/core/relaxed_solution.hpp"\n#include <limits>\n\nnamespace burnman::minerals {\nnamespace {\nusing Interactions = std::vector<std::vector<double>>;\nEigen::ArrayXd array(std::initializer_list<double> values) {\n  return Eigen::Map<const Eigen::ArrayXd>(values.begin(), static_cast<Eigen::Index>(values.size()));\n}\nEigen::MatrixXd matrix(std::initializer_list<std::initializer_list<double>> rows) {\n  Eigen::MatrixXd m(static_cast<Eigen::Index>(rows.size()), static_cast<Eigen::Index>(rows.begin()->size()));\n  Eigen::Index i = 0;\n  for (const auto &row : rows) m.row(i++) = array(row).matrix().transpose();\n  return m;\n}\n\n'
     )
     cpp += (
         "\n".join(exporter.functions)
@@ -554,7 +372,7 @@ def main():
         + "} // namespace burnman::minerals\n"
     )
     binding = CPP_HEADER + (
-        '#include "bindings.hpp"\n#include "burnman/minerals/datasets.hpp"\n\nnamespace burnman::python {\nvoid bind_minerals(py::module_& m) {\n  auto catalog = m.def_submodule("minerals", "Native mineral factories for the equilibration examples.");\n'
+        '#include "bindings.hpp"\n#include "burnman/minerals/datasets.hpp"\n\nnamespace burnman::python {\nvoid bind_minerals(py::module_& m) {\n  auto catalog = m.def_submodule("minerals", "Native factories for complete published mineral datasets.");\n'
         + "\n".join(bindings)
         + "\n}\n} // namespace burnman::python\n"
     )

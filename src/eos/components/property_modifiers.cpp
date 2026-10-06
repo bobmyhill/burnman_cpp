@@ -118,7 +118,7 @@ Excesses compute_excesses(double pressure, double temperature,
   } else {
     Q2 = 0.0;
     G = G_disordered;
-    dGdT = dGdP_disordered;
+    dGdT = dGdT_disordered;
     dGdP = dGdP_disordered;
     d2GdT2 = 0.0;
     d2GdP2 = 0.0;
