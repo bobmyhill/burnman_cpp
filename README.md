@@ -22,6 +22,11 @@ and `BURNMAN_WARNINGS_AS_ERRORS=ON` for the corresponding settings.
 If CMake reports that `-ld_classic` is deprecated, remove `-Wl,-ld_classic`
 from your shell's `LDFLAGS`; the default linker works with these builds.
 
+Matched THERMOCALC metapelite and metabasite phase sets, including calibrated
+melts and PS94 water, are available through `burnman_cpp.minerals.model_sets`
+and the native `burnman/minerals/model_sets.hpp` API. See the
+[model-set guide](contrib/model_sets/README.md) for usage, versions and sources.
+
 Benchmark sources and Python timing/reporting tools live in
 [benchmarks/](benchmarks/README.md). The dedicated GitHub benchmark workflow runs
 the native benchmarks and pinned Python BurnMan timings and saves their reports.

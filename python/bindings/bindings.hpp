@@ -32,6 +32,7 @@ void bind_solutions(py::module_ &m);
 void bind_equilibration(py::module_ &m);
 void bind_combined(py::module_ &m);
 void bind_minerals(py::module_ &m);
+void bind_model_sets(py::module_ &m);
 void bind_polytope(py::module_ &m);
 void bind_pseudosection(py::module_ &m);
 eos::excesses::ExcessParamVector parse_modifiers(const py::iterable &modifiers);

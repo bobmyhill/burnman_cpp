@@ -1,5 +1,5 @@
 {
-  "description": "Accepted continuation states at three formerly unresolved endpoints in the closed, 2 wt% H2O shale example. Each curve is intentionally truncated at a fixed test anchor. The tests exercise endpoint recovery rather than a complete diagram.",
+  "description": "Legacy numerical regression states: HP_2011_ds62 and mp50 solids, HGP_2018_ds633 melt, PS94 H2O. This mixed calibration predates the matched HPx model sets and is retained only to test endpoint recovery. Each curve is truncated at a fixed test anchor.",
   "cases": [
     {
       "name": "feldspar solvus",

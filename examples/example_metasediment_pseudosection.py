@@ -5,13 +5,12 @@ All thermodynamics, Gibbs minimisation, phase selection, equilibrium solves
 and boundary continuation run in C++. Python specifies the model/bulk and
 writes JSON and figures. No Python BurnMan or optimisation library is needed.
 
-The illustrative alumina-rich shale contains exactly 2 wt% H2O in a 100 g wet
+The alumina-rich shale contains exactly 2 wt% H2O in a 100 g wet
 bulk. FeO and Fe2O3 specify its closed oxygen inventory; water and oxygen are
-not buffered. Native mp50NCKFMASHTO metapelite solids use HP dataset 6.2.
-The complete HGP2018 hydrous silicate melt and PS94 pure H2O complete the model
-set.
-The mixed melt/fluid treatment is illustrative rather than a reproduction
-of a consistently calibrated THERMOCALC model set.
+not buffered. The matched HPx metapelite set reproduces the 23 January 2022
+THERMOCALC calibration: White et al. (2014) solids and granitic melt, HP
+dataset 6.2, and PS94 H2O with the Holland-Powell thermal reference. It is
+available as burnman_cpp.minerals.model_sets.metapelite().
 
 One ternary feldspar model represents plagioclase and alkali feldspar by
 coexisting solution instances; fsp means feldspar and 2fsp means two
@@ -29,9 +28,9 @@ import json
 from pathlib import Path
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import HP_2011_ds62 as HP
-from burnman_cpp.minerals import mp50NCKFMASHTO as MP
-from burnman_cpp.minerals import HGP_2018_ds633 as HGP
+from burnman_cpp.minerals import model_sets
+
+MODEL_SET = model_sets.metapelite()
 
 # Masses in a 100 g wet rock; the sum is 100, including exactly 2 g of H2O.
 METASEDIMENT_OXIDES = dict(
@@ -53,38 +52,7 @@ METASEDIMENT_COMPOSITION = bm.Composition(
 
 
 def candidate_phases():
-    solutions = [
-        (MP.mu, "ms"),
-        (MP.bi, "bi"),
-        (MP.chl, "chl"),
-        (MP.ctd, "ctd"),
-        (MP.st, "st"),
-        (MP.cd, "cd"),
-        (MP.g, "g"),
-        (MP.pl4tr, "fsp"),
-        (MP.ep, "ep"),
-        (MP.opx, "opx"),
-        (MP.sa, "spr"),
-        (MP.sp, "sp"),
-        (MP.ilmm, "ilm"),
-        (MP.mt1, "mt"),
-        (HGP.silicate_melt, "melt"),
-    ]
-    pure = [
-        (HP.q, "q"),
-        (HP.andalusite, "and"),
-        (HP.ky, "ky"),
-        (HP.sill, "sill"),
-        (HP.law, "law"),
-        (HP.ru, "ru"),
-        (bm.water_fluid, "H2O"),
-    ]
-    phases = []
-    for factory, name in solutions + pure:
-        phase = factory()
-        phase.set_name(name)
-        phases.append(phase)
-    return phases
+    return model_sets.metapelite().phases
 
 
 def calculate(seeds=7, quick=False, verbose=False):
@@ -113,7 +81,11 @@ def refine(source, verbose=False):
 
 def save_json(result, path):
     data = result.to_dict()
-    data.update(oxide_wt_percent=METASEDIMENT_OXIDES, closed_system=True)
+    data.update(
+        oxide_wt_percent=METASEDIMENT_OXIDES,
+        closed_system=True,
+        model_set=MODEL_SET.to_dict(),
+    )
     path.write_text(json.dumps(data, indent=2, allow_nan=False))
 
 
@@ -140,7 +112,7 @@ def plot(result, path, label_fontsize=7.0):
         title="Shaly metasediment + 2 wt% H₂O, closed system",
     )
     ax.grid(alpha=0.12)
-    scope = "mp50 metapelite solids + HGP2018 melt + PS94 H₂O; illustrative model set"
+    scope = "HPx metapelite 2022-01-23 + ds62 + PS94 H₂O"
     diagnostics = (
         result["diagnostics"] if isinstance(result, dict) else result.diagnostics
     )
