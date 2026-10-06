@@ -1908,8 +1908,8 @@ class Tracer {
       line.end_node = seed.node;
       auto unit = engine.project_direction(d, *a).cwiseQuotient(range).eval();
       std::string forward_status, backward_status;
-      auto backward_a =
-          engine.make_at(seed.ids, corrected.phases, engine.coordinates(*a));
+      const auto seed_point = point(*a, seed.ids, s, affinity);
+      auto backward_a = engine.copy_assemblage(*a);
       if (seed.bridge_node >= 0 && unit.dot(seed.direction) < 0.)
         d = -d;
       auto forward = follow(a, corrected, s, d, line.end_node, forward_status);
@@ -1924,12 +1924,7 @@ class Tracer {
                           backward_status);
       std::reverse(backward.begin(), backward.end());
       line.points = std::move(backward);
-      line.points.push_back(point(*backward_a, seed.ids, s, affinity));
-      // The seed must retain its corrected state, not the final backward state.
-      auto seed_a = engine.make_at(seed.ids, corrected.phases,
-                                   origin + corrected.pt.cwiseProduct(range));
-      seed_a->set_state(s.x[0], s.x[1]);
-      line.points.back() = point(*seed_a, seed.ids, s, affinity);
+      line.points.push_back(seed_point);
       line.points.insert(line.points.end(), forward.begin(), forward.end());
       if (seed.bridge_node >= 0)
         line.points.insert(line.points.begin(), seed.prefix.begin(),

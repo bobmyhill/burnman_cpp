@@ -127,7 +127,8 @@ def test_volume_section_keeps_first_order_coexistence():
     assert sum(p.area for p in polygons.polygons) == pytest.approx(1.0, abs=1.0e-8)
 
 
-def test_entropy_volume_invariant_has_a_finite_three_phase_field():
+@pytest.mark.parametrize("step", [0.025, 0.1])
+def test_entropy_volume_invariant_has_a_finite_three_phase_field(step):
     # A, B and C meet at P=5 GPa, T=1000 K. Their S/V values form
     # a triangle: barycentric phase amounts vary inside at fixed P,T.
     first = bm.Mineral(oxide_params())
@@ -138,7 +139,7 @@ def test_entropy_volume_invariant_has_a_finite_three_phase_field():
     settings = bm.PseudosectionSettings()
     settings.entropy_seeds = settings.volume_seeds = 5
     settings.max_phase_instances = 1
-    settings.step = 0.1
+    settings.step = step
     result = bm.pseudosection(
         {"Mg": 1.0, "O": 1.0},
         [first, second, third],
