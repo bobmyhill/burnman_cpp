@@ -365,13 +365,13 @@ def test_known_count_does_not_invent_an_ambiguous_assemblage_label():
 
 
 def test_native_equilibrium_result_and_saved_json_range_names():
-    from burnman_cpp.minerals import HP_2011_ds62 as HP
+    from burnman_cpp.minerals import HP11
 
     settings = bm.PseudosectionSettings()
     settings.pressure_seeds = settings.temperature_seeds = 3
     result = bm.pseudosection(
         {"Al": 2.0, "Si": 1.0, "O": 5.0},
-        [HP.andalusite(), HP.ky(), HP.sill()],
+        [HP11.andalusite(), HP11.ky(), HP11.sill()],
         (1e5, 1e9),
         (500.0, 1200.0),
         settings,

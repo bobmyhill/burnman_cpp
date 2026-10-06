@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import SLB_2024 as SLB
+from burnman_cpp.minerals import SLB24
 
 SOLUTIONS = [
     "c2c_pyroxene",
@@ -498,7 +498,7 @@ def test_nearby_redox_junctions_keep_distinct_phase_rules_on_resume(example):
 
 
 @pytest.mark.parametrize(
-    "factory", [SLB.fea, SLB.feg, SLB.fee, SLB.mag, SLB.smag, SLB.hmag]
+    "factory", [SLB24.fea, SLB24.feg, SLB24.fee, SLB24.mag, SLB24.smag, SLB24.hmag]
 )
 def test_zero_temperature_magnetic_and_electronic_limits_are_finite(factory):
     phase = factory()
@@ -517,7 +517,7 @@ def test_zero_temperature_magnetic_and_electronic_limits_are_finite(factory):
 
 def test_spinodal_bracket_recovers_the_stable_root_and_rejects_the_other():
     # A 4000 K forsterite root exists just above its thermal pressure minimum.
-    phase = SLB.fo()
+    phase = SLB24.fo()
     phase.set_state(3.0e9, 4000.0)
     assert phase.isothermal_bulk_modulus_reuss > 0.0
     volume = phase.molar_volume
@@ -529,7 +529,7 @@ def test_spinodal_bracket_recovers_the_stable_root_and_rejects_the_other():
 
 
 def test_zero_site_multiplicity_survives_polytope_basis_transformation():
-    original = SLB.ferropericlase()
+    original = SLB24.ferropericlase()
     basis = np.eye(original.n_endmembers)[[0, 4]]
     reduced = bm.transform_solution_to_new_basis(original, basis, [0.75, 0.25])
     original.set_composition([0.75, 0.0, 0.0, 0.0, 0.25])
@@ -544,7 +544,7 @@ def test_zero_site_multiplicity_survives_polytope_basis_transformation():
 )
 def test_sLB2024_catalogue_matches_python_reference(name):
     reference = pytest.importorskip("burnman").minerals.SLB_2024
-    native = getattr(SLB, name)()
+    native = getattr(SLB24, name)()
     pure = getattr(reference, name)()
     if isinstance(native, bm.Solution):
         fractions = np.arange(1.0, native.n_endmembers + 1)

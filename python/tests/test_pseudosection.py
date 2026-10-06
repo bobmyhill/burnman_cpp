@@ -8,9 +8,9 @@ import pytest
 import burnman_cpp as bm
 from conftest import make_model
 from burnman_cpp.minerals import (
-    HP_2011_ds62 as HP,
-    mb50NCKFMASHTO as MB,
-    HGP_2018_ds633 as HGP,
+    HP11,
+    MB16,
+    HGP18,
 )
 
 
@@ -52,6 +52,80 @@ def settings():
     s.pressure_seeds = s.temperature_seeds = 3
     s.step = 0.05
     return s
+
+
+def test_two_phase_entries_between_seeds_retain_the_intermediate_field():
+    """Two closely spaced precipitations must not appear as one phase line."""
+    elements = ("Mg", "Fe", "Ca")
+    endmembers = [pure(element, {element: 1.0, "O": 1.0}) for element in elements]
+    solution = bm.Solution(
+        bm.IdealSolution(
+            [
+                (mineral, f"[{element}]O")
+                for mineral, element in zip(endmembers, elements)
+            ]
+        ),
+        [0.3, 0.3, 0.4],
+        name="solution",
+    )
+    phases = [solution] + [
+        bm.CombinedMineral(
+            [endmembers[i]], [1.0], [1000.0 + 10.0 * i, 0.0, -1.0e-5], name=element
+        )
+        for i, element in enumerate(elements[:2])
+    ]
+    opts = settings()
+    opts.pressure_seeds = opts.temperature_seeds = 2
+    result = bm.pseudosection(
+        {"Mg": 0.3, "Fe": 0.3, "Ca": 0.4, "O": 1.0},
+        phases,
+        (0.0, 2.0e9),
+        (600.0, 1400.0),
+        opts,
+    )
+    assert result.resolved, result.diagnostics
+    geometry = bm.pseudosection_field_polygons(result)
+    assert not geometry.diagnostics
+    assert sorted(field.n_phases for field in geometry.polygons) == [1, 2, 3]
+    assert sum(field.area for field in geometry.polygons) == pytest.approx(1.0)
+    assert len(result.boundaries) == 2
+    # At Mg entry the solution still has its bulk composition; equality of
+    # its partial Gibbs energy and the shifted pure Mg phase gives this line.
+    line = next(
+        line
+        for line in result.boundaries
+        if result.phase_names[line.zero_phase] == "Mg"
+    )
+    for point in line.points:
+        pressure = (
+            1000.0 - 8.31446261815324 * point.temperature * np.log(0.3)
+        ) / 1.0e-5
+        assert point.pressure == pytest.approx(pressure, abs=0.1)
+    # A saved diagram with that line omitted still has closed, coloured faces.
+    # Its successful samples must expose the inconsistent subdivision, and
+    # resuming must use those samples to recover the missing boundary.
+    incomplete = result.to_dict()
+    incomplete["boundaries"] = [
+        boundary
+        for boundary in incomplete["boundaries"]
+        if boundary["zero_phase"] != line.zero_phase
+    ]
+    geometry = bm.pseudosection_field_polygons(incomplete)
+    assert any("conflicting equilibrium assemblage" in d for d in geometry.diagnostics)
+    opts.max_recovery_passes = 0
+    unresolved = bm.refine_pseudosection(
+        {"Mg": 0.3, "Fe": 0.3, "Ca": 0.4, "O": 1.0}, phases, incomplete, opts
+    )
+    assert not unresolved.resolved
+    assert any("No closed region" in d for d in unresolved.diagnostics)
+    opts.max_recovery_passes = 2
+    repaired = bm.refine_pseudosection(
+        {"Mg": 0.3, "Fe": 0.3, "Ca": 0.4, "O": 1.0}, phases, incomplete, opts
+    )
+    assert repaired.resolved, repaired.diagnostics
+    geometry = bm.pseudosection_field_polygons(repaired)
+    assert not geometry.diagnostics
+    assert sorted(field.n_phases for field in geometry.polygons) == [1, 2, 3]
 
 
 def test_four_branches_at_a_phase_swap_node():
@@ -178,7 +252,7 @@ def test_verified_closed_fields_count_as_resolved_when_edge_labels_are_stale():
 
 @pytest.mark.parametrize("case_index", range(3))
 def test_metasediment_phase_entry_recovers_verified_junction(case_index):
-    """Legacy calibration: a solvus, a polymorph swap and a solution entering."""
+    """Matched metapelite: a solvus, a polymorph swap and a solution entering."""
     example = runpy.run_path(
         str(
             Path(__file__).parents[2]
@@ -193,13 +267,7 @@ def test_metasediment_phase_entry_recovers_verified_junction(case_index):
     s = settings()
     s.max_lines = 1  # Isolate the endpoint from the subsequent branch search.
     previous = case["previous"]
-    # Preserve the calibration which produced these numerical regression states.
-    # The current example uses the matched HPx melt and additional solid phases.
-    from burnman_cpp.minerals import HGP_2018_ds633, model_sets
-
-    phases = model_sets.metapelite().phases[:22]
-    phases[14] = HGP_2018_ds633.silicate_melt()
-    phases[14].set_name("melt")
+    phases = example["candidate_phases"]()
     result = bm.refine_pseudosection(
         example["METASEDIMENT_COMPOSITION"].atomic_composition,
         phases,
@@ -213,7 +281,7 @@ def test_metasediment_phase_entry_recovers_verified_junction(case_index):
     point = line.points[0 if end == "start" else -1]
     node = result.nodes[getattr(line, end + "_node")]
     assert node.kind == "junction"
-    assert len(node.zero_phases) == 2
+    assert sorted(node.zero_phases) == sorted(case["expected_zero_phases"])
     assert point.mass_balance_error < 1.0e-8
     assert point.minimum_affinity >= -0.2
     assert point.residual < 0.02
@@ -270,7 +338,7 @@ def test_basalt_fixed_pt_drops_blocked_zero_amount_phase(pressure, temperature, 
 
 
 def test_polymorph_reduced_variance_has_three_lines():
-    phases = [HP.andalusite(), HP.ky(), HP.sill()]
+    phases = [HP11.andalusite(), HP11.ky(), HP11.sill()]
     r = bm.pseudosection(
         {"Al": 2.0, "Si": 1.0, "O": 5.0},
         phases,

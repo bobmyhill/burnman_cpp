@@ -959,7 +959,13 @@ class Tracer {
                    std::back_inserter(joined));
     std::set_symmetric_difference(a.begin(), a.end(), b.begin(), b.end(),
                                   std::back_inserter(changed));
-    if (changed.size() > 2 && depth < 7) {
+    // Two phases entering/leaving need separate zero-amount boundaries too.
+    // A direct solve on their union can find only the outer boundary and miss
+    // the intervening field. A one-in/one-out exchange can share one line.
+    if ((changed.size() > 2 || (changed.size() == 2 && a.size() != b.size())) &&
+        depth < 20 &&
+        (normalise(left.state) - normalise(right.state)).norm() >
+            engine.settings.min_step * 2.) {
       auto u = (.5 * (normalise(left.state) + normalise(right.state))).eval();
       auto actual = (origin + u.cwiseProduct(range)).eval();
       auto mid = engine.stable_at(actual);
@@ -2177,6 +2183,26 @@ class Tracer {
         break;
     }
   }
+  void recover_fields() {
+    for (int pass = 0; pass < engine.settings.max_recovery_passes; ++pass) {
+      auto geometry = field_polygons(result, 1.e-8, true, false);
+      auto conflicts = field_conflicts(result, geometry);
+      if (conflicts.empty())
+        break;
+      const auto count = result.boundaries.size();
+      for (auto [sample, polygon] : conflicts) {
+        WorkState left, right;
+        left.state = result.samples[sample];
+        right.state = result.samples[static_cast<std::size_t>(
+            geometry.polygons[polygon].sample_index)];
+        bracket(left, right);
+      }
+      search();
+      if (result.boundaries.size() == count)
+        break;
+      recover();
+    }
+  }
   State field_state(const Eigen::Vector2d &location) {
     std::vector<std::pair<double, std::size_t>> nearby;
     for (std::size_t i = 0; i < result.samples.size(); ++i)
@@ -2588,12 +2614,8 @@ class Tracer {
           "Field changes detected but no boundaries converged.");
     if (result.fields.size() > 1) {
       std::set<std::vector<int>> bordered;
-      for (auto &line : result.boundaries) {
-        bordered.insert(line.side_a);
-        bordered.insert(line.side_b);
-      }
-      // Interior verification can correct stale edge labels. Such a field
-      // already has a closed traced perimeter in the planar subdivision.
+      // A side label alone does not demonstrate a field's closed perimeter:
+      // a second boundary can be missing between two resolved phase lines.
       for (auto &polygon : verified_geometry.polygons)
         if (!polygon.has_open_boundary && !polygon.outside_model_domain &&
             !polygon.phases.empty())
@@ -2620,7 +2642,7 @@ class Tracer {
               continue;
           }
           result.diagnostics.push_back(
-              "No field edge resolved for sampled field " +
+              "No closed region resolved for sampled field " +
               std::to_string(field.id) +
               "; increase seed density or inspect failed solves.");
         }
@@ -2749,6 +2771,7 @@ public:
       }
     search();
     recover();
+    recover_fields();
     return finish();
   }
   Result resume(const Result &previous) {
@@ -2801,6 +2824,7 @@ public:
     }
     recover();
     search();
+    recover_fields();
     return finish();
   }
 };

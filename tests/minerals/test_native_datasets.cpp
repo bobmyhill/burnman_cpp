@@ -25,7 +25,7 @@ using namespace Catch::Matchers;
 TEST_CASE("Free composition vectors can change total atom amounts",
           "[equilibration]") {
   Assemblage a;
-  auto mineral = minerals::HP_2011_ds62::sill();
+  auto mineral = minerals::HP11::sill();
   a.add_phases({mineral});
   const auto bulk = mineral->get_formula();
   ConstraintList constraints(3);
@@ -42,8 +42,8 @@ TEST_CASE("Free composition vectors can change total atom amounts",
 
 TEST_CASE("Native datasets and combined endmembers need no Python",
           "[native_datasets]") {
-  auto sill = minerals::HP_2011_ds62::sill();
-  auto andal = minerals::HP_2011_ds62::andalusite();
+  auto sill = minerals::HP11::sill();
+  auto andal = minerals::HP11::andalusite();
   sill->set_state(3.e9, 1200.);
   andal->set_state(3.e9, 1200.);
   Eigen::ArrayXd amounts(2);
@@ -58,9 +58,9 @@ TEST_CASE("Native datasets and combined endmembers need no Python",
 }
 
 TEST_CASE("Native reduced solution systems", "[native_datasets]") {
-  auto opx = minerals::JH_2015::mg_fe_orthopyroxene();
-  auto gt = minerals::SLB_2011::pyrope_grossular();
-  auto bdg = minerals::SLB_2011::mg_fe_bridgmanite_binary();
+  auto opx = minerals::JH15::mg_fe_orthopyroxene();
+  auto gt = minerals::SLB11::pyrope_grossular();
+  auto bdg = minerals::SLB11::mg_fe_bridgmanite_binary();
   CHECK(opx->get_n_endmembers() == 3);
   CHECK(gt->get_n_endmembers() == 2);
   CHECK(bdg->get_n_endmembers() == 2);
@@ -76,9 +76,9 @@ TEST_CASE("Native reduced solution systems", "[native_datasets]") {
 
 TEST_CASE("Aluminosilicate invariant from native factories",
           "[native_datasets]") {
-  auto sill = minerals::HP_2011_ds62::sill();
-  auto andal = minerals::HP_2011_ds62::andalusite();
-  auto ky = minerals::HP_2011_ds62::ky();
+  auto sill = minerals::HP11::sill();
+  auto andal = minerals::HP11::andalusite();
+  auto ky = minerals::HP11::ky();
   Assemblage a;
   a.add_phases({sill, andal, ky});
   a.set_fractions(Eigen::ArrayXd::Constant(3, 1. / 3.));
@@ -101,10 +101,9 @@ TEST_CASE("Aluminosilicate invariant from native factories",
 
 TEST_CASE("Scaled equilibrium keeps physical results and iteration history",
           "[native_datasets][equilibration_scaling]") {
-  auto sill = minerals::HP_2011_ds62::sill();
+  auto sill = minerals::HP11::sill();
   Assemblage a;
-  a.add_phases({sill, minerals::HP_2011_ds62::andalusite(),
-                minerals::HP_2011_ds62::ky()});
+  a.add_phases({sill, minerals::HP11::andalusite(), minerals::HP11::ky()});
   a.set_fractions(Eigen::ArrayXd::Constant(3, 1. / 3.));
   a.set_state(8.e8, 900.);
   const auto bulk = sill->get_formula();

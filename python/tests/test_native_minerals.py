@@ -6,33 +6,33 @@ import numpy as np
 import pytest
 
 from burnman_cpp.minerals import (
-    HP_2011_ds62 as HP,
-    SLB_2011 as SLB,
-    JH_2015 as JH,
-    HGP_2018_ds633 as HGP,
+    HP11,
+    SLB11,
+    JH15,
+    HGP18,
 )
 
 FACTORIES = [
-    HGP.iron,
-    HGP.wu,
-    HGP.mt,
-    HGP.hem,
-    HP.sill,
-    HP.andalusite,
-    HP.ky,
-    SLB.mg_fe_olivine,
-    SLB.mg_fe_wadsleyite,
-    SLB.mg_fe_ringwoodite,
-    SLB.mg_fe_bridgmanite,
-    SLB.post_perovskite,
-    SLB.ferropericlase,
-    SLB.orthopyroxene,
-    SLB.garnet,
-    SLB.ca_perovskite,
-    SLB.pyrope_grossular,
-    SLB.mg_fe_bridgmanite_binary,
-    JH.orthopyroxene,
-    JH.mg_fe_orthopyroxene,
+    HGP18.iron,
+    HGP18.wu,
+    HGP18.mt,
+    HGP18.hem,
+    HP11.sill,
+    HP11.andalusite,
+    HP11.ky,
+    SLB11.mg_fe_olivine,
+    SLB11.mg_fe_wadsleyite,
+    SLB11.mg_fe_ringwoodite,
+    SLB11.mg_fe_bridgmanite,
+    SLB11.post_perovskite,
+    SLB11.ferropericlase,
+    SLB11.orthopyroxene,
+    SLB11.garnet,
+    SLB11.ca_perovskite,
+    SLB11.pyrope_grossular,
+    SLB11.mg_fe_bridgmanite_binary,
+    JH15.orthopyroxene,
+    JH15.mg_fe_orthopyroxene,
 ]
 
 
@@ -51,9 +51,9 @@ def test_native_factories_independent_and_finite(factory):
 
 
 def test_reduced_models_span_the_required_elements():
-    opx = JH.mg_fe_orthopyroxene()
-    garnet = SLB.pyrope_grossular()
-    bdg = SLB.mg_fe_bridgmanite_binary()
+    opx = JH15.mg_fe_orthopyroxene()
+    garnet = SLB11.pyrope_grossular()
+    bdg = SLB11.mg_fe_bridgmanite_binary()
     assert opx.n_endmembers == 3
     assert garnet.n_endmembers == bdg.n_endmembers == 2
     assert set(opx.elements) == {"Mg", "Fe", "Si", "O"}

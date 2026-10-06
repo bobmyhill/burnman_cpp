@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Olivine-polymorph T-X diagram at 14 GPa, from 1000 to 3000 K.
 
-X is the molar fayalite fraction Fe/(Mg+Fe). The SLB_2011 candidate set is
+X is the molar fayalite fraction Fe/(Mg+Fe). The SLB11 candidate set is
 restricted to olivine, wadsleyite and ringwoodite; melting is not included.
 The P-X example supplies the shared composition, phases, settings and outputs.
 All thermodynamics and phase-boundary continuation run in C++.

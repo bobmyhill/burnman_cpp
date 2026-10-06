@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import JH_2015 as JH, SLB_2011 as SLB, HGP_2018_ds633 as HGP
+from burnman_cpp.minerals import JH15, SLB11, HGP18
 from conftest import oxide_params
 
 
@@ -45,7 +45,7 @@ def test_threaded_cdd_calls():
 
 def test_remove_impossible_phases_and_collapse_single_endmember():
     original = assemblage(
-        [SLB.mg_fe_bridgmanite(), SLB.mg_fe_olivine(), SLB.ferropericlase()]
+        [SLB11.mg_fe_bridgmanite(), SLB11.mg_fe_olivine(), SLB11.ferropericlase()]
     )
     reduced = bm.simplify_composite_with_composition(original, dict(Mg=1, Si=1, O=3))
     assert len(reduced.phases) == 1
@@ -56,7 +56,7 @@ def test_remove_impossible_phases_and_collapse_single_endmember():
 
 
 def test_multiple_solutions_reduce_at_joint_bulk_composition():
-    original = assemblage([SLB.mg_fe_olivine(), SLB.orthopyroxene()])
+    original = assemblage([SLB11.mg_fe_olivine(), SLB11.orthopyroxene()])
     composition = dict(Mg=2, Si=1.5, O=5)
     poly = bm.composite_polytope_at_constrained_composition(original, composition)
     assert poly.is_bounded and not poly.is_empty
@@ -88,9 +88,9 @@ def test_interior_fixed_composition_retains_binary_solution(solution):
 
 
 def test_signed_majorite_basis_preserves_initial_composition():
-    garnet = SLB.garnet()
+    garnet = SLB11.garnet()
     garnet.set_composition([-0.1, 0.1, 0.0, 1.0, 0.0])
-    original = assemblage([SLB.mg_fe_olivine(), garnet])
+    original = assemblage([SLB11.mg_fe_olivine(), garnet])
     reduced = bm.simplify_composite_with_composition(
         original, dict(Fe=3, Mg=1, Si=3.9, O=11.8)
     )
@@ -106,7 +106,7 @@ def test_signed_majorite_basis_preserves_initial_composition():
 
 
 def test_repeated_simplification_and_state_preservation():
-    original = assemblage([SLB.garnet()])
+    original = assemblage([SLB11.garnet()])
     original.n_moles = 2.5
     original.set_state(1e9, 1200)
     first = bm.simplify_composite_with_composition(
@@ -123,9 +123,9 @@ def test_repeated_simplification_and_state_preservation():
 @pytest.mark.parametrize(
     "factory,composition,n",
     [
-        (JH.orthopyroxene, dict(Mg=1, Fe=1, Si=2, O=6), 3),
-        (SLB.garnet, dict(Mg=1.5, Ca=1.5, Al=2, Si=3, O=12), 2),
-        (SLB.mg_fe_bridgmanite, dict(Mg=0.9, Fe=0.1, Si=1, O=3), 2),
+        (JH15.orthopyroxene, dict(Mg=1, Fe=1, Si=2, O=6), 3),
+        (SLB11.garnet, dict(Mg=1.5, Ca=1.5, Al=2, Si=3, O=12), 2),
+        (SLB11.mg_fe_bridgmanite, dict(Mg=0.9, Fe=0.1, Si=1, O=3), 2),
     ],
 )
 def test_general_simplification_matches_example_thermodynamics(factory, composition, n):
@@ -148,7 +148,7 @@ def test_general_simplification_matches_example_thermodynamics(factory, composit
 
 
 def test_complete_melt_simplifies_for_chromium_free_bulk():
-    original = HGP.silicate_melt()
+    original = HGP18.silicate_melt()
     chromium = original.stoichiometric_matrix[:, original.elements.index("Cr")] != 0.0
     fractions = np.arange(1.0, original.n_endmembers + 1)
     fractions[chromium] = 0.0
@@ -175,7 +175,7 @@ def test_complete_melt_simplifies_for_chromium_free_bulk():
 
 
 def test_melt_repeated_simplification_preserves_empty_sites():
-    original = HGP.silicate_melt()
+    original = HGP18.silicate_melt()
     first = bm.simplify_composite_with_composition(
         assemblage([original]), dict(Mg=2, Si=2, O=7, H=2)
     )
@@ -258,12 +258,12 @@ def test_transform_single_mixed_endmember_and_existing_mixed_standard_state():
 
 
 def test_signed_physical_vertices_and_invalid_inputs():
-    opx = JH.mg_fe_orthopyroxene()
+    opx = JH15.mg_fe_orthopyroxene()
     poly = bm.solution_polytope_from_endmember_occupancies(opx.endmember_occupancies)
     assert poly.vertices.min() < 0
     assert poly.endmember_occupancies.min() >= -1e-12
     assert poly.vertices.shape[0] == 4
-    original = assemblage([SLB.mg_fe_olivine()])
+    original = assemblage([SLB11.mg_fe_olivine()])
     for bulk in [
         dict(Mg=1, Si=1, O=3),
         dict(Ca=1),

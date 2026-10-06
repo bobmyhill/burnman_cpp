@@ -43,9 +43,9 @@ TEST_CASE("Pure phase energies match THERMOCALC metapelite benchmarks",
           "[native_datasets][ps1994][thermocalc]") {
   const std::map<std::string, std::shared_ptr<Mineral>> phases = {
       {"H2O", minerals::water_fluid()},
-      {"q", minerals::HP_2011_ds62::q()},
-      {"and", minerals::HP_2011_ds62::andalusite()},
-      {"sill", minerals::HP_2011_ds62::sill()}};
+      {"q", minerals::HP11::q()},
+      {"and", minerals::HP11::andalusite()},
+      {"sill", minerals::HP11::sill()}};
   for (const auto &state : thermocalc_reference::phases) {
     DYNAMIC_SECTION(state.source << ": " << state.phase) {
       REQUIRE(phases.count(state.phase) == 1);
@@ -63,7 +63,7 @@ TEST_CASE("Pure phase energies match THERMOCALC metapelite benchmarks",
 
 TEST_CASE("Hydrous and anhydrous endmember energies match THERMOCALC",
           "[native_datasets][thermocalc]") {
-  namespace mp = minerals::mp50NCKFMASHTO;
+  namespace mp = minerals::MP14;
   const std::map<std::string, std::shared_ptr<Solution>> phases = {
       {"mu", mp::mu()},   {"bi", mp::bi()},     {"chl", mp::chl()},
       {"ep", mp::ep()},   {"g", mp::g()},       {"opx", mp::opx()},

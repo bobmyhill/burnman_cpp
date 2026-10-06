@@ -163,6 +163,10 @@ struct Engine {
 };
 ConstraintList constraints(std::unique_ptr<EqualityConstraint>,
                            std::unique_ptr<EqualityConstraint>);
+// Successful samples inconsistent with their containing region: sample,
+// polygon indices. Ignore the uncertainty band around approximated chords.
+std::vector<std::pair<std::size_t, std::size_t>>
+field_conflicts(const Result &, const FieldPolygons &);
 // Continuation removes constraint row 1 (the moving section plane). This
 // shared tangent includes latent S/V amount directions as well as P/T/X.
 Eigen::VectorXd continuation_tangent(const Engine &,

@@ -1,10 +1,6 @@
 {
-  "repository": "https://github.com/bobmyhill/burnman",
-  "commit": "ffcb3688fdb4a28af9c76d5896d6df3abd55c7ba",
-  "eos": "burnman.eos.pitzer_sterner.PitzerSterner",
-  "mineral": "burnman.minerals.Pitzer_Sterner_1994.H2O_Pitzer_Sterner",
-  "gas_constant_J_per_mol_K": 8.314510,
-  "volume_root_xtol_m3_per_mol": 1e-24,
+  "mineral": "burnman.minerals.HP_2011_fluids.H2O",
+  "gas_constant_J_per_mol_K": 8.31451,
   "reference_pressure_Pa": 100000.0,
-  "thermal_comparison": "Pressure differences at fixed temperature cancel the different ideal-gas thermal references."
+  "thermal_comparison": "Pressure differences cancel the chosen ideal-gas thermal reference; absolute HP2011 values are also compared."
 }

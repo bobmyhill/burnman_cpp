@@ -19,7 +19,7 @@ from pathlib import Path
 
 import numpy as np
 import burnman_cpp as bm
-from burnman_cpp.minerals import HP_2011_ds62 as HP, JH_2015 as JH, SLB_2011 as SLB
+from burnman_cpp.minerals import HP11, JH15, SLB11
 
 
 def assemblage(phases, fractions=None):
@@ -92,7 +92,7 @@ class Example:
         return fig
 
     def aluminosilicates(self):
-        sill, andal, ky = HP.sill(), HP.andalusite(), HP.ky()
+        sill, andal, ky = HP11.sill(), HP11.andalusite(), HP11.ky()
         comp = sill.formula
         a = assemblage([sill, andal, ky])
         result = solve(
@@ -137,7 +137,7 @@ class Example:
     def ordering(self):
         comp = {"Mg": 1.0, "Fe": 1.0, "Si": 2.0, "O": 6.0}
         a = bm.simplify_composite_with_composition(
-            assemblage([JH.orthopyroxene()]), comp
+            assemblage([JH15.orthopyroxene()]), comp
         )
         opx = a.phases[0]
         opx.set_composition([1.0 / 3.0] * 3)
@@ -177,7 +177,7 @@ class Example:
     def gt_solvus(self):
         comp = {"Mg": 1.5, "Ca": 1.5, "Al": 2.0, "Si": 3.0, "O": 12.0}
         reduced = bm.simplify_composite_with_composition(
-            assemblage([SLB.garnet(), SLB.garnet()]), comp
+            assemblage([SLB11.garnet(), SLB11.garnet()]), comp
         )
         gt1, gt2 = reduced.phases
         gt1.set_composition([0.05, 0.95])
@@ -219,7 +219,7 @@ class Example:
             ax.set(xlabel="Molar proportion of pyrope", ylabel="Temperature (K)")
 
     def fper_ol(self):
-        ol, fper = SLB.mg_fe_olivine(), SLB.ferropericlase()
+        ol, fper = SLB11.mg_fe_olivine(), SLB11.ferropericlase()
         ol.set_composition([0.93, 0.07])
         fper.set_composition([0.9, 0.1])
         a = assemblage([ol, fper], [0.7, 0.3])
@@ -251,7 +251,7 @@ class Example:
             ax.legend()
 
     def fixed_ol_composition(self):
-        ol, wad = SLB.mg_fe_olivine(), SLB.mg_fe_wadsleyite()
+        ol, wad = SLB11.mg_fe_olivine(), SLB11.mg_fe_wadsleyite()
         ol.set_composition([0.5, 0.5])
         wad.set_composition([0.6, 0.4])
         a = assemblage([ol, wad], [0.7, 0.3])
@@ -271,7 +271,7 @@ class Example:
         describe(a)
 
     def upper_mantle(self):
-        ol, opx, gt = SLB.mg_fe_olivine(), SLB.orthopyroxene(), SLB.garnet()
+        ol, opx, gt = SLB11.mg_fe_olivine(), SLB11.orthopyroxene(), SLB11.garnet()
         ol.set_composition([0.93, 0.07])
         opx.set_composition([0.8, 0.1, 0.05, 0.05])
         gt.set_composition([0.8, 0.1, 0.05, 0.03, 0.02])
@@ -298,10 +298,10 @@ class Example:
 
     def lower_mantle(self):
         bdg, ppv, fper, cpv = (
-            SLB.mg_fe_bridgmanite(),
-            SLB.post_perovskite(),
-            SLB.ferropericlase(),
-            SLB.ca_perovskite(),
+            SLB11.mg_fe_bridgmanite(),
+            SLB11.post_perovskite(),
+            SLB11.ferropericlase(),
+            SLB11.ca_perovskite(),
         )
         for p, name in zip([bdg, ppv, fper, cpv], ["bdg", "ppv", "fper", "cpv"]):
             p.name = name
@@ -398,9 +398,9 @@ class Example:
 
     def olivine_polymorphs(self):
         ol, wad, rw = (
-            SLB.mg_fe_olivine(),
-            SLB.mg_fe_wadsleyite(),
-            SLB.mg_fe_ringwoodite(),
+            SLB11.mg_fe_olivine(),
+            SLB11.mg_fe_wadsleyite(),
+            SLB11.mg_fe_ringwoodite(),
         )
         for p, f in zip([ol, wad, rw], [[0.93, 0.07], [0.91, 0.09], [0.93, 0.07]]):
             p.set_composition(f)
@@ -452,9 +452,9 @@ class Example:
                 x = values(r)
                 ax.plot(x[1], x[0] / 1.0e9, color="black")
         rw2, bdg, fper = (
-            SLB.mg_fe_ringwoodite(),
-            SLB.mg_fe_bridgmanite(),
-            SLB.ferropericlase(),
+            SLB11.mg_fe_ringwoodite(),
+            SLB11.mg_fe_bridgmanite(),
+            SLB11.ferropericlase(),
         )
         rw2.set_composition(rw.molar_fractions)
         fper.set_composition([0.9, 0.1])

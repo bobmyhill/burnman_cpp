@@ -11,7 +11,7 @@
 //
 // ------------------------------------------------------
 
-// Numerical snapshots: Python BurnMan 69e700647ae7efeed91dfbce147c036bce619516.
+// Numerical snapshots: Python BurnMan 39b582cd23954fabd3bdbbee6526a522b1d97bc9.
 // Reproduce with tools/check_reference_data.py; see docs/reference_data.md.
 #include "burnman/eos/slb.hpp"
 #include "burnman/minerals/datasets.hpp"
@@ -32,7 +32,7 @@ TEST_CASE("SLB thermal spinodal matches independent Python roots",
   // Python BurnMan SLB2024 forsterite, T=4000 K: solve K_T=0 with
   // scipy.optimize.brentq in V/V0, then its volume() above that pressure.
   // These fixtures also exercise the safeguarded Newton/bisection transition.
-  auto params = minerals::SLB_2024::fo()->params;
+  auto params = minerals::SLB24::fo()->params;
   eos::SLB3 slb;
   const double temperature = 4000., minimum_pressure = 2992114107.980507;
   const double critical_ratio = 1.228288593743338;
@@ -59,14 +59,14 @@ TEST_CASE("SLB thermal spinodal matches independent Python roots",
 TEST_CASE("SLB distinguishes domain failures from invalid inputs",
           "[eos][slb]") {
   eos::SLB3 slb;
-  auto params = minerals::SLB_2024::en()->params;
+  auto params = minerals::SLB24::en()->params;
   CHECK_THROWS_AS(slb.compute_pressure(1600., .3 * (*params.V_0), params),
                   eos::SLBDomainError);
   CHECK_THROWS_AS(slb.compute_volume(0., -1., params), std::invalid_argument);
   CHECK_THROWS_AS(slb.compute_volume(std::nan(""), 300., params),
                   std::invalid_argument);
   eos::SLB3Conductive iron;
-  auto fe = minerals::SLB_2024::fea()->params;
+  auto fe = minerals::SLB24::fea()->params;
   // Python can find a second expanded positive-K_T root at 4000 K. Native
   // solving retains the reference-connected branch, whose P_min is 9.897 GPa.
   CHECK_THROWS_AS(iron.compute_volume(0., 4000., fe), eos::SLBDomainError);

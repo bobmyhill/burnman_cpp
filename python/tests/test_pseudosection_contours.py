@@ -380,12 +380,14 @@ def test_metasediment_example_uses_volume_and_ferrous_garnet_constraints(monkeyp
     diagram = json.loads(
         (Path(__file__).parent / "data/metasediment_contour_field.json").read_text()
     )
-    g = next(p for p in diagram["samples"][0]["phases"] if p["candidate_index"] == 6)
+    # An interior verification state gives a contour crossing the field;
+    # a corner extremum can touch the field at just one point.
+    seed = next(p for p in diagram["samples"] if p["is_field_verification"])
+    g = next(p for p in seed["phases"] if p["candidate_index"] == 6)
     composition = g["composition"]
     ratio = (composition[0] + composition[3]) / (
         composition[0] + composition[1] + composition[3]
     )
-    seed = diagram["samples"][0]
     work = []
     amounts = []
     for p in seed["phases"]:
