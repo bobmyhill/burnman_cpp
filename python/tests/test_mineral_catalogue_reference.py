@@ -48,7 +48,7 @@ def test_catalogue_check_is_independent_of_optimizer_choice(
     monkeypatch.setattr(sys, "argv", ["export_example_minerals.py", "--check"])
     before = [(ROOT / filename).read_bytes() for filename in CATALOGUE_FILES]
     exporter.main()
-    assert "Verified 658 endmembers and 933 factories" in capsys.readouterr().out
+    assert "Verified 658 endmembers and 932 factories" in capsys.readouterr().out
     assert [(ROOT / filename).read_bytes() for filename in CATALOGUE_FILES] == before
 
 

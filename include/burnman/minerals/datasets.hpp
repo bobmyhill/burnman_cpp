@@ -524,7 +524,6 @@ std::shared_ptr<Mineral> h2o1L();
 std::shared_ptr<Solution> silicate_melt();
 std::shared_ptr<Solution> CMS_melt();
 std::shared_ptr<Solution> MS_melt();
-std::shared_ptr<Solution> silicate_melt_cr_free();
 } // namespace HGP_2018_ds633
 
 namespace mb50NCKFMASHTO {

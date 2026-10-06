@@ -309,14 +309,6 @@ def main():
             ),
         )
     )
-    groups["HGP_2018_ds633"].append(
-        (
-            "silicate_melt_cr_free",
-            HGP.make_melt_class(
-                [getattr(HGP, name) for name in HGP.site_formulae if name != "ekL"]
-            )(),
-        )
-    )
     for group, phases in groups.items():
         functions = []
         headers = []

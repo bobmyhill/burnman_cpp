@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import JH_2015 as JH, SLB_2011 as SLB
+from burnman_cpp.minerals import JH_2015 as JH, SLB_2011 as SLB, HGP_2018_ds633 as HGP
 from conftest import oxide_params
 
 
@@ -145,6 +145,48 @@ def test_general_simplification_matches_example_thermodynamics(factory, composit
                 assert getattr(reduced, prop) == pytest.approx(
                     getattr(original, prop), rel=2e-12, abs=1e-10
                 )
+
+
+def test_complete_melt_simplifies_for_chromium_free_bulk():
+    original = HGP.silicate_melt()
+    chromium = original.stoichiometric_matrix[:, original.elements.index("Cr")] != 0.0
+    fractions = np.arange(1.0, original.n_endmembers + 1)
+    fractions[chromium] = 0.0
+    fractions /= fractions.sum()
+    original.set_composition(fractions)
+    reduced = bm.simplify_composite_with_composition(
+        assemblage([original]), original.formula
+    ).phases[0]
+    assert original.n_endmembers == 12
+    assert reduced.n_endmembers == 11
+    np.testing.assert_allclose(reduced.basis[:, chromium], 0.0, atol=1e-12)
+    for fractions in [np.full(11, 1 / 11), np.arange(1.0, 12) / 66]:
+        reduced.set_composition(fractions)
+        original.set_composition(reduced.basis.T @ fractions)
+        assert original.formula.get("Cr", 0.0) == 0.0
+        assert reduced.formula.get("Cr", 0.0) == 0.0
+        for pressure, temperature in [(1e5, 700), (3e9, 1200)]:
+            original.set_state(pressure, temperature)
+            reduced.set_state(pressure, temperature)
+            for prop in ["molar_gibbs", "molar_entropy", "molar_volume"]:
+                assert getattr(reduced, prop) == pytest.approx(
+                    getattr(original, prop), rel=2e-12, abs=1e-10
+                )
+
+
+def test_melt_repeated_simplification_preserves_empty_sites():
+    original = HGP.silicate_melt()
+    first = bm.simplify_composite_with_composition(
+        assemblage([original]), dict(Mg=2, Si=2, O=7, H=2)
+    )
+    second = bm.simplify_composite_with_composition(first, dict(Si=2, O=5, H=2))
+    assert first.phases[0].n_endmembers == 3
+    child = second.phases[0]
+    assert child.n_endmembers == 2
+    original.set_composition(child.basis.T @ child.molar_fractions)
+    for phase in (original, child):
+        phase.set_state(3e9, 1200)
+    assert child.molar_gibbs == pytest.approx(original.molar_gibbs, rel=2e-12)
 
 
 @pytest.mark.parametrize(

@@ -7,8 +7,9 @@ writes JSON and figures. No Python BurnMan or optimisation library is needed.
 
 The illustrative alumina-rich shale contains exactly 2 wt% H2O in a 100 g wet
 bulk. FeO and Fe2O3 specify its closed oxygen inventory; water and oxygen are
-not buffered. Native mp50NCKFMASHTO metapelite solids use HP dataset 6.2;
-HGP2018 hydrous silicate melt and PS94 pure H2O complete the model set.
+not buffered. Native mp50NCKFMASHTO metapelite solids use HP dataset 6.2.
+The complete HGP2018 hydrous silicate melt and PS94 pure H2O complete the model
+set.
 The mixed melt/fluid treatment is illustrative rather than a reproduction
 of a consistently calibrated THERMOCALC model set.
 
@@ -67,7 +68,7 @@ def candidate_phases():
         (MP.sp, "sp"),
         (MP.ilmm, "ilm"),
         (MP.mt1, "mt"),
-        (HGP.silicate_melt_cr_free, "melt"),
+        (HGP.silicate_melt, "melt"),
     ]
     pure = [
         (HP.q, "q"),

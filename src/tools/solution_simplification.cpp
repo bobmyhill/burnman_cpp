@@ -61,9 +61,14 @@ std::string site_formula(const SolutionModel &model,
   for (const auto &site : model.get_sites()) {
     Eigen::Index count = static_cast<Eigen::Index>(site.size());
     double sum = occupancies.segment(offset, count).sum();
+    if (count == 0 || (sum == 0.0 && multiplicities[offset] == 0.0)) {
+      formula += "[]0";
+      offset += count;
+      continue;
+    }
     if (sum <= 0.0 || multiplicities[offset] < 0.0) {
-      throw std::invalid_argument(
-          "Transformed endmembers must retain positive site multiplicities.");
+      throw std::invalid_argument("Transformed endmembers have invalid site "
+                                  "occupancies or multiplicities.");
     }
     formula += "[";
     for (Eigen::Index j = 0; j < count; ++j) {
