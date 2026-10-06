@@ -1,10 +1,11 @@
 import numpy as np
 import pytest
-from burnman_cpp.minerals import HGP_2018_ds633 as HGP
+from burnman_cpp.minerals import IG24, IG25
 
 
-def test_native_melt_gibbs_composition_derivatives():
-    s = HGP.silicate_melt()
+@pytest.mark.parametrize("factory", [IG24.liq_W24d, IG25.liq_G25w])
+def test_native_melt_gibbs_composition_derivatives(factory):
+    s = factory()
     p = np.arange(1.0, s.n_endmembers + 1)
     p /= p.sum()
     s.set_composition(p)

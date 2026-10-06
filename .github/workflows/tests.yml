@@ -110,7 +110,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: geodynamics/burnman
-          ref: 69e700647ae7efeed91dfbce147c036bce619516
+          ref: 39b582cd23954fabd3bdbbee6526a522b1d97bc9
           path: build/python-burnman-reference
           persist-credentials: false
 
@@ -141,6 +141,7 @@ jobs:
         run: |
           python tools/check_reference_data.py
           python tools/export_example_minerals.py --check
+          python tools/generate_ps1994_reference.py --reference build/python-burnman-reference
 
       - name: Run complete Python suite with the pinned reference
         env:

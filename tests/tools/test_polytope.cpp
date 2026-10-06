@@ -33,7 +33,7 @@ TEST_CASE("cddlib native rational polytope enumeration", "[polytope]") {
 }
 
 TEST_CASE("General native solution simplification", "[polytope]") {
-  auto opx = minerals::JH_2015::orthopyroxene();
+  auto opx = minerals::JH15::orthopyroxene();
   Assemblage a;
   a.add_phases({opx});
   a.set_fractions({1.});

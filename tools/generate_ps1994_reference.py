@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Check or regenerate PS1994 snapshots from the pinned Python BurnMan branch.
+"""Check or regenerate PS1994 snapshots from the shared pinned Python BurnMan.
 
-The PS1994 implementation is absent from the main-branch reference. Supply a
-clean checkout of the separate commit in tests/reference/ps1994.json. Expected
-values use Python BurnMan's EOS functions; no native implementation is imported.
+Expected values use Python BurnMan's EOS functions; no native implementation
+is imported. The HP2011 thermal reference permits absolute-energy comparisons.
 """
 
 import argparse
@@ -16,9 +15,10 @@ import sys
 import numpy as np
 from scipy.optimize import brentq
 
-ROOT = Path(__file__).resolve().parents[1]
+from burnman_reference import REFERENCE, ROOT, verify_reference
+
 CPP_HEADER = (ROOT / "contrib/utilities/cpp_header.txt").read_text() + "\n"
-POLICY = json.loads((ROOT / "tests/reference/ps1994.json").read_text())
+POLICY = REFERENCE | json.loads((ROOT / "tests/reference/ps1994.json").read_text())
 OUTPUT = ROOT / "tests/include/ps1994_reference.hpp"
 STATES = [
     (1e5, 500.0),
@@ -45,18 +45,10 @@ STATES = [
 
 def load_reference(source):
     source = source.resolve()
-    commit = subprocess.check_output(
-        ["git", "-C", str(source), "rev-parse", "HEAD"], text=True
-    ).strip()
-    changed = subprocess.check_output(
-        ["git", "-C", str(source), "status", "--porcelain"], text=True
-    ).strip()
-    if commit != POLICY["commit"] or changed:
-        raise ValueError(f"Reference must be a clean checkout of {POLICY['commit']}.")
     sys.path.insert(0, str(source))
     import burnman
 
-    if Path(burnman.__file__).resolve() != source / "burnman/__init__.py":
+    if verify_reference(burnman) != source:
         raise ValueError("Imported BurnMan does not belong to the supplied checkout.")
     module_name, mineral_name = POLICY["mineral"].rsplit(".", 1)
     factory = getattr(importlib.import_module(module_name), mineral_name)
@@ -64,9 +56,8 @@ def load_reference(source):
 
 
 def stable_state(eos, params, pressure, temperature):
-    # The upstream volume() brackets the entire isotherm once and can return a
-    # metastable root. Enumerate its pressure() roots independently and minimize
-    # its Gibbs energy over roots with positive isothermal bulk modulus.
+    # Independently enumerate roots to check upstream's stable-root selection
+    # and record which states admit both liquid and vapour roots.
     upper = max(1.0, 10.0 * POLICY["gas_constant_J_per_mol_K"] * temperature / pressure)
     volumes = np.geomspace(1e-7, upper, 4097)
     residuals = eos.pressure(temperature, volumes, params) - pressure
@@ -80,13 +71,13 @@ def stable_state(eos, params, pressure, temperature):
             args=(pressure, temperature, params),
             xtol=POLICY["volume_root_xtol_m3_per_mol"],
         )
-        bulk_modulus = eos.isothermal_bulk_modulus(
+        bulk_modulus = eos.isothermal_bulk_modulus_reuss(
             pressure, temperature, volume, params
         )
         if bulk_modulus > 0.0:
             stable.append(
                 (
-                    eos.gibbs_free_energy(pressure, temperature, volume, params),
+                    eos.gibbs_energy(pressure, temperature, volume, params),
                     volume,
                     bulk_modulus,
                 )
@@ -95,12 +86,17 @@ def stable_state(eos, params, pressure, temperature):
         raise ValueError(
             f"No stable Python reference root at P={pressure}, T={temperature}."
         )
-    gibbs, volume, bulk_modulus = min(stable)
+    _, expected_volume, _ = min(stable)
+    volume = eos.volume(pressure, temperature, params)
+    np.testing.assert_allclose(volume, expected_volume, rtol=2e-12, atol=0.0)
+    bulk_modulus = eos.isothermal_bulk_modulus_reuss(
+        pressure, temperature, volume, params
+    )
     values = (
         volume,
         bulk_modulus,
         eos.thermal_expansivity(pressure, temperature, volume, params),
-        gibbs,
+        eos.gibbs_energy(pressure, temperature, volume, params),
         eos.entropy(pressure, temperature, volume, params),
         eos.molar_heat_capacity_p(pressure, temperature, volume, params),
     )
@@ -134,6 +130,7 @@ def generate(source):
             )
             numbers = [pressure, temperature, *values[:3]]
             numbers += [values[i] - reference[i] for i in range(3, 6)]
+            numbers += list(values[3:])
             rows.append(
                 "{" + ", ".join(repr(float(x)) for x in numbers) + f", {roots}" + "}"
             )
@@ -144,7 +141,7 @@ def generate(source):
  * Regenerate with tools/generate_ps1994_reference.py --reference PATH --write.
  * R is matched to PS1994's {POLICY['gas_constant_J_per_mol_K']} J/(mol K).
  * Delta G, S and Cp are relative to {POLICY['reference_pressure_Pa']} Pa at the same T;
- * the upstream Debye thermal reference and native ideal-gas reference cancel.
+ * Absolute G, S and Cp use the shared HP2011 ideal-gas thermal reference.
  */
 #pragma once
 #include <array>
@@ -153,6 +150,7 @@ namespace ps1994_reference {{
 struct State {{
   double pressure, temperature, volume, bulk_modulus, expansivity;
   double delta_gibbs, delta_entropy, delta_cp;
+  double gibbs, entropy, cp;
   int stable_roots;
 }};
 inline constexpr double reference_pressure = {POLICY['reference_pressure_Pa']};

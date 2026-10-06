@@ -292,6 +292,52 @@ std::pair<Point, double> label_point(const Face &face,
 }
 } // namespace
 
+std::vector<std::pair<std::size_t, std::size_t>>
+detail::field_conflicts(const Result &result, const FieldPolygons &geometry) {
+  const auto ranges = result.coordinate_ranges();
+  Point scale(ranges[0][1] - ranges[0][0], ranges[1][1] - ranges[1][0]);
+  std::set<Phases> represented;
+  for (const auto &polygon : geometry.polygons)
+    if (!polygon.has_open_boundary && !polygon.outside_model_domain)
+      represented.insert(polygon.phases);
+  std::vector<std::pair<std::size_t, std::size_t>> conflicts;
+  for (std::size_t i = 0; i < geometry.polygons.size(); ++i) {
+    const auto &polygon = geometry.polygons[i];
+    if (polygon.sample_index < 0 || polygon.has_open_boundary ||
+        polygon.outside_model_domain || polygon.phases.empty())
+      continue;
+    std::set<Phases> checked;
+    for (std::size_t j = 0; j < result.samples.size(); ++j) {
+      const auto &sample = result.samples[j];
+      if (!sample.success || sample.outside_model_domain)
+        continue;
+      Phases phases;
+      double total = 0.;
+      for (const auto &phase : sample.phases)
+        total += phase.amount;
+      for (const auto &phase : sample.phases)
+        if (phase.amount > result.settings.amount_tolerance * total)
+          phases.push_back(phase.id);
+      std::sort(phases.begin(), phases.end());
+      if (phases == polygon.phases || checked.count(phases))
+        continue;
+      // Close-to-edge probes can lie across a curved line's straight chord.
+      // A field absent from the subdivision must still be accounted for,
+      // however narrow it is; its boundary will be recovered thermodynamically.
+      double band =
+          represented.count(phases)
+              ? std::max(1.e-8, result.settings.node_tolerance * 2.)
+              : std::max(1.e-8, result.settings.amount_tolerance * 2.);
+      if (polygon.contains_rectangle(
+              diagram_coordinates(sample, result.section.type), scale * band)) {
+        conflicts.emplace_back(j, i);
+        checked.insert(phases);
+      }
+    }
+  }
+  return conflicts;
+}
+
 bool FieldPolygon::contains_rectangle(const Point &centre,
                                       const Point &half_size) const {
   if (!centre.allFinite() || !half_size.allFinite() ||
@@ -722,6 +768,11 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     }
     return i;
   };
+  for (auto [sample, polygon] : detail::field_conflicts(result, output))
+    output.diagnostics.push_back(
+        "Closed region " + std::to_string(polygon) +
+        " contains a conflicting equilibrium assemblage at sample " +
+        std::to_string(sample) + "; a phase boundary may be missing.");
   if (merge_fields)
     for (std::size_t i = 0; i < edges.size(); i += 2) {
       Index a = edge_faces[i], b = edge_faces[i ^ 1];

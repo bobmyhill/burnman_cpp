@@ -18,7 +18,7 @@ import json
 from pathlib import Path
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import SLB_2011 as SLB
+from burnman_cpp.minerals import SLB11
 
 BULK = bm.Composition({"Mg2SiO4": 1.0}, "molar")
 BULK_MASS = sum(BULK.mass_composition.values())
@@ -28,10 +28,10 @@ ALIASES = ["per", "bdg", "aki", "rw"]
 
 def candidate_phases():
     phases = [
-        SLB.periclase(),
-        SLB.mg_perovskite(),
-        SLB.mg_akimotoite(),
-        SLB.mg_ringwoodite(),
+        SLB11.periclase(),
+        SLB11.mg_perovskite(),
+        SLB11.mg_akimotoite(),
+        SLB11.mg_ringwoodite(),
     ]
     for phase, name in zip(phases, ALIASES):
         phase.set_name(name)

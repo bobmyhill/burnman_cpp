@@ -249,9 +249,13 @@ print(json.dumps(result.to_dict()))
     assert sorted(p.n_phases for p in geometry.polygons) == [1, 1, 1, 2, 2, 2]
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0, abs=1e-8)
     assert all(not p.has_open_boundary for p in geometry.polygons)
-    from burnman_cpp.minerals import SLB_2011 as slb
+    from burnman_cpp.minerals import SLB11
 
-    phases = [slb.mg_fe_olivine(), slb.mg_fe_wadsleyite(), slb.mg_fe_ringwoodite()]
+    phases = [
+        SLB11.mg_fe_olivine(),
+        SLB11.mg_fe_wadsleyite(),
+        SLB11.mg_fe_ringwoodite(),
+    ]
     endpoints = []
     for line in result.boundaries:
         for point in [line.points[0], line.points[-1]]:

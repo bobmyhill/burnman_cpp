@@ -1,36 +1,45 @@
-"""Native mineral catalogues and matched HPx model sets.
+"""Native mineral catalogues, named by publication year.
 
-HP_2011_ds62, SLB_2011, JH_2015, mb50NCKFMASHTO, mp50NCKFMASHTO and HGP_2018_ds633
-expose all public mineral and solution definitions, including aliases and
-combined endmembers. Factories create independent, validated native objects.
-The binary solution factories provide fixed reduced chemical systems and
-require no Python BurnMan. HGP silicate_melt includes Cr. Melt factories correct
-the jadeite pseudo-species spelling to retain its intended unit occupancy.
-model_sets provides matched metapelite/metabasite calibrations with dataset
-6.2, their published melts, PS94 water and source/version metadata.
+HP11 uses dataset 6.2; HGP18 and IG18 use dataset 6.33. HPx_ds636,
+IG24 and IG25 provide dataset 6.36 and the W24/G25 igneous families.
+MP14 and MB16 provide metapelite and metabasite solutions, including melts.
+SLB11, JH15 and SLB24 provide mantle models and relaxed spin solutions.
+Factories create independent native objects without Python BurnMan.
+model_sets provides matched collections with calibration metadata.
+
 """
 
+import sys as _sys
+
 from .._core.minerals import (
-    SLB_2024,
-    HP_2011_ds62,
-    SLB_2011,
-    JH_2015,
-    mb50NCKFMASHTO,
-    mp50NCKFMASHTO,
-    HGP_2018_ds633,
+    HP11,
+    SLB11,
+    JH15,
+    MP14,
+    MB16,
+    HGP18,
+    IG18,
+    HPx_ds636,
+    IG24,
+    IG25,
+    SLB24,
     model_sets,
 )
 
 __all__ = [
-    "SLB_2024",
-    "HP_2011_ds62",
-    "SLB_2011",
-    "JH_2015",
-    "mb50NCKFMASHTO",
-    "mp50NCKFMASHTO",
-    "HGP_2018_ds633",
+    "HP11",
+    "SLB11",
+    "JH15",
+    "MP14",
+    "MB16",
+    "HGP18",
+    "IG18",
+    "HPx_ds636",
+    "IG24",
+    "IG25",
+    "SLB24",
     "model_sets",
 ]
 
-# SLB_2024 also provides the two relaxed spin models.
-# Equilibrating the full endmember coordinates also equilibrates spin states.
+for _name in __all__:
+    _sys.modules[f"{__name__}.{_name}"] = globals()[_name]

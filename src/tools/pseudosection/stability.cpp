@@ -772,7 +772,9 @@ Minimum Engine::minimize_phase(const Phase &ph, const Eigen::VectorXd &mu,
   for (int i = 1; i < ph.g.size(); ++i) {
     low.push_back(ph.vertices.col(i).minCoeff());
     high.push_back(ph.vertices.col(i).maxCoeff());
-    x.push_back(p[i]);
+    // Face-basis projections can put a valid seed a few ulps outside its box.
+    // NLopt rejects these before applying the site-fraction constraints.
+    x.push_back(std::clamp(p[i], low.back(), high.back()));
   }
   opt.set_lower_bounds(low);
   opt.set_upper_bounds(high);
@@ -1423,6 +1425,17 @@ WorkState Engine::stable(double p, double t) {
         std::cerr << "LP " << iteration << " P=" << p << " T=" << t
                   << " affinity=" << worst << " compounds=" << compounds.size()
                   << '\n';
+      // Periodically polish the current assemblage with Newton. Accept only
+      // its fully validated mass balance, reaction residual and stability.
+      if (iteration % 10 == 9 && worst < -settings.affinity_tolerance * .1) {
+        try {
+          auto equilibrium = equilibrate_lp();
+          if (equilibrium.state.success)
+            return equilibrium;
+        } catch (const std::runtime_error &) {
+          // A coarse LP mesh can temporarily require too many phase instances.
+        }
+      }
       if (worst >= -settings.affinity_tolerance * .1) {
         auto equilibrium = equilibrate_lp();
         if (equilibrium.state.success || !equilibrium.assemblage ||

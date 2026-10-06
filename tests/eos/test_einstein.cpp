@@ -11,7 +11,7 @@
 //
 // ------------------------------------------------------
 
-// Numerical snapshots: Python BurnMan 69e700647ae7efeed91dfbce147c036bce619516.
+// Numerical snapshots: Python BurnMan 39b582cd23954fabd3bdbbee6526a522b1d97bc9.
 // Reproduce with tools/check_reference_data.py; see docs/reference_data.md.
 #include "burnman/eos/components/einstein.hpp"
 #include "tolerances.hpp"

@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import SLB_2024 as SLB
+from burnman_cpp.minerals import SLB24
 
 reference = pytest.importorskip("burnman")
 pySLB = pytest.importorskip("burnman.minerals.SLB_2024")
@@ -101,7 +101,7 @@ def test_full_canonical_endmember_inventory_is_compared():
     # Long descriptive aliases are not separate endmembers. The catalogue
     # contains 74 canonical pure-mineral factories in this reference version.
     assert len(ENDMEMBERS) == 74
-    assert all(hasattr(SLB, name) for name in ENDMEMBERS)
+    assert all(hasattr(SLB24, name) for name in ENDMEMBERS)
 
 
 @pytest.mark.parametrize("name", ENDMEMBERS)
@@ -114,7 +114,7 @@ def test_complete_minerals_include_the_same_landau_and_magnetic_modifiers(
 ):
     # Bare-EOS equality alone would miss an error in the zero-temperature
     # magnetic rewrite or in exporting the SLB2022 Landau parameters.
-    native, pure = getattr(SLB, name)(), getattr(pySLB, name)()
+    native, pure = getattr(SLB24, name)(), getattr(pySLB, name)()
     native.set_state(pressure, temperature)
     pure.set_state(pressure, temperature)
     assert native.molar_volume == pytest.approx(
@@ -131,7 +131,7 @@ def test_complete_minerals_include_the_same_landau_and_magnetic_modifiers(
 def test_endmember_volumes_and_all_eos_properties_against_python(
     name, pressure, temperature
 ):
-    original = getattr(SLB, name)()
+    original = getattr(SLB24, name)()
     native = bm.Mineral(original.params)  # Isolate EOS from magnetic/Landau modifiers.
     pure = getattr(pySLB, name)()
     eos, params = pure.method, pure.params
@@ -191,7 +191,8 @@ def test_eos_orders_and_electronic_terms_at_fixed_volume(method, temperature, ra
 
 
 @pytest.mark.parametrize(
-    "method,factory", [("slb2", SLB.fo), ("slb3", SLB.fo), ("slb3-conductive", SLB.fea)]
+    "method,factory",
+    [("slb2", SLB24.fo), ("slb3", SLB24.fo), ("slb3-conductive", SLB24.fea)],
 )
 @pytest.mark.parametrize("pressure,temperature", [(5.0e9, 1200.0), (100.0e9, 3000.0)])
 def test_gibbs_derivatives_and_maxwell_relations(
@@ -272,7 +273,7 @@ def test_stable_volume_approaches_python_spinodal_from_above(
     critical_volume, minimum_pressure = forsterite_spinodal
     pressure, temperature = minimum_pressure + overpressure, 4000.0
     pure = pySLB.fo()
-    native = SLB.fo()
+    native = SLB24.fo()
     native.set_state(pressure, temperature)
     volume = native.molar_volume
     expected = pure.method.volume(pressure, temperature, pure.params)
@@ -286,7 +287,7 @@ def test_stable_volume_approaches_python_spinodal_from_above(
 
 def test_both_reject_pressures_below_python_spinodal(forsterite_spinodal):
     _, minimum_pressure = forsterite_spinodal
-    native, pure = SLB.fo(), pySLB.fo()
+    native, pure = SLB24.fo(), pySLB.fo()
     pressure, temperature = minimum_pressure - 100.0, 4000.0
     native.set_state(pressure, temperature)
     with pytest.raises(ValueError, match="limiting pressure"):
@@ -297,7 +298,7 @@ def test_both_reject_pressures_below_python_spinodal(forsterite_spinodal):
 
 @pytest.mark.parametrize("pressure", [0.0, 3.0e9])
 def test_bcc_iron_rejects_disconnected_expanded_branch(pressure):
-    pure, native = pySLB.fea(), SLB.fea()
+    pure, native = pySLB.fea(), SLB24.fea()
     eos, params, temperature = pure.method, pure.params, 4000.0
     v0 = params["V_0"]
     critical_ratio = brentq(
@@ -334,7 +335,7 @@ def test_bcc_iron_rejects_disconnected_expanded_branch(pressure):
 
 @pytest.mark.parametrize("name,ratio", [("fo", 2.0), ("en", 0.3), ("mgts", 2.0)])
 def test_both_reject_nonreal_debye_temperatures(name, ratio):
-    native, pure = getattr(SLB, name)(), getattr(pySLB, name)()
+    native, pure = getattr(SLB24, name)(), getattr(pySLB, name)()
     volume = ratio * pure.params["V_0"]
     with pytest.raises(SLBDomainError, match="valid range"):
         pure.method._debye_temperature(1.0 / ratio, pure.params)
@@ -351,7 +352,7 @@ def test_stishovite_softening_matches_python_and_its_continuous_limit(
     temperature, offset
 ):
     pressure = 51.6e9 + 11.1e6 * (temperature - 300.0) + offset
-    native, pure = SLB.st(), pySLB.st()
+    native, pure = SLB24.st(), pySLB.st()
     native.set_state(pressure, temperature)
     volume = native.molar_volume
     expected = pure.method.shear_modulus(pressure, temperature, volume, pure.params)
@@ -432,7 +433,7 @@ def test_slb2024_magnetic_terms_match_hefesto_ordered_reference(name, tau):
     Cp branch there, whereas BurnMan's existing convention chooses the high
     branch. This convention was not changed by the finite evaluation rewrite.
     """
-    pure, native = getattr(pySLB, name)(), getattr(SLB, name)()
+    pure, native = getattr(pySLB, name)(), getattr(SLB24, name)()
     magnetic, linear = pure.property_modifiers
     assert magnetic[0] == "magnetic_chs" and linear[0] == "linear"
     params = magnetic[1]
@@ -483,7 +484,7 @@ def test_magnetic_gibbs_and_all_derivatives_match_python(pressure, tau):
         MAGNETIC_PARAMS["curie_temperature"][0]
         + pressure * MAGNETIC_PARAMS["curie_temperature"][1]
     )
-    native = SLB.fea()
+    native = SLB24.fea()
     native.set_property_modifiers(
         [
             (
@@ -508,7 +509,7 @@ def test_magnetic_gibbs_and_all_derivatives_match_python(pressure, tau):
 
 
 def test_zero_temperature_magnetic_limit_matches_python_free_energy_derivatives():
-    native, pressure = SLB.fea(), 20.0e9
+    native, pressure = SLB24.fea(), 20.0e9
     native.set_property_modifiers(
         [
             (

@@ -21,7 +21,7 @@ using namespace burnman;
 
 TEST_CASE("Entropy-volume sections solve physical P and T", "[pseudosection]") {
   namespace ps = pseudosections;
-  auto mineral = minerals::SLB_2011::ca_perovskite();
+  auto mineral = minerals::SLB11::ca_perovskite();
   mineral->set_state(4.e9, 1000.);
   ps::CompositionSection section;
   section.type = ps::DiagramType::SV;
@@ -55,7 +55,7 @@ TEST_CASE("Entropy-volume sections solve physical P and T", "[pseudosection]") {
 TEST_CASE("Fe-O TX closes fields with unequal composition endpoints",
           "[pseudosection]") {
   namespace ps = pseudosections;
-  namespace hp = minerals::HGP_2018_ds633;
+  namespace hp = minerals::HGP18;
   ps::CompositionSection path;
   path.type = ps::DiagramType::TX;
   path.composition_end = {{"Fe", 2.}, {"O", 3.}};
@@ -101,7 +101,7 @@ TEST_CASE("Native Gibbs LP dual amounts conserve components",
 TEST_CASE("Native pseudosection resume retains calculation settings",
           "[pseudosection]") {
   namespace ps = pseudosections;
-  namespace hp = minerals::HP_2011_ds62;
+  namespace hp = minerals::HP11;
   types::FormulaMap bulk{{"Al", 2.}, {"Si", 1.}, {"O", 5.}};
   std::vector<std::shared_ptr<Material>> phases{hp::andalusite(), hp::ky(),
                                                 hp::sill()};
@@ -132,7 +132,7 @@ TEST_CASE("Native pseudosection resume retains calculation settings",
 TEST_CASE("Invalid continuation phase amounts are recoverable",
           "[pseudosection]") {
   Assemblage assemblage;
-  assemblage.add_phases({minerals::HP_2011_ds62::andalusite()});
+  assemblage.add_phases({minerals::HP11::andalusite()});
   assemblage.set_fractions(Eigen::ArrayXd::Ones(1));
   assemblage.set_n_moles(1.);
   assemblage.set_state(1.e9, 800.);

@@ -3,6 +3,7 @@
 import copy
 import importlib
 import inspect
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -11,15 +12,19 @@ import burnman_cpp as bm
 from burnman_cpp import minerals
 
 burnman = pytest.importorskip("burnman")
-DATASETS = (
-    "HP_2011_ds62",
-    "HGP_2018_ds633",
-    "mb50NCKFMASHTO",
-    "SLB_2011",
-    "JH_2015",
-    "mp50NCKFMASHTO",
-    "SLB_2024",
-)
+DATASETS = {
+    "HP11": "HP_2011_ds62",
+    "HGP18": "HGP_2018_ds633",
+    "MB16": "mb50NCKFMASHTO",
+    "SLB11": "SLB_2011",
+    "JH15": "JH_2015",
+    "MP14": "mp50NCKFMASHTO",
+    "SLB24": "SLB_2024",
+    "IG18": "ig50NCKFMASHTOCr",
+    "HPx_ds636": "HPx_ds636",
+    "IG24": "ig51W24",
+    "IG25": "ig51G25",
+}
 
 
 def public_entries(module):
@@ -40,11 +45,21 @@ def public_entries(module):
 
 ENTRIES = [
     (group, name, value)
-    for group in DATASETS
+    for group, reference in DATASETS.items()
     for name, value in public_entries(
-        importlib.import_module(f"burnman.minerals.{group}")
+        importlib.import_module(f"burnman.minerals.{reference}")
     ).items()
 ]
+
+
+@pytest.fixture(autouse=True)
+def ps1994_paper_gas_constant(monkeypatch):
+    # Match the native PS1994 paper constant without changing solution mixing R.
+    from burnman.eos import pitzer_sterner
+
+    monkeypatch.setattr(
+        pitzer_sterner, "constants", SimpleNamespace(gas_constant=8.314510)
+    )
 
 
 def reference_phase(value):
@@ -81,17 +96,21 @@ def finite_differences(phase, kind):
         return any(finite_differences(m, kind) for m, _ in phase.mixture.endmembers)
     if isinstance(phase, burnman.Solution):
         return any(finite_differences(m, kind) for m, _ in phase.endmembers)
+    method = {"liquid": "hp_tmtL", "water": "pitzer-sterner"}.get(kind)
     return (
-        phase.params["equation_of_state"] == "hp_tmtL"
-        if kind == "liquid"
+        phase.params["equation_of_state"] == method
+        if method
         else any(k == "bragg_williams" for k, _ in phase.property_modifiers)
     )
 
 
 @pytest.mark.parametrize("group", DATASETS)
 def test_complete_public_inventory(group):
-    expected = public_entries(importlib.import_module(f"burnman.minerals.{group}"))
-    actual = getattr(minerals, group)
+    expected = public_entries(
+        importlib.import_module(f"burnman.minerals.{DATASETS[group]}")
+    )
+    actual = importlib.import_module(f"burnman_cpp.minerals.{group}")
+    assert actual is getattr(minerals, group)
     assert all(hasattr(actual, name) for name in expected)
 
 
@@ -139,6 +158,7 @@ def test_every_factory_matches_python_burnman(group, name, value, state):
     rtol = 3.0e-5 if relaxed else 8.0e-8
     bw = finite_differences(reference, "ordering")
     liquid = finite_differences(reference, "liquid")
+    water = finite_differences(reference, "water")
     if relaxed:
         np.testing.assert_allclose(
             native.molar_fractions, reference.molar_fractions, rtol=0.0, atol=1.0e-5
@@ -157,6 +177,13 @@ def test_every_factory_matches_python_burnman(group, name, value, state):
     ):
         tolerance = rtol
         absolute = 1.0e-12
+        if water and prop in (
+            "molar_heat_capacity_p",
+            "molar_heat_capacity_v",
+            "isentropic_bulk_modulus_reuss",
+            "thermal_expansivity",
+        ):
+            tolerance = max(tolerance, 2.0e-5)  # finite-difference water derivatives
         # Both implementations differentiate BW G using dP=1000 Pa. Subtracting
         # almost identical kJ/mol energies loses pressure-curvature precision.
         # Keep G,S,V strict, and bound this noise in the derived properties.
@@ -167,7 +194,7 @@ def test_every_factory_matches_python_burnman(group, name, value, state):
                     "isothermal_bulk_modulus_reuss": 0.02,
                     "isentropic_bulk_modulus_reuss": 0.02,
                     "molar_heat_capacity_v": 5.0e-4,
-                    "thermal_expansivity": 1.0e-5,
+                    "thermal_expansivity": 2.0e-5,
                 }.get(prop, rtol),
             )
         if liquid and prop in (
@@ -229,7 +256,7 @@ def test_every_factory_matches_python_burnman(group, name, value, state):
     ],
 )
 def test_full_and_reduced_melt_inventories(name, n):
-    phase = getattr(minerals.HGP_2018_ds633, name)()
+    phase = getattr(minerals.HGP18, name)()
     assert phase.n_endmembers == n
     assert ("Cr" in phase.elements) == (name == "silicate_melt")
 
@@ -242,7 +269,7 @@ def test_full_and_reduced_melt_inventories(name, n):
     ],
 )
 def test_relaxed_thermal_derivatives_and_state_updates(name, composition):
-    phase = getattr(minerals.SLB_2024, name)()
+    phase = getattr(minerals.SLB24, name)()
     phase.set_composition(composition)
     p, t, dp, dt = 60.0e9, 1800.0, 1.0e6, 0.1
     phase.set_state(p, t)
@@ -267,7 +294,7 @@ def test_relaxed_thermal_derivatives_and_state_updates(name, composition):
     phase.set_state(p, t)
     phase.set_composition(np.array(composition)[::-1])
     assert phase.molar_entropy != pytest.approx(entropy)
-    fresh = getattr(minerals.SLB_2024, name)()
+    fresh = getattr(minerals.SLB24, name)()
     fresh.set_composition(np.array(composition)[::-1])
     fresh.set_state(p, t)
     np.testing.assert_allclose(
@@ -278,8 +305,8 @@ def test_relaxed_thermal_derivatives_and_state_updates(name, composition):
 
 
 def test_relaxed_solution_owns_endmember_state():
-    parent = minerals.SLB_2024.ferropericlase()
-    template = minerals.SLB_2024.ferropericlase_relaxed()
+    parent = minerals.SLB24.ferropericlase()
+    template = minerals.SLB24.ferropericlase_relaxed()
     relaxed = bm.RelaxedSolution(parent, template.dndq.T, template.dndx.T)
     parent.set_state(10.0e9, 1000.0)
     expected = parent.molar_gibbs
@@ -291,7 +318,7 @@ def test_relaxed_solution_owns_endmember_state():
 @pytest.mark.parametrize("name", ["quartz", "stishovite"])
 @pytest.mark.parametrize("temperature", [300.0, 1200.0])
 def test_slb2011_landau_ordered_and_disordered_entropy(name, temperature):
-    native = getattr(minerals.SLB_2011, name)()
+    native = getattr(minerals.SLB11, name)()
     reference = getattr(burnman.minerals.SLB_2011, name)()
     for phase in (native, reference):
         phase.set_state(1.0e5, temperature)

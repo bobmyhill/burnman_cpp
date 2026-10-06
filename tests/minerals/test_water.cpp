@@ -124,6 +124,22 @@ TEST_CASE("PS1994 water selects the stable liquid or vapour density root",
   CHECK(vapour);
 }
 
+TEST_CASE("PS1994 water absolute energies match the pinned HP2011 reference",
+          "[eos][water][ps1994]") {
+  auto water = water_fluid();
+  for (const auto &state : ps1994_reference::states) {
+    INFO("P=" << state.pressure << " Pa, T=" << state.temperature << " K");
+    water->set_state(state.pressure, state.temperature);
+    CHECK_THAT(water->get_molar_gibbs(), WithinAbs(state.gibbs, 2.e-8));
+    if (state.temperature <= 500. || state.temperature >= 1700.)
+      continue;
+    CHECK_THAT(water->get_molar_entropy(), WithinRel(state.entropy, 2.e-7) ||
+                                               WithinAbs(state.entropy, 2.e-7));
+    CHECK_THAT(water->get_molar_heat_capacity_p(),
+               WithinRel(state.cp, 2.e-5) || WithinAbs(state.cp, 2.e-3));
+  }
+}
+
 TEST_CASE("PS1994 water rejects states outside its documented domain",
           "[eos][water][ps1994]") {
   const auto thermal_reference = GENERATE(

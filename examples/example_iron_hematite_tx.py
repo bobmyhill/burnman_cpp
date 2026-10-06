@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Iron-hematite T-X diagram at 1 bar, from Fe to Fe2O3, 300 to 1500 K.
 
-Uses HGP_2018_ds633 iron, wuestite, magnetite and hematite with the Holland
+Uses HGP18 iron, wuestite, magnetite and hematite with the Holland
 and Powell EOS. X mixes one mole Fe with one mole Fe2O3: Fe=1+X, O=3X.
 The system is closed to oxygen. All equilibrium and tracing run in C++.
 These are stoichiometric solids; iron allotropes, nonstoichiometric FeO and
@@ -16,7 +16,7 @@ import json
 from pathlib import Path
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import HGP_2018_ds633
+from burnman_cpp.minerals import HGP18
 
 IRON = bm.Composition({"Fe": 1.0}, "molar")
 HEMATITE = bm.Composition({"Fe2O3": 1.0}, "molar")
@@ -24,10 +24,10 @@ HEMATITE = bm.Composition({"Fe2O3": 1.0}, "molar")
 
 def candidate_phases():
     phases = [
-        HGP_2018_ds633.iron(),
-        HGP_2018_ds633.wu(),
-        HGP_2018_ds633.mt(),
-        HGP_2018_ds633.hem(),
+        HGP18.iron(),
+        HGP18.wu(),
+        HGP18.mt(),
+        HGP18.hem(),
     ]
     for phase, name in zip(phases, ["Fe", "FeO", "Fe3O4", "Fe2O3"]):
         phase.set_name(name)

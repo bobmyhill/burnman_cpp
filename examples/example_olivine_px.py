@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Olivine-polymorph P-X diagram at 1673 K, from Mg2SiO4 to Fe2SiO4.
 
-The candidate set comprises olivine, wadsleyite and ringwoodite from SLB_2011.
+The candidate set comprises olivine, wadsleyite and ringwoodite from SLB11.
 X is the molar fayalite fraction Fe/(Mg+Fe). All stability searches and phase-
 boundary continuation run in C++; plotting uses the standard pseudosection API.
 
@@ -14,14 +14,18 @@ import json
 from pathlib import Path
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import SLB_2011 as SLB
+from burnman_cpp.minerals import SLB11
 
 FORSTERITE = bm.Composition({"Mg2SiO4": 1.0}, "molar")
 FAYALITE = bm.Composition({"Fe2SiO4": 1.0}, "molar")
 
 
 def candidate_phases():
-    phases = [SLB.mg_fe_olivine(), SLB.mg_fe_wadsleyite(), SLB.mg_fe_ringwoodite()]
+    phases = [
+        SLB11.mg_fe_olivine(),
+        SLB11.mg_fe_wadsleyite(),
+        SLB11.mg_fe_ringwoodite(),
+    ]
     for phase, name in zip(phases, ["ol", "wa", "ri"]):
         phase.set_name(name)
     return phases

@@ -9,8 +9,8 @@ from burnman.tools.polytope import simplify_composite_with_composition
 
 import burnman_cpp as bm
 from burnman_cpp.adapters import from_burnman
-from burnman_cpp.minerals import SLB_2011 as native_SLB, JH_2015 as native_JH
-from burnman_cpp.minerals import mp50NCKFMASHTO as native_MP
+from burnman_cpp.minerals import SLB11 as native_SLB11, JH15 as native_JH15
+from burnman_cpp.minerals import MP14 as native_MP14
 from burnman.minerals import mp50NCKFMASHTO as reference_MP
 
 
@@ -40,7 +40,7 @@ from burnman.minerals import mp50NCKFMASHTO as reference_MP
 )
 def test_native_metapelite_models_match_published_reference(name):
     reference = getattr(reference_MP, name)()
-    native = getattr(native_MP, name)()
+    native = getattr(native_MP14, name)()
     fractions = np.arange(1.0, native.n_endmembers + 1)
     fractions /= fractions.sum()
     reference.set_composition(fractions)
@@ -154,8 +154,8 @@ def test_transformed_ordering_solution_signed_coordinates():
 @pytest.mark.parametrize(
     "source,native_source",
     [
-        (SLB.garnet, native_SLB.garnet),
-        (JH.orthopyroxene, native_JH.orthopyroxene),
+        (SLB.garnet, native_SLB11.garnet),
+        (JH.orthopyroxene, native_JH15.orthopyroxene),
     ],
 )
 def test_native_polytope_vertices_match_reference(source, native_source):
@@ -177,3 +177,40 @@ def test_native_polytope_vertices_match_reference(source, native_source):
     )
     assert np.max(np.min(distances, axis=0)) < 1.0e-10
     assert np.max(np.min(distances, axis=1)) < 1.0e-10
+
+
+@pytest.mark.parametrize("name", ["H2O", "fl_G25", "liq_W24d", "liq_G25w"])
+def test_new_dataset_adapters_match_native_factories(name):
+    from burnman.minerals import HPx_ds636, ig51G25, ig51W24
+    from burnman_cpp.minerals import HPx_ds636 as native_HP, IG24, IG25
+
+    pairs = {
+        "H2O": (HPx_ds636.H2O, native_HP.H2O),
+        "fl_G25": (ig51G25.fl_G25, IG25.fl_G25),
+        "liq_W24d": (ig51W24.liq_W24d, IG24.liq_W24d),
+        "liq_G25w": (ig51G25.liq_G25w, IG25.liq_G25w),
+    }
+    reference_factory, native_factory = pairs[name]
+    reference, native = reference_factory(), native_factory()
+    if isinstance(reference, burnman.Solution):
+        p = np.arange(1.0, reference.n_endmembers + 1.0)
+        p /= p.sum()
+        reference.set_composition(p)
+        native.set_composition(p)
+    adapted = from_burnman(reference)
+    for phase in (native, adapted):
+        phase.set_state(8.0e8, 1073.15)
+    assert adapted.formula == pytest.approx(native.formula)
+    for prop in ("molar_gibbs", "molar_entropy", "molar_volume"):
+        assert getattr(adapted, prop) == pytest.approx(
+            getattr(native, prop), rel=1.0e-12
+        )
+
+
+def test_ps1994_adapter_rejects_different_thermal_parameters():
+    from burnman.minerals import HPx_ds636
+
+    water = HPx_ds636.H2O()
+    water.params["H_0"] += 1.0
+    with pytest.raises(ValueError, match="HP2011 water parameters"):
+        from_burnman(water)

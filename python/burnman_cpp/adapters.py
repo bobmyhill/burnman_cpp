@@ -15,6 +15,7 @@ from . import (
     MineralParams,
     Solution,
     SymmetricRegularSolution,
+    water_fluid,
 )
 
 
@@ -72,11 +73,29 @@ def from_burnman(phase):
         # These optional fields describe provenance, not the EOS.
         params.pop("param_uncertainties", None)
         params.pop("property_modifiers", None)
-        known = MineralParams()
-        for key in params:
-            if not hasattr(known, {"n": "napfu", "Debye_0": "debye_0"}.get(key, key)):
-                raise ValueError(f"Unsupported parameter {key!r} in {phase.name!r}.")
-        native = Mineral(params)
+        if params["equation_of_state"] == "pitzer-sterner":
+            expected = burnman.minerals.HP_2011_fluids.H2O().params
+            if params.keys() != expected.keys() or any(
+                key != "name"
+                and (
+                    value != expected[key]
+                    if isinstance(value, (str, dict))
+                    else not np.allclose(value, expected[key], rtol=1.0e-12, atol=0.0)
+                )
+                for key, value in params.items()
+            ):
+                raise ValueError("PS1994 adapter requires the HP2011 water parameters.")
+            native = water_fluid()
+        else:
+            known = MineralParams()
+            for key in params:
+                if not hasattr(
+                    known, {"n": "napfu", "Debye_0": "debye_0"}.get(key, key)
+                ):
+                    raise ValueError(
+                        f"Unsupported parameter {key!r} in {phase.name!r}."
+                    )
+            native = Mineral(params)
         native.set_property_modifiers(phase.property_modifiers)
         native.name = phase.name
     else:
