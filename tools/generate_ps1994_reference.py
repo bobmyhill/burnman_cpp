@@ -9,6 +9,7 @@ import argparse
 import importlib
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -41,6 +42,57 @@ STATES = [
     (5e9, 501.0),
     (5e9, 1699.0),
 ]
+# Match the numerical budgets of tests/minerals/test_water.cpp. Derivatives
+# use finite differences upstream; their last digits vary across platforms.
+COLUMNS = [
+    ("pressure", 0.0, 0.0),
+    ("temperature", 0.0, 0.0),
+    ("volume", 2e-12, 0.0),
+    ("bulk modulus", 2e-8, 0.0),
+    ("expansivity", 2e-6, 0.0),
+    ("delta Gibbs energy", 2e-11, 2e-8),
+    ("delta entropy", 2e-7, 2e-7),
+    ("delta heat capacity", 2e-5, 2e-3),
+    ("Gibbs energy", 0.0, 2e-8),
+    ("entropy", 2e-7, 2e-7),
+    ("heat capacity", 2e-5, 2e-3),
+    ("stable roots", 0.0, 0.0),
+]
+
+
+def format_header(text):
+    return subprocess.check_output(
+        ["clang-format", f"--assume-filename={OUTPUT}"], input=text, text=True
+    )
+
+
+def check_snapshot(stored, generated):
+    """Check provenance and numeric states independently of formatter versions."""
+
+    def parse(text):
+        text = format_header(text)
+        table = re.search(r"states\s*=\s*\{(.*?)\};", text, re.DOTALL)
+        if table is None:
+            raise ValueError("PS1994 snapshot state table is missing.")
+        rows = re.findall(r"\{([^{}]+)\}", table[1])
+        values = np.array([[float(x) for x in row.split(",")] for row in rows])
+        if values.shape != (len(STATES), len(COLUMNS)):
+            raise ValueError("PS1994 snapshot state table has the wrong shape.")
+        metadata = text[: table.start(1)] + text[table.end(1) :]
+        return re.sub(r"\s+", "", metadata), values
+
+    stored_metadata, stored_values = parse(stored)
+    generated_metadata, generated_values = parse(generated)
+    if stored_metadata != generated_metadata:
+        raise ValueError("PS1994 snapshot provenance or declarations differ.")
+    for i, (name, relative, absolute) in enumerate(COLUMNS):
+        np.testing.assert_allclose(
+            stored_values[:, i],
+            generated_values[:, i],
+            rtol=relative,
+            atol=absolute,
+            err_msg=f"PS1994 {name}",
+        )
 
 
 def load_reference(source):
@@ -157,9 +209,7 @@ inline constexpr double reference_pressure = {POLICY['reference_pressure_Pa']};
 inline constexpr std::array<State, {len(rows)}> states = {{{{
   """ + ",\n  ".join(rows) + "\n}};\n} // namespace ps1994_reference\n"
     # Use the repository's C++ formatting when producing and checking snapshots.
-    return subprocess.check_output(
-        ["clang-format", f"--assume-filename={OUTPUT}"], input=text, text=True
-    )
+    return format_header(text)
 
 
 def main():
@@ -175,11 +225,15 @@ def main():
     if args.write:
         OUTPUT.write_text(generated)
         print(f"Wrote {len(STATES)} Python BurnMan PS1994 reference states.")
-    elif OUTPUT.read_text() != generated:
-        parser.exit(
-            1, "PS1994 snapshots differ from Python BurnMan; regenerate with --write.\n"
-        )
     else:
+        try:
+            check_snapshot(OUTPUT.read_text(), generated)
+        except (ValueError, AssertionError) as error:
+            parser.exit(
+                1,
+                f"PS1994 snapshots differ from Python BurnMan: {error}\n"
+                "Regenerate with --write.\n",
+            )
         print(f"Verified {len(STATES)} Python BurnMan PS1994 reference states.")
 
 
