@@ -5,10 +5,10 @@ All thermodynamics, Gibbs minimisation, phase selection, equilibrium solves
 and boundary continuation run in C++. Python specifies the model/bulk and
 writes JSON and a figure. No Python BurnMan or optimisation library is needed.
 
-This illustrative model combines mb50 metabasite solids (HP dataset 6.2),
-the complete HGP 2018 hydrous silicate melt, and PS94 pure H2O fluid with a
-NIST gas thermal reference. It is not a reproduction of a consistently
-calibrated THERMOCALC model set. Replace candidates for quantitative studies.
+The matched HPx metabasite set reproduces the 30 January 2022 THERMOCALC
+calibration: Green et al. (2016) solids and tonalitic melt, HP dataset 6.2,
+and PS94 H2O with the Holland-Powell thermal reference. The model set is
+available as burnman_cpp.minerals.model_sets.metabasite().
 The closed bulk contains exactly 2 wt% H2O; no water/oxygen buffers are used.
 A 1 bar lower calculation limit avoids the fluid singularity at P=0; the
 figure uses the requested 0–20 kbar axis. Increase --seeds to check discovery
@@ -20,9 +20,9 @@ import json
 from pathlib import Path
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import HP_2011_ds62 as HP
-from burnman_cpp.minerals import mb50NCKFMASHTO as MB
-from burnman_cpp.minerals import HGP_2018_ds633 as HGP
+from burnman_cpp.minerals import model_sets
+
+MODEL_SET = model_sets.metabasite()
 
 # Masses in a 100 g wet rock; the sum is 100, including exactly 2 g of H2O.
 BASALT_OXIDES = dict(
@@ -43,32 +43,7 @@ BASALT_COMPOSITION = bm.Composition(
 
 
 def candidate_phases():
-    solutions = [
-        (MB.hb, "hb"),
-        (MB.dio, "cpx"),
-        (MB.opx, "opx"),
-        (MB.g, "g"),
-        (MB.ol, "ol"),
-        (MB.pl4tr, "pl"),
-        (MB.ep, "ep"),
-        (MB.chl, "chl"),
-        (MB.bi, "bi"),
-        (MB.ilm, "ilm"),
-        (HGP.silicate_melt, "melt"),
-    ]
-    pure = [
-        (HP.q, "q"),
-        (HP.law, "law"),
-        (HP.ru, "ru"),
-        (HP.sph, "sph"),
-        (bm.water_fluid, "H2O"),
-    ]
-    phases = []
-    for factory, name in solutions + pure:
-        phase = factory()
-        phase.set_name(name)
-        phases.append(phase)
-    return phases
+    return model_sets.metabasite().phases
 
 
 def calculate(seeds=7, quick=False, verbose=False):
@@ -97,7 +72,11 @@ def refine(source, verbose=False):
 
 def save_json(result, path):
     data = result.to_dict()
-    data.update(oxide_wt_percent=BASALT_OXIDES, closed_system=True)
+    data.update(
+        oxide_wt_percent=BASALT_OXIDES,
+        closed_system=True,
+        model_set=MODEL_SET.to_dict(),
+    )
     path.write_text(json.dumps(data, indent=2, allow_nan=False))
 
 
@@ -124,7 +103,7 @@ def plot(result, path, label_fontsize=7.0):
         title="Basalt + 2 wt% H₂O, closed system",
     )
     ax.grid(alpha=0.12)
-    scope = "mb50 solids + HGP2018 melt + PS94 H₂O; illustrative model set"
+    scope = "HPx metabasite 2022-01-30 + ds62 + PS94 H₂O"
     diagnostics = (
         result["diagnostics"] if isinstance(result, dict) else result.diagnostics
     )

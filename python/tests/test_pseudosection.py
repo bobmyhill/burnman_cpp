@@ -178,7 +178,7 @@ def test_verified_closed_fields_count_as_resolved_when_edge_labels_are_stale():
 
 @pytest.mark.parametrize("case_index", range(3))
 def test_metasediment_phase_entry_recovers_verified_junction(case_index):
-    """Real failures: a solvus, a polymorph swap and a solution entering."""
+    """Legacy calibration: a solvus, a polymorph swap and a solution entering."""
     example = runpy.run_path(
         str(
             Path(__file__).parents[2]
@@ -193,9 +193,16 @@ def test_metasediment_phase_entry_recovers_verified_junction(case_index):
     s = settings()
     s.max_lines = 1  # Isolate the endpoint from the subsequent branch search.
     previous = case["previous"]
+    # Preserve the calibration which produced these numerical regression states.
+    # The current example uses the matched HPx melt and additional solid phases.
+    from burnman_cpp.minerals import HGP_2018_ds633, model_sets
+
+    phases = model_sets.metapelite().phases[:22]
+    phases[14] = HGP_2018_ds633.silicate_melt()
+    phases[14].set_name("melt")
     result = bm.refine_pseudosection(
         example["METASEDIMENT_COMPOSITION"].atomic_composition,
-        example["candidate_phases"](),
+        phases,
         previous,
         s,
     )
