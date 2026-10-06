@@ -224,7 +224,6 @@ def test_every_factory_matches_python_burnman(group, name, value, state):
     "name,n",
     [
         ("silicate_melt", 12),
-        ("silicate_melt_cr_free", 11),
         ("CMS_melt", 3),
         ("MS_melt", 2),
     ],

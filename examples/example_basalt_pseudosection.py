@@ -6,7 +6,7 @@ and boundary continuation run in C++. Python specifies the model/bulk and
 writes JSON and a figure. No Python BurnMan or optimisation library is needed.
 
 This illustrative model combines mb50 metabasite solids (HP dataset 6.2),
-the HGP 2018 hydrous silicate melt (Cr-free), and PS94 pure H2O fluid with a
+the complete HGP 2018 hydrous silicate melt, and PS94 pure H2O fluid with a
 NIST gas thermal reference. It is not a reproduction of a consistently
 calibrated THERMOCALC model set. Replace candidates for quantitative studies.
 The closed bulk contains exactly 2 wt% H2O; no water/oxygen buffers are used.
@@ -54,7 +54,7 @@ def candidate_phases():
         (MB.chl, "chl"),
         (MB.bi, "bi"),
         (MB.ilm, "ilm"),
-        (HGP.silicate_melt_cr_free, "melt"),
+        (HGP.silicate_melt, "melt"),
     ]
     pure = [
         (HP.q, "q"),
