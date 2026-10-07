@@ -306,10 +306,16 @@ detail::field_conflicts(const Result &result, const FieldPolygons &geometry) {
     if (polygon.sample_index < 0 || polygon.has_open_boundary ||
         polygon.outside_model_domain || polygon.phases.empty())
       continue;
+    const Point low = polygon.vertices.colwise().minCoeff().transpose();
+    const Point high = polygon.vertices.colwise().maxCoeff().transpose();
     std::set<Phases> checked;
     for (std::size_t j = 0; j < result.samples.size(); ++j) {
       const auto &sample = result.samples[j];
       if (!sample.success || sample.outside_model_domain)
+        continue;
+      const auto location = diagram_coordinates(sample, result.section.type);
+      if (location.allFinite() && ((location.array() < low.array()).any() ||
+                                   (location.array() > high.array()).any()))
         continue;
       Phases phases;
       double total = 0.;
@@ -328,8 +334,7 @@ detail::field_conflicts(const Result &result, const FieldPolygons &geometry) {
           represented.count(phases)
               ? std::max(1.e-8, result.settings.node_tolerance * 2.)
               : std::max(1.e-8, result.settings.amount_tolerance * 2.);
-      if (polygon.contains_rectangle(
-              diagram_coordinates(sample, result.section.type), scale * band)) {
+      if (polygon.contains_rectangle(location, scale * band)) {
         conflicts.emplace_back(j, i);
         checked.insert(phases);
       }
@@ -660,10 +665,21 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
       output.polygons.push_back(std::move(polygon));
       continue;
     }
+    Point low = vertices.points[face.exterior[0]], high = low;
+    for (Index vertex : face.exterior) {
+      low = low.cwiseMin(vertices.points[vertex]);
+      high = high.cwiseMax(vertices.points[vertex]);
+    }
     Phases sample_phases;
     double clearance = -1.;
     for (std::size_t index = 0; index < result.samples.size(); ++index) {
       const auto &state = result.samples[index];
+      if (!state.success)
+        continue;
+      Point location = coordinate(state);
+      if ((location.array() < low.array()).any() ||
+          (location.array() > high.array()).any())
+        continue;
       // The snapping tolerance is inappropriate as an exclusion band around
       // a tiny face. Its explicitly verified interior solve can be classified
       // using floating-point precision, while general samples keep the band.
@@ -672,8 +688,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
               ? std::min(tolerance * 2.,
                          64. * std::numeric_limits<double>::epsilon())
               : tolerance * 2.;
-      if (!state.success || !contains(face, vertices.points, coordinate(state),
-                                      sample_tolerance)) {
+      if (!contains(face, vertices.points, location, sample_tolerance)) {
         continue;
       }
       Phases phases;
@@ -685,7 +700,6 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
           phases.push_back(phase.id);
       if (phases.empty())
         continue;
-      Point location = coordinate(state);
       double margin = std::numeric_limits<double>::infinity();
       auto measure = [&](const Ring &ring) {
         for (std::size_t i = 1; i < ring.size(); ++i)
