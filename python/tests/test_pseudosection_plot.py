@@ -92,6 +92,54 @@ def test_plot_joins_matching_segments_only_between_endpoint_vertices(endpoint):
     plt.close(fig)
 
 
+def test_dense_boundary_keeps_all_refined_points_in_rendering_and_svg():
+    from io import BytesIO
+    import re
+    import xml.etree.ElementTree as ET
+    import matplotlib as mpl
+    import matplotlib.pyplot as plt
+    from matplotlib.collections import LineCollection
+
+    pressure = np.linspace(0.0, 1.0, 257)
+    temperature = 0.5 + 0.15 * np.sin(2 * np.pi * pressure)
+    points = np.column_stack((pressure, temperature))
+    with mpl.rc_context({"path.simplify": True, "path.simplify_threshold": 1.0}):
+        fig, ax = bm.plot_pseudosection(
+            diagram([line(points, [0], [1])]),
+            pressure_unit="Pa",
+            temperature_unit="K",
+            swap_axes=True,
+            label_assemblages=False,
+            colorbar=False,
+        )
+        try:
+            check_joined_edges(ax.pseudosection_geometry)
+            outlines = next(c for c in ax.collections if isinstance(c, LineCollection))
+            path = max(outlines.get_paths(), key=lambda p: len(p.vertices))
+            assert len(path.vertices) == len(points)
+            fig.canvas.draw()
+            rendered = np.vstack(
+                [v for v, _ in path.iter_segments(transform=ax.transData, curves=False)]
+            )
+            np.testing.assert_allclose(rendered, ax.transData.transform(path.vertices))
+            outlines.set_gid("phase-boundaries")
+            output = BytesIO()
+            fig.savefig(output, format="svg")
+            ns = {"svg": "http://www.w3.org/2000/svg"}
+            group = ET.fromstring(output.getvalue()).find(
+                ".//svg:g[@id='phase-boundaries']", ns
+            )
+            counts = [
+                len(re.findall(r"[ML]", p.attrib["d"]))
+                for p in group.findall(".//svg:path", ns)
+            ]
+            assert sorted(counts) == sorted(
+                len(p.vertices) for p in outlines.get_paths()
+            )
+        finally:
+            plt.close(fig)
+
+
 def test_joined_lines_keep_closed_loops_and_distinct_paths_between_same_vertices():
     points = square()
     data = diagram([line(points, [0, 1], [0])])

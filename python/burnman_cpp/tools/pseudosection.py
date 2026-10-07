@@ -162,6 +162,8 @@ def plot_pseudosection(
     fill_alpha=0.75,
     line_color="black",
     line_width=0.9,
+    line_capstyle="round",
+    line_joinstyle="round",
     show_nodes=False,
     show_unresolved=True,
     close_domain=True,
@@ -193,6 +195,9 @@ def plot_pseudosection(
     Connected segments separating the same two assemblages are drawn as one
     continuous line between endpoint vertices. Junctions and separate paths
     remain distinct; the equilibrium points are retained.
+    ``line_capstyle`` accepts ``'butt'``, ``'round'`` or ``'projecting'``;
+    ``line_joinstyle`` accepts ``'miter'``, ``'round'`` or ``'bevel'``.
+    Both default to ``'round'``.
     Fields with conflicting or missing assemblage counts stay uncoloured and
     issue a warning. Each coexisting solution instance counts as one phase.
     Native ``excluded_regions`` are drawn with grey hatching: the solid model
@@ -343,14 +348,19 @@ def plot_pseudosection(
     # Render the same native subdivision used by the fills and labels. Drawing
     # the original traces would reintroduce the dissolved internal segments.
     if geometry.boundary_lines:
-        ax.add_collection(
-            LineCollection(
-                [coordinates(s) for s in geometry.boundary_lines],
-                colors=line_color,
-                linewidths=line_width,
-                zorder=2,
-            )
+        outlines = LineCollection(
+            [coordinates(s) for s in geometry.boundary_lines],
+            colors=line_color,
+            linewidths=line_width,
+            capstyle=line_capstyle,
+            joinstyle=line_joinstyle,
+            zorder=2,
         )
+        # Matplotlib otherwise simplifies long outlines while leaving the
+        # filled polygons intact. Retain the same calculated points in both.
+        for path in outlines.get_paths():
+            path.should_simplify = False
+        ax.add_collection(outlines)
     incomplete = []
     for line in _value(result, "boundaries", []):
         points = _value(line, "points", [])
