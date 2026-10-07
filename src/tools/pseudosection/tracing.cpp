@@ -1048,6 +1048,7 @@ class Tracer {
   }
   int endpoint(Assemblage &a, const std::vector<int> &ids, int z, int other,
                const Eigen::Vector2d &previous, double maximum_distance,
+               double &accepted_affinity,
                optim::roots::DampedNewtonResult *solution = nullptr,
                const Eigen::Vector2d &direction = Eigen::Vector2d::Zero()) {
     current_ids = ids;
@@ -1068,13 +1069,12 @@ class Tracer {
       // Preserve both phase-fraction constraints while releasing that face.
       auto refitted = engine.copy_assemblage(a);
       if (refit_composition_faces(refitted, ids, z, previous,
-                                  Eigen::Vector2d::Zero(), s, &minima, 1.e-7,
-                                  other)) {
+                                  Eigen::Vector2d::Zero(), s, affinity, &minima,
+                                  1.e-7, other)) {
         a = *refitted;
         engine.set_coordinate(a, engine.composition_coordinate(*refitted));
         verified = valid(a, s);
         separate = distinct(a, ids);
-        affinity = engine.stability(a);
       }
     }
     const auto offset = (pt(a) - previous).eval();
@@ -1096,6 +1096,7 @@ class Tracer {
     }
     if (solution)
       *solution = s;
+    accepted_affinity = affinity;
     return node(a, ids, {z, other}, "junction", &s.J);
   }
   // Bracket phase entry on the already verified boundary before adding the
@@ -1106,7 +1107,7 @@ class Tracer {
   phase_entry(const Assemblage &previous, const Assemblage &next,
               const std::vector<int> &ids, int zero, int added,
               const Minimum &entering, const Eigen::Vector2d &unit,
-              double maximum_distance, int &index,
+              double maximum_distance, double &accepted_affinity, int &index,
               optim::roots::DampedNewtonResult &solution) {
     auto original = engine.snapshot(previous, ids);
     auto origin_pt = pt(previous);
@@ -1196,7 +1197,7 @@ class Tracer {
           joined, states, best.a->get_pressure(), best.a->get_temperature());
       engine.set_coordinate(*junction, engine.composition_coordinate(*best.a));
       index = endpoint(*junction, joined, zero, added, origin_pt,
-                       maximum_distance, &solution);
+                       maximum_distance, accepted_affinity, &solution);
       if (index >= 0)
         return junction;
     } catch (const std::exception &error) {
@@ -1209,14 +1210,13 @@ class Tracer {
   // A solution can activate/deactivate a trace site without changing the
   // phase assemblage. Refit that composition face with equilibrate instead
   // of interpreting the nearby full-polytope minimum as a second phase.
-  bool refit_composition_faces(std::shared_ptr<Assemblage> &input,
-                               const std::vector<int> &ids, int zero,
-                               const Eigen::Vector2d &where,
-                               const Eigen::Vector2d &normal,
-                               optim::roots::DampedNewtonResult &solved,
-                               std::vector<Minimum> *minima = nullptr,
-                               double face_tolerance = 1.e-7,
-                               int second_zero = -1) {
+  // Return affinity and minima only for the accepted state.
+  bool refit_composition_faces(
+      std::shared_ptr<Assemblage> &input, const std::vector<int> &ids, int zero,
+      const Eigen::Vector2d &where, const Eigen::Vector2d &normal,
+      optim::roots::DampedNewtonResult &solved, double &accepted_affinity,
+      std::vector<Minimum> *minima = nullptr, double face_tolerance = 1.e-7,
+      int second_zero = -1) {
     if (!engine.settings.active_solution_faces)
       return false;
     auto current = input;
@@ -1276,6 +1276,7 @@ class Tracer {
         if (affinity >= -engine.settings.affinity_tolerance) {
           input = trial;
           solved = solve;
+          accepted_affinity = affinity;
           if (minima)
             *minima = candidates;
           return true;
@@ -1307,6 +1308,7 @@ class Tracer {
       auto old_u = pt(*a);
       current_ids = ids;
       double requested = step;
+      double affinity = 0.;
       // Predict the first phase-out event from amount derivatives.
       auto prm = engine.parameters(*a);
       // Chemical-potential differences lose accuracy as solvus copies merge.
@@ -1350,12 +1352,11 @@ class Tracer {
           int n = endpoint(
               *event_a, ids, seed.zero, leaving, old_u,
               std::max(requested * 3., engine.settings.node_tolerance * 2.),
-              &event_s,
+              affinity, &event_s,
               engine.project_direction(direction, *a).cwiseQuotient(range));
           if (n >= 0) {
             end_node = n;
-            points.push_back(
-                point(*event_a, ids, event_s, engine.stability(*event_a)));
+            points.push_back(point(*event_a, ids, event_s, affinity));
             termination = "junction";
             return points;
           }
@@ -1368,7 +1369,7 @@ class Tracer {
           Eigen::Vector2d event_unit =
               engine.project_direction(direction, *a).cwiseQuotient(range);
           if (refit_composition_faces(a, ids, seed.zero, old_u, event_unit,
-                                      solve, nullptr, 5.e-7)) {
+                                      solve, affinity, nullptr, 5.e-7)) {
             auto refitted = tangent(solve, *a);
             if (refitted.size()) {
               if (engine.project_direction(refitted, *a)
@@ -1401,6 +1402,7 @@ class Tracer {
       std::shared_ptr<Assemblage> next;
       optim::roots::DampedNewtonResult next_s;
       bool accepted = false;
+      bool stability_verified = false;
       double used = border_axis >= 0 ? border_step : requested;
       std::string failure;
       bool merged = false;
@@ -1438,12 +1440,14 @@ class Tracer {
         used *= .5;
         border_axis = -1;
       }
+      std::vector<Minimum> ms;
       if (!accepted && next) {
         auto target =
             (old_u + std::max(used, engine.settings.min_step) * unit).eval();
-        if (refit_composition_faces(next, ids, seed.zero, target, unit,
-                                    next_s)) {
+        if (refit_composition_faces(next, ids, seed.zero, target, unit, next_s,
+                                    affinity, &ms)) {
           accepted = true;
+          stability_verified = true;
           border_axis = -1;
         }
       }
@@ -1460,8 +1464,8 @@ class Tracer {
                     << '\n';
         return points;
       }
-      std::vector<Minimum> ms;
-      double affinity = engine.stability(*next, &ms);
+      if (!stability_verified)
+        affinity = engine.stability(*next, &ms);
       if (engine.settings.active_solution_faces) {
         Eigen::Vector2d target = old_u + used * unit, normal = unit;
         if (border_axis >= 0) {
@@ -1469,9 +1473,8 @@ class Tracer {
           normal.setZero();
           normal[border_axis] = 1.;
         }
-        if (refit_composition_faces(next, ids, seed.zero, target, normal,
-                                    next_s, &ms))
-          affinity = engine.stability(*next, &ms);
+        refit_composition_faces(next, ids, seed.zero, target, normal, next_s,
+                                affinity, &ms);
       }
       if (affinity < -engine.settings.affinity_tolerance) {
         // A previously absent phase becomes stable: add it at zero amount and
@@ -1510,13 +1513,13 @@ class Tracer {
               engine.set_coordinate(*junction,
                                     engine.composition_coordinate(*a));
               optim::roots::DampedNewtonResult event_s;
+              double event_affinity = 0.;
               int n = endpoint(
                   *junction, joined, seed.zero, added, old_u,
                   std::max(used * 3., engine.settings.node_tolerance * 2.),
-                  &event_s);
+                  event_affinity, &event_s);
               if (n >= 0) {
-                auto p = point(*junction, joined, event_s,
-                               engine.stability(*junction));
+                auto p = point(*junction, joined, event_s, event_affinity);
                 points.push_back(p);
                 end_node = n;
                 located = true;
@@ -1530,13 +1533,14 @@ class Tracer {
             if (!located) {
               int n = -1;
               optim::roots::DampedNewtonResult event_s;
+              double event_affinity = 0.;
               auto junction = phase_entry(
                   *a, *next, ids, seed.zero, added, ms[base], unit,
-                  std::max(used * 3., engine.settings.node_tolerance * 2.), n,
-                  event_s);
+                  std::max(used * 3., engine.settings.node_tolerance * 2.),
+                  event_affinity, n, event_s);
               if (junction) {
-                points.push_back(point(*junction, joined, event_s,
-                                       engine.stability(*junction)));
+                points.push_back(
+                    point(*junction, joined, event_s, event_affinity));
                 end_node = n;
                 located = true;
                 break;
@@ -1940,10 +1944,9 @@ class Tracer {
             continue;
           std::vector<Minimum> minima;
           affinity = engine.stability(*a, &minima);
-          if (affinity < -engine.settings.affinity_tolerance &&
-              refit_composition_faces(a, seed.ids, seed.zero, seed.pt, normal,
-                                      s, &minima))
-            affinity = engine.stability(*a);
+          if (affinity < -engine.settings.affinity_tolerance)
+            refit_composition_faces(a, seed.ids, seed.zero, seed.pt, normal, s,
+                                    affinity, &minima);
           if (affinity < -engine.settings.affinity_tolerance)
             continue;
           if (seed.node >= 0 &&
@@ -2177,10 +2180,9 @@ class Tracer {
               continue;
             std::vector<Minimum> minima;
             double affinity = engine.stability(*a, &minima);
-            if (affinity < -engine.settings.affinity_tolerance &&
-                refit_composition_faces(a, line.assemblage, line.zero_phase, u,
-                                        along, s, &minima))
-              affinity = engine.stability(*a);
+            if (affinity < -engine.settings.affinity_tolerance)
+              refit_composition_faces(a, line.assemblage, line.zero_phase, u,
+                                      along, s, affinity, &minima);
             if (affinity < -engine.settings.affinity_tolerance)
               continue;
             bool near_critical = false;
