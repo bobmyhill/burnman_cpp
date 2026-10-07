@@ -104,6 +104,78 @@ def finite_differences(phase, kind):
     )
 
 
+@pytest.mark.parametrize("group", ["HGP18", "HPx_ds636"])
+@pytest.mark.parametrize("pressure", [1.0e5, 3.0e9])
+@pytest.mark.parametrize("temperature", [700.0, 1200.0, 1800.0])
+@pytest.mark.parametrize("factor", [0.8, -1.0, -0.5])
+@pytest.mark.parametrize("n", [1.0, 3.0])
+def test_ordering_derivatives_match_python_gibbs(
+    group, pressure, temperature, factor, n
+):
+    from burnman.eos.property_modifiers import bragg_williams_excesses
+
+    reference = getattr(burnman.minerals, DATASETS[group]).san()
+    native = getattr(minerals, group).san()
+    params = reference.property_modifiers[0][1]
+    params["factor"] = factor
+    params["n"] = n
+    native.set_property_modifiers(reference.property_modifiers)
+    native.set_state(pressure, temperature)
+
+    def gibbs(dp=0.0, dt=0.0):
+        return bragg_williams_excesses(pressure + dp, temperature + dt, params)[0]["G"]
+
+    values = native.get_property_modifiers()
+    g = gibbs()
+    assert values["G"] == pytest.approx(g, rel=1.0e-12)
+    # Wider stencils resolve curvature lost by the upstream 1 kPa stencil;
+    # five-point differences suppress truncation error in the wider steps.
+    dp, dt = 1.0e6, 0.5
+    roundoff = 16.0 * np.finfo(float).eps * abs(g)
+    for axis, step in [("P", dp), ("T", dt)]:
+        energies = [
+            gibbs(dp=offset) if axis == "P" else gibbs(dt=offset)
+            for offset in [-2.0 * step, -step, step, 2.0 * step]
+        ]
+        first = (energies[0] - 8.0 * energies[1] + 8.0 * energies[2] - energies[3]) / (
+            12.0 * step
+        )
+        second = (
+            -energies[0]
+            + 16.0 * energies[1]
+            - 30.0 * g
+            + 16.0 * energies[2]
+            - energies[3]
+        ) / (12.0 * step**2)
+        assert values[f"dGd{axis}"] == pytest.approx(
+            first, rel=1.0e-8, abs=roundoff / step
+        )
+        assert values[f"d2Gd{axis}2"] == pytest.approx(
+            second, rel=1.0e-3, abs=roundoff / step**2
+        )
+    mixed = (gibbs(dp, dt) - gibbs(dp, -dt) - gibbs(-dp, dt) + gibbs(-dp, -dt)) / (
+        4.0 * dp * dt
+    )
+    assert values["d2GdPdT"] == pytest.approx(
+        mixed, rel=1.0e-3, abs=roundoff / (dp * dt)
+    )
+
+
+@pytest.mark.parametrize("group", ["IG18", "IG24", "IG25"])
+def test_kjd_bulk_modulus_matches_python_volume_derivative(group):
+    reference = copy.deepcopy(getattr(burnman.minerals, DATASETS[group]).kjd)
+    native = getattr(minerals, group).kjd()
+    pressure, temperature, step = 3.0e9, 1200.0, 1.0e6
+    reference.set_state(pressure - step, temperature)
+    lower = reference.molar_volume
+    reference.set_state(pressure + step, temperature)
+    upper = reference.molar_volume
+    reference.set_state(pressure, temperature)
+    native.set_state(pressure, temperature)
+    expected = -reference.molar_volume * 2.0 * step / (upper - lower)
+    assert native.isothermal_bulk_modulus_reuss == pytest.approx(expected, rel=1.0e-5)
+
+
 @pytest.mark.parametrize("group", DATASETS)
 def test_complete_public_inventory(group):
     expected = public_entries(
@@ -184,9 +256,9 @@ def test_every_factory_matches_python_burnman(group, name, value, state):
             "thermal_expansivity",
         ):
             tolerance = max(tolerance, 2.0e-5)  # finite-difference water derivatives
-        # Both implementations differentiate BW G using dP=1000 Pa. Subtracting
-        # almost identical kJ/mol energies loses pressure-curvature precision.
-        # Keep G,S,V strict, and bound this noise in the derived properties.
+        # Upstream differentiates BW G using dP=1000 Pa, which loses pressure
+        # curvature to roundoff. Native ordering derivatives are analytic.
+        # Keep G,S,V strict and allow upstream noise in derived properties.
         if bw:
             tolerance = max(
                 tolerance,
@@ -194,6 +266,8 @@ def test_every_factory_matches_python_burnman(group, name, value, state):
                     "isothermal_bulk_modulus_reuss": 0.02,
                     "isentropic_bulk_modulus_reuss": 0.02,
                     "molar_heat_capacity_v": 5.0e-4,
+                    # Upstream's 0.1 K second difference has O(dT^2) error.
+                    "molar_heat_capacity_p": 5.0e-7,
                     "thermal_expansivity": 2.0e-5,
                 }.get(prop, rtol),
             )

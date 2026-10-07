@@ -206,9 +206,7 @@ TEST_CASE("Test Bragg-Williams", "[prop_mod][eos]") {
   eos::excesses::BraggWilliamsParams params = {1,      0.8,    1000.0,
                                                1.0e-7, 1000.0, 1.0e-7};
   SECTION("BW High P") {
-    // Implementation differences build up here as the margins are tiny
-    // Using a relaxed tolerance.
-    // double tol_abs_relaxed =
+    // Stored derivatives use upstream's finite differences.
     double tol_abs_relaxed = 1.0e-14;
     double tol_abs_very_relaxed = 2.5e-10;
     double tol_rel_relaxed = 1.0e-10;
@@ -225,9 +223,8 @@ TEST_CASE("Test Bragg-Williams", "[prop_mod][eos]") {
     // Don't relax tolerance on G calculation
     CHECK_THAT(calc_excess.G,
                WithinRel(G_ref, tol_rel) || WithinAbs(G_ref, tol_abs));
-    // Other differences, including sign flips in second derivatives, come
-    // from differences in G that are below tolerances.
-    CHECK_THAT(calc_excess.dGdT, WithinRel(dGdT_ref, tol_rel_relaxed) ||
+    // The upstream 0.1 K entropy stencil has O(dT^2) truncation error.
+    CHECK_THAT(calc_excess.dGdT, WithinRel(dGdT_ref, 1.0e-8) ||
                                      WithinAbs(dGdT_ref, tol_abs_relaxed));
     CHECK_THAT(calc_excess.dGdP, WithinRel(dGdP_ref, tol_rel_relaxed) ||
                                      WithinAbs(dGdP_ref, tol_abs_relaxed));
@@ -249,8 +246,6 @@ TEST_CASE("Test Bragg-Williams", "[prop_mod][eos]") {
     double dGdT_ref = -9.221034114634676;
     // At Q=0 the exact pressure derivative is the disordering volume.
     double dGdP_ref = params.deltaV;
-    // The central difference subtracts G values across a 1000 Pa step.
-    double dGdP_roundoff = roundoff_tolerance(G_ref) / 1000.0;
     double d2GdT2_ref = 0.0;
     double d2GdP2_ref = 0.0;
     double d2GdPdT_ref = 0.0;
@@ -260,8 +255,7 @@ TEST_CASE("Test Bragg-Williams", "[prop_mod][eos]") {
                WithinRel(G_ref, tol_rel) || WithinAbs(G_ref, tol_abs));
     CHECK_THAT(calc_excess.dGdT,
                WithinRel(dGdT_ref, tol_rel) || WithinAbs(dGdT_ref, tol_abs));
-    CHECK_THAT(calc_excess.dGdP, WithinRel(dGdP_ref, tol_rel) ||
-                                     WithinAbs(dGdP_ref, dGdP_roundoff));
+    CHECK_THAT(calc_excess.dGdP, WithinRel(dGdP_ref, tol_rel));
     CHECK_THAT(calc_excess.d2GdT2, WithinRel(d2GdT2_ref, tol_rel) ||
                                        WithinAbs(d2GdT2_ref, tol_abs));
     CHECK_THAT(calc_excess.d2GdP2, WithinRel(d2GdP2_ref, tol_rel) ||
