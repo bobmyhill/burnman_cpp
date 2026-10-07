@@ -444,6 +444,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
   std::map<int, Point> nodes;
   for (auto &node : result.nodes)
     nodes.emplace(node.id, coordinate(node));
+  std::set<int> line_ends;
   std::vector<Segment> segments;
   for (auto &line : result.boundaries) {
     std::vector<Point> points;
@@ -455,6 +456,9 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
       points.front() = nodes.at(line.start_node);
     if (nodes.count(line.end_node))
       points.back() = nodes.at(line.end_node);
+    for (int id : {line.start_node, line.end_node})
+      if (nodes.count(id))
+        line_ends.insert(id);
     for (auto &point : points) {
       if ((point.array() < -tolerance * 10).any() ||
           (point.array() > 1. + tolerance * 10).any())
@@ -780,6 +784,9 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
       ring_edges(hole, assign);
   }
   std::vector<Index> parent(faces.size());
+  std::vector<Phases> face_phases;
+  for (const auto &polygon : output.polygons)
+    face_phases.push_back(polygon.phases);
   std::iota(parent.begin(), parent.end(), Index{0});
   auto root = [&](Index i) {
     while (parent[i] != i) {
@@ -944,18 +951,70 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
         if (contains(ring, region, middle, tolerance) == 1)
           masked = true;
       }
-      if (masked)
+      if (masked) {
+        removed[i] = removed[i ^ 1] = true;
         continue;
+      }
       output.boundary_segments.push_back(coordinates(
           {edges[i].from, edges[i].to}, vertices.points, origin, scale));
       ++degree[edges[i].from];
       ++degree[edges[i].to];
     }
+  std::vector<bool> endpoint(vertices.points.size(), false);
   for (auto &[id, point] : nodes) {
     Index vertex = vertices.find(point);
-    if (vertex != no_index && degree[vertex] >= 3)
-      output.boundary_nodes.push_back(id);
+    if (vertex != no_index) {
+      if (line_ends.count(id))
+        endpoint[vertex] = true;
+      if (degree[vertex] >= 3)
+        output.boundary_nodes.push_back(id);
+    }
   }
+  // Keep each continuous boundary as one stroke, with its original vertices.
+  // Verified fields identify the neighbours; otherwise use unambiguous edge
+  // labels. Unknown sides and junctions cannot establish a continuation.
+  const Phases unknown;
+  auto side = [&](Index edge) -> const Phases & {
+    Index face = edge_faces[edge];
+    if (face != no_index && !face_phases[face].empty())
+      return face_phases[face];
+    if (edges[edge].labels.size() == 1)
+      return *edges[edge].labels.begin();
+    return unknown;
+  };
+  auto same_assemblages = [&](Index first, Index second) {
+    const auto &a = side(first), &b = side(first ^ 1), &c = side(second),
+               &d = side(second ^ 1);
+    return !a.empty() && !b.empty() &&
+           ((a == c && b == d) || (a == d && b == c));
+  };
+  auto continuation = [&](Index edge) {
+    Index vertex = edges[edge].to;
+    if (!endpoint[vertex] && degree[vertex] == 2)
+      for (Index next : outgoing[vertex])
+        if (next != (edge ^ 1) && !removed[next] &&
+            same_assemblages(edge, next))
+          return next;
+    return no_index;
+  };
+  std::vector<bool> seen(edges.size(), false);
+  auto join = [&](Index edge) {
+    Ring path{edges[edge].from};
+    while (edge != no_index && !seen[edge]) {
+      seen[edge] = seen[edge ^ 1] = true;
+      path.push_back(edges[edge].to);
+      edge = continuation(edge);
+    }
+    output.boundary_lines.push_back(
+        coordinates(path, vertices.points, origin, scale));
+  };
+  // Start at the ends first, then walk any remaining closed loops.
+  for (Index edge = 0; edge < edges.size(); ++edge)
+    if (!removed[edge] && !seen[edge] && continuation(edge ^ 1) == no_index)
+      join(edge);
+  for (Index edge = 0; edge < edges.size(); edge += 2)
+    if (!removed[edge] && !seen[edge])
+      join(edge);
   return output;
 }
 } // namespace burnman::pseudosections

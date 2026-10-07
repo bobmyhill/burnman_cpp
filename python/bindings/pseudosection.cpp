@@ -571,6 +571,7 @@ void bind_pseudosection(py::module_ &m) {
       .def_readonly("polygons", &FieldPolygons::polygons)
       .def_readonly("diagnostics", &FieldPolygons::diagnostics)
       .def_readonly("boundary_segments", &FieldPolygons::boundary_segments)
+      .def_readonly("boundary_lines", &FieldPolygons::boundary_lines)
       .def_readonly("boundary_nodes", &FieldPolygons::boundary_nodes);
   py::class_<ContourSettings>(m, "PseudosectionContourSettings")
       .def(py::init<>())

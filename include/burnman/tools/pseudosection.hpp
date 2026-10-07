@@ -268,6 +268,9 @@ struct FieldPolygons {
   // Visible, intersection-split edges in diagram units, excluding dissolved
   // internal edges. Unfinished and unclassified edges remain visible.
   std::vector<Eigen::MatrixXd> boundary_segments;
+  // Connected segments with the same two assemblages, stopping at endpoints
+  // and junctions. Closed loops repeat their first point.
+  std::vector<Eigen::MatrixXd> boundary_lines;
   // Node IDs where at least three visible segments meet.
   std::vector<int> boundary_nodes;
 };

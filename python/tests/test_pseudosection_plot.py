@@ -1,6 +1,7 @@
 """Analytic polygon geometry and phase counts, independent of thermodynamics."""
 
 import json
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -38,6 +39,116 @@ def diagram(lines, samples=()):
 
 def square(low=0.2, high=0.8):
     return [(low, low), (high, low), (high, high), (low, high), (low, low)]
+
+
+def check_joined_edges(geometry):
+    def key(a, b):
+        return tuple(sorted((tuple(a), tuple(b))))
+
+    expected = Counter(key(*segment) for segment in geometry.boundary_segments)
+    actual = Counter(
+        key(a, b)
+        for path in geometry.boundary_lines
+        for a, b in zip(path[:-1], path[1:])
+    )
+    assert actual == expected
+
+
+@pytest.mark.parametrize("endpoint", [False, True])
+def test_plot_joins_matching_segments_only_between_endpoint_vertices(endpoint):
+    import matplotlib.pyplot as plt
+    from matplotlib.collections import LineCollection
+
+    points = [(0.0, 0.25), (0.3, 0.35), (0.7, 0.65), (1.0, 0.75)]
+    data = diagram(
+        [
+            line(points[:2], [0, 1], [0, 2]),
+            line(points[1:3], [0, 1], [0, 2]),
+            line(points[2:][::-1], [0, 2], [0, 1]),
+        ]
+    )
+    if endpoint:
+        data["nodes"] = [dict(id=0, pressure=0.3, temperature=0.35)]
+        data["boundaries"][0]["end_node"] = 0
+        data["boundaries"][1]["start_node"] = 0
+    fig, ax = bm.plot_pseudosection(
+        data,
+        pressure_unit="Pa",
+        temperature_unit="K",
+        swap_axes=True,
+        label_assemblages=False,
+        colorbar=False,
+    )
+    geometry = ax.pseudosection_geometry
+    assert not geometry.diagnostics
+    assert {tuple(p.phases) for p in geometry.polygons} == {(0, 1), (0, 2)}
+    assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
+    check_joined_edges(geometry)
+    outlines = next(c for c in ax.collections if isinstance(c, LineCollection))
+    joined = [path for path in outlines.get_segments() if len(path) > 2]
+    assert len(joined) == 1
+    expected = np.asarray(points[1:] if endpoint else points)
+    assert np.allclose(joined[0], expected) or np.allclose(joined[0], expected[::-1])
+    plt.close(fig)
+
+
+def test_joined_lines_keep_closed_loops_and_distinct_paths_between_same_vertices():
+    points = square()
+    data = diagram([line(points, [0, 1], [0])])
+    loop = bm.pseudosection_field_polygons(data)
+    check_joined_edges(loop)
+    closed = [path for path in loop.boundary_lines if len(path) > 2]
+    assert len(closed) == 1 and len(closed[0]) == 5
+    np.testing.assert_array_equal(closed[0][0], closed[0][-1])
+    assert sorted(p.area for p in loop.polygons) == pytest.approx([0.36, 0.64])
+    # Explicit endpoints keep the two arcs separate, retaining the entire field.
+    data["boundaries"] = [
+        line(points[:3], [0, 1], [0]) | dict(start_node=0, end_node=1),
+        line(points[2:], [0, 1], [0]) | dict(start_node=1, end_node=0),
+    ]
+    data["nodes"] = [
+        dict(id=i, pressure=p, temperature=t)
+        for i, (p, t) in enumerate(points[::2][:2])
+    ]
+    split = bm.pseudosection_field_polygons(data)
+    check_joined_edges(split)
+    assert len([path for path in split.boundary_lines if len(path) > 2]) == 2
+    assert sorted(p.area for p in split.polygons) == pytest.approx([0.36, 0.64])
+
+
+def test_joining_does_not_cross_a_change_of_assemblage_with_the_same_phase_count():
+    points = [(0.0, 0.3), (0.4, 0.4), (0.6, 0.7), (1.0, 0.8)]
+    data = diagram([line(points[:2], [0, 1], [0, 2]), line(points[1:], [0, 1], [0, 3])])
+    geometry = bm.pseudosection_field_polygons(data)
+    check_joined_edges(geometry)
+    paths = [path for path in geometry.boundary_lines if len(path) > 2]
+    assert len(paths) == 1 and len(paths[0]) == 3
+    assert np.allclose(paths[0], points[1:]) or np.allclose(paths[0], points[:0:-1])
+
+
+def test_joining_keeps_intersections_and_disconnected_boundaries_separate():
+    vertical = [(0.5, 0.0), (0.5, 0.25), (0.5, 0.75), (0.5, 1.0)]
+    horizontal = [(t, p) for p, t in vertical]
+    crossing = bm.pseudosection_field_polygons(
+        diagram([line(vertical, [0], [1]), line(horizontal, [0], [1])]),
+        merge_fields=False,
+    )
+    check_joined_edges(crossing)
+    paths = [path for path in crossing.boundary_lines if len(path) > 2]
+    assert len(paths) == 4
+    assert all(any(np.allclose(p, [0.5, 0.5]) for p in path[[0, -1]]) for path in paths)
+    disconnected = bm.pseudosection_field_polygons(
+        diagram(
+            [
+                line([(0.2, 0.2), (0.3, 0.3), (0.4, 0.4)], [0], [1]),
+                line([(0.6, 0.6), (0.7, 0.7), (0.8, 0.8)], [0], [1]),
+            ]
+        ),
+        close_domain=False,
+    )
+    check_joined_edges(disconnected)
+    assert len(disconnected.boundary_lines) == 2
+    assert all(len(path) == 3 for path in disconnected.boundary_lines)
 
 
 @pytest.mark.parametrize("amount_tolerance", [1.0e-9, 1.0e-7, 1.0e-5])
