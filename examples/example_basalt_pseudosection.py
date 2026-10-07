@@ -153,7 +153,9 @@ def main():
         type=Path,
         help="Resume unfinished lines from saved successful equilibrium states in C++.",
     )
-    parser.add_argument("--output-dir", type=Path, default=Path("pseudosection_output"))
+    parser.add_argument(
+        "--output-dir", type=Path, default=Path("basalt_pseudosection_output")
+    )
     args = parser.parse_args()
     if args.plot_json:
         plot_saved_json(args.plot_json, args.output_dir, args.label_fontsize)

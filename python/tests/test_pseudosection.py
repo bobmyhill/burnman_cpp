@@ -14,7 +14,7 @@ from burnman_cpp.minerals import (
 )
 
 
-def pure(name, formula):
+def pure(name, formula, **parameters):
     return bm.Mineral(
         dict(
             name=name,
@@ -33,6 +33,7 @@ def pure(name, formula):
             G_0=0.0,
             Gprime_0=0.0,
         )
+        | parameters
     )
 
 
@@ -160,6 +161,172 @@ def test_four_branches_at_a_phase_swap_node():
                 assert abs(zero.amount) < 1e-9
     # Input objects were copied, including the solution/model state.
     assert all(not phase.has_state() for phase in phases)
+
+
+def curved_phases():
+    first = pure("large volume", {"Mg": 1.0, "O": 1.0})
+    second = pure(
+        "small volume",
+        {"Mg": 1.0, "O": 1.0},
+        H_0=-50000.0,
+        S_0=70.0,
+        V_0=1.0e-5,
+        Cp=[70.0, 0.0, 0.0, 0.0],
+    )
+    return [first, second]
+
+
+def test_resume_refines_curved_chords_that_misclassify_equilibrium_samples():
+    phases = curved_phases()
+    opts = settings()
+    bulk = {"Mg": 1.0, "O": 1.0}
+    result = bm.pseudosection(bulk, phases, (0.0, 5.0e9), (600.0, 1400.0), opts)
+    assert result.resolved, result.diagnostics
+    saved = result.to_dict()
+    line = saved["boundaries"][0]
+    line["points"] = [line["points"][0], line["points"][-1]]
+    assert any(
+        "conflicting equilibrium assemblage" in d
+        for d in bm.pseudosection_field_polygons(saved).diagnostics
+    )
+    repaired = bm.refine_pseudosection(bulk, phases, saved, opts)
+    assert repaired.resolved, repaired.diagnostics
+    assert len(repaired.boundaries) == 1
+    assert len(repaired.boundaries[0].points) > 2
+    assert not bm.pseudosection_field_polygons(repaired).diagnostics
+    for p in repaired.boundaries[0].points:
+        assert p.mass_balance_error < 1e-9
+        assert p.minimum_affinity >= -opts.affinity_tolerance
+        assert p.residual < 0.01
+
+
+def test_resume_removes_a_verified_retraced_part_of_a_curved_boundary():
+    phases = curved_phases()
+    opts = settings()
+    opts.max_recovery_passes = 0
+    bulk = {"Mg": 1.0, "O": 1.0}
+    result = bm.pseudosection(bulk, phases, (0.0, 5.0e9), (600.0, 1400.0), opts)
+    assert result.resolved, result.diagnostics
+    assert len(result.boundaries) == 1
+    saved = result.to_dict()
+    line = saved["boundaries"][0]
+    original = line["points"]
+    assert len(original) > 10
+    # The retained edge and the duplicate have real equilibrium states, but
+    # use different chords. An out-and-back chord creates a false dangling
+    # edge unless its coverage is checked thermodynamically.
+    line["points"] = original[::6] + [original[-1]]
+    duplicate = dict(
+        line,
+        id=1,
+        end_node=line["start_node"],
+        points=[original[0], original[3], original[0]],
+        termination="junction; junction",
+    )
+    saved["boundaries"].append(duplicate)
+    assert any(
+        p.has_open_boundary for p in bm.pseudosection_field_polygons(saved).polygons
+    )
+    repaired = bm.refine_pseudosection(bulk, phases, saved, opts)
+    assert repaired.resolved, repaired.diagnostics
+    assert len(repaired.boundaries) == 1
+    geometry = bm.pseudosection_field_polygons(repaired)
+    assert not geometry.diagnostics
+    assert len(geometry.polygons) == 2
+    assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
+
+
+def test_field_verification_keeps_coordinates_when_a_phase_is_dropped():
+    mg = pure("Mg", {"Mg": 1.0, "O": 1.0})
+    fe = pure("Fe", {"Fe": 1.0, "O": 1.0})
+    phases = [
+        bm.Solution(
+            bm.IdealSolution([(mg, "[Mg]O"), (fe, "[Fe]O")]),
+            [0.3, 0.7],
+            name="solution",
+        ),
+        bm.CombinedMineral([mg], [1.0], [1000.0, 0.0, -1.0e-5], name="Mg high"),
+    ]
+    bulk = {"Mg": 0.3, "Fe": 0.7, "O": 1.0}
+    opts = settings()
+    opts.pressure_seeds = opts.temperature_seeds = 2
+    opts.max_recovery_passes = 0
+    result = bm.pseudosection(bulk, phases, (1.5e9, 1.6e9), (700.0, 800.0), opts)
+    assert result.resolved, result.diagnostics
+    assert all(len(s.phases) == 2 for s in result.samples if s.success)
+    saved = result.to_dict()
+    # Reuse a distant warm start in a small subdomain where the second phase
+    # is unstable. Dropping it must preserve the requested field coordinates.
+    saved["boundaries"] = []
+    saved["nodes"] = []
+    saved["pressure_range"] = saved["calculation_pressure_range_Pa"] = [1e5, 1.01e5]
+    saved["temperature_range"] = saved["temperature_range_K"] = [700.0, 700.1]
+    saved["samples"] = saved["samples"][:1]
+    repaired = bm.refine_pseudosection(bulk, phases, saved, opts)
+    verified = [s for s in repaired.samples if s.success and s.is_field_verification]
+    assert len(verified) == 1
+    assert len(verified[0].phases) == 1
+    assert verified[0].pressure == pytest.approx(100500.0, abs=0.1)
+    assert verified[0].temperature == pytest.approx(700.05, abs=1e-6)
+
+
+def test_solvus_recovery_matches_compositions_of_renumbered_solution_copies():
+    example = runpy.run_path(
+        str(Path(__file__).parents[2] / "examples/example_pyrolite_pseudosection.py")
+    )
+    # Two native warm starts around the pyrolite calcium-ferrite solvus.
+    # The sole CF composition corresponds to copy #2 of the two-phase state.
+    previous = json.loads(
+        (Path(__file__).parent / "data" / "pyrolite_solvus_seeds.json").read_text()
+    )
+    opts = settings()
+    opts.max_lines = 1  # Isolate this branch from subsequent junction searches.
+    result = bm.refine_pseudosection(
+        example["PYROLITE_COMPOSITION"].atomic_composition,
+        example["candidate_phases"](),
+        previous,
+        opts,
+    )
+    assert len(result.boundaries) == 1, result.diagnostics
+    line = result.boundaries[0]
+    assert line.zero_phase == 39
+    assert sorted([len(line.side_a), len(line.side_b)]) == [7, 8]
+    for point in line.points:
+        assert point.mass_balance_error < 1e-8
+        assert point.minimum_affinity >= -opts.affinity_tolerance
+        assert point.residual < 0.02
+        zero = next(p for p in point.phases if p.id == line.zero_phase)
+        assert abs(zero.amount) < 1e-9
+
+
+def test_equivalent_retrace_inherits_verified_labels_with_correct_orientation():
+    example = runpy.run_path(
+        str(Path(__file__).parents[2] / "examples/example_pyrolite_pseudosection.py")
+    )
+    # Opposite traces of the same native spinel-out line: one has reliable
+    # adjacent-field solves, while the other has unresolved side labels.
+    previous = json.loads(
+        (Path(__file__).parent / "data" / "pyrolite_duplicate_curve.json").read_text()
+    )
+    opts = settings()
+    opts.max_lines = 2
+    opts.max_recovery_passes = 0
+    result = bm.refine_pseudosection(
+        example["PYROLITE_COMPOSITION"].atomic_composition,
+        example["candidate_phases"](),
+        previous,
+        opts,
+    )
+    assert len(result.boundaries) == 1, result.diagnostics
+    line = result.boundaries[0]
+    expected = previous["boundaries"][0]
+    assert line.side_a == expected["side_a"]
+    assert line.side_b == expected["side_b"]
+    assert not any("neighbouring fields" in d for d in result.diagnostics)
+    for point in line.points:
+        assert point.mass_balance_error < 1e-8
+        assert point.minimum_affinity >= -opts.affinity_tolerance
+        assert point.residual < 0.02
 
 
 def test_resume_uses_accepted_endpoints_and_closes_truncated_fields():
