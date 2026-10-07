@@ -16,6 +16,7 @@
 #include "critical.hpp"
 #include "internal.hpp"
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <deque>
 #include <iostream>
@@ -45,6 +46,7 @@ class Tracer {
   std::set<std::string> expanded;
   std::map<std::vector<int>, Eigen::MatrixXd> amount_vertices;
   Eigen::VectorXd critical_axis;
+  std::optional<LineResolution> line_resolution;
   int field_variance(const Assemblage &a, std::size_t n_phases) const {
     // Subtract signed counts: an overcomplete assemblage has negative variance.
     return burnman::utils::checked_int(
@@ -2292,6 +2294,102 @@ class Tracer {
         break;
     }
   }
+  // Correct a segment midpoint onto its equilibrium boundary. Ordinary field
+  // recovery needs curvature; requested spacing also subdivides straight lines.
+  bool refine_segment(Boundary &line, std::size_t right_index,
+                      bool require_curvature) {
+    const auto left = normalise(line.points[right_index - 1]);
+    const auto right = normalise(line.points[right_index]);
+    double length = (right - left).norm();
+    if (length < (require_curvature
+                      ? engine.settings.min_step
+                      : 64. * std::numeric_limits<double>::epsilon()))
+      return false;
+    // At a critical endpoint the two compositions coincide. The other endpoint
+    // can supply a distinct starting pair for the inserted state.
+    std::string failures;
+    auto rejected = [&](int side, const std::string &reason) {
+      failures += (side == 0   ? "left endpoint: "
+                   : side == 1 ? "; right endpoint: "
+                               : "; interpolated endpoints: ") +
+                  reason;
+    };
+    for (int side = 0; side < (require_curvature ? 1 : 3); ++side)
+      try {
+        const Eigen::Vector2d middle = .5 * (left + right);
+        auto states =
+            line.points[right_index - 1 + static_cast<std::size_t>(side == 1)]
+                .phases;
+        if (side == 2)
+          // Mixing the endpoints preserves mass balance and supplies small
+          // nonzero site fractions when a solution leaves a pure endmember.
+          for (auto &state : states) {
+            const auto &other = line.points[right_index].phases;
+            auto match = std::find_if(
+                other.begin(), other.end(),
+                [&](const PhaseState &p) { return p.id == state.id; });
+            if (match == other.end())
+              continue;
+            const double amount = state.amount + match->amount;
+            if (amount > 0.)
+              state.composition = (state.amount * state.composition +
+                                   match->amount * match->composition) /
+                                  amount;
+            else
+              state.composition = .5 * (state.composition + match->composition);
+            state.amount = .5 * amount;
+          }
+        auto a = engine.make_at(line.assemblage, states,
+                                origin + middle.cwiseProduct(range));
+        current_ids = line.assemblage;
+        const Eigen::Vector2d normal = (right - left).normalized();
+        auto c = boundary_constraints(*a, line.zero_phase, middle, normal);
+        auto s = engine.solve(*a, c);
+        auto acceptable = [&]() {
+          const auto position = normalised_coordinates(*a);
+          return valid(*a, s) && distinct(*a, line.assemblage) &&
+                 (position - middle).norm() <= length &&
+                 (require_curvature
+                      ? segment_distance(position, left, right) > 1.e-8
+                      : std::min((position - left).norm(),
+                                 (position - right).norm()) >
+                            64. * std::numeric_limits<double>::epsilon());
+        };
+        if (!acceptable()) {
+          rejected(side, "Boundary checks failed. " + s.message);
+          continue;
+        }
+        std::vector<Minimum> minima;
+        double affinity =
+            engine.stability(*a, require_curvature ? nullptr : &minima);
+        if (!require_curvature &&
+            affinity < -engine.settings.affinity_tolerance)
+          refit_composition_faces(a, line.assemblage, line.zero_phase, middle,
+                                  normal, s, affinity, &minima);
+        if (affinity < -engine.settings.affinity_tolerance || !acceptable()) {
+          rejected(side, "Boundary checks failed after checking stability "
+                         "(minimum affinity " +
+                             std::to_string(affinity) + " J/mol). " +
+                             s.message);
+          continue;
+        }
+        line.points.insert(line.points.begin() +
+                               static_cast<std::ptrdiff_t>(right_index),
+                           point(*a, line.assemblage, s, affinity));
+        return true;
+      } catch (const std::exception &error) {
+        rejected(side, error.what());
+      }
+    if (!require_curvature && engine.settings.verbose) {
+      const auto &p = line.points[right_index - 1];
+      const auto &q = line.points[right_index];
+      std::cerr << "Boundary " << line.id << ": could not refine segment "
+                << right_index << " between P=" << p.pressure
+                << " Pa, T=" << p.temperature << " K and P=" << q.pressure
+                << " Pa, T=" << q.temperature << " K: " << failures << '\n';
+    }
+    return false;
+  }
   bool refine_chords(const FieldPolygon &polygon) {
     bool refined = false;
     for (auto &line : result.boundaries)
@@ -2313,31 +2411,80 @@ class Tracer {
         if (!borders(polygon.vertices) &&
             !std::any_of(polygon.holes.begin(), polygon.holes.end(), borders))
           continue;
-        try {
-          const Eigen::Vector2d middle = .5 * (left + right);
-          auto a = engine.make_at(line.assemblage, line.points[k - 2].phases,
-                                  origin + middle.cwiseProduct(range));
-          current_ids = line.assemblage;
-          auto c = boundary_constraints(*a, line.zero_phase, middle,
-                                        (right - left).normalized());
-          auto s = engine.solve(*a, c);
-          if (!valid(*a, s) || !distinct(*a, line.assemblage) ||
-              (normalised_coordinates(*a) - middle).norm() >
-                  (right - left).norm() ||
-              segment_distance(normalised_coordinates(*a), left, right) <=
-                  1.e-8)
-            continue;
-          double affinity = engine.stability(*a);
-          if (affinity < -engine.settings.affinity_tolerance)
-            continue;
-          line.points.insert(line.points.begin() +
-                                 static_cast<std::ptrdiff_t>(k - 1),
-                             point(*a, line.assemblage, s, affinity));
-          refined = true;
-        } catch (const std::exception &) {
-        }
+        refined = refine_segment(line, k - 1, true) || refined;
       }
     return refined;
+  }
+  std::vector<std::string> refine_line_spacing() {
+    std::vector<std::string> issues;
+    if (!line_resolution)
+      return issues;
+    const auto axes = diagram_axes(result.section.type);
+    auto measured = [&](Eigen::Vector2d q) {
+      if (line_resolution->reciprocal_volume)
+        for (int axis = 0; axis < 2; ++axis)
+          if (axes[static_cast<std::size_t>(axis)] == Coordinate::V)
+            q[axis] = 1. / q[axis];
+      return q;
+    };
+    const auto ranges = result.coordinate_ranges();
+    Eigen::Vector2d spacing = (measured({ranges[0][1], ranges[1][1]}) -
+                               measured({ranges[0][0], ranges[1][0]}))
+                                  .cwiseAbs();
+    for (int axis = 0; axis < 2; ++axis)
+      spacing[axis] /=
+          line_resolution->axis_points[static_cast<std::size_t>(axis)] - 1;
+    const double limit = double(engine.settings.max_trace_steps) *
+                         engine.settings.max_refinement_iterations;
+    if (engine.settings.verbose)
+      std::cerr << "Refining " << result.boundaries.size()
+                << " phase lines to the requested resolution.\n";
+    std::size_t completed = 0;
+    for (auto &line : result.boundaries) {
+      std::size_t added = 0, failed = 0;
+      auto last_progress = std::chrono::steady_clock::now();
+      auto progress = [&]() {
+        std::cerr << "Line " << completed + 1 << '/' << result.boundaries.size()
+                  << " (boundary " << line.id << "): " << added
+                  << " points added, " << failed << " unresolved segments; "
+                  << engine.equilibrium_solves
+                  << " equilibrium solves in this refinement.\n";
+        last_progress = std::chrono::steady_clock::now();
+      };
+      for (std::size_t k = 1; k < line.points.size();) {
+        const auto delta = (measured(diagram_coordinates(line.points[k],
+                                                         result.section.type)) -
+                            measured(diagram_coordinates(line.points[k - 1],
+                                                         result.section.type)))
+                               .cwiseAbs()
+                               .eval();
+        if ((delta.array() <= spacing.array() * (1. + 1.e-12)).all()) {
+          ++k;
+        } else if (double(added) < limit && refine_segment(line, k, false)) {
+          ++added;
+          // Check both new segments; a curved midpoint need not halve each
+          // axis.
+        } else {
+          ++failed;
+          ++k;
+        }
+        if (engine.settings.verbose &&
+            std::chrono::steady_clock::now() - last_progress >=
+                std::chrono::seconds(5))
+          progress();
+      }
+      if (engine.settings.verbose)
+        progress();
+      ++completed;
+      if (failed)
+        issues.push_back("Boundary " + std::to_string(line.id) +
+                         ": requested line resolution was not reached on " +
+                         std::to_string(failed) + " segments" +
+                         (double(added) >= limit
+                              ? " (refinement limit reached)."
+                              : " (equilibrium refinement failed)."));
+    }
+    return issues;
   }
   bool recover_fields() {
     bool changed = false;
@@ -2800,7 +2947,7 @@ class Tracer {
     for (std::size_t i = 0; i < result.boundaries.size(); ++i)
       result.boundaries[i].id = burnman::utils::checked_int(i);
     // Rebuild from surviving records; earlier failures may now be recovered.
-    result.diagnostics.clear();
+    result.diagnostics = refine_line_spacing();
     for (auto &n : result.nodes)
       n.incident_lines.clear();
     for (auto &line : result.boundaries) {
@@ -2831,6 +2978,8 @@ class Tracer {
         result.diagnostics.push_back("Unresolved seed: " + state.message);
     // Verify closed interiors: stale edge labels can agree with each other
     // while still describing the wrong field. Open faces remain unresolved.
+    if (engine.settings.verbose && line_resolution)
+      std::cerr << "Checking phase field consistency.\n";
     model_domain();
     auto geometry = field_polygons(result, 1.e-8, true, false);
     for (std::size_t i = 0; i < geometry.polygons.size(); ++i) {
@@ -3034,7 +3183,20 @@ public:
     recover_fields();
     return finish();
   }
-  Result resume(const Result &previous) {
+  Result resume(const Result &previous,
+                const std::optional<LineResolution> &resolution) {
+    if (resolution) {
+      for (int count : resolution->axis_points)
+        if (count < 2)
+          throw std::invalid_argument(
+              "Line resolution must contain axis point counts of at least 2.");
+      const auto axes = diagram_axes(result.section.type);
+      if (resolution->reciprocal_volume && axes[0] != Coordinate::V &&
+          axes[1] != Coordinate::V)
+        throw std::invalid_argument(
+            "Reciprocal volume resolution requires a V axis.");
+    }
+    line_resolution = resolution;
     if (!previous.composition_start.empty() &&
         previous.composition_start != result.composition_start)
       throw std::invalid_argument(
@@ -3059,6 +3221,12 @@ public:
     for (std::size_t i = 0; i < result.nodes.size(); ++i)
       if (result.nodes[i].id != static_cast<int>(i))
         throw std::invalid_argument("Saved node IDs must be contiguous.");
+    if (resolution && previous.resolved) {
+      // Completed junctions already have their branches. Refine the saved
+      // lines, recovering unfinished ends and any conflicts found in fields.
+      recover();
+      return finish();
+    }
     // Successful endpoint states seed all untraced branches at their junction.
     for (auto &line : result.boundaries) {
       if (line.points.empty())
@@ -3120,15 +3288,18 @@ Result pseudosection(const types::FormulaMap &bulk,
 Result
 refine_pseudosection(const types::FormulaMap &bulk,
                      const std::vector<std::shared_ptr<Material>> &phases,
-                     const Result &previous, const Settings &settings) {
+                     const Result &previous, const Settings &settings,
+                     const std::optional<LineResolution> &resolution) {
   return Tracer(bulk, phases, previous.pressure_range,
                 previous.temperature_range, settings, previous.section)
-      .resume(previous);
+      .resume(previous, resolution);
 }
 Result
 refine_pseudosection(const types::FormulaMap &bulk,
                      const std::vector<std::shared_ptr<Material>> &phases,
-                     const Result &previous) {
-  return refine_pseudosection(bulk, phases, previous, previous.settings);
+                     const Result &previous,
+                     const std::optional<LineResolution> &resolution) {
+  return refine_pseudosection(bulk, phases, previous, previous.settings,
+                              resolution);
 }
 } // namespace burnman::pseudosections

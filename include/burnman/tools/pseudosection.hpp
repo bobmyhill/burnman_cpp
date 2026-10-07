@@ -303,20 +303,34 @@ Result pseudosection(const types::FormulaMap &composition,
                      const Settings &settings = Settings{},
                      const CompositionSection &section = CompositionSection{});
 
+struct LineResolution {
+  // Axis point counts in selected diagram-axis order: 101 means 100 divisions.
+  std::array<int, 2> axis_points;
+  // Divide the density axis uniformly instead of the volume axis.
+  bool reciprocal_volume = false;
+};
+
 /// Resume unfinished boundaries from their last verified compositions and
 /// revisit junction branches. Supply the same bulk, candidates and phase-ID
 /// settings as the original calculation, including candidate order. Recovery
 /// may refine straight segments, trim tails or merge duplicate lines.
-Result
-refine_pseudosection(const types::FormulaMap &composition,
-                     const std::vector<std::shared_ptr<Material>> &candidates,
-                     const Result &previous, const Settings &settings);
+/// resolution also subdivides every boundary using verified equilibrium solves,
+/// limiting point spacing to the axis span divided by (axis_points - 1).
+/// Spacing that cannot be reached is reported in the returned diagnostics.
+/// Added points per line are limited by
+/// max_trace_steps*max_refinement_iterations.
+Result refine_pseudosection(
+    const types::FormulaMap &composition,
+    const std::vector<std::shared_ptr<Material>> &candidates,
+    const Result &previous, const Settings &settings,
+    const std::optional<LineResolution> &resolution = std::nullopt);
 
 /// Resume with the settings retained in the previous result.
-Result
-refine_pseudosection(const types::FormulaMap &composition,
-                     const std::vector<std::shared_ptr<Material>> &candidates,
-                     const Result &previous);
+Result refine_pseudosection(
+    const types::FormulaMap &composition,
+    const std::vector<std::shared_ptr<Material>> &candidates,
+    const Result &previous,
+    const std::optional<LineResolution> &resolution = std::nullopt);
 
 /// Same native stability search at a single P,T, useful for checking diagrams.
 State stable_equilibrium(

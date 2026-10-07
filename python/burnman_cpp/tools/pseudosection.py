@@ -1,4 +1,4 @@
-"""Pseudosection figures; polygon geometry is assembled by the C++ library."""
+"""Pseudosection figures and refinement; calculations use the C++ library."""
 
 from collections.abc import Mapping
 import warnings
@@ -89,6 +89,68 @@ def _coordinate_transforms(
         return vertices * axis_scale + axis_offset
 
     return diagram, names, order, density, per_atom, coordinates, native_coordinates
+
+
+def refine_pseudosection(
+    composition,
+    phases,
+    previous,
+    settings=None,
+    *,
+    resolution=None,
+    pressure_unit="kbar",
+    temperature_unit="C",
+    entropy_unit="J/K",
+    volume_unit="m3",
+    swap_axes=False,
+):
+    """Resume a saved diagram and optionally refine all its phase lines.
+
+    ``previous`` accepts a native result, its full dictionary or a JSON path.
+    Use the same bulk and candidate models as the saved calculation.
+    ``resolution=(nx, ny)`` gives axis point counts in plot axis order.
+    ``(101, 201)`` means 100 divisions across x and 200 across y, limiting
+    consecutive line-point spacing to the full axis span divided by (n - 1).
+    Counts must be integers of at least 2. Plot unit options and ``swap_axes``
+    select the displayed axes, including uniform spacing in density when used.
+    All added points are solved and checked in C++. Failed refinements leave
+    accepted points intact and report unmet spacing in ``result.diagnostics``.
+    Completed diagrams reuse their saved lines without reopening each junction.
+    Field checks still trigger boundary recovery if inconsistencies are found.
+    Set ``settings.verbose = True`` to report refinement and checking progress.
+    Save the returned result with ``result.to_dict()``. Omitted resolution
+    retains ordinary boundary recovery and the saved settings by default.
+    """
+    import json
+    from os import PathLike
+    from pathlib import Path
+    import numpy as np
+
+    if isinstance(previous, (str, PathLike)):
+        previous = json.loads(Path(previous).read_text())
+    if resolution is None:
+        return _core.refine_pseudosection(composition, phases, previous, settings)
+    counts = np.asarray(resolution, dtype=float)
+    if (
+        counts.shape != (2,)
+        or not np.isfinite(counts).all()
+        or (counts < 2).any()
+        or (counts != np.floor(counts)).any()
+    ):
+        raise ValueError(
+            "resolution must contain two integer axis point counts (nx, ny), each at least 2."
+        )
+    _, _, order, density, _, _, _ = _coordinate_transforms(
+        previous, pressure_unit, temperature_unit, entropy_unit, volume_unit, swap_axes
+    )
+    return _core.refine_pseudosection(
+        composition,
+        phases,
+        previous,
+        settings,
+        resolution=tuple(int(count) for count in counts[order]),
+        reciprocal_volume=density,
+    )
 
 
 def plot_pseudosection(
