@@ -190,6 +190,9 @@ def plot_pseudosection(
     Adjacent identified regions with identical assemblages are merged and
     their internal line segments removed. Set ``merge_fields=False`` to see
     the original subdivision. Disconnected regions retain separate labels.
+    Connected segments separating the same two assemblages are drawn as one
+    continuous line between endpoint vertices. Junctions and separate paths
+    remain distinct; the equilibrium points are retained.
     Fields with conflicting or missing assemblage counts stay uncoloured and
     issue a warning. Each coexisting solution instance counts as one phase.
     Native ``excluded_regions`` are drawn with grey hatching: the solid model
@@ -339,10 +342,10 @@ def plot_pseudosection(
 
     # Render the same native subdivision used by the fills and labels. Drawing
     # the original traces would reintroduce the dissolved internal segments.
-    if geometry.boundary_segments:
+    if geometry.boundary_lines:
         ax.add_collection(
             LineCollection(
-                [coordinates(s) for s in geometry.boundary_segments],
+                [coordinates(s) for s in geometry.boundary_lines],
                 colors=line_color,
                 linewidths=line_width,
                 zorder=2,
