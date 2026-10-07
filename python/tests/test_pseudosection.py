@@ -324,7 +324,10 @@ def test_solvus_recovery_matches_compositions_of_renumbered_solution_copies():
         assert abs(zero.amount) < 1e-9
 
 
-def test_equivalent_retrace_inherits_verified_labels_with_correct_orientation():
+@pytest.mark.parametrize("reverse_order", [False, True])
+def test_equivalent_retrace_inherits_verified_labels_with_correct_orientation(
+    reverse_order,
+):
     example = runpy.run_path(
         str(Path(__file__).parents[2] / "examples/example_pyrolite_pseudosection.py")
     )
@@ -333,6 +336,9 @@ def test_equivalent_retrace_inherits_verified_labels_with_correct_orientation():
     previous = json.loads(
         (Path(__file__).parent / "data" / "pyrolite_duplicate_curve.json").read_text()
     )
+    expected = previous["boundaries"][0]
+    if reverse_order:
+        previous["boundaries"].reverse()
     opts = settings()
     opts.max_lines = 2
     opts.max_recovery_passes = 0
@@ -344,7 +350,6 @@ def test_equivalent_retrace_inherits_verified_labels_with_correct_orientation():
     )
     assert len(result.boundaries) == 1, result.diagnostics
     line = result.boundaries[0]
-    expected = previous["boundaries"][0]
     assert line.side_a == expected["side_a"]
     assert line.side_b == expected["side_b"]
     assert not any("neighbouring fields" in d for d in result.diagnostics)
@@ -352,6 +357,42 @@ def test_equivalent_retrace_inherits_verified_labels_with_correct_orientation():
         assert point.mass_balance_error < 1e-8
         assert point.minimum_affinity >= -opts.affinity_tolerance
         assert point.residual < 0.02
+
+
+@pytest.mark.parametrize("ambiguous_edges", [1, 2])
+def test_label_recovery_still_merges_duplicate_two_point_boundaries(ambiguous_edges):
+    bulk = {"Mg": 1.0, "Fe": 1.0, "O": 2.0}
+    opts = settings()
+    opts.max_recovery_passes = 0
+    saved = bm.pseudosection(
+        bulk, crossing_phases(), (0.0, 2e9), (600.0, 1400.0), opts
+    ).to_dict()
+    line = saved["boundaries"][0]
+    expected = dict(line)
+    line["points"] = [line["points"][0], line["points"][-1]]
+    duplicate = dict(
+        line,
+        id=len(saved["boundaries"]),
+        start_node=line["end_node"],
+        end_node=line["start_node"],
+        points=line["points"][::-1],
+        side_a=[],
+        side_b=[],
+    )
+    if ambiguous_edges == 2:
+        line["side_a"] = line["side_b"] = []
+    saved["boundaries"].append(duplicate)
+    result = bm.refine_pseudosection(bulk, crossing_phases(), saved, opts)
+    assert result.resolved, result.diagnostics
+    assert len(result.boundaries) == 4
+    retained = next(b for b in result.boundaries if b.assemblage == line["assemblage"])
+    aligned = retained.start_node == expected["start_node"]
+    assert retained.side_a == expected["side_a" if aligned else "side_b"]
+    assert retained.side_b == expected["side_b" if aligned else "side_a"]
+    geometry = bm.pseudosection_field_polygons(result)
+    assert not geometry.diagnostics
+    assert len(geometry.polygons) == 4
+    assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
 
 
 def test_resume_uses_accepted_endpoints_and_closes_truncated_fields():
