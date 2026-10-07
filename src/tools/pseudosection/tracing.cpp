@@ -2608,6 +2608,61 @@ class Tracer {
     }
     flush();
   }
+  // Resuming overlapping partial traces can complete several records of the
+  // same physical edge. Keep one polyline so chord differences do not create
+  // artificial sliver fields or inflate the number of branches at a node.
+  void reconcile_boundaries(bool transfer_labels_only = false) {
+    auto ambiguous = [](const Boundary &edge) {
+      return edge.side_a.empty() || edge.side_b.empty() ||
+             (edge.side_a == edge.side_b && !edge.is_solution_replacement);
+    };
+    std::vector<Boundary> unique;
+    for (auto &line : result.boundaries) {
+      bool duplicate = false;
+      if (line.start_node >= 0 && line.end_node >= 0)
+        for (auto &old : unique) {
+          // The early pass only merges pairs whose unresolved labels can be
+          // inherited. Other duplicates retain ordinary label recovery.
+          if (transfer_labels_only && ambiguous(line) == ambiguous(old))
+            continue;
+          bool same_sides =
+              (old.side_a == line.side_a && old.side_b == line.side_b) ||
+              (old.side_a == line.side_b && old.side_b == line.side_a);
+          bool same_ends = (old.start_node == line.start_node &&
+                            old.end_node == line.end_node) ||
+                           (old.start_node == line.end_node &&
+                            old.end_node == line.start_node);
+          bool uncertain = ambiguous(line) || ambiguous(old);
+          if ((!same_sides && !uncertain) || !same_ends ||
+              old.assemblage != line.assemblage)
+            continue;
+          if (same_curve(line, old, false, uncertain)) {
+            // An equivalent retrace can have unreliable probes near a tiny
+            // field. Transfer labels only after verifying both curves and
+            // their phase compositions, not merely their chord geometry.
+            auto &bad = ambiguous(line) ? line : old;
+            const auto &good = ambiguous(line) ? old : line;
+            if (uncertain && !ambiguous(good)) {
+              bool aligned = bad.start_node == good.start_node;
+              bad.side_a = aligned ? good.side_a : good.side_b;
+              bad.side_b = aligned ? good.side_b : good.side_a;
+              bad.is_solution_replacement = good.is_solution_replacement;
+            }
+            duplicate = true;
+            if (line.points.size() > old.points.size()) {
+              auto previous = std::move(old);
+              old = std::move(line);
+              merge_curve(old, previous);
+            } else
+              merge_curve(old, line);
+            break;
+          }
+        }
+      if (!duplicate)
+        unique.push_back(std::move(line));
+    }
+    result.boundaries = std::move(unique);
+  }
   Result finish(int verification_pass = 0) {
     separate_junctions();
     model_domain();
@@ -2700,6 +2755,7 @@ class Tracer {
         if (verified.success)
           add_sample(verified, burnman::utils::checked_int(i));
       }
+    reconcile_boundaries(true);
     for (auto &line : result.boundaries)
       if (line.side_a.empty() || line.side_b.empty() ||
           (line.side_a == line.side_b && !line.is_solution_replacement)) {
@@ -2710,56 +2766,7 @@ class Tracer {
             std::cerr << "Field-label recovery: " << error.what() << '\n';
         }
       }
-    // Resuming overlapping partial traces can complete several records of the
-    // same physical edge. Keep one polyline so chord differences do not create
-    // artificial sliver fields or inflate the number of branches at a node.
-    std::vector<Boundary> unique;
-    for (auto &line : result.boundaries) {
-      bool duplicate = false;
-      if (line.start_node >= 0 && line.end_node >= 0)
-        for (auto &old : unique) {
-          bool same_sides =
-              (old.side_a == line.side_a && old.side_b == line.side_b) ||
-              (old.side_a == line.side_b && old.side_b == line.side_a);
-          bool same_ends = (old.start_node == line.start_node &&
-                            old.end_node == line.end_node) ||
-                           (old.start_node == line.end_node &&
-                            old.end_node == line.start_node);
-          auto ambiguous = [](const Boundary &edge) {
-            return edge.side_a.empty() || edge.side_b.empty() ||
-                   (edge.side_a == edge.side_b &&
-                    !edge.is_solution_replacement);
-          };
-          bool uncertain = ambiguous(line) || ambiguous(old);
-          if ((!same_sides && !uncertain) || !same_ends ||
-              old.assemblage != line.assemblage)
-            continue;
-          if (same_curve(line, old, false, uncertain)) {
-            // An equivalent retrace can have unreliable probes near a tiny
-            // field. Transfer labels only after verifying both curves and
-            // their phase compositions, not merely their chord geometry.
-            auto &bad = ambiguous(line) ? line : old;
-            const auto &good = ambiguous(line) ? old : line;
-            if (uncertain && !ambiguous(good)) {
-              bool aligned = bad.start_node == good.start_node;
-              bad.side_a = aligned ? good.side_a : good.side_b;
-              bad.side_b = aligned ? good.side_b : good.side_a;
-              bad.is_solution_replacement = good.is_solution_replacement;
-            }
-            duplicate = true;
-            if (line.points.size() > old.points.size()) {
-              auto previous = std::move(old);
-              old = std::move(line);
-              merge_curve(old, previous);
-            } else
-              merge_curve(old, line);
-            break;
-          }
-        }
-      if (!duplicate)
-        unique.push_back(std::move(line));
-    }
-    result.boundaries = std::move(unique);
+    reconcile_boundaries();
     for (std::size_t i = 0; i < result.boundaries.size(); ++i)
       result.boundaries[i].id = burnman::utils::checked_int(i);
     result.diagnostics.clear();
