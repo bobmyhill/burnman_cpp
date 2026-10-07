@@ -55,6 +55,31 @@ def settings():
     return s
 
 
+def test_trace_phase_uses_configured_amount_tolerance_in_field_verification():
+    phases = [
+        pure("MgO", {"Mg": 1.0, "O": 1.0}),
+        pure("FeO", {"Fe": 1.0, "O": 1.0}),
+    ]
+    opts = settings()
+    opts.pressure_seeds = opts.temperature_seeds = 2
+    opts.amount_tolerance = 1.0e-9
+    result = bm.pseudosection(
+        {"Mg": 1.0, "Fe": 5.0e-8, "O": 1.00000005},
+        phases,
+        (1.0e9, 2.0e9),
+        (600.0, 800.0),
+        opts,
+    )
+    assert result.resolved, result.diagnostics
+    assert all(len(s.phases) == 2 for s in result.samples if s.success)
+    assert any(s.success and s.is_field_verification for s in result.samples)
+    geometry = bm.pseudosection_field_polygons(result)
+    assert not geometry.diagnostics
+    assert len(geometry.polygons) == 1
+    assert geometry.polygons[0].n_phases == 2
+    assert geometry.polygons[0].phases == result.fields[0].phases
+
+
 def test_two_phase_entries_between_seeds_retain_the_intermediate_field():
     """Two closely spaced precipitations must not appear as one phase line."""
     elements = ("Mg", "Fe", "Ca")

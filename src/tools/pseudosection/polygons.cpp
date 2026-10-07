@@ -681,7 +681,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
       for (auto &phase : state.phases)
         total += phase.amount;
       for (auto &phase : state.phases)
-        if (phase.amount > total * 1.e-7)
+        if (phase.amount > total * result.settings.amount_tolerance)
           phases.push_back(phase.id);
       if (phases.empty())
         continue;
