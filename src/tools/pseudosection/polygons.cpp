@@ -38,6 +38,7 @@ using detail::segment_distance;
 struct Segment {
   Point a, b;
   Phases left, right;
+  bool solution_replacement = false;
   std::vector<double> cuts{0., 1.};
 };
 
@@ -46,6 +47,7 @@ struct Edge {
   // Labels describe the region on the left when following the edge.
   Index from, to, next = no_index;
   std::set<Phases> labels{};
+  bool solution_replacement = false;
 };
 
 struct Walk {
@@ -470,7 +472,8 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     for (std::size_t i = 1; i < points.size(); ++i)
       if ((points[i] - points[i - 1]).norm() > tolerance)
         segments.push_back({points[i - 1], points[i], canonical(line.side_b),
-                            canonical(line.side_a)});
+                            canonical(line.side_a),
+                            line.is_solution_replacement});
   }
   if (close_domain) {
     std::array<Point, 5> corners{Point(0., 0.), Point(1., 0.), Point(1., 1.),
@@ -528,6 +531,9 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
         edges[index].labels.insert(segment.left);
       if (!segment.right.empty())
         edges[index ^ 1].labels.insert(segment.right);
+      if (segment.solution_replacement)
+        edges[index].solution_replacement =
+            edges[index ^ 1].solution_replacement = true;
     }
   }
   std::vector<std::vector<Index>> outgoing(vertices.points.size());
@@ -802,6 +808,10 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
         std::to_string(sample) + "; a phase boundary may be missing.");
   if (merge_fields)
     for (std::size_t i = 0; i < edges.size(); i += 2) {
+      // Coexisting compositions can switch while the phase names stay the
+      // same. Preserve this physical boundary between the two fields.
+      if (edges[i].solution_replacement)
+        continue;
       Index a = edge_faces[i], b = edge_faces[i ^ 1];
       if (a == no_index || b == no_index || a == b)
         continue;
@@ -933,8 +943,9 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     polygon.sample_index = output.polygons[seed].sample_index;
     polygons.push_back(std::move(polygon));
     for (std::size_t i = 0; i < edges.size(); i += 2)
-      if (edge_faces[i] != no_index && edge_faces[i ^ 1] != no_index &&
-          root(edge_faces[i]) == group && root(edge_faces[i ^ 1]) == group)
+      if (!edges[i].solution_replacement && edge_faces[i] != no_index &&
+          edge_faces[i ^ 1] != no_index && root(edge_faces[i]) == group &&
+          root(edge_faces[i ^ 1]) == group)
         removed[i] = removed[i ^ 1] = true;
   }
   output.polygons = std::move(polygons);

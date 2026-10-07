@@ -199,6 +199,27 @@ def test_joining_keeps_intersections_and_disconnected_boundaries_separate():
     assert all(len(path) == 3 for path in disconnected.boundary_lines)
 
 
+@pytest.mark.parametrize("closed", [False, True])
+def test_merge_preserves_a_solution_composition_replacement(closed):
+    points = square() if closed else [(0.5, 0.0), (0.5, 0.5), (0.5, 1.0)]
+    boundary = line(points, [0, 1], [0, 1])
+    data = diagram([boundary])
+    merged = bm.pseudosection_field_polygons(data)
+    assert len(merged.polygons) == 1
+    boundary["is_solution_replacement"] = True
+    preserved = bm.pseudosection_field_polygons(data)
+    assert not preserved.diagnostics
+    assert len(preserved.polygons) == 2
+    assert sorted(p.area for p in preserved.polygons) == pytest.approx(
+        [0.36, 0.64] if closed else [0.5, 0.5]
+    )
+    assert all(p.phases == [0, 1] for p in preserved.polygons)
+    check_joined_edges(preserved)
+    assert sum(len(p) - 1 for p in preserved.boundary_lines) > sum(
+        len(p) - 1 for p in merged.boundary_lines
+    )
+
+
 @pytest.mark.parametrize("amount_tolerance", [1.0e-9, 1.0e-7, 1.0e-5])
 @pytest.mark.parametrize("trace_fraction", [5.0e-8, 5.0e-6])
 @pytest.mark.parametrize("total_amount", [1.0e-6, 1.0e6])
