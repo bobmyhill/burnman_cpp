@@ -427,7 +427,7 @@ WorkState Engine::stable_at(const Eigen::Vector2d &q) {
     for (auto &state : states)
       ids.push_back(state.id);
     if (!ids.empty())
-      best = fixed_pt(ids, states, guess[0], guess[1], q);
+      best = equilibrate_phase_set(ids, states, guess[0], guess[1], q);
     if (best.state.success)
       physical_seed << best.state.pressure, best.state.temperature;
     return best.state.success;
@@ -511,9 +511,9 @@ WorkState Engine::fixed_at(const std::vector<int> &ids,
   if (!free_vectors.empty())
     set_bulk(q[1]);
   const auto physical = physical_coordinates(q);
-  auto out = fixed_pt(ids, states, physical[0], physical[1],
-                      direct_coordinates() ? std::nullopt
-                                           : std::optional<Eigen::Vector2d>(q));
+  auto out = equilibrate_phase_set(
+      ids, states, physical[0], physical[1],
+      direct_coordinates() ? std::nullopt : std::optional<Eigen::Vector2d>(q));
   if (out.state.success)
     physical_seed << out.state.pressure, out.state.temperature;
   return out;
@@ -652,6 +652,8 @@ double objective(const std::vector<double> &x, std::vector<double> &grad,
     double P = ph.material->get_pressure(), T = ph.material->get_temperature();
     const auto partial_excess_gibbs =
         m->compute_excess_partial_gibbs_free_energies(P, T, p.array());
+    // The composition-weighted partial Gibbs energies give molar excess Gibbs
+    // energy. Since p_0 = 1 - sum(p_i), each derivative is mu_i - mu_0.
     v += (p.array() * partial_excess_gibbs).sum();
     if (!grad.empty()) {
       auto mu = (d.adjusted.array() + partial_excess_gibbs).eval();
@@ -800,6 +802,8 @@ Minimum Engine::minimize_phase(const Phase &ph, const Eigen::VectorXd &mu,
   value = objective(x, empty, &data) * data.scale;
   return {p, value};
 }
+// Keep distinct local energy minima as possible coexisting compositions.
+// Try the previous composition as well as other allowed starting compositions.
 std::vector<Minimum> Engine::minima(int index, const Eigen::VectorXd &mu,
                                     const Eigen::VectorXd &start) {
   auto &ph = phases[static_cast<std::size_t>(index)];
@@ -1076,6 +1080,8 @@ Eigen::VectorXd Engine::potentials(const Assemblage &a) const {
       potential_seed.size() == static_cast<Eigen::Index>(components.size())
           ? potential_seed
           : Eigen::VectorXd::Zero(static_cast<Eigen::Index>(components.size()));
+  // The current phases may not determine every elemental chemical potential.
+  // Keep the previous estimate for combinations the equations cannot determine.
   return prior + reduced.completeOrthogonalDecomposition().solve(
                      a.get_partial_gibbs().matrix() - reduced * prior);
 }
@@ -1094,6 +1100,8 @@ double Engine::stability(const Assemblage &a, std::vector<Minimum> *output) {
                                 ph.domain_error);
   if (output)
     output->clear();
+  // Also test compositions that fill currently empty sites. An equilibrium
+  // solved with those sites held empty may miss a lower-energy composition.
   for (std::size_t i = 0; i < phases.size(); ++i) {
     auto ms = minima(burnman::utils::checked_int(i), mu);
     worst = std::min(worst, ms[0].affinity);
@@ -1147,9 +1155,9 @@ Eigen::MatrixXd Engine::composition_basis(const Material &m, int index) const {
       phases[static_cast<std::size_t>(index)].vertices.cols(),
       phases[static_cast<std::size_t>(index)].vertices.cols());
 }
-WorkState Engine::fixed_pt(const std::vector<int> &ids,
-                           const std::vector<PhaseState> &states, double p,
-                           double t, std::optional<Eigen::Vector2d> requested) {
+WorkState Engine::equilibrate_phase_set(
+    const std::vector<int> &ids, const std::vector<PhaseState> &states,
+    double p, double t, std::optional<Eigen::Vector2d> requested) {
   const double fixed_pressure = p, fixed_temperature = t;
   WorkState out;
   out.ids = ids;
@@ -1291,7 +1299,7 @@ WorkState Engine::stable(double p, double t) {
       // validate the equilibrium at exactly zero kelvin.
       auto warm = stable(p, .05);
       if (warm.state.success) {
-        auto cold = fixed_pt(warm.ids, warm.state.phases, p, t);
+        auto cold = equilibrate_phase_set(warm.ids, warm.state.phases, p, t);
         if (cold.state.success)
           return cold;
       }
@@ -1370,7 +1378,7 @@ WorkState Engine::stable(double p, double t) {
         }
       }
       potential_seed = lp.chemical_potentials;
-      return fixed_pt(ids, seeds, p, t);
+      return equilibrate_phase_set(ids, seeds, p, t);
     };
     auto add_compound = [&](int phase, const Eigen::VectorXd &composition) {
       for (const auto &old : compounds)
@@ -1379,6 +1387,9 @@ WorkState Engine::stable(double p, double t) {
       compounds.push_back({phase, composition});
       return true;
     };
+    // Add solution compositions that could lower total Gibbs energy, then
+    // repeat the linear-programming calculation. Its discrete compositions
+    // still need refinement and equilibrium checks before accepting the result.
     for (int iteration = 0; iteration < settings.max_refinement_iterations;
          ++iteration) {
       Eigen::MatrixXd a(compounds.size(), components.size());

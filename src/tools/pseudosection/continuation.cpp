@@ -36,6 +36,9 @@ Eigen::VectorXd continuation_tangent(const Engine &engine,
     return Eigen::VectorXd();
   }
   auto scales = engine.parameter_scales(a, s.x.size(), range);
+  // Row 0 fixes the phase amount or contour target; row 1 fixes the moving
+  // plane. Keep all remaining equations, including the extra fixed coordinate
+  // in X sections. Rescaling balances their sizes without changing equilibrium.
   Eigen::MatrixXd j(s.J.rows() - 1, s.J.cols());
   j.topRows(1) = s.J.topRows(1);
   j.bottomRows(s.J.rows() - 2) = s.J.bottomRows(s.J.rows() - 2);
@@ -45,14 +48,18 @@ Eigen::VectorXd continuation_tangent(const Engine &engine,
     if (norm > 0)
       j.row(k) /= norm;
   }
-  // Trace populations produce strongly separated singular values even after
-  // row scaling. Retain their coupling to P,T when using active faces.
+  // Very small phase amounts make some equation directions hard to distinguish.
+  // A tighter rank threshold retains their coupling to P,T at empty sites.
   double rank_tolerance =
       engine.settings.active_solution_faces ? 1.e-12 : 1.e-9;
   Eigen::JacobiSVD<Eigen::MatrixXd> svd(j, Eigen::ComputeFullV);
   int rank = burnman::utils::checked_int(
       (svd.singularValues().array() > rank_tolerance).count());
   Eigen::MatrixXd null = svd.matrixV().rightCols(j.cols() - rank);
+  // Count independent ways equilibrium can move in the selected diagram.
+  // Changing phase amounts can move S/V at constant P,T; other changes may
+  // leave both plotted coordinates unchanged. Exactly one direction defines a
+  // line.
   Eigen::JacobiSVD<Eigen::MatrixXd> projection(
       range.cwiseInverse().asDiagonal() *
           engine.coordinate_jacobian(a, s.x.size()) * scales.asDiagonal() *

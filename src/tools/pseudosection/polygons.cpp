@@ -29,6 +29,7 @@ namespace {
 using Point = Eigen::Vector2d;
 using Index = std::size_t;
 constexpr Index no_index = std::numeric_limits<Index>::max();
+// Rescale each diagram axis to 0..1 internally; rings repeat their first index.
 using Ring = std::vector<Index>;
 using Phases = std::vector<int>;
 using detail::cross;
@@ -41,6 +42,8 @@ struct Segment {
 };
 
 struct Edge {
+  // Store both directions consecutively; index ^ 1 reverses the direction.
+  // Labels describe the region on the left when following the edge.
   Index from, to, next = no_index;
   std::set<Phases> labels{};
 };
@@ -152,8 +155,8 @@ void intersect(Segment &first, Segment &second, double tolerance) {
         second.cuts.push_back(u);
     }
   };
-  // Repeated chords differ by roundoff. Dividing their tiny determinants can
-  // invent crossings; use coordinate precision here to retain real thin fields.
+  // Roundoff between duplicate straight segments can look like a crossing.
+  // Use floating-point precision here to preserve real thin fields.
   double roundoff =
       std::min(tolerance, 256. * std::numeric_limits<double>::epsilon());
   if (std::abs(cross(a, offset)) <= roundoff * a.norm() &&
@@ -208,8 +211,8 @@ Eigen::MatrixXd coordinates(const Ring &ring, const std::vector<Point> &points,
   return output;
 }
 
-// Branch and bound on signed distance, in the normalised domain. The label
-// remains inside concave faces and outside holes; a centroid need not do so.
+// Find an interior label point far from the edges by repeatedly subdividing
+// promising squares. A centroid can lie outside a concave region or in a hole.
 std::pair<Point, double> label_point(const Face &face,
                                      const std::vector<Point> &points,
                                      const Point *sample = nullptr) {
@@ -349,7 +352,7 @@ bool FieldPolygon::contains_rectangle(const Point &centre,
       (half_size.array() <= 0.).any())
     throw std::invalid_argument("Label rectangle must have finite coordinates "
                                 "and positive half-sizes.");
-  // Work in rectangle units: pressure and temperature can differ by many
+  // Work in rectangle units: diagram coordinates can differ by many
   // orders of magnitude. Corner inclusion alone misses concave edges/holes.
   auto ring_points = [&](const Eigen::MatrixXd &ring) {
     std::vector<Point> points;
@@ -459,8 +462,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
             "Phase-line coordinates lie outside the calculation domain.");
       point = point.cwiseMax(Point::Zero()).cwiseMin(Point::Ones());
     }
-    // Native tracing records side_b to the left in (P,T) coordinates and
-    // side_a to the right. Plot axes (T,P) reverse this winding.
+    // In selected diagram-axis order, side_b is left and side_a is right.
     for (std::size_t i = 1; i < points.size(); ++i)
       if ((points[i] - points[i - 1]).norm() > tolerance)
         segments.push_back({points[i - 1], points[i], canonical(line.side_b),
@@ -539,6 +541,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
   }
   for (std::size_t i = 0; i < edges.size(); ++i) {
     auto &list = outgoing[edges[i].to];
+    // Turn clockwise from the reversed edge to keep the region on the left.
     edges[i].next = list[(positions[i ^ 1] + list.size() - 1) % list.size()];
   }
   auto in_cycle = [&](Index edge) {
@@ -651,6 +654,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
           coordinates(ring, vertices.points, origin, scale));
       polygon.area += area(ring, vertices.points);
     }
+    // An interior point identifies regions excluded by the equation of state.
     if (!excluded.empty()) {
       auto pole = label_point(face, vertices.points);
       for (auto &region : excluded) {
