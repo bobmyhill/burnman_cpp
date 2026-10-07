@@ -192,6 +192,8 @@ def plot_pseudosection(
     Adjacent identified regions with identical assemblages are merged and
     their internal line segments removed. Set ``merge_fields=False`` to see
     the original subdivision. Disconnected regions retain separate labels.
+    Boundaries where solution compositions switch remain visible even when
+    both fields have the same assemblage names.
     Connected segments separating the same two assemblages are drawn as one
     continuous line between endpoint vertices. Junctions and separate paths
     remain distinct; the equilibrium points are retained.

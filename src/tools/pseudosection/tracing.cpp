@@ -1786,12 +1786,16 @@ class Tracer {
       // A normal probe can cross an entire thin neighbouring field. Its
       // immediate assemblage must be drawn from the phases on this boundary;
       // shrink the probe when a different boundary has already been crossed.
+      // A replacement exchanges one phase: losing another as well means the
+      // probe has crossed an additional boundary of the narrow field.
       for (auto &state : side_states)
         if (state.success) {
           auto ids = active(state);
           if (!has_composition_axis(result.section.type) &&
-              !std::includes(line.assemblage.begin(), line.assemblage.end(),
-                             ids.begin(), ids.end()))
+              (!std::includes(line.assemblage.begin(), line.assemblage.end(),
+                              ids.begin(), ids.end()) ||
+               (variance.rank() + 1 == formulae.rows() &&
+                ids.size() + 1 < line.assemblage.size())))
             state = State{};
         }
       if (side_states[0].success && side_states[1].success &&
@@ -2932,9 +2936,24 @@ class Tracer {
           add_sample(verified, burnman::utils::checked_int(i));
       }
     reconcile_boundaries(true);
+    // Older probes could skip a narrow neighbour of a solution replacement
+    // while still assigning two different labels. Recheck these saved labels
+    // even if a coarse line has only its junction states.
+    auto skipped_neighbour = [&](const Boundary &line) {
+      if (has_composition_axis(result.section.type))
+        return false;
+      const auto count = std::min(line.side_a.size(), line.side_b.size());
+      const auto copies = std::count_if(
+          line.assemblage.begin(), line.assemblage.end(), [&](int id) {
+            return id / engine.settings.max_phase_instances ==
+                   line.zero_phase / engine.settings.max_phase_instances;
+          });
+      return copies > 1 && count + 1 < line.assemblage.size();
+    };
     for (auto &line : result.boundaries)
       if (line.side_a.empty() || line.side_b.empty() ||
-          (line.side_a == line.side_b && !line.is_solution_replacement)) {
+          (line.side_a == line.side_b && !line.is_solution_replacement) ||
+          skipped_neighbour(line)) {
         try {
           label(line);
         } catch (const std::exception &error) {

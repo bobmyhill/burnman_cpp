@@ -624,6 +624,44 @@ def test_short_branch_is_labelled_between_its_two_junctions(node_tolerance):
     assert all(3 in sides for sides in [short[0].side_a, short[0].side_b])
 
 
+@pytest.mark.parametrize("clear_labels", [False, True])
+@pytest.mark.parametrize("coarse", [False, True])
+def test_pyrolite_replacement_probe_does_not_skip_the_narrow_ak_field(
+    clear_labels, coarse
+):
+    saved = json.loads(
+        (
+            Path(__file__).parent / "data" / "pyrolite_narrow_solution_replacement.json"
+        ).read_text()
+    )["previous"]
+    if not clear_labels:
+        saved["boundaries"][0]["side_a"] = [6, 27, 39, 40, 45, 60, 78]
+        saved["boundaries"][0]["side_b"] = [6, 18, 27, 39, 40, 45, 60, 78]
+    if coarse:
+        points = saved["boundaries"][0]["points"]
+        saved["boundaries"][0]["points"] = [points[0], points[-1]]
+    example = runpy.run_path(
+        str(
+            Path(__file__).parents[2] / "examples" / "example_pyrolite_pseudosection.py"
+        )
+    )
+    result = bm.refine_pseudosection(
+        saved["composition_start"],
+        example["candidate_phases"](),
+        saved,
+        resolution=(2, 2),
+    )
+    assert len(result.boundaries) == 1
+    boundary = result.boundaries[0]
+    assert boundary.is_solution_replacement
+    assert boundary.side_a == boundary.side_b == [6, 18, 27, 39, 40, 45, 60, 78]
+    # Both sides contain garnet and one ak, but on different solution branches.
+    nearby = [s for s in result.samples if s.success and len(s.phases) == 8]
+    ak = [next(p for p in s.phases if p.candidate_index == 9) for s in nearby]
+    assert any(p.composition[2] > 0.9 for p in ak)  # Corundum-rich.
+    assert any(p.composition[0] > 0.9 for p in ak)  # Mg-akimotoite-rich.
+
+
 def test_stability_selects_lower_energy_and_bulk_scaling():
     phases = crossing_phases()
     for pressure, temperature, expected in [
