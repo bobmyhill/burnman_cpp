@@ -29,7 +29,8 @@ struct Seed {
   std::vector<int> ids;
   int zero = -1, node = -1;
   std::vector<PhaseState> phases;
-  Eigen::Vector2d pt, direction;
+  // Location and direction after rescaling each diagram axis to 0..1.
+  Eigen::Vector2d position, direction;
   std::vector<BoundaryPoint> prefix{};
   int bridge_node = -1;
 };
@@ -51,8 +52,8 @@ class Tracer {
             a.get_independent_element_indices().size()) -
         static_cast<std::ptrdiff_t>(n_phases) + 2);
   }
-  Eigen::Vector2d normalise(double p, double t) const {
-    return (Eigen::Vector2d(p, t) - origin).cwiseQuotient(range);
+  Eigen::Vector2d normalise(double first, double second) const {
+    return (Eigen::Vector2d(first, second) - origin).cwiseQuotient(range);
   }
   Eigen::Vector2d normalise(const Eigen::Vector2d &q) const {
     return (q - origin).cwiseQuotient(range);
@@ -60,7 +61,8 @@ class Tracer {
   template <typename Point> Eigen::Vector2d normalise(const Point &p) const {
     return normalise(diagram_coordinates(p, result.section.type));
   }
-  Eigen::Vector2d pt(const Assemblage &a) const {
+  // Position in the selected diagram after rescaling each axis to 0..1.
+  Eigen::Vector2d normalised_coordinates(const Assemblage &a) const {
     return normalise(engine.coordinates(a));
   }
   bool inside(const Eigen::Vector2d &u, double margin = 1.e-8) const {
@@ -85,6 +87,7 @@ class Tracer {
                                                   prm),
         section(a, burnman::utils::checked_int(prm.n_parameters), u, normal));
   }
+  // Boundary constraints need instance IDs in the current assemblage order.
   std::vector<int> current_ids;
   bool valid_amount_edge(const Assemblage &a, const std::vector<int> &ids,
                          int zero) {
@@ -126,11 +129,11 @@ class Tracer {
         return false;
     return true;
   }
-  // Project the complete Jacobian null space into the selected coordinates.
-  // Amount changes can span latent S/V; invisible directions produce no line.
+  // Find equilibrium changes that move along a line in the selected diagram.
+  // Changes in phase amounts can move S/V even at constant P,T.
   Eigen::VectorXd tangent(const optim::roots::DampedNewtonResult &s,
-                          const Assemblage &a, int *pt_rank = nullptr) {
-    return continuation_tangent(engine, s, a, range, pt_rank);
+                          const Assemblage &a, int *coordinate_rank = nullptr) {
+    return continuation_tangent(engine, s, a, range, coordinate_rank);
   }
   BoundaryPoint point(const Assemblage &a, const std::vector<int> &ids,
                       const optim::roots::DampedNewtonResult &solve,
@@ -151,7 +154,7 @@ class Tracer {
   }
   bool valid(const Assemblage &a,
              const optim::roots::DampedNewtonResult &s) const {
-    return s.success && s.x.allFinite() && inside(pt(a)) &&
+    return s.success && s.x.allFinite() && inside(normalised_coordinates(a)) &&
            engine.mass_error(a) <= engine.settings.mass_balance_tolerance;
   }
   double separation(const std::vector<PhaseState> &states) const {
@@ -370,9 +373,11 @@ class Tracer {
           auto d = (b - a).eval();
           double f =
               d.squaredNorm() > 0
-                  ? std::clamp((seed.pt - a).dot(d) / d.squaredNorm(), 0., 1.)
+                  ? std::clamp((seed.position - a).dot(d) / d.squaredNorm(), 0.,
+                               1.)
                   : 0.;
-          if ((a + f * d - seed.pt).norm() < engine.settings.node_tolerance * 2)
+          if ((a + f * d - seed.position).norm() <
+              engine.settings.node_tolerance * 2)
             return true;
         }
       }
@@ -446,7 +451,7 @@ class Tracer {
   int node(Assemblage &a, const std::vector<int> &ids,
            const std::vector<int> &zero, const std::string &kind,
            const Eigen::MatrixXd *jacobian = nullptr) {
-    auto u = pt(a);
+    auto u = normalised_coordinates(a);
     for (auto &old : result.nodes)
       if ((normalise(old) - u).norm() < engine.settings.node_tolerance) {
         double distance = (normalise(old) - u).norm();
@@ -622,7 +627,7 @@ class Tracer {
           if (axis.norm() <= 1.e-8)
             for (auto &n : result.nodes)
               if (n.critical_mode.size() == axis.size() &&
-                  (normalise(n) - pt(*a)).norm() <
+                  (normalise(n) - normalised_coordinates(*a)).norm() <
                       engine.settings.node_tolerance)
                 axis = n.critical_mode * .001;
           delta = axis.norm();
@@ -735,8 +740,10 @@ class Tracer {
               if (engine.settings.verbose)
                 std::cerr << "Critical approach " << zero
                           << ", separation=" << delta * factor << ": arms "
-                          << ls.success << '/' << rs.success
-                          << ", distance=" << (pt(*left) - pt(*right)).norm()
+                          << ls.success << '/' << rs.success << ", distance="
+                          << (normalised_coordinates(*left) -
+                              normalised_coordinates(*right))
+                                 .norm()
                           << ", left constraints=" << ls.F.head<2>().transpose()
                           << ", left residual="
                           << ls.F.tail(ls.F.size() - 2).cwiseAbs().maxCoeff()
@@ -746,8 +753,9 @@ class Tracer {
                       delta * factor * .5 ||
                   separation(engine.snapshot(*right, ids)) <
                       delta * factor * .5 ||
-                  (pt(*left) - pt(*right)).norm() >
-                      engine.settings.node_tolerance)
+                  (normalised_coordinates(*left) -
+                   normalised_coordinates(*right))
+                          .norm() > engine.settings.node_tolerance)
                 continue;
               double la = engine.stability(*left),
                      ra = engine.stability(*right);
@@ -822,12 +830,16 @@ class Tracer {
             auto ns = engine.solve(*near, nc);
             if (engine.settings.verbose)
               std::cerr << "Critical adjoining arm " << other << ": "
-                        << ns.success
-                        << ", distance=" << (pt(*near) - pt(a)).norm() << '\n';
+                        << ns.success << ", distance="
+                        << (normalised_coordinates(*near) -
+                            normalised_coordinates(a))
+                               .norm()
+                        << '\n';
             if (!valid(*near, ns) ||
                 separation(engine.snapshot(*near, ids)) < delta * .5 ||
                 (!exact &&
-                 (pt(*near) - pt(a)).norm() > engine.settings.node_tolerance))
+                 (normalised_coordinates(*near) - normalised_coordinates(a))
+                         .norm() > engine.settings.node_tolerance))
               continue;
             double affinity = engine.stability(*near);
             if (affinity < -engine.settings.affinity_tolerance)
@@ -886,9 +898,13 @@ class Tracer {
               auto d = tangent(s, *trial);
               if (target >= .008 && d.size() && prefix.size() > 1) {
                 auto previous = normalise(prefix[prefix.size() - 2]);
-                Seed seed{ids,        other,
-                          -2,         engine.snapshot(*trial, ids),
-                          pt(*trial), (pt(*trial) - previous).normalized()};
+                Seed seed{
+                    ids,
+                    other,
+                    -2,
+                    engine.snapshot(*trial, ids),
+                    normalised_coordinates(*trial),
+                    (normalised_coordinates(*trial) - previous).normalized()};
                 seed.prefix = std::move(prefix);
                 seed.bridge_node = index;
                 queue.push_back(std::move(seed));
@@ -935,16 +951,16 @@ class Tracer {
       // A P-T invariant can project to a finite latent S/V edge. The tangent
       // projection below rejects any branch invisible in the chosen axes.
       if (gibbs_variance >= 0)
-        queue.push_back(
-            {ids, z, index, states, pt(a), Eigen::Vector2d::Zero()});
+        queue.push_back({ids, z, index, states, normalised_coordinates(a),
+                         Eigen::Vector2d::Zero()});
       for (int removed : ids)
         if (removed != z &&
             (reduced_amount_variance ||
              std::find(zeros.begin(), zeros.end(), removed) != zeros.end())) {
           auto subset = ids;
           subset.erase(std::find(subset.begin(), subset.end(), removed));
-          queue.push_back(
-              {subset, z, index, states, pt(a), Eigen::Vector2d::Zero()});
+          queue.push_back({subset, z, index, states, normalised_coordinates(a),
+                           Eigen::Vector2d::Zero()});
         }
     }
   }
@@ -1046,6 +1062,8 @@ class Tracer {
       queue.push_back({joined, z, -1, states, u,
                        Eigen::Vector2d(-direction[1], direction[0])});
   }
+  // Set output affinity/solution only on acceptance. A rejected trial can still
+  // change a, so preserve the last accepted assemblage before trying the solve.
   int endpoint(Assemblage &a, const std::vector<int> &ids, int z, int other,
                const Eigen::Vector2d &previous, double maximum_distance,
                double &accepted_affinity,
@@ -1077,7 +1095,7 @@ class Tracer {
         separate = distinct(a, ids);
       }
     }
-    const auto offset = (pt(a) - previous).eval();
+    const auto offset = (normalised_coordinates(a) - previous).eval();
     double displacement = offset.norm();
     if (!verified || !separate ||
         affinity < -engine.settings.affinity_tolerance ||
@@ -1110,7 +1128,7 @@ class Tracer {
               double maximum_distance, double &accepted_affinity, int &index,
               optim::roots::DampedNewtonResult &solution) {
     auto original = engine.snapshot(previous, ids);
-    auto origin_pt = pt(previous);
+    auto previous_position = normalised_coordinates(previous);
     const int base = added / engine.settings.max_phase_instances;
     struct Trial {
       std::shared_ptr<Assemblage> a;
@@ -1133,15 +1151,16 @@ class Tracer {
         engine.set_pt(trial.a->get_pressure(), trial.a->get_temperature());
         trial.minimum =
             engine.minimize(base, engine.potentials(*trial.a), entering.p);
-        trial.u = pt(*trial.a);
+        trial.u = normalised_coordinates(*trial.a);
         return true;
       } catch (const std::exception &) {
         return false;
       }
     };
     Trial left, right;
-    if (!evaluate(origin_pt, original, left) ||
-        !evaluate(pt(next), engine.snapshot(next, ids), right) ||
+    if (!evaluate(previous_position, original, left) ||
+        !evaluate(normalised_coordinates(next), engine.snapshot(next, ids),
+                  right) ||
         right.minimum.affinity >= 0.)
       return {};
     // An accepted point can have a small negative affinity within tolerance.
@@ -1152,7 +1171,7 @@ class Tracer {
       for (int k = 0; k < 12 && left.minimum.affinity < 0.; ++k) {
         Trial earlier;
         if (distance > maximum_distance ||
-            !evaluate(origin_pt - distance * unit, original, earlier))
+            !evaluate(previous_position - distance * unit, original, earlier))
           break;
         left = std::move(earlier);
         distance *= 2.;
@@ -1196,7 +1215,7 @@ class Tracer {
       auto junction = engine.make_assemblage(
           joined, states, best.a->get_pressure(), best.a->get_temperature());
       engine.set_coordinate(*junction, engine.composition_coordinate(*best.a));
-      index = endpoint(*junction, joined, zero, added, origin_pt,
+      index = endpoint(*junction, joined, zero, added, previous_position,
                        maximum_distance, accepted_affinity, &solution);
       if (index >= 0)
         return junction;
@@ -1270,7 +1289,8 @@ class Tracer {
           c = boundary_constraints(*trial, zero, where, normal);
         auto solve = engine.solve(*trial, c);
         if (!valid(*trial, solve) || !distinct(*trial, ids) ||
-            (pt(*trial) - where).norm() > engine.settings.step * 3.)
+            (normalised_coordinates(*trial) - where).norm() >
+                engine.settings.step * 3.)
           return false;
         double affinity = engine.stability(*trial, &candidates);
         if (affinity >= -engine.settings.affinity_tolerance) {
@@ -1305,7 +1325,7 @@ class Tracer {
     for (int iteration = 0; iteration < engine.settings.max_trace_steps;
          ++iteration) {
       auto old_x = solve.x;
-      auto old_u = pt(*a);
+      auto old_u = normalised_coordinates(*a);
       current_ids = ids;
       double requested = step;
       double affinity = 0.;
@@ -1320,7 +1340,8 @@ class Tracer {
         std::vector<BoundaryPoint> end;
         if (approach_critical(critical, ids, seed.zero, critical_solve, end) &&
             critical_axis.size() &&
-            (pt(*critical) - old_u).norm() <= engine.settings.step * 3.) {
+            (normalised_coordinates(*critical) - old_u).norm() <=
+                engine.settings.step * 3.) {
           points.insert(points.end(), end.begin(), end.end());
           end_node = node(*critical, ids, {seed.zero}, "critical_point",
                           &critical_solve.J);
@@ -1429,7 +1450,7 @@ class Tracer {
           next_s = engine.solve(*next, c);
           merged = !distinct(*next, ids) || !same_branch(*a, *next, ids);
           accepted = valid(*next, next_s) && !merged &&
-                     (pt(*next) - old_u).norm() <=
+                     (normalised_coordinates(*next) - old_u).norm() <=
                          std::max(used * 3, engine.settings.node_tolerance);
           failure = next_s.message;
           if (accepted)
@@ -1559,7 +1580,7 @@ class Tracer {
         }
         continue;
       }
-      auto u = pt(*next);
+      auto u = normalised_coordinates(*next);
       travelled += (u - old_u).norm();
       points.push_back(point(*next, ids, next_s, affinity));
       if (border_axis >= 0) {
@@ -1571,13 +1592,14 @@ class Tracer {
       // return segment, consistent compositions and an aligned outgoing
       // tangent.
       auto displacement = (u - old_u).eval();
-      double projection = (displacement.squaredNorm() != 0.)
-                              ? std::clamp((seed.pt - old_u).dot(displacement) /
-                                               displacement.squaredNorm(),
-                                           0., 1.)
-                              : 0.;
+      double projection =
+          (displacement.squaredNorm() != 0.)
+              ? std::clamp((seed.position - old_u).dot(displacement) /
+                               displacement.squaredNorm(),
+                           0., 1.)
+              : 0.;
       bool return_segment =
-          (old_u + projection * displacement - seed.pt).norm() <
+          (old_u + projection * displacement - seed.position).norm() <
           engine.settings.node_tolerance;
       bool same_compositions = true;
       auto now = engine.snapshot(*next, ids);
@@ -1657,7 +1679,7 @@ class Tracer {
     BoundaryPoint anchor;
     if (valid(*anchor_a, anchor_solve) &&
         distinct(*anchor_a, line.assemblage)) {
-      centre = pt(*anchor_a);
+      centre = normalised_coordinates(*anchor_a);
       anchor = point(*anchor_a, line.assemblage, anchor_solve,
                      engine.stability(*anchor_a));
     } else {
@@ -1856,7 +1878,8 @@ class Tracer {
           auto c = boundary_constraints(*a, two.zero_phase, u, normal);
           auto s = engine.solve(*a, c);
           if (!valid(*a, s) || !distinct(*a, two.assemblage) ||
-              (pt(*a) - u).norm() > engine.settings.node_tolerance)
+              (normalised_coordinates(*a) - u).norm() >
+                  engine.settings.node_tolerance)
             return false;
           auto states = engine.snapshot(*a, two.assemblage);
           for (auto &ph : states) {
@@ -1917,7 +1940,7 @@ class Tracer {
       return;
     current_ids = seed.ids;
     try {
-      auto actual = (origin + seed.pt.cwiseProduct(range)).eval();
+      auto actual = (origin + seed.position.cwiseProduct(range)).eval();
       std::vector<Eigen::Vector2d> normals;
       if (seed.direction.norm() > 0)
         normals.push_back(seed.direction);
@@ -1936,21 +1959,23 @@ class Tracer {
           a = engine.make_at(seed.ids, seed.phases, actual);
           if (!valid_amount_edge(*a, seed.ids, seed.zero))
             return;
-          auto c = boundary_constraints(*a, seed.zero, seed.pt, normal);
+          auto c = boundary_constraints(*a, seed.zero, seed.position, normal);
           s = engine.solve(*a, c);
           if (!valid(*a, s) || !distinct(*a, seed.ids) ||
               (seed.node >= 0 &&
-               (pt(*a) - seed.pt).norm() > engine.settings.node_tolerance))
+               (normalised_coordinates(*a) - seed.position).norm() >
+                   engine.settings.node_tolerance))
             continue;
           std::vector<Minimum> minima;
           affinity = engine.stability(*a, &minima);
           if (affinity < -engine.settings.affinity_tolerance)
-            refit_composition_faces(a, seed.ids, seed.zero, seed.pt, normal, s,
-                                    affinity, &minima);
+            refit_composition_faces(a, seed.ids, seed.zero, seed.position,
+                                    normal, s, affinity, &minima);
           if (affinity < -engine.settings.affinity_tolerance)
             continue;
           if (seed.node >= 0 &&
-              (pt(*a) - seed.pt).norm() > engine.settings.node_tolerance)
+              (normalised_coordinates(*a) - seed.position).norm() >
+                  engine.settings.node_tolerance)
             continue;
           d = tangent(s, *a);
           if (!d.size())
@@ -1977,7 +2002,7 @@ class Tracer {
         return;
       }
       Seed corrected = seed;
-      corrected.pt = pt(*a);
+      corrected.position = normalised_coordinates(*a);
       corrected.phases = engine.snapshot(*a, seed.ids);
       if (covered(corrected))
         return;
@@ -1987,7 +2012,7 @@ class Tracer {
       if (separation(corrected.phases) < .002)
         for (const auto &n : result.nodes)
           if (n.kind == "critical_point" &&
-              (normalise(n) - corrected.pt).norm() <
+              (normalise(n) - corrected.position).norm() <
                   engine.settings.node_tolerance * 2.)
             return;
       Boundary line;
@@ -2229,7 +2254,7 @@ class Tracer {
                       line.zero_phase,
                       -2,
                       engine.snapshot(*a, line.assemblage),
-                      pt(*a),
+                      normalised_coordinates(*a),
                       along};
             int end = -1;
             std::string ended;
@@ -2297,8 +2322,10 @@ class Tracer {
                                         (right - left).normalized());
           auto s = engine.solve(*a, c);
           if (!valid(*a, s) || !distinct(*a, line.assemblage) ||
-              (pt(*a) - middle).norm() > (right - left).norm() ||
-              segment_distance(pt(*a), left, right) <= 1.e-8)
+              (normalised_coordinates(*a) - middle).norm() >
+                  (right - left).norm() ||
+              segment_distance(normalised_coordinates(*a), left, right) <=
+                  1.e-8)
             continue;
           double affinity = engine.stability(*a);
           if (affinity < -engine.settings.affinity_tolerance)
@@ -2358,6 +2385,8 @@ class Tracer {
     }
     return changed;
   }
+  // Try phase compositions from nearby successful solves. Usually accept the
+  // first that passes all checks; compare=true selects the lowest Gibbs energy.
   State field_state(const Eigen::Vector2d &location, bool compare = false) {
     State best;
     std::vector<std::pair<double, std::size_t>> nearby;
@@ -2392,8 +2421,8 @@ class Tracer {
       return best;
     return engine.stable_at(location).state;
   }
-  bool model_excluded(double pressure, double temperature) const {
-    Eigen::Vector2d p = normalise(pressure, temperature);
+  bool model_excluded(double first, double second) const {
+    Eigen::Vector2d p = normalise(first, second);
     for (auto &region : result.excluded_regions) {
       bool inside = false;
       for (int i = 1; i < region.rows(); ++i) {
@@ -2766,9 +2795,11 @@ class Tracer {
             std::cerr << "Field-label recovery: " << error.what() << '\n';
         }
       }
+    // Short duplicates may become verifiable only after recovering side labels.
     reconcile_boundaries();
     for (std::size_t i = 0; i < result.boundaries.size(); ++i)
       result.boundaries[i].id = burnman::utils::checked_int(i);
+    // Rebuild from surviving records; earlier failures may now be recovered.
     result.diagnostics.clear();
     for (auto &n : result.nodes)
       n.incident_lines.clear();

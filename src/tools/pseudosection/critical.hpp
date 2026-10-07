@@ -18,11 +18,11 @@
 #include <cmath>
 
 namespace burnman::pseudosections::detail {
-// Replacing the coalescing copies by one solution removes the trivial
-// identical-copy root. Its restricted Gibbs curvature and third directional
-// derivative vanish at an ordinary critical point, supplying equilibrate's
-// two P,T constraints without differencing nearly identical chemical
-// potentials.
+// At an ordinary critical point, two coexisting solution compositions merge.
+// Use one copy to avoid a meaningless solution with two identical copies.
+// Along the merging direction, the second and third derivatives of Gibbs
+// energy must both vanish; these provide the two constraints locating the
+// point.
 class CriticalConstraint : public EqualityConstraint {
   std::shared_ptr<const solution_models::SolutionModel> model;
   Eigen::MatrixXd basis;
@@ -93,6 +93,9 @@ public:
                             ->get_molar_fractions()
                             .matrix();
     Eigen::MatrixXd occupancies = model->get_endmember_occupancies().matrix();
+    // Composition changes must preserve sum(p)=1 and keep empty sites empty
+    // along the merging direction. Ordering models may have negative endmember
+    // coefficients, so site contents supply the physical bounds.
     std::vector<Eigen::VectorXd> rows{Eigen::VectorXd::Ones(p.size())};
     for (int i = 0; i < occupancies.cols(); ++i)
       if (std::abs(p.dot(occupancies.col(i))) < 1.e-9 &&
@@ -118,6 +121,10 @@ public:
     auto [eigenvalue, mode] = curvature(x[0], x[1], p);
     return (third ? third_derivative(x[0], x[1], p, mode) : eigenvalue) / 1.e4;
   }
+  // Use small changes to calculate derivatives of the critical-point
+  // conditions. The merging direction also changes with P,T and composition;
+  // keep its sign consistent with reference so it does not reverse between
+  // evaluations.
   Eigen::VectorXd derivative(const Eigen::VectorXd &x, const Assemblage &a,
                              Eigen::Index size) const override {
     Eigen::VectorXd result = Eigen::VectorXd::Zero(size);

@@ -35,6 +35,7 @@ class Contours {
   V2 origin, range;
   std::array<Coordinate, 2> axes;
   FieldPolygon field;
+  // Closed rings after rescaling each diagram axis to 0..1, exterior first.
   std::vector<Eigen::MatrixXd> rings;
   std::vector<int> ids;
   std::unique_ptr<EqualityConstraint> constraint;
@@ -92,6 +93,7 @@ class Contours {
     return continuation_plane(engine, a, n, q, normal.cwiseQuotient(range));
   }
   TraceState solve(const Assemblage &initial, ConstraintList c) {
+    // Keep the accepted warm state intact when a trial corrector fails.
     TraceState state{engine.copy_assemblage(initial), {}};
     try {
       state.solve = engine.solve(*state.a, c);
