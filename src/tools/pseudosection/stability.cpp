@@ -1150,6 +1150,7 @@ Eigen::MatrixXd Engine::composition_basis(const Material &m, int index) const {
 WorkState Engine::fixed_pt(const std::vector<int> &ids,
                            const std::vector<PhaseState> &states, double p,
                            double t, std::optional<Eigen::Vector2d> requested) {
+  const double fixed_pressure = p, fixed_temperature = t;
   WorkState out;
   out.ids = ids;
   out.state.pressure = p;
@@ -1158,10 +1159,12 @@ WorkState Engine::fixed_pt(const std::vector<int> &ids,
     out.assemblage = make_assemblage(ids, states, p, t);
     optim::roots::DampedNewtonResult sol;
     for (std::size_t pass = 0; pass < ids.size(); ++pass) {
-      auto c = requested
-                   ? state_constraints(*requested)
-                   : constraints(std::make_unique<PressureConstraint>(p),
-                                 std::make_unique<TemperatureConstraint>(t));
+      auto c =
+          requested
+              ? state_constraints(*requested)
+              : constraints(
+                    std::make_unique<PressureConstraint>(fixed_pressure),
+                    std::make_unique<TemperatureConstraint>(fixed_temperature));
       sol = solve(*out.assemblage, c, false);
       record_coordinates(out.state, *out.assemblage);
       p = out.state.pressure;
