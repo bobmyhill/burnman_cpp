@@ -650,11 +650,11 @@ double objective(const std::vector<double> &x, std::vector<double> &grad,
   if (ph.solution) {
     auto m = ph.solution->get_solution_model();
     double P = ph.material->get_pressure(), T = ph.material->get_temperature();
-    v += m->compute_excess_gibbs_free_energy(P, T, p.array());
+    const auto partial_excess_gibbs =
+        m->compute_excess_partial_gibbs_free_energies(P, T, p.array());
+    v += (p.array() * partial_excess_gibbs).sum();
     if (!grad.empty()) {
-      auto mu = (d.adjusted.array() +
-                 m->compute_excess_partial_gibbs_free_energies(P, T, p.array()))
-                    .eval();
+      auto mu = (d.adjusted.array() + partial_excess_gibbs).eval();
       for (std::size_t i = 0; i < x.size(); ++i)
         grad[i] = (mu[static_cast<Eigen::Index>(i + 1)] - mu[0]) / d.scale;
     }
