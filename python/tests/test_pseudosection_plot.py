@@ -40,6 +40,27 @@ def square(low=0.2, high=0.8):
     return [(low, low), (high, low), (high, high), (low, high), (low, low)]
 
 
+@pytest.mark.parametrize("amount_tolerance", [1.0e-9, 1.0e-7, 1.0e-5])
+@pytest.mark.parametrize("trace_fraction", [5.0e-8, 5.0e-6])
+@pytest.mark.parametrize("total_amount", [1.0e-6, 1.0e6])
+def test_field_counts_use_configured_relative_amount_tolerance(
+    amount_tolerance, trace_fraction, total_amount
+):
+    interior = sample(0.5, 0.5, [0, 1])
+    interior["phases"][0]["amount"] = total_amount * (1.0 - trace_fraction)
+    interior["phases"][1]["amount"] = total_amount * trace_fraction
+    data = diagram([], [interior])
+    data["settings"] = dict(amount_tolerance=amount_tolerance)
+    geometry = bm.pseudosection_field_polygons(data)
+    assert not geometry.diagnostics
+    assert len(geometry.polygons) == 1
+    expected = [0, 1] if trace_fraction > amount_tolerance else [0]
+    polygon = geometry.polygons[0]
+    assert polygon.phases == expected
+    assert polygon.n_phases == len(expected)
+    assert polygon.area == pytest.approx(1.0)
+
+
 def test_closed_loop_and_surrounding_field_preserve_hole():
     result = bm.pseudosection_field_polygons(
         diagram(
