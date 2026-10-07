@@ -127,6 +127,20 @@ TEST_CASE("Native pseudosection resume retains calculation settings",
     area += field.area;
   }
   CHECK_THAT(area, Catch::Matchers::WithinAbs(1., 1.e-12));
+  auto refined = ps::refine_pseudosection(bulk, phases, result,
+                                          ps::LineResolution{{21, 17}});
+  REQUIRE(refined.resolved);
+  REQUIRE(refined.boundaries.size() == 3);
+  for (const auto &line : refined.boundaries)
+    for (std::size_t i = 1; i < line.points.size(); ++i) {
+      CHECK(std::abs(line.points[i].pressure - line.points[i - 1].pressure) <=
+            (result.pressure_range[1] - result.pressure_range[0]) / 20.);
+      CHECK(std::abs(line.points[i].temperature -
+                     line.points[i - 1].temperature) <=
+            (result.temperature_range[1] - result.temperature_range[0]) / 16.);
+      CHECK(line.points[i].mass_balance_error < 1.e-8);
+      CHECK(line.points[i].minimum_affinity >= -settings.affinity_tolerance);
+    }
 }
 
 TEST_CASE("Invalid continuation phase amounts are recoverable",

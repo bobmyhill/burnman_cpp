@@ -395,7 +395,12 @@ def test_label_recovery_still_merges_duplicate_two_point_boundaries(ambiguous_ed
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
 
 
-def test_resume_uses_accepted_endpoints_and_closes_truncated_fields():
+@pytest.mark.parametrize(
+    "resolution, saved_resolved", [(None, False), ((17, 21), False), ((17, 21), True)]
+)
+def test_resume_uses_accepted_endpoints_and_closes_truncated_fields(
+    resolution, saved_resolved
+):
     s = settings()
     s.max_trace_steps = 2
     s.max_recovery_passes = 0
@@ -410,7 +415,11 @@ def test_resume_uses_accepted_endpoints_and_closes_truncated_fields():
             assert line.end_node == -1
     s.max_trace_steps = 500
     s.max_recovery_passes = 1
-    resumed = bm.refine_pseudosection(bulk, crossing_phases(), result, s)
+    previous = result.to_dict()
+    previous["resolved"] = saved_resolved
+    resumed = bm.refine_pseudosection(
+        bulk, crossing_phases(), previous, s, resolution=resolution
+    )
     assert resumed.resolved, resumed.diagnostics
     assert len(resumed.boundaries) == 4
     assert (

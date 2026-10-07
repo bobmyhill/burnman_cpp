@@ -790,7 +790,9 @@ void bind_pseudosection(py::module_ &m) {
       "refine_pseudosection",
       [](const types::FormulaMap &bulk,
          const std::vector<std::shared_ptr<Material>> &phases,
-         py::object previous, py::object settings) {
+         py::object previous, py::object settings,
+         const std::optional<std::array<int, 2>> &resolution,
+         bool reciprocal_volume) {
         Result saved;
         if (py::isinstance<Result>(previous))
           saved = previous.cast<Result>();
@@ -801,15 +803,21 @@ void bind_pseudosection(py::module_ &m) {
                                "JSON dictionary.");
         auto opts =
             settings.is_none() ? saved.settings : settings.cast<Settings>();
+        std::optional<LineResolution> line_resolution;
+        if (resolution)
+          line_resolution = LineResolution{*resolution, reciprocal_volume};
         py::gil_scoped_release release;
-        return refine_pseudosection(bulk, phases, saved, opts);
+        return refine_pseudosection(bulk, phases, saved, opts, line_resolution);
       },
       py::arg("composition"), py::arg("phases"), py::arg("previous"),
-      py::arg("settings") = py::none(),
+      py::arg("settings") = py::none(), py::kw_only(),
+      py::arg("resolution") = py::none(), py::arg("reciprocal_volume") = false,
       "Resume unfinished phase lines from saved accepted states, using the "
       "same bulk and candidate models. Omitted settings reuse the saved "
       "calculation settings, including its EOS policy. All continuation runs "
-      "in C++.");
+      "in C++. Optional resolution gives axis point counts in native axis "
+      "order: "
+      "101 means 100 divisions. reciprocal_volume divides density uniformly.");
   m.def("water_fluid", py::overload_cast<>(&minerals::water_fluid));
 }
 } // namespace burnman::python
