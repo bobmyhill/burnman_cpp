@@ -42,9 +42,13 @@ double reaction_bragg_williams_gsl_wrapper(double Q, void *p) {
          (2.0 * Q - 1.0) * params->W;
 }
 
-double order_gibbs(double pressure, double temperature,
-                   excesses::BraggWilliamsParams params, double f_0,
-                   double f_1) {
+struct OrderedState {
+  double Q, G, entropy;
+};
+
+OrderedState order_gibbs(double pressure, double temperature,
+                         excesses::BraggWilliamsParams params, double f_0,
+                         double f_1) {
   double W = params.Wh + pressure * params.Wv;
   double H_disord = params.deltaH + pressure * params.deltaV;
 
@@ -77,8 +81,7 @@ double order_gibbs(double pressure, double temperature,
       (params.n + 1);
 
   double G = (1.0 - Q) * H_disord + (1.0 - Q) * Q * W - temperature * S;
-  // Ignoring Q for now...
-  return G;
+  return {Q, G, S};
 }
 } // namespace
 
@@ -248,30 +251,28 @@ Excesses compute_excesses(double pressure, double temperature,
     f_0 = 1;
     f_1 = -params.factor;
   }
-  double dT = 0.1;
-  double dP = 1000.0;
-  double G = order_gibbs(pressure, temperature, params, f_0, f_1);
-  double GsubPsubT =
-      order_gibbs(pressure - dP, temperature - dT, params, f_0, f_1);
-  double GsubPaddT =
-      order_gibbs(pressure - dP, temperature + dT, params, f_0, f_1);
-  double GaddPsubT =
-      order_gibbs(pressure + dP, temperature - dT, params, f_0, f_1);
-  double GaddPaddT =
-      order_gibbs(pressure + dP, temperature + dT, params, f_0, f_1);
-  double GsubP = order_gibbs(pressure - dP, temperature, params, f_0, f_1);
-  double GaddP = order_gibbs(pressure + dP, temperature, params, f_0, f_1);
-  double GsubT = order_gibbs(pressure, temperature - dT, params, f_0, f_1);
-  double GaddT = order_gibbs(pressure, temperature + dT, params, f_0, f_1);
-  double dGdT = (GaddT - GsubT) / (2.0 * dT);
-  double dGdP = (GaddP - GsubP) / (2.0 * dP);
-  double d2GdT2 = (GaddT + GsubT - 2.0 * G) / (dT * dT);
-  double d2GdP2 = (GaddP + GsubP - 2.0 * G) / (dP * dP);
-  double d2GdPdT =
-      (GaddPaddT - GsubPaddT - GaddPsubT + GsubPsubT) / (4.0 * dT * dP);
-  Excesses bw_ex{G, dGdT, dGdP, d2GdT2, d2GdP2, d2GdPdT};
-  // No Q return
-  return bw_ex;
+  const auto [Q, G, S] = order_gibbs(pressure, temperature, params, f_0, f_1);
+  double dGdP = (1.0 - Q) * (params.deltaV + Q * params.Wv);
+  // At equilibrium G_Q=0, so Q_i=-G_iQ/G_QQ. G is linear in P and T
+  // at fixed Q, so its relaxed curvature is G_ij=-G_iQ*G_jQ/G_QQ.
+  // Here i,j are P or T; the partials treat Q as an independent variable.
+  // On the disordered Q=0 branch G is linear in P and T.
+  double d2GdT2 = 0.0, d2GdP2 = 0.0, d2GdPdT = 0.0;
+  if (Q > 0.0) {
+    double d2GdPdQ = -params.deltaV + (1.0 - 2.0 * Q) * params.Wv;
+    double d2GdTdQ =
+        -constants::physics::gas_constant * flnarxn(params.n, Q, f_0, f_1);
+    double d2GdQ2 =
+        constants::physics::gas_constant * temperature * params.n /
+            (params.n + 1.0) *
+            ((f_0 + f_1) / (1.0 - Q) + f_0 * params.n / (1.0 + params.n * Q) +
+             f_1 / (params.n + Q)) -
+        2.0 * (params.Wh + pressure * params.Wv);
+    d2GdT2 = -d2GdTdQ * d2GdTdQ / d2GdQ2;
+    d2GdP2 = -d2GdPdQ * d2GdPdQ / d2GdQ2;
+    d2GdPdT = -d2GdPdQ * d2GdTdQ / d2GdQ2;
+  }
+  return {G, -S, dGdP, d2GdT2, d2GdP2, d2GdPdT};
 }
 
 Excesses compute_excesses(double pressure, double temperature,

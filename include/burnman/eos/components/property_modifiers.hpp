@@ -143,6 +143,7 @@ Excesses compute_excesses(double pressure, double temperature,
  * properties of a mineral endmember.
  * Used for modelling order-disorder processes.
  * Expressions are from Holland and Powell (1996).
+ * Derivatives follow analytically from G_Q=0 at equilibrium.
  *
  * N.B. The excesses are for a *completely relaxed* mineral; i.e. the
  * seismic wave propagation is *slow* compared to the rate of reaction.
