@@ -651,19 +651,21 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
           coordinates(ring, vertices.points, origin, scale));
       polygon.area += area(ring, vertices.points);
     }
-    auto pole = label_point(face, vertices.points);
-    for (auto &region : excluded) {
-      Ring ring;
-      for (std::size_t i = 0; i < region.size(); ++i)
-        ring.push_back(i);
-      if (contains(ring, region, pole.first, 0.) == 1)
-        polygon.outside_model_domain = true;
-    }
-    if (polygon.outside_model_domain) {
-      polygon.label_position = origin + pole.first.cwiseProduct(scale);
-      polygon.label_clearance = pole.second;
-      output.polygons.push_back(std::move(polygon));
-      continue;
+    if (!excluded.empty()) {
+      auto pole = label_point(face, vertices.points);
+      for (auto &region : excluded) {
+        Ring ring;
+        for (std::size_t i = 0; i < region.size(); ++i)
+          ring.push_back(i);
+        if (contains(ring, region, pole.first, 0.) == 1)
+          polygon.outside_model_domain = true;
+      }
+      if (polygon.outside_model_domain) {
+        polygon.label_position = origin + pole.first.cwiseProduct(scale);
+        polygon.label_clearance = pole.second;
+        output.polygons.push_back(std::move(polygon));
+        continue;
+      }
     }
     Point low = vertices.points[face.exterior[0]], high = low;
     for (Index vertex : face.exterior) {
