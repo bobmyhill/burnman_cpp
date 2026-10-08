@@ -21,6 +21,8 @@ second candidate: it duplicates pl4tr's thermodynamic model.
 Calculations start at 1 bar to avoid the fluid singularity at zero pressure;
 figures display 0–20 kbar. Increase --seeds to check narrow/disconnected fields.
 --refine-json resumes unfinished lines from accepted native equilibrium states.
+With --refine-json, --resolution NX NY also subdivides phase lines using verified
+equilibria; finer chords can resolve fields narrower than the saved line spacing.
 """
 
 import argparse
@@ -68,13 +70,17 @@ def calculate(seeds=7, quick=False, verbose=False):
     )
 
 
-def refine(source, verbose=False):
-    """Continue saved unfinished lines using their last successful states."""
+def refine(source, verbose=False, resolution=None):
+    """Resume saved phase lines and optionally refine their point spacing."""
     data = bm.load_pseudosection(source)
     settings = bm.PseudosectionResult.from_dict(data).settings
     settings.verbose = verbose
     return bm.refine_pseudosection(
-        METASEDIMENT_COMPOSITION.atomic_composition, candidate_phases(), data, settings
+        METASEDIMENT_COMPOSITION.atomic_composition,
+        candidate_phases(),
+        data,
+        settings,
+        resolution=resolution,
     )
 
 
@@ -167,12 +173,27 @@ def main():
     parser.add_argument(
         "--output-dir", type=Path, default=Path("metasediment_pseudosection_output")
     )
+    parser.add_argument(
+        "--resolution",
+        type=int,
+        nargs=2,
+        metavar=("NX", "NY"),
+        help=(
+            "With --refine-json, refine phase lines to these "
+            "temperature/pressure axis point counts."
+        ),
+    )
     args = parser.parse_args()
+    if args.resolution is not None:
+        if args.refine_json is None:
+            parser.error("--resolution requires --refine-json.")
+        if any(count < 2 for count in args.resolution):
+            parser.error("--resolution counts must be at least 2.")
     if args.plot_json:
         plot_saved_json(args.plot_json, args.output_dir, args.label_fontsize)
         return
     result = (
-        refine(args.refine_json, args.verbose)
+        refine(args.refine_json, args.verbose, args.resolution)
         if args.refine_json
         else calculate(args.seeds, args.quick, args.verbose)
     )

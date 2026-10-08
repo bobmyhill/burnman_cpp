@@ -91,6 +91,48 @@ def test_ellipse_finds_and_closes_an_interior_loop(simple_diagram):
         ) == pytest.approx(1.0, abs=1.0e-8)
 
 
+@pytest.mark.parametrize(
+    "centreline",
+    [
+        [(0.0, 0.05), (1.0, 0.95)],
+        [(0.0, 0.05), (0.4, 0.25), (0.5, 0.5), (0.6, 0.75), (1.0, 0.95)],
+    ],
+    ids=["slanted", "bent"],
+)
+def test_contours_find_crossings_along_thin_fields(simple_diagram, centreline):
+    source, phase = simple_diagram
+    saved = source.to_dict()
+    before = json.dumps(saved, sort_keys=True)
+    origin = np.array([source.pressure_range[0], source.temperature_range[0]])
+    span = np.array([np.ptp(source.pressure_range), np.ptp(source.temperature_range)])
+    centreline = np.asarray(centreline)
+    half_width = 0.002
+    lower = centreline - [0, half_width]
+    upper = centreline + [0, half_width]
+    # Two excluded regions leave a thin corridor through the verified state.
+    # Its bend forces the longitudinal seed path to stay inside the polygon.
+    saved["excluded_regions"] = [
+        (origin + span * np.vstack(([0, 0], [1, 0], lower[::-1], [0, 0]))).tolist(),
+        (origin + span * np.vstack(([0, 1], upper, [1, 1], [0, 1]))).tolist(),
+    ]
+    target = origin[1] + 0.35 * span[1]
+    contours = bm.pseudosection_contours(
+        saved, [phase], bm.TemperatureConstraint(target)
+    )
+    assert contours.resolved, contours.diagnostics
+    assert len(contours.lines) == 1
+    assert contours.lines[0].termination == "field boundary; field boundary"
+    assert contours.equilibrium_solves < 150
+    for point in contours.lines[0].points:
+        x, y = (np.array([point.pressure, point.temperature]) - origin) / span
+        assert point.temperature == pytest.approx(target, abs=1.0e-6)
+        assert abs(y - np.interp(x, centreline[:, 0], centreline[:, 1])) <= (
+            half_width + 1.0e-8
+        )
+        assert point.mass_balance_error < 1.0e-9
+    assert json.dumps(source.to_dict(), sort_keys=True) == before
+
+
 def test_contours_stop_at_saved_phase_fields_and_factories_can_skip():
     options = bm.PseudosectionSettings()
     options.pressure_seeds = options.temperature_seeds = 3
@@ -363,6 +405,44 @@ def test_separate_contour_plotter_inherits_units_and_accepts_json(units):
     with pytest.raises(ValueError, match="must match"):
         bm.plot_pseudosection_contours(result, contours, ax, temperature_unit="K")
     plt.close(fig)
+
+
+def test_contours_reject_unstable_solution_ordering_roots():
+    from burnman_cpp.minerals import model_sets
+
+    # Plotted field 117 has a second reaction root with unstable ilmenite
+    # ordering. Both roots satisfy the contour and mass-balance equations.
+    diagram = json.loads(
+        (
+            Path(__file__).parent / "data/metasediment_contour_ordering_field.json"
+        ).read_text()
+    )
+    factory = bm.PhaseCompositionConstraint.for_diagram(
+        diagram, "g", ["Mgx_A", "Fex_A"], [1.0, 0.0], [1.0, 1.0], 0.2
+    )
+    contours = bm.pseudosection_contours(
+        diagram, model_sets.metapelite().phases, factory
+    )
+    assert contours.resolved, contours.diagnostics
+    assert len(contours.lines) == 1
+    line = contours.lines[0]
+    assert line.termination == "field boundary; field boundary"
+    assert all(p.residual < 1.0e-8 for p in line.points)
+    assert all(p.mass_balance_error < 1.0e-8 for p in line.points)
+    point = line.points[len(line.points) // 2]
+    stable = bm.stable_equilibrium(
+        diagram["composition_start"],
+        model_sets.metapelite().phases,
+        point.pressure,
+        point.temperature,
+    )
+    assert stable.success, stable.message
+    for phase in point.phases:
+        expected = next(p for p in stable.phases if p.id == phase.id)
+        np.testing.assert_allclose(
+            phase.composition, expected.composition, rtol=1.0e-6, atol=1.0e-8
+        )
+        assert phase.amount == pytest.approx(expected.amount, abs=1.0e-8)
 
 
 def test_metasediment_example_uses_volume_and_ferrous_garnet_constraints(monkeypatch):
