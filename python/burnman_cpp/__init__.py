@@ -250,8 +250,10 @@ from .tools.pseudosection import (
     plot_pseudosection_contours,
     refine_pseudosection,
 )
+from .tools.contours import pseudosection_contour_levels
 
 __all__ += [
+    "pseudosection_contour_levels",
     "pseudosection",
     "pseudosection_contours",
     "PseudosectionContourSettings",

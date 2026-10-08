@@ -25,6 +25,89 @@ def sections(example):
     return example["calculate"](quick=True)
 
 
+@pytest.fixture(scope="module")
+def contours(example, sections):
+    saved = {name: section.to_dict() for name, section in sections.items()}
+    result = example["calculate_contours"](saved)
+    assert saved == {name: section.to_dict() for name, section in sections.items()}
+    return result
+
+
+@pytest.mark.parametrize("diagram", ["PT", "PS", "TV", "SV"])
+def test_forsterite_contours_satisfy_targets_and_additive_properties(
+    example, contours, diagram
+):
+    minerals = example["candidate_phases"]()
+    for name, records in contours[diagram].items():
+        for record in records:
+            result = record["contours"]
+            assert result["resolved"], result["diagnostics"]
+            assert not result["diagnostics"]
+            for line in result["lines"]:
+                for point in line["points"]:
+                    totals = dict(S=0.0, V=0.0)
+                    for phase in point["phases"]:
+                        mineral = minerals[phase["candidate_index"]]
+                        mineral.set_state(point["pressure"], point["temperature"])
+                        totals["S"] += phase["amount"] * mineral.molar_entropy
+                        totals["V"] += phase["amount"] * mineral.molar_volume
+                    assert point["mass_balance_error"] < 1.0e-9
+                    assert point["entropy"] == pytest.approx(totals["S"], abs=1.0e-7)
+                    assert point["volume"] == pytest.approx(totals["V"], abs=1.0e-15)
+                    value = dict(P=point["pressure"], T=point["temperature"], **totals)[
+                        name
+                    ]
+                    tolerance = dict(P=1.0, T=1.0e-6, S=1.0e-6, V=1.0e-15)[name]
+                    assert value == pytest.approx(
+                        record["value"], abs=tolerance, rel=0.0
+                    )
+        assert any(record["contours"]["lines"] for record in records)
+    if diagram != "PT":
+        assert any(
+            len(line["phases"]) == 3
+            for records in contours[diagram].values()
+            for record in records
+            for line in record["contours"]["lines"]
+        )
+
+
+@pytest.mark.parametrize("normalized", [False, True])
+def test_forsterite_contour_labels_use_display_units_and_one_fontsize(
+    sections, contours, example, tmp_path, normalized
+):
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import to_rgba
+
+    fig, axes = example["plot"](
+        sections,
+        tmp_path,
+        label_fontsize=6.0,
+        contours=contours,
+        volume_unit="kg/m3" if normalized else "cm3",
+        entropy_unit="kB/atom" if normalized else "J/K",
+    )
+    expected_s = [
+        f"{record['value'] / (example['ENTROPY_SCALE'] if normalized else 1.0):.3g}"
+        for record in contours["PT"]["S"]
+    ]
+    expected_v = (
+        "4200" if normalized else f"{example['BULK_MASS'] / 4200.0 * 1.0e6:.3g}"
+    )
+    for ax in axes.flat:
+        assert all(text.get_fontsize() == 6.0 for text in ax.texts)
+        assert all(text.get_fontsize() == 6.0 for text in ax.get_legend().get_texts())
+    entropy_labels = [
+        t.get_text()
+        for t in axes[0, 0].texts
+        if to_rgba(t.get_color()) == to_rgba("red")
+    ]
+    assert entropy_labels and set(entropy_labels) <= set(expected_s)
+    assert expected_v in [t.get_text() for t in axes[0, 0].texts]
+    assert "23.4" in [t.get_text() for t in axes[1, 1].texts]
+    assert "1500" in [t.get_text() for t in axes[0, 1].texts]
+    plt.close(fig)
+
+
 @pytest.mark.parametrize("diagram,count", [("PT", 3), ("PS", 6), ("TV", 6), ("SV", 7)])
 def test_forsterite_sections_close_all_fields(sections, diagram, count):
     result = sections[diagram]

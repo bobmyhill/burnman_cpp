@@ -166,17 +166,9 @@ def test_phase_composition_constraint_uses_the_field_parameter_layout():
     )
     target = 1.0 / (1.0 + np.exp(-10000.0 / (8.31446261815324 * 1500.0)))
 
-    def factory(a, parameters, ids):
-        i = ids.index(0)
-        return bm.PhaseCompositionConstraint(
-            i,
-            a.get_phase(i).site_names,
-            [1.0, 0.0],
-            [1.0, 1.0],
-            target,
-            a,
-            parameters,
-        )
+    factory = bm.PhaseCompositionConstraint.for_diagram(
+        diagram, "g", phases[0].site_names, [1.0, 0.0], [1.0, 1.0], target
+    )
 
     contours = bm.pseudosection_contours(diagram, phases, factory)
     assert contours.resolved, contours.diagnostics
