@@ -1803,6 +1803,9 @@ class Tracer {
                       }) > 1;
     auto branches = [&](const State &state) {
       std::vector<int> ids;
+      double total = 0.;
+      for (const auto &phase : state.phases)
+        total += phase.amount;
       double separation = std::numeric_limits<double>::infinity();
       for (auto &first : anchor.phases)
         for (auto &second : anchor.phases)
@@ -1813,7 +1816,8 @@ class Tracer {
       if (!std::isfinite(separation))
         return ids;
       for (auto &phase : state.phases)
-        if (phase.candidate_index == base) {
+        if (phase.candidate_index == base &&
+            phase.amount > engine.settings.amount_tolerance * total) {
           int closest = -1;
           double distance = separation * .25;
           for (auto &original : anchor.phases)
@@ -1828,6 +1832,11 @@ class Tracer {
         }
       std::sort(ids.begin(), ids.end());
       return ids;
+    };
+    auto different_solution_branches = [&](const State &first,
+                                           const State &second) {
+      auto a = branches(first), b = branches(second);
+      return !a.empty() && !b.empty() && a != b;
     };
     auto immediate_neighbour = [&](const State &state) {
       const auto ids = active(state);
@@ -1857,6 +1866,20 @@ class Tracer {
         for (auto &subset : side_assemblages)
           try {
             auto work = engine.fixed_at(subset, anchor.phases, actual);
+            // A finite-tolerance solve can retain a zero-amount boundary
+            // phase. Remove its chemical equations and reverify the actual
+            // field before using its compositions to identify a replacement.
+            while (work.state.success &&
+                   active(work.state).size() < work.ids.size()) {
+              std::vector<int> surviving;
+              double total = 0.;
+              for (const auto &p : work.state.phases)
+                total += p.amount;
+              for (const auto &p : work.state.phases)
+                if (p.amount > engine.settings.amount_tolerance * total)
+                  surviving.push_back(p.id);
+              work = engine.fixed_at(surviving, work.state.phases, actual);
+            }
             if (!work.state.success || !distinct(*work.assemblage, work.ids) ||
                 (result.section.type == DiagramType::PT &&
                  field_variance(*work.assemblage, active(work.state).size()) <
@@ -1872,8 +1895,12 @@ class Tracer {
           side_states[static_cast<std::size_t>(slot)] =
               engine.stable_at(actual).state;
       }
+      // Canonical IDs record how many copies survive, not which solution
+      // branch they occupy. Preserve a verified composition replacement
+      // instead of overwriting both sides with the same fresh LP root.
       if (side_states[0].success && side_states[1].success &&
-          active(side_states[0]) == active(side_states[1]))
+          active(side_states[0]) == active(side_states[1]) &&
+          !different_solution_branches(side_states[0], side_states[1]))
         for (int sign : {-1, 1}) {
           auto u = (centre + sign * offset * side).eval();
           if (inside(u)) {
@@ -1904,13 +1931,10 @@ class Tracer {
       if (side_states[0].success && side_states[1].success &&
           active(side_states[0]) != active(side_states[1]))
         break;
-      if (side_states[0].success && side_states[1].success) {
-        auto first = branches(side_states[0]),
-             second = branches(side_states[1]);
-        if (!first.empty() && !second.empty() && first != second) {
-          line.is_solution_replacement = true;
-          break;
-        }
+      if (side_states[0].success && side_states[1].success &&
+          different_solution_branches(side_states[0], side_states[1])) {
+        line.is_solution_replacement = true;
+        break;
       }
     }
     if (side_states[0].success) {
