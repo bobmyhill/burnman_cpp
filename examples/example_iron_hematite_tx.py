@@ -12,7 +12,6 @@ Use --quick for fewer seeds, or --no-plots to save only the resumable JSON.
 """
 
 import argparse
-import json
 from pathlib import Path
 
 import burnman_cpp as bm
@@ -69,9 +68,7 @@ def main():
     args = parser.parse_args()
     result = calculate(args.quick, args.verbose)
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    (args.output_dir / f"{stem}.json").write_text(
-        json.dumps(result.to_dict(), indent=2) + "\n"
-    )
+    bm.save_pseudosection(result, args.output_dir / f"{stem}.json")
     if not args.no_plots:
         fig, ax = bm.plot_pseudosection(
             result,

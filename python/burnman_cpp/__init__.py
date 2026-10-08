@@ -246,6 +246,8 @@ from ._core import (
     PseudosectionPolygons,
 )
 from .tools.pseudosection import (
+    save_pseudosection,
+    load_pseudosection,
     plot_pseudosection,
     plot_pseudosection_contours,
     refine_pseudosection,
@@ -253,6 +255,8 @@ from .tools.pseudosection import (
 from .tools.contours import pseudosection_contour_levels
 
 __all__ += [
+    "save_pseudosection",
+    "load_pseudosection",
     "pseudosection_contour_levels",
     "pseudosection",
     "pseudosection_contours",

@@ -114,11 +114,11 @@ def test_phase_factory_skips_absent_phases_and_active_pure_faces(section):
 
 
 @pytest.mark.parametrize(
-    "quantity,value,expected",
+    "variable,value,expected",
     [("P", 4.0e9, "40"), ("T", 1000, "726.85"), (None, 0.7, "0.7")],
 )
 def test_contour_labels_inherit_units_and_allow_explicit_display_options(
-    section, quantity, value, expected
+    section, variable, value, expected
 ):
     import matplotlib.pyplot as plt
 
@@ -131,7 +131,7 @@ def test_contour_labels_inherit_units_and_allow_explicit_display_options(
         result,
         contours,
         ax,
-        quantity=quantity,
+        variable=variable,
         value=value,
         label_fontsize=8.0,
         label_placement="single",

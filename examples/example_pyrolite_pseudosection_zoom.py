@@ -27,7 +27,6 @@ unfinished lines from the last accepted native phase compositions and amounts.
 """
 
 import argparse
-import json
 from math import isclose
 from pathlib import Path
 
@@ -178,7 +177,7 @@ def calculate(seeds=9, quick=False, verbose=False):
 
 
 def refine(source, verbose=False):
-    data = json.loads(source.read_text())
+    data = bm.load_pseudosection(source)
     oxides = data.get("oxide_wt_percent")
     if not isinstance(oxides, dict) or oxides.keys() != PYROLITE_OXIDES.keys():
         raise ValueError("Saved diagram has a different bulk composition.")
@@ -200,18 +199,20 @@ def refine(source, verbose=False):
 
 
 def save_json(result, path):
-    data = result.to_dict()
-    data.update(
-        oxide_wt_percent=PYROLITE_OXIDES,
-        closed_system=True,
-        dataset="SLB24",
-        dataset_source=PAPER_URL,
-        initial_ferric_fraction=INITIAL_FERRIC_FRACTION,
-        solid_only=True,
-        display_pressure_range_GPa=[P_Pa_low / 1.0e9, P_Pa_high / 1.0e9],
-        display_temperature_range_K=[T_K_low, T_K_high],
+    bm.save_pseudosection(
+        result,
+        path,
+        metadata=dict(
+            oxide_wt_percent=PYROLITE_OXIDES,
+            closed_system=True,
+            dataset="SLB24",
+            dataset_source=PAPER_URL,
+            initial_ferric_fraction=INITIAL_FERRIC_FRACTION,
+            solid_only=True,
+            display_pressure_range_GPa=[P_Pa_low / 1.0e9, P_Pa_high / 1.0e9],
+            display_temperature_range_K=[T_K_low, T_K_high],
+        ),
     )
-    path.write_text(json.dumps(data, indent=2, allow_nan=False))
 
 
 def plot(result, path, label_fontsize=7.0):
@@ -275,11 +276,11 @@ def plot(result, path, label_fontsize=7.0):
 
 
 def plot_saved_json(source, output_dir, label_fontsize=7.0):
-    data = json.loads(source.read_text())
+    data = bm.load_pseudosection(source)
     output_dir.mkdir(parents=True, exist_ok=True)
     target = output_dir / "pyrolite_pseudosection.json"
     if source.resolve() != target.resolve():
-        target.write_text(source.read_text())
+        bm.save_pseudosection(data, target)
     plot(data, output_dir / "pyrolite_pseudosection.png", label_fontsize)
     print(f"Coloured pseudosection figures saved to {output_dir}")
 

@@ -13,7 +13,6 @@ Add --verbose to report line refinement and field-checking progress.
 
 import argparse
 import importlib
-import json
 from pathlib import Path
 
 import burnman_cpp as bm
@@ -52,7 +51,7 @@ def main():
         "--verbose", action="store_true", help="Print refinement progress."
     )
     args = parser.parse_args()
-    saved = json.loads(args.source.read_text())
+    saved = bm.load_pseudosection(args.source)
     candidates = importlib.import_module(args.models).candidate_phases()
     settings = bm.PseudosectionSettings.from_dict(saved.get("settings", {}))
     settings.verbose = args.verbose
@@ -79,9 +78,8 @@ def main():
     args.output_dir.mkdir(parents=True, exist_ok=True)
     if args.verbose:
         print(f"Saving refined diagram to {args.output_dir}.", flush=True)
-    data = saved | result.to_dict()
-    (args.output_dir / "pseudosection.json").write_text(
-        json.dumps(data, indent=2, allow_nan=False)
+    bm.save_pseudosection(
+        result, args.output_dir / "pseudosection.json", metadata=saved
     )
     if not args.no_plots:
         import matplotlib.pyplot as plt
