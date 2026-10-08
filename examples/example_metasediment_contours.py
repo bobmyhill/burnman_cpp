@@ -114,7 +114,7 @@ def main():
         parser.error("Density levels must be positive.")
     if any(v <= 0.0 or v >= 1.0 for v in args.garnet):
         parser.error("Garnet Mg/(Mg+Fe2+) levels must be between zero and one.")
-    diagram = json.loads(args.pseudosection_json.read_text())
+    diagram = bm.load_pseudosection(args.pseudosection_json)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     contours = (
         json.loads(args.plot_json.read_text())

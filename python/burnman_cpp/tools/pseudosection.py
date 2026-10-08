@@ -6,6 +6,47 @@ import warnings
 from .. import _core, constants
 
 
+def save_pseudosection(result, path, *, metadata=None):
+    """Save a native result or saved dictionary as JSON; return the file path.
+
+    All coordinates retain their native SI units. Optional ``metadata`` adds
+    top-level entries, e.g. a model set or oxide amounts. Result entries take
+    precedence, so ``metadata=previous`` retains extra information when saving
+    a refined result without replacing its updated lines or settings.
+
+    Parent directories are created as needed. Non-finite values are rejected
+    before writing, leaving an existing file unchanged if serialization fails.
+    """
+    import json
+    from pathlib import Path
+
+    data = dict(result) if isinstance(result, Mapping) else result.to_dict()
+    data = dict(metadata or {}) | data
+    text = json.dumps(data, indent=2, allow_nan=False, ensure_ascii=False) + "\n"
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(text, encoding="utf-8")
+    return destination
+
+
+def load_pseudosection(path):
+    """Load a pseudosection JSON file, preserving all entries and metadata.
+
+    Return a dictionary usable for plotting, contours and refinement, with
+    coordinates in native SI units. Candidate models are supplied separately
+    when calculating new points. Legacy files retain their original entries.
+    Use ``PseudosectionResult.from_dict(data)`` if a native object is needed.
+    """
+    import json
+    from pathlib import Path
+
+    with Path(path).open(encoding="utf-8") as source:
+        data = json.load(source)
+    if not isinstance(data, dict):
+        raise ValueError("A saved pseudosection must be a JSON object.")
+    return data
+
+
 def _value(record, name, default=None):
     return (
         record.get(name, default)
@@ -140,16 +181,14 @@ def refine_pseudosection(
     Completed diagrams reuse their saved lines without reopening each junction.
     Field checks still trigger boundary recovery if inconsistencies are found.
     Set ``settings.verbose = True`` to report refinement and checking progress.
-    Save the returned result with ``result.to_dict()``. Omitted resolution
+    Save the returned result with ``save_pseudosection``. Omitted resolution
     retains ordinary boundary recovery and the saved settings by default.
     """
-    import json
     from os import PathLike
-    from pathlib import Path
     import numpy as np
 
     if isinstance(previous, (str, PathLike)):
-        previous = json.loads(Path(previous).read_text())
+        previous = load_pseudosection(previous)
     if resolution is None:
         return _core.refine_pseudosection(composition, phases, previous, settings)
     counts = np.asarray(resolution, dtype=float)
@@ -658,7 +697,7 @@ def plot_pseudosection_contours(
     line_width=0.8,
     line_style="solid",
     label=None,
-    quantity=None,
+    variable=None,
     value=None,
     label_format=None,
     label_placement="auto",
@@ -675,9 +714,9 @@ def plot_pseudosection_contours(
     The label names this contour level in the legend and, optionally, along
     sufficiently long segments; all text uses label_fontsize.
 
-    Alternatively supply ``value`` and ``quantity`` ('P', 'T', 'S', 'V' or
+    Alternatively supply ``value`` and ``variable`` ('P', 'T', 'S', 'V' or
     'X') to label an SI contour target in the panel's display units, even
-    when that quantity is not a diagram axis. Without quantity, value is
+    when that variable is not a diagram axis. Without variable, value is
     displayed unchanged, useful for composition ratios. An explicit label
     overrides automatic formatting. ``label_format`` is a Python numeric
     format specification, e.g. '.2f'.
@@ -695,8 +734,8 @@ def plot_pseudosection_contours(
         raise ValueError("label_fontsize must be positive and finite.")
     if label_placement not in ("auto", "single", "coexistence"):
         raise ValueError("label_placement must be 'auto', 'single' or 'coexistence'.")
-    if quantity is not None and quantity not in ("P", "T", "S", "V", "X"):
-        raise ValueError("quantity must be 'P', 'T', 'S', 'V' or 'X'.")
+    if variable is not None and variable not in ("P", "T", "S", "V", "X"):
+        raise ValueError("variable must be 'P', 'T', 'S', 'V' or 'X'.")
     options = dict(getattr(ax, "_pseudosection_display_options", {}))
     for key, option in display_options.items():
         if option is not None:
@@ -710,21 +749,21 @@ def plot_pseudosection_contours(
         display_value = float(value)
         if not np.isfinite(display_value):
             raise ValueError("Contour label values must be finite.")
-        if quantity is not None:
-            scales, t_offset, mass = _coordinate_units(result, quantity, options)
-            if quantity == "V" and options.get("volume_unit", "m3") == "kg/m3":
+        if variable is not None:
+            scales, t_offset, mass = _coordinate_units(result, variable, options)
+            if variable == "V" and options.get("volume_unit", "m3") == "kg/m3":
                 if display_value <= 0.0:
                     raise ValueError("Density labels require a positive volume.")
                 display_value = mass / display_value
             else:
                 display_value = (
-                    display_value - (t_offset if quantity == "T" else 0.0)
-                ) / scales[quantity]
+                    display_value - (t_offset if variable == "T" else 0.0)
+                ) / scales[variable]
         if label_format is None:
             label_format = (
                 ".3g"
-                if quantity == "S"
-                or (quantity == "V" and options.get("volume_unit", "m3") != "kg/m3")
+                if variable == "S"
+                or (variable == "V" and options.get("volume_unit", "m3") != "kg/m3")
                 else "g"
             )
         label = format(display_value, label_format)

@@ -14,7 +14,6 @@ Run: python examples/example_harzburgite_basalt_px.py
 """
 
 import argparse
-import json
 from pathlib import Path
 
 import burnman_cpp as bm
@@ -85,14 +84,15 @@ def main():
         default=Path(__file__).resolve().parent / "harzburgite_basalt_px_output",
     )
     args = parser.parse_args()
+    saved = bm.load_pseudosection(args.plot_json) if args.plot_json else {}
     result = (
-        bm.PseudosectionResult.from_dict(json.loads(args.plot_json.read_text()))
+        bm.PseudosectionResult.from_dict(saved)
         if args.plot_json
         else calculate(args.seeds, args.quick, args.verbose)
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)
     stem = args.output_dir / "harzburgite_basalt_px"
-    data = result.to_dict()
+    data = saved | result.to_dict()
     data.update(
         endpoint_masses_kg={
             "harzburgite": HARZBURGITE.mass_composition,
@@ -101,7 +101,7 @@ def main():
         composition_source=PAPER_URL,
         closed_system=True,
     )
-    stem.with_suffix(".json").write_text(json.dumps(data, indent=2) + "\n")
+    bm.save_pseudosection(data, stem.with_suffix(".json"))
     if not args.no_plots:
         fig, ax = bm.plot_pseudosection(
             result,

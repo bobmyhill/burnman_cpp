@@ -16,7 +16,6 @@ of narrow or disconnected fields. Failed calculations remain explicit.
 """
 
 import argparse
-import json
 from pathlib import Path
 
 import burnman_cpp as bm
@@ -62,7 +61,7 @@ def calculate(seeds=7, quick=False, verbose=False):
 
 def refine(source, verbose=False):
     """Continue saved unfinished lines using their last successful states."""
-    data = json.loads(source.read_text())
+    data = bm.load_pseudosection(source)
     settings = bm.PseudosectionResult.from_dict(data).settings
     settings.verbose = verbose
     return bm.refine_pseudosection(
@@ -71,13 +70,15 @@ def refine(source, verbose=False):
 
 
 def save_json(result, path):
-    data = result.to_dict()
-    data.update(
-        oxide_wt_percent=BASALT_OXIDES,
-        closed_system=True,
-        model_set=MODEL_SET.to_dict(),
+    bm.save_pseudosection(
+        result,
+        path,
+        metadata=dict(
+            oxide_wt_percent=BASALT_OXIDES,
+            closed_system=True,
+            model_set=MODEL_SET.to_dict(),
+        ),
     )
-    path.write_text(json.dumps(data, indent=2, allow_nan=False))
 
 
 def plot(result, path, label_fontsize=7.0):
@@ -122,11 +123,11 @@ def plot(result, path, label_fontsize=7.0):
 
 
 def plot_saved_json(source, output_dir, label_fontsize=7.0):
-    data = json.loads(source.read_text())
+    data = bm.load_pseudosection(source)
     output_dir.mkdir(parents=True, exist_ok=True)
     target = output_dir / "basalt_pseudosection.json"
     if source.resolve() != target.resolve():
-        target.write_text(source.read_text())
+        bm.save_pseudosection(data, target)
     plot(data, output_dir / "basalt_pseudosection.png", label_fontsize)
     print(f"Coloured pseudosection figures saved to {output_dir}")
 

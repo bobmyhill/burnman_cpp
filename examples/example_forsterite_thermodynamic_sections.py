@@ -154,7 +154,7 @@ def plot(
                     ax,
                     color=colour,
                     line_style="dotted" if name in "ST" and i % 2 else "solid",
-                    quantity=name,
+                    variable=name,
                     value=record["value"],
                     label_fontsize=label_fontsize,
                     label_placement="coexistence" if name == "P" else "auto",
@@ -194,8 +194,8 @@ def main():
     args.output_dir.mkdir(parents=True, exist_ok=True)
     results = calculate(args.quick, args.verbose)
     for diagram, result in results.items():
-        (args.output_dir / f"forsterite_{diagram.lower()}.json").write_text(
-            json.dumps(result.to_dict(), indent=2) + "\n"
+        bm.save_pseudosection(
+            result, args.output_dir / f"forsterite_{diagram.lower()}.json"
         )
         print(
             f"{diagram}: {len(result.boundaries)} boundaries; resolved={result.resolved}"

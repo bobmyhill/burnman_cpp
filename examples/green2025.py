@@ -186,14 +186,14 @@ def main(
     args.output_dir.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
     if args.plot_json:
-        data = json.loads(args.plot_json.read_text())
+        data = bm.load_pseudosection(args.plot_json)
     elif not args.check_only:
         phases = candidate_phases(composition)
         result = (
             bm.refine_pseudosection(
                 composition.atomic_composition,
                 phases,
-                json.loads(args.refine_json.read_text()),
+                bm.load_pseudosection(args.refine_json),
                 settings,
             )
             if args.refine_json
@@ -213,9 +213,7 @@ def main(
             model_set=model_sets.igneous("G25").to_dict(),
             calculation_seconds=time.monotonic() - started,
         )
-        (args.output_dir / f"{name}.json").write_text(
-            json.dumps(data, indent=2, allow_nan=False)
-        )
+        bm.save_pseudosection(data, args.output_dir / f"{name}.json")
         print(
             f"{len(result.boundaries)} boundaries; resolved={result.resolved}; "
             f"{result.equilibrium_solves} solves in {data['calculation_seconds']:.1f} s",

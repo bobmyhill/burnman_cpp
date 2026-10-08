@@ -468,7 +468,9 @@ def test_resume_uses_accepted_endpoints_and_closes_truncated_fields(
 
 
 @pytest.mark.parametrize("saved_as_dict", [False, True])
-def test_standard_result_roundtrip_and_resume_preserve_settings(saved_as_dict):
+def test_standard_result_roundtrip_and_resume_preserve_settings(
+    saved_as_dict, tmp_path
+):
     bulk = {"Mg": 1.0, "Fe": 1.0, "O": 2.0}
     s = settings()
     # A nondefault ID stride and strict EOS policy must survive saving and an
@@ -478,7 +480,9 @@ def test_standard_result_roundtrip_and_resume_preserve_settings(saved_as_dict):
     s.node_tolerance = 1.0e-4
     r = bm.pseudosection(bulk, crossing_phases(), (0.0, 2e9), (600.0, 1400.0), s)
     assert r.resolved, r.diagnostics
-    data = json.loads(json.dumps(r.to_dict(), allow_nan=False))
+    path = tmp_path / "pseudosection.json"
+    bm.save_pseudosection(r, str(path))
+    data = bm.load_pseudosection(str(path))
     restored = bm.PseudosectionResult.from_dict(data)
     assert restored.to_dict() == data
     assert restored.settings.to_dict() == s.to_dict()
@@ -494,6 +498,51 @@ def test_standard_result_roundtrip_and_resume_preserve_settings(saved_as_dict):
     assert len(polygons.polygons) == 4
     assert all(p.n_phases == 2 and not p.has_open_boundary for p in polygons.polygons)
     assert sum(p.area for p in polygons.polygons) == pytest.approx(1.0)
+
+
+def test_save_refined_diagram_preserves_metadata_and_replaces_old_phase_lines(tmp_path):
+    from burnman_cpp.tools import load_pseudosection, save_pseudosection
+
+    bulk = {"Mg": 1.0, "Fe": 1.0, "O": 2.0}
+    result = bm.pseudosection(
+        bulk, crossing_phases(), (0.0, 2.0e9), (600.0, 1400.0), settings()
+    )
+    metadata = dict(model_set={"name": "Test set"}, description="Closed bulk at 600 °C")
+    path = tmp_path / "new_directory" / "section.json"
+    assert save_pseudosection(result, path, metadata=metadata) == path
+    saved = load_pseudosection(path)
+    before = path.read_text(encoding="utf-8")
+    refined = bm.refine_pseudosection(
+        bulk, crossing_phases(), path, resolution=(101, 201)
+    )
+    assert refined.resolved, refined.diagnostics
+    assert refined.to_dict()["boundaries"] != saved["boundaries"]
+    destination = tmp_path / "refined.json"
+    save_pseudosection(refined, destination, metadata=saved)
+    loaded = load_pseudosection(destination)
+    assert all(loaded[key] == value for key, value in metadata.items())
+    assert loaded == metadata | refined.to_dict()
+    assert path.read_text(encoding="utf-8") == before
+
+    # Re-saving old files must retain extra entries and omit absent legacy keys.
+    legacy = saved.copy()
+    del legacy["composition_start"]
+    legacy["future_metadata"] = {"note": "Preserve this entry"}
+    save_pseudosection(legacy, destination)
+    assert load_pseudosection(destination) == legacy
+
+
+@pytest.mark.parametrize("invalid_value", [np.nan, np.inf, -np.inf])
+def test_invalid_metadata_does_not_overwrite_an_existing_diagram(
+    tmp_path, invalid_value
+):
+    saved = {"diagram_type": "PT", "phase_names": ["A", "B"], "boundaries": []}
+    path = bm.save_pseudosection(saved, tmp_path / "section.json")
+    original = path.read_bytes()
+    with pytest.raises(ValueError, match="JSON"):
+        bm.save_pseudosection(saved, path, metadata={"bulk_mass": invalid_value})
+    assert path.read_bytes() == original
+    assert bm.load_pseudosection(path) == saved
 
 
 def test_settings_dictionary_rejects_unknown_options():
