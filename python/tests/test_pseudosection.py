@@ -827,10 +827,19 @@ def test_pyrolite_short_branches_keep_both_verified_neighbours(case_index):
         # Nine phases can coexist on this PT line, but the eight-component
         # bulk cannot support a nine-phase, two-dimensional neighbouring field.
         assert max(len(line.side_a), len(line.side_b)) <= 8
-        assert any("neighbouring fields" in d for d in result.diagnostics)
+        assert line.is_solution_replacement
+        assert line.side_a == line.side_b == [6, 12, 18, 19, 27, 39, 60, 78]
+        neighbours = [s for s in result.samples if s.success and len(s.phases) == 8]
+        ak = [next(p for p in s.phases if p.candidate_index == 9) for s in neighbours]
+        assert any(p.composition[2] > 0.9 for p in ak)  # Corundum-rich.
+        assert any(p.composition[4] > 0.9 for p in ak)  # Hematite-rich.
+        for state in neighbours:
+            assert state.minimum_affinity >= -result.settings.affinity_tolerance
+            assert state.equilibrium_error <= result.settings.affinity_tolerance * 0.1
+            assert state.mass_balance_error <= result.settings.mass_balance_tolerance
     else:
         assert line.side_a != line.side_b
-        assert not any("neighbouring fields" in d for d in result.diagnostics)
+    assert not any("neighbouring fields" in d for d in result.diagnostics)
 
 
 def test_required_eos_limit_keeps_the_accepted_pyrolite_boundary():
