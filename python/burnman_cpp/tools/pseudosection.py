@@ -3,7 +3,7 @@
 from collections.abc import Mapping
 import warnings
 
-from .. import _core
+from .. import _core, constants
 
 
 def _value(record, name, default=None):
@@ -55,7 +55,7 @@ def _coordinate_transforms(
         composition = _core.Composition(bulk, "molar")
         bulk_mass = sum(composition.mass_composition.values())
         entropy_scales["kB/atom"] = (
-            sum(composition.atomic_composition.values()) * 8.31446261815324
+            sum(composition.atomic_composition.values()) * constants.gas_constant
         )
     names = dict(
         P="pressure",

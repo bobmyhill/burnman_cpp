@@ -21,4 +21,5 @@ TEST_CASE("constants::physics CODATA 2022 values", "[core][utils][constants]") {
   STATIC_REQUIRE(constants::physics::avogadro == 6.02214076e23);
   STATIC_REQUIRE(constants::physics::dirac == 1.0545718176461565e-34);
   STATIC_REQUIRE(constants::physics::gravitation == 6.67430e-11);
+  STATIC_REQUIRE(constants::physics::invcm == 11.9627);
 }

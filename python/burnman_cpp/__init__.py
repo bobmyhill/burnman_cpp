@@ -6,6 +6,7 @@ All quantities use SI units: Pa, K, m³/mol, kg/mol and J/mol.
 from collections.abc import Mapping
 
 from . import _core
+from . import constants
 from ._core import (
     AsymmetricRegularSolution,
     Assemblage,
@@ -174,6 +175,7 @@ def equilibrate(
 
 
 __all__ = [
+    "constants",
     "MaterialPolytope",
     "composite_polytope_at_constrained_composition",
     "solution_polytope_from_endmember_occupancies",

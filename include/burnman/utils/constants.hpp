@@ -60,6 +60,10 @@ constexpr double dirac = 1.0545718176461565e-34;
  * Newtonian constant of gravitation, G in [m^3/kg/s^2].
  */
 constexpr double gravitation = 6.67430e-11;
+/**
+ * Wavenumber conversion: 1 cm^-1 in [J/mol], at BurnMan's tabulated precision.
+ */
+constexpr double invcm = 11.9627;
 } // namespace physics
 
 /**
