@@ -1,0 +1,922 @@
+[
+  {
+    "schema_version": 3,
+    "phase_names": [
+      "ol",
+      "ol #2",
+      "ol #3",
+      "wa",
+      "wa #2",
+      "wa #3",
+      "ri",
+      "ri #2",
+      "ri #3",
+      "opx",
+      "opx #2",
+      "opx #3",
+      "cpx",
+      "cpx #2",
+      "cpx #3",
+      "hpcpx",
+      "hpcpx #2",
+      "hpcpx #3",
+      "gt",
+      "gt #2",
+      "gt #3",
+      "sp",
+      "sp #2",
+      "sp #3",
+      "pl",
+      "pl #2",
+      "pl #3",
+      "ak",
+      "ak #2",
+      "ak #3",
+      "fp",
+      "fp #2",
+      "fp #3",
+      "bg",
+      "bg #2",
+      "bg #3",
+      "ppv",
+      "ppv #2",
+      "ppv #3",
+      "cf",
+      "cf #2",
+      "cf #3",
+      "nal",
+      "nal #2",
+      "nal #3",
+      "capv",
+      "capv #2",
+      "capv #3",
+      "neph",
+      "neph #2",
+      "neph #3",
+      "ky",
+      "ky #2",
+      "ky #3",
+      "q",
+      "q #2",
+      "q #3",
+      "coe",
+      "coe #2",
+      "coe #3",
+      "st",
+      "st #2",
+      "st #3",
+      "seif",
+      "seif #2",
+      "seif #3",
+      "wo",
+      "wo #2",
+      "wo #3",
+      "pwo",
+      "pwo #2",
+      "pwo #3",
+      "Fe-bcc",
+      "Fe-bcc #2",
+      "Fe-bcc #3",
+      "Fe-fcc",
+      "Fe-fcc #2",
+      "Fe-fcc #3",
+      "Fe-hcp",
+      "Fe-hcp #2",
+      "Fe-hcp #3"
+    ],
+    "composition_start": {
+      "Fe": 0.11430278558091557,
+      "Na": 0.004194994559401659,
+      "Al": 0.07846169170147545,
+      "Ca": 0.0567076785900418,
+      "O": 2.7663350706839376,
+      "Cr": 0.007500518941903751,
+      "Si": 0.7489522445881484,
+      "Mg": 0.9646647623082004
+    },
+    "pressure_range": [
+      0.0,
+      140000000000.0
+    ],
+    "temperature_range": [
+      0.0,
+      4000.0
+    ],
+    "settings": {
+      "pressure_seeds": 140,
+      "temperature_seeds": 40,
+      "entropy_seeds": 7,
+      "volume_seeds": 7,
+      "composition_seeds": 7,
+      "max_refinement_iterations": 150,
+      "minimization_starts": 10,
+      "max_phase_instances": 3,
+      "max_trace_steps": 500,
+      "max_lines": 1000,
+      "max_recovery_passes": 0,
+      "step": 0.025,
+      "min_step": 1e-07,
+      "affinity_tolerance": 0.2,
+      "mass_balance_tolerance": 1e-08,
+      "amount_tolerance": 1e-07,
+      "composition_tolerance": 1e-05,
+      "node_tolerance": 0.0002,
+      "verbose": false,
+      "exclude_invalid_eos": true,
+      "active_solution_faces": true,
+      "required_eos_phases": [
+        "opx"
+      ]
+    },
+    "boundaries": [
+      {
+        "id": 0,
+        "zero_phase": 27,
+        "assemblage": [
+          6,
+          12,
+          18,
+          19,
+          27,
+          28,
+          39,
+          60,
+          78
+        ],
+        "side_a": [],
+        "side_b": [
+          6,
+          12,
+          18,
+          19,
+          27,
+          39,
+          60,
+          78
+        ],
+        "is_solution_replacement": false,
+        "start_node": -1,
+        "end_node": -1,
+        "termination": "domain edge; domain edge",
+        "points": [
+          {
+            "pressure": 15115053577.46461,
+            "temperature": 193.08358927352467,
+            "entropy": 20.59541000333366,
+            "volume": 2.462865612292528e-05,
+            "composition_coordinate": 0.0,
+            "mass_balance_error": 5.2262915548539795e-17,
+            "minimum_affinity": -0.0003337992545255843,
+            "residual": 4.730239216188045e-08,
+            "phases": [
+              {
+                "id": 6,
+                "candidate_index": 2,
+                "name": "ri",
+                "amount": 0.46317712757571866,
+                "composition": [
+                  0.9997300425067188,
+                  0.00026995749328122796
+                ]
+              },
+              {
+                "id": 12,
+                "candidate_index": 4,
+                "name": "cpx",
+                "amount": 0.004194931556295988,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 18,
+                "candidate_index": 6,
+                "name": "gt",
+                "amount": 0.018943394313876254,
+                "composition": [
+                  -0.19782748121355553,
+                  0.0020641594307216904,
+                  0.9978443787219059,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.19791894306092794
+                ]
+              },
+              {
+                "id": 19,
+                "candidate_index": 6,
+                "name": "gt #2",
+                "amount": 3.7799221430090924e-29,
+                "composition": [
+                  0.973842970157534,
+                  0.02537778826529787,
+                  0.0007792415771681327,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 27,
+                "candidate_index": 9,
+                "name": "ak",
+                "amount": 4.1904217634976695e-28,
+                "composition": [
+                  0.0,
+                  0.0,
+                  3.886630857861498e-06,
+                  0.0,
+                  0.9999961133691422
+                ]
+              },
+              {
+                "id": 28,
+                "candidate_index": 9,
+                "name": "ak #2",
+                "amount": 0.021934809603573135,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.9999961133691422,
+                  0.0,
+                  3.886630857818929e-06
+                ]
+              },
+              {
+                "id": 39,
+                "candidate_index": 13,
+                "name": "cf",
+                "amount": 0.03855544863896152,
+                "composition": [
+                  0.9999745654376874,
+                  -0.9998582009070561,
+                  1.634090845651083e-06,
+                  0.9998582009070561,
+                  2.3800471466997393e-05
+                ]
+              },
+              {
+                "id": 60,
+                "candidate_index": 20,
+                "name": "st",
+                "amount": 0.2205550079551033,
+                "composition": [
+                  1.0
+                ]
+              },
+              {
+                "id": 78,
+                "candidate_index": 26,
+                "name": "Fe-hcp",
+                "amount": 0.03683543972760293,
+                "composition": [
+                  1.0
+                ]
+              }
+            ]
+          },
+          {
+            "pressure": 15115705934.80676,
+            "temperature": 193.21182522673777,
+            "entropy": 21.226835346970226,
+            "volume": 2.474677006889204e-05,
+            "composition_coordinate": 0.0,
+            "mass_balance_error": 1.5559360232836834e-16,
+            "minimum_affinity": -0.00033761764340282854,
+            "residual": 1.507533468988025e-08,
+            "phases": [
+              {
+                "id": 6,
+                "candidate_index": 2,
+                "name": "ri",
+                "amount": 0.43138192372417833,
+                "composition": [
+                  0.9997283695534616,
+                  0.00027163044653848
+                ]
+              },
+              {
+                "id": 12,
+                "candidate_index": 4,
+                "name": "cpx",
+                "amount": 0.004194931823825673,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 18,
+                "candidate_index": 6,
+                "name": "gt",
+                "amount": 0.018926264888125956,
+                "composition": [
+                  -0.19801103175471424,
+                  0.0020689489844694098,
+                  0.9978392104046058,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.19810287236563906
+                ]
+              },
+              {
+                "id": 19,
+                "candidate_index": 6,
+                "name": "gt #2",
+                "amount": 0.021951980331196625,
+                "composition": [
+                  0.9737653705365724,
+                  0.025451542111919516,
+                  0.000783087351508116,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "id": 27,
+                "candidate_index": 9,
+                "name": "ak",
+                "amount": 7.961943733525958e-32,
+                "composition": [
+                  0.0,
+                  0.0,
+                  3.918903449989537e-06,
+                  0.0,
+                  0.99999608109655
+                ]
+              },
+              {
+                "id": 28,
+                "candidate_index": 9,
+                "name": "ak #2",
+                "amount": 9.381472335804497e-31,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.99999608109655,
+                  0.0,
+                  3.9189034499731434e-06
+                ]
+              },
+              {
+                "id": 39,
+                "candidate_index": 13,
+                "name": "cf",
+                "amount": 0.038001881141712185,
+                "composition": [
+                  0.9999743494530301,
+                  -0.9998572292192078,
+                  1.6508544867028262e-06,
+                  0.9998572292192078,
+                  2.3999692483139514e-05
+                ]
+              },
+              {
+                "id": 60,
+                "candidate_index": 20,
+                "name": "st",
+                "amount": 0.186545658822775,
+                "composition": [
+                  1.0
+                ]
+              },
+              {
+                "id": 78,
+                "candidate_index": 26,
+                "name": "Fe-hcp",
+                "amount": 0.03628191379975718,
+                "composition": [
+                  1.0
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "nodes": [],
+    "fields": [],
+    "samples": [],
+    "diagnostics": [],
+    "resolved": false
+  },
+  {
+    "schema_version": 3,
+    "phase_names": [
+      "ol",
+      "ol #2",
+      "ol #3",
+      "wa",
+      "wa #2",
+      "wa #3",
+      "ri",
+      "ri #2",
+      "ri #3",
+      "opx",
+      "opx #2",
+      "opx #3",
+      "cpx",
+      "cpx #2",
+      "cpx #3",
+      "hpcpx",
+      "hpcpx #2",
+      "hpcpx #3",
+      "gt",
+      "gt #2",
+      "gt #3",
+      "sp",
+      "sp #2",
+      "sp #3",
+      "pl",
+      "pl #2",
+      "pl #3",
+      "ak",
+      "ak #2",
+      "ak #3",
+      "fp",
+      "fp #2",
+      "fp #3",
+      "bg",
+      "bg #2",
+      "bg #3",
+      "ppv",
+      "ppv #2",
+      "ppv #3",
+      "cf",
+      "cf #2",
+      "cf #3",
+      "nal",
+      "nal #2",
+      "nal #3",
+      "capv",
+      "capv #2",
+      "capv #3",
+      "neph",
+      "neph #2",
+      "neph #3",
+      "ky",
+      "ky #2",
+      "ky #3",
+      "q",
+      "q #2",
+      "q #3",
+      "coe",
+      "coe #2",
+      "coe #3",
+      "st",
+      "st #2",
+      "st #3",
+      "seif",
+      "seif #2",
+      "seif #3",
+      "wo",
+      "wo #2",
+      "wo #3",
+      "pwo",
+      "pwo #2",
+      "pwo #3",
+      "Fe-bcc",
+      "Fe-bcc #2",
+      "Fe-bcc #3",
+      "Fe-fcc",
+      "Fe-fcc #2",
+      "Fe-fcc #3",
+      "Fe-hcp",
+      "Fe-hcp #2",
+      "Fe-hcp #3"
+    ],
+    "composition_start": {
+      "Fe": 0.11430278558091557,
+      "Na": 0.004194994559401659,
+      "Al": 0.07846169170147545,
+      "Ca": 0.0567076785900418,
+      "O": 2.7663350706839376,
+      "Cr": 0.007500518941903751,
+      "Si": 0.7489522445881484,
+      "Mg": 0.9646647623082004
+    },
+    "pressure_range": [
+      0.0,
+      140000000000.0
+    ],
+    "temperature_range": [
+      0.0,
+      4000.0
+    ],
+    "settings": {
+      "pressure_seeds": 140,
+      "temperature_seeds": 40,
+      "entropy_seeds": 7,
+      "volume_seeds": 7,
+      "composition_seeds": 7,
+      "max_refinement_iterations": 150,
+      "minimization_starts": 10,
+      "max_phase_instances": 3,
+      "max_trace_steps": 500,
+      "max_lines": 1000,
+      "max_recovery_passes": 0,
+      "step": 0.025,
+      "min_step": 1e-07,
+      "affinity_tolerance": 0.2,
+      "mass_balance_tolerance": 1e-08,
+      "amount_tolerance": 1e-07,
+      "composition_tolerance": 1e-05,
+      "node_tolerance": 0.0002,
+      "verbose": false,
+      "exclude_invalid_eos": true,
+      "active_solution_faces": true,
+      "required_eos_phases": [
+        "opx"
+      ]
+    },
+    "boundaries": [
+      {
+        "id": 0,
+        "zero_phase": 27,
+        "assemblage": [
+          6,
+          27,
+          28,
+          30,
+          39,
+          42,
+          45,
+          60,
+          78
+        ],
+        "side_a": [
+          6,
+          27,
+          28,
+          39,
+          42,
+          45,
+          60,
+          78
+        ],
+        "side_b": [],
+        "is_solution_replacement": false,
+        "start_node": -1,
+        "end_node": -1,
+        "termination": "domain edge; domain edge",
+        "points": [
+          {
+            "pressure": 22825927085.868298,
+            "temperature": 348.01976338577674,
+            "entropy": 56.57721363536859,
+            "volume": 2.3676539384097535e-05,
+            "composition_coordinate": 0.0,
+            "mass_balance_error": 1.5147248236051716e-16,
+            "minimum_affinity": -0.0028854883457825058,
+            "residual": 4.100852610712422e-09,
+            "phases": [
+              {
+                "id": 6,
+                "candidate_index": 2,
+                "name": "ri",
+                "amount": 0.4560901478923816,
+                "composition": [
+                  0.9999088179609373,
+                  9.118203906261571e-05
+                ]
+              },
+              {
+                "id": 27,
+                "candidate_index": 9,
+                "name": "ak",
+                "amount": 5.449575974299167e-31,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0010089024279142306,
+                  0.0,
+                  0.9989910975720858
+                ]
+              },
+              {
+                "id": 28,
+                "candidate_index": 9,
+                "name": "ak #2",
+                "amount": 0.026961639427340985,
+                "composition": [
+                  1.7705397065337716e-05,
+                  0.0,
+                  0.998973344936032,
+                  0.0,
+                  0.001008949666902681
+                ]
+              },
+              {
+                "id": 30,
+                "candidate_index": 10,
+                "name": "fp",
+                "amount": 1.0353517923597155e-30,
+                "composition": [
+                  0.9999519907816583,
+                  3.0263805954153447e-05,
+                  0.0,
+                  1.774541238759002e-05,
+                  0.0
+                ]
+              },
+              {
+                "id": 39,
+                "candidate_index": 13,
+                "name": "cf",
+                "amount": 0.046776802463801,
+                "composition": [
+                  0.9191220706418227,
+                  -0.8261513314210516,
+                  0.0012859876748255736,
+                  0.8261513314210516,
+                  0.07959194168335164
+                ]
+              },
+              {
+                "id": 42,
+                "candidate_index": 14,
+                "name": "nal",
+                "amount": 0.003328451903956256,
+                "composition": [
+                  0.8788643658857265,
+                  0.0,
+                  0.12113563411427355
+                ]
+              },
+              {
+                "id": 45,
+                "candidate_index": 15,
+                "name": "capv",
+                "amount": 0.0567076785900418,
+                "composition": [
+                  1.0
+                ]
+              },
+              {
+                "id": 60,
+                "candidate_index": 20,
+                "name": "st",
+                "amount": 0.23195894617979176,
+                "composition": [
+                  1.0
+                ]
+              },
+              {
+                "id": 78,
+                "candidate_index": 26,
+                "name": "Fe-hcp",
+                "amount": 0.036930175851375716,
+                "composition": [
+                  1.0
+                ]
+              }
+            ]
+          },
+          {
+            "pressure": 22825847365.15914,
+            "temperature": 347.97700242411855,
+            "entropy": 54.41901868779729,
+            "volume": 2.2524346954680443e-05,
+            "composition_coordinate": 0.0,
+            "mass_balance_error": 3.6956017188381314e-17,
+            "minimum_affinity": -0.0028793713754566848,
+            "residual": 3.6155872597978384e-09,
+            "phases": [
+              {
+                "id": 6,
+                "candidate_index": 2,
+                "name": "ri",
+                "amount": 9.020120621349115e-12,
+                "composition": [
+                  0.9999089455046611,
+                  9.105449533882661e-05
+                ]
+              },
+              {
+                "id": 27,
+                "candidate_index": 9,
+                "name": "ak",
+                "amount": 5.915526326524664e-31,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0010080364330334688,
+                  0.0,
+                  0.9989919635669665
+                ]
+              },
+              {
+                "id": 28,
+                "candidate_index": 9,
+                "name": "ak #2",
+                "amount": 0.026972729198646076,
+                "composition": [
+                  1.7681385576097366e-05,
+                  0.0,
+                  0.9989742350438802,
+                  0.0,
+                  0.0010080835705437163
+                ]
+              },
+              {
+                "id": 30,
+                "candidate_index": 10,
+                "name": "fp",
+                "amount": 0.22803334985966608,
+                "composition": [
+                  0.9999520623123779,
+                  3.021502514153633e-05,
+                  0.0,
+                  1.7722662480542426e-05,
+                  0.0
+                ]
+              },
+              {
+                "id": 39,
+                "candidate_index": 13,
+                "name": "cf",
+                "amount": 0.04679564990416471,
+                "composition": [
+                  0.9191535421526432,
+                  -0.826214740533735,
+                  0.001286312547127695,
+                  0.826214740533735,
+                  0.07956014530022909
+                ]
+              },
+              {
+                "id": 42,
+                "candidate_index": 14,
+                "name": "nal",
+                "amount": 0.003321957813764619,
+                "composition": [
+                  0.8788726042076704,
+                  0.0,
+                  0.1211273957923296
+                ]
+              },
+              {
+                "id": 45,
+                "candidate_index": 15,
+                "name": "capv",
+                "amount": 0.0567076785900418,
+                "composition": [
+                  1.0
+                ]
+              },
+              {
+                "id": 60,
+                "candidate_index": 20,
+                "name": "st",
+                "amount": 0.6880571772306475,
+                "composition": [
+                  1.0
+                ]
+              },
+              {
+                "id": 78,
+                "candidate_index": 26,
+                "name": "Fe-hcp",
+                "amount": 0.036948713959963554,
+                "composition": [
+                  1.0
+                ]
+              }
+            ]
+          },
+          {
+            "pressure": 22825847365.158913,
+            "temperature": 347.97700242413134,
+            "entropy": 54.41901868775785,
+            "volume": 2.2524346954657665e-05,
+            "composition_coordinate": 0.0,
+            "mass_balance_error": 7.334131096670182e-17,
+            "minimum_affinity": -0.0028793724068236766,
+            "residual": 4.72926051008504e-09,
+            "phases": [
+              {
+                "id": 6,
+                "candidate_index": 2,
+                "name": "ri",
+                "amount": 7.201538826621349e-32,
+                "composition": [
+                  0.9999089455046611,
+                  9.105449533887144e-05
+                ]
+              },
+              {
+                "id": 27,
+                "candidate_index": 9,
+                "name": "ak",
+                "amount": 1.0110166235367573e-31,
+                "composition": [
+                  0.0,
+                  0.0,
+                  0.0010080364330337277,
+                  0.0,
+                  0.9989919635669663
+                ]
+              },
+              {
+                "id": 28,
+                "candidate_index": 9,
+                "name": "ak #2",
+                "amount": 0.026972729198645948,
+                "composition": [
+                  1.7681385576104244e-05,
+                  0.0,
+                  0.9989742350438799,
+                  0.0,
+                  0.0010080835705439384
+                ]
+              },
+              {
+                "id": 30,
+                "candidate_index": 10,
+                "name": "fp",
+                "amount": 0.22803334986417584,
+                "composition": [
+                  0.9999520623123779,
+                  3.0215025141549573e-05,
+                  0.0,
+                  1.7722662480551273e-05,
+                  0.0
+                ]
+              },
+              {
+                "id": 39,
+                "candidate_index": 13,
+                "name": "cf",
+                "amount": 0.04679564990416559,
+                "composition": [
+                  0.9191535421526446,
+                  -0.8262147405337275,
+                  0.001286312547128018,
+                  0.8262147405337275,
+                  0.07956014530022744
+                ]
+              },
+              {
+                "id": 42,
+                "candidate_index": 14,
+                "name": "nal",
+                "amount": 0.0033219578137644347,
+                "composition": [
+                  0.8788726042076631,
+                  0.0,
+                  0.12112739579233685
+                ]
+              },
+              {
+                "id": 45,
+                "candidate_index": 15,
+                "name": "capv",
+                "amount": 0.0567076785900418,
+                "composition": [
+                  1.0
+                ]
+              },
+              {
+                "id": 60,
+                "candidate_index": 20,
+                "name": "st",
+                "amount": 0.6880571772396679,
+                "composition": [
+                  1.0
+                ]
+              },
+              {
+                "id": 78,
+                "candidate_index": 26,
+                "name": "Fe-hcp",
+                "amount": 0.036948713959963894,
+                "composition": [
+                  1.0
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "nodes": [],
+    "fields": [],
+    "samples": [],
+    "diagnostics": [],
+    "resolved": false
+  }
+]

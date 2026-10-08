@@ -510,6 +510,34 @@ def test_roundoff_in_repeated_curves_does_not_create_unfinished_fields():
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
 
 
+@pytest.mark.parametrize("width,expected_count", [(1.0e-16, 1), (2.0e-9, 2)])
+def test_roundoff_width_rings_are_removed_but_thin_fields_are_kept(
+    width, expected_count
+):
+    triangle = [(0.15, 0.08), (0.16, 0.28), (0.155 + width, 0.18), (0.15, 0.08)]
+    geometry = bm.pseudosection_field_polygons(
+        diagram([line(triangle, [0], [0, 1])], [sample(0.5, 0.5, [0])]),
+        tolerance=1.0e-12,
+        merge_fields=False,
+    )
+    assert not geometry.diagnostics
+    assert len(geometry.polygons) == expected_count
+    assert {p.n_phases for p in geometry.polygons} == set(range(1, expected_count + 1))
+    assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
+
+
+def test_sample_of_missing_thin_field_is_not_hidden_by_amount_tolerance():
+    data = diagram(
+        [line([(0.5, 0.0), (0.5, 1.0)], [0], [1])],
+        [sample(0.8, 0.5, [1]), sample(0.5 + 5.0e-9, 0.5, [1, 2])],
+    )
+    geometry = bm.pseudosection_field_polygons(data)
+    assert any(
+        "conflicting equilibrium assemblage at sample 1" in d
+        for d in geometry.diagnostics
+    )
+
+
 def test_snapping_intersections_preserves_closed_thin_fields():
     curves = json.loads(
         (Path(__file__).parent / "data" / "pyrolite_narrow_curves.json").read_text()
