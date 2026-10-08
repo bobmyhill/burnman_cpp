@@ -188,6 +188,35 @@ def test_four_branches_at_a_phase_swap_node():
     assert all(not phase.has_state() for phase in phases)
 
 
+def test_two_phases_disappear_together_at_a_compound_replacement():
+    """A + B = AB has a one-phase field across a three-phase boundary."""
+    a = pure("A", {"Mg": 1.0, "O": 1.0})
+    b = pure("B", {"Fe": 1.0, "O": 1.0})
+    compound = bm.CombinedMineral([a, b], [1.0, 1.0], [1000.0, 0.0, -1.0e-6], name="AB")
+    opts = settings()
+    opts.max_phase_instances = 1
+    result = bm.pseudosection(
+        {"Mg": 1.0, "Fe": 1.0, "O": 2.0},
+        [a, b, compound],
+        (0.0, 2.0e9),
+        (600.0, 1400.0),
+        opts,
+    )
+    assert result.resolved, result.diagnostics
+    assert len(result.boundaries) == 1
+    line = result.boundaries[0]
+    assert len(line.assemblage) == 3
+    assert {tuple(line.side_a), tuple(line.side_b)} == {(0, 1), (2,)}
+    assert not line.is_solution_replacement
+    assert line.start_node >= 0 and line.end_node >= 0
+    for point in line.points:
+        assert point.pressure == pytest.approx(1.0e9, abs=0.1)
+    geometry = bm.pseudosection_field_polygons(result)
+    assert not geometry.diagnostics
+    assert sorted(p.n_phases for p in geometry.polygons) == [1, 2]
+    assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
+
+
 def curved_phases():
     first = pure("large volume", {"Mg": 1.0, "O": 1.0})
     second = pure(

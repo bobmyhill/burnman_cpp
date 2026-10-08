@@ -1,5 +1,6 @@
 """Parity with the main Python BurnMan Composition API (optional dependency)."""
 
+import numpy as np
 import pytest
 import burnman_cpp as bm
 
@@ -8,10 +9,19 @@ from burnman.classes.composition import Composition as ReferenceComposition
 from burnman.utils.chemistry import atomic_masses
 
 
-def compare(native, pure):
+def compare(native, pure, *, basis_roundoff=False):
     for basis in ("mass", "weight", "molar", "atomic"):
+        expected = dict(pure.composition(basis))
+        tolerance = 1.0e-15
+        if basis_roundoff:
+            # Different NNLS solvers may leave roundoff in a zero component.
+            # Scale in the current basis so mass and molar units both work.
+            tolerance = max(
+                tolerance,
+                64.0 * np.finfo(float).eps * sum(abs(v) for v in expected.values()),
+            )
         assert native.composition(basis) == pytest.approx(
-            dict(pure.composition(basis)), rel=2e-12, abs=1e-15
+            expected, rel=2e-12, abs=tolerance
         )
     assert native.component_formulae == pure.component_formulae
 
@@ -82,7 +92,7 @@ def test_addition_and_removal_against_python(unit):
     basis = ["MgO", "SiO2", "FeO", "Al2O3", "CaO"]
     native.change_component_set(basis)
     pure.change_component_set(basis)
-    compare(native, pure)
+    compare(native, pure, basis_roundoff=True)
     native.remove_null_components()
     pure.remove_null_components()
     compare(native, pure)

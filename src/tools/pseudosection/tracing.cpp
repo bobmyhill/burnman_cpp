@@ -1721,9 +1721,14 @@ class Tracer {
         }
     std::array<State, 2> side_states;
     line.is_solution_replacement = false;
+    const int base = line.zero_phase / engine.settings.max_phase_instances;
+    const bool replaces_solution =
+        std::count_if(line.assemblage.begin(), line.assemblage.end(),
+                      [&](int id) {
+                        return id / engine.settings.max_phase_instances == base;
+                      }) > 1;
     auto branches = [&](const State &state) {
       std::vector<int> ids;
-      int base = line.zero_phase / engine.settings.max_phase_instances;
       double separation = std::numeric_limits<double>::infinity();
       for (auto &first : anchor.phases)
         for (auto &second : anchor.phases)
@@ -1786,15 +1791,16 @@ class Tracer {
       // A normal probe can cross an entire thin neighbouring field. Its
       // immediate assemblage must be drawn from the phases on this boundary;
       // shrink the probe when a different boundary has already been crossed.
-      // A replacement exchanges one phase: losing another as well means the
-      // probe has crossed an additional boundary of the narrow field.
+      // A solution replacement exchanges one phase. Compound reactions can
+      // legitimately remove several phases together, so exclude them from
+      // this phase-count check.
       for (auto &state : side_states)
         if (state.success) {
           auto ids = active(state);
           if (!has_composition_axis(result.section.type) &&
               (!std::includes(line.assemblage.begin(), line.assemblage.end(),
                               ids.begin(), ids.end()) ||
-               (variance.rank() + 1 == formulae.rows() &&
+               (replaces_solution && variance.rank() + 1 == formulae.rows() &&
                 ids.size() + 1 < line.assemblage.size())))
             state = State{};
         }
