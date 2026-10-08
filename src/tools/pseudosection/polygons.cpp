@@ -338,6 +338,8 @@ detail::field_conflicts(const Result &result, const FieldPolygons &geometry) {
       double band =
           represented.count(phases)
               ? std::max(1.e-8, result.settings.node_tolerance * 2.)
+          : result.section.type == DiagramType::PT
+              ? 64. * std::numeric_limits<double>::epsilon()
               : std::max(1.e-8, result.settings.amount_tolerance * 2.);
       if (polygon.contains_rectangle(location, scale * band)) {
         conflicts.emplace_back(j, i);
@@ -609,9 +611,23 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
   for (auto &walk : walks)
     for (auto &ring : walk.rings) {
       double value = area(ring, vertices.points);
-      if (value > area_tolerance)
+      // Splitting overlapping chords can leave a long ring whose width is
+      // only coordinate roundoff. Its area error scales with its perimeter,
+      // rather than the square of the vertex snapping tolerance. Do not turn
+      // those zero-width excursions into unidentified phase fields.
+      double perimeter = 0., magnitude = 0.;
+      for (std::size_t i = 1; i < ring.size(); ++i) {
+        perimeter +=
+            (vertices.points[ring[i]] - vertices.points[ring[i - 1]]).norm();
+        magnitude =
+            std::max(magnitude, vertices.points[ring[i]].cwiseAbs().maxCoeff());
+      }
+      const double allowance = std::max(
+          area_tolerance,
+          32. * std::numeric_limits<double>::epsilon() * magnitude * perimeter);
+      if (value > allowance)
         faces.push_back({ring, {}, walk.labels, value, walk.dangling});
-      else if (value < -area_tolerance)
+      else if (value < -allowance)
         holes.push_back({ring, walk.labels, walk.dangling});
     }
   // Clockwise cycles belong to the smallest containing exterior, excluding

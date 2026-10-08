@@ -757,6 +757,119 @@ def test_stability_selects_lower_energy_and_bulk_scaling():
         assert state.mass_balance_error < 1e-9
 
 
+def test_field_recovery_compares_the_representative_and_removes_obsolete_fields():
+    lower = pure("lower", {"Mg": 1.0, "O": 1.0})
+    higher = bm.CombinedMineral([lower], [1.0], [0.1, 0.0, 0.0], name="higher")
+    opts = settings()
+    result = bm.pseudosection(
+        {"Mg": 1.0, "O": 1.0},
+        [higher, lower],
+        (1.0e9, 2.0e9),
+        (600.0, 800.0),
+        opts,
+    )
+    saved = result.to_dict()
+    saved["samples"] = saved["samples"][:2]
+    first, second = saved["samples"]
+    first.update(
+        pressure=1.5e9,
+        temperature=700.0,
+        is_field_verification=True,
+        minimum_affinity=-0.1,
+    )
+    first["phases"][0].update(id=0, candidate_index=0, name="higher")
+    second.update(pressure=1.2e9, temperature=640.0)
+    recovered = bm.refine_pseudosection(
+        saved["composition_start"], [higher, lower], saved
+    )
+    assert recovered.resolved, recovered.diagnostics
+    assert not recovered.boundaries
+    assert len(recovered.fields) == 1
+    assert recovered.fields[0].phases == [3]
+    assert all(s.phases[0].name == "lower" for s in recovered.samples if s.success)
+
+
+def test_pyrolite_small_lp_seed_grows_during_equilibrium_refinement():
+    example = runpy.run_path(
+        str(Path(__file__).parents[2] / "examples/example_pyrolite_pseudosection.py")
+    )
+    opts = bm.PseudosectionSettings()
+    state = bm.stable_equilibrium(
+        example["PYROLITE_COMPOSITION"].atomic_composition,
+        example["candidate_phases"](),
+        4.92563045e9,
+        143.78190438,
+        opts,
+    )
+    assert state.success, state.message
+    spinel = next(phase for phase in state.phases if phase.name == "sp")
+    assert spinel.amount > opts.amount_tolerance * sum(p.amount for p in state.phases)
+    assert state.minimum_affinity >= -opts.affinity_tolerance
+    assert state.mass_balance_error < opts.mass_balance_tolerance
+
+
+@pytest.mark.parametrize("case_index", [0, 1])
+def test_pyrolite_short_branches_keep_both_verified_neighbours(case_index):
+    example = runpy.run_path(
+        str(Path(__file__).parents[2] / "examples/example_pyrolite_pseudosection.py")
+    )
+    cases = json.loads(
+        (Path(__file__).parent / "data/pyrolite_short_branch_labels.json").read_text()
+    )
+    saved = cases[case_index]
+    result = bm.refine_pseudosection(
+        saved["composition_start"], example["candidate_phases"](), saved
+    )
+    assert len(result.boundaries) == 1
+    line = result.boundaries[0]
+    assert line.side_a and line.side_b
+    if case_index == 0:
+        # Nine phases can coexist on this PT line, but the eight-component
+        # bulk cannot support a nine-phase, two-dimensional neighbouring field.
+        assert max(len(line.side_a), len(line.side_b)) <= 8
+        assert line.is_solution_replacement
+        assert line.side_a == line.side_b == [6, 12, 18, 19, 27, 39, 60, 78]
+        neighbours = [s for s in result.samples if s.success and len(s.phases) == 8]
+        ak = [next(p for p in s.phases if p.candidate_index == 9) for s in neighbours]
+        assert any(p.composition[2] > 0.9 for p in ak)  # Corundum-rich.
+        assert any(p.composition[4] > 0.9 for p in ak)  # Hematite-rich.
+        for state in neighbours:
+            assert state.minimum_affinity >= -result.settings.affinity_tolerance
+            assert state.equilibrium_error <= result.settings.affinity_tolerance * 0.1
+            assert state.mass_balance_error <= result.settings.mass_balance_tolerance
+    else:
+        assert line.side_a != line.side_b
+    assert not any("neighbouring fields" in d for d in result.diagnostics)
+
+
+def test_required_eos_limit_keeps_the_accepted_pyrolite_boundary():
+    example = runpy.run_path(
+        str(Path(__file__).parents[2] / "examples/example_pyrolite_pseudosection.py")
+    )
+    opts = bm.PseudosectionSettings()
+    opts.pressure_seeds = opts.temperature_seeds = 2
+    opts.required_eos_phases = ["opx"]
+    result = bm.pseudosection(
+        example["PYROLITE_COMPOSITION"].atomic_composition,
+        example["candidate_phases"](),
+        (7.0e9, 10.0e9),
+        (3800.0, 4000.0),
+        opts,
+    )
+    assert result.resolved, result.diagnostics
+    boundary = next(
+        line
+        for line in result.boundaries
+        if line.zero_phase == 0 and "model domain limit" in line.termination
+    )
+    assert len(boundary.points) >= 2
+    assert all(p.minimum_affinity >= -opts.affinity_tolerance for p in boundary.points)
+    assert all(
+        p.mass_balance_error < opts.mass_balance_tolerance for p in boundary.points
+    )
+    assert any(node.kind == "model_domain_limit" for node in result.nodes)
+
+
 def test_water_eos_thermodynamic_derivatives_and_gas_limit():
     fluid = bm.water_fluid()
     for pressure, temperature in [

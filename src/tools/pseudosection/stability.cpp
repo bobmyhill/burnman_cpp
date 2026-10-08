@@ -1328,7 +1328,7 @@ WorkState Engine::stable(double p, double t) {
                              phases[i].vertices.colwise().mean().transpose()});
     }
     polytope::GibbsLPResult lp;
-    auto equilibrate_lp = [&]() {
+    auto equilibrate_lp = [&](double amount_tolerance) {
       std::vector<PhaseState> seeds;
       std::vector<int> ids;
       for (std::size_t i = 0; i < phases.size(); ++i) {
@@ -1336,7 +1336,7 @@ WorkState Engine::stable(double p, double t) {
         for (int j = 0; j < lp.amounts.size(); ++j)
           if (compounds[static_cast<std::size_t>(j)].phase ==
                   static_cast<int>(i) &&
-              lp.amounts[j] > settings.amount_tolerance * lp.amounts.sum()) {
+              lp.amounts[j] > amount_tolerance * lp.amounts.sum()) {
             auto &c = compounds[static_cast<std::size_t>(j)];
             auto it =
                 std::find_if(clusters.begin(), clusters.end(), [&](auto &old) {
@@ -1443,7 +1443,7 @@ WorkState Engine::stable(double p, double t) {
       // its fully validated mass balance, reaction residual and stability.
       if (iteration % 10 == 9 && worst < -settings.affinity_tolerance * .1) {
         try {
-          auto equilibrium = equilibrate_lp();
+          auto equilibrium = equilibrate_lp(settings.amount_tolerance);
           if (equilibrium.state.success)
             return equilibrium;
         } catch (const std::runtime_error &) {
@@ -1451,10 +1451,20 @@ WorkState Engine::stable(double p, double t) {
         }
       }
       if (worst >= -settings.affinity_tolerance * .1) {
-        auto equilibrium = equilibrate_lp();
+        auto equilibrium = equilibrate_lp(settings.amount_tolerance);
         if (equilibrium.state.success || !equilibrium.assemblage ||
             equilibrium.state.minimum_affinity >= -settings.affinity_tolerance)
           return equilibrium;
+        // A phase can occupy a negligible amount in the coarse LP mesh but
+        // grow during Newton refinement. Retry those seeds when the ordinary
+        // assemblage fails stability; final field counts keep amount_tolerance.
+        try {
+          auto trace_equilibrium =
+              equilibrate_lp(std::min(settings.amount_tolerance, 1.e-10));
+          if (trace_equilibrium.state.success)
+            return trace_equilibrium;
+        } catch (const std::runtime_error &) {
+        }
         // The refined compositions must enter the LP too: frozen mesh points
         // can otherwise hide a feasible direction towards a lower-energy phase.
         for (const auto &state : equilibrium.state.phases) {
