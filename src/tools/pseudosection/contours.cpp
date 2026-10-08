@@ -12,6 +12,7 @@
 // ------------------------------------------------------
 
 #include "internal.hpp"
+#include <Eigen/Eigenvalues>
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -24,6 +25,10 @@ using V2 = Eigen::Vector2d;
 struct TraceState {
   std::shared_ptr<Assemblage> a;
   optim::roots::DampedNewtonResult solve;
+};
+struct SeedSample {
+  TraceState state;
+  double residual = 0.;
 };
 
 class Contours {
@@ -97,10 +102,53 @@ class Contours {
     TraceState state{engine.copy_assemblage(initial), {}};
     try {
       state.solve = engine.solve(*state.a, c);
+      if (state.solve.success && !locally_stable(*state.a)) {
+        state.solve.success = false;
+        state.solve.message = "Equilibrium has negative Gibbs curvature.";
+      }
     } catch (const std::exception &) {
       state.solve.success = false;
     }
     return state;
+  }
+  bool locally_stable(const Assemblage &a) const {
+    // A reaction root can be an unstable stationary point, notably for
+    // ordering in solutions. Test curvature only along mass-conserving
+    // reactions of the saved assemblage, without discovering other phases.
+    const auto reactions = a.get_reaction_basis();
+    if (!reactions.rows())
+      return true;
+    Eigen::MatrixXd hessian =
+        Eigen::MatrixXd::Zero(reactions.cols(), reactions.cols());
+    const auto counts = a.get_endmembers_per_phase();
+    const auto amounts = (a.get_molar_fractions() * a.get_n_moles()).eval();
+    Eigen::Index offset = 0;
+    for (std::size_t i = 0; i < counts.size(); ++i) {
+      const Eigen::Index n = counts[i];
+      if (n > 1) {
+        const auto phase = a.get_phase<Solution>(i);
+        hessian.block(offset, offset, n, n) =
+            phase->get_gibbs_hessian() /
+            std::max(amounts[static_cast<Eigen::Index>(i)],
+                     a.get_n_moles() * 1.e-12);
+      }
+      offset += n;
+    }
+    Eigen::MatrixXd curvature = reactions * hessian * reactions.transpose();
+    if (!curvature.allFinite())
+      return false;
+    // Congruent rescaling preserves the sign of curvature while avoiding
+    // domination by trace sites or near-zero phase amounts.
+    const Eigen::VectorXd scale =
+        curvature.diagonal().cwiseAbs().cwiseMax(1.).cwiseSqrt().cwiseInverse();
+    curvature = scale.asDiagonal() * curvature * scale.asDiagonal();
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eigenvalues(
+        curvature, Eigen::EigenvaluesOnly);
+    return eigenvalues.info() == Eigen::Success &&
+           eigenvalues.eigenvalues().minCoeff() >=
+               -1.e-9 *
+                   std::max(1.,
+                            eigenvalues.eigenvalues().cwiseAbs().maxCoeff());
   }
   TraceState solve_at(const Assemblage &initial, const V2 &u) {
     auto q = (origin + u.cwiseProduct(range)).eval();
@@ -288,45 +336,164 @@ class Contours {
     if (line.points.size() > 1)
       result.lines.push_back(std::move(line));
   }
-  // Sweeps in both directions find boundary crossings and interior loops.
+  std::vector<std::pair<double, double>> intervals(int axis,
+                                                   double value) const {
+    std::vector<double> cuts;
+    for (const auto &ring : rings)
+      for (Eigen::Index i = 1; i < ring.rows(); ++i) {
+        V2 a = ring.row(i - 1), b = ring.row(i);
+        if ((a[axis] <= value && b[axis] > value) ||
+            (b[axis] <= value && a[axis] > value))
+          cuts.push_back(a[1 - axis] + (value - a[axis]) *
+                                           (b[1 - axis] - a[1 - axis]) /
+                                           (b[axis] - a[axis]));
+      }
+    std::sort(cuts.begin(), cuts.end());
+    std::vector<std::pair<double, double>> spans;
+    for (std::size_t k = 1; k < cuts.size(); ++k) {
+      V2 u;
+      u[axis] = value;
+      u[1 - axis] = .5 * (cuts[k - 1] + cuts[k]);
+      if (inside(u) && cuts[k] - cuts[k - 1] >= 1.e-10)
+        spans.emplace_back(cuts[k - 1], cuts[k]);
+    }
+    return spans;
+  }
+  // Follow interval centres along the polygon, splitting only where a straight
+  // connection would leave the field. Geometry work requires no equilibrium
+  // solves, and intersections with holes remain separate intervals.
+  bool centre_path(const V2 &a, const V2 &b, int axis, std::vector<V2> &path,
+                   int &budget) const {
+    if (--budget < 0)
+      return false;
+    double fraction;
+    V2 normal;
+    if (!clip(a, b - a, fraction, normal) || fraction >= 1. - 1.e-9) {
+      path.push_back(b);
+      return true;
+    }
+    if (std::abs(b[axis] - a[axis]) < 1.e-10)
+      return false;
+    V2 midpoint = .5 * (a + b);
+    std::vector<V2> centres;
+    for (auto [low, high] : intervals(axis, midpoint[axis])) {
+      V2 u = midpoint;
+      u[1 - axis] = .5 * (low + high);
+      centres.push_back(u);
+    }
+    std::sort(centres.begin(), centres.end(), [&](const V2 &u, const V2 &v) {
+      return (u - midpoint).squaredNorm() < (v - midpoint).squaredNorm();
+    });
+    for (const auto &u : centres) {
+      auto size = path.size();
+      if (centre_path(a, u, axis, path, budget) &&
+          centre_path(u, b, axis, path, budget))
+        return true;
+      path.resize(size);
+    }
+    return false;
+  }
+  void bracket_seed(SeedSample left, SeedSample right) {
+    for (int iteration = 0; iteration < 20; ++iteration) {
+      V2 a = normalized(*left.state.a), b = normalized(*right.state.a);
+      V2 direction = b - a;
+      if (direction.norm() < 1.e-12)
+        break;
+      V2 normal(-direction[1], direction[0]);
+      normal.normalize();
+      double t = std::abs(left.residual) < 1.e-9 ? 0.
+                 : std::abs(right.residual) < 1.e-9
+                     ? 1.
+                     : left.residual / (left.residual - right.residual);
+      auto &initial = std::abs(left.residual) < std::abs(right.residual)
+                          ? left.state.a
+                          : right.state.a;
+      auto root = correct(*initial, a + t * direction, normal);
+      if (root.solve.success && inside(normalized(*root.a))) {
+        double position =
+            (normalized(*root.a) - a).dot(direction) / direction.squaredNorm();
+        if (position >= -1.e-7 && position <= 1. + 1.e-7) {
+          trace(root);
+          return;
+        }
+      }
+      // If correction leaves a thin field or cannot converge, tighten the
+      // bracket with a fixed-coordinate solve on its known interior segment.
+      auto middle = solve_at(*initial, .5 * (a + b));
+      if (!middle.solve.success)
+        break;
+      double f = residual(*middle.a);
+      if (!std::isfinite(f))
+        throw std::runtime_error(
+            "Contour constraint returned a nonfinite residual.");
+      if (left.residual * f <= 0.)
+        right = {std::move(middle), f};
+      else
+        left = {std::move(middle), f};
+    }
+    issue("a bracketed contour seed could not be equilibrated");
+  }
+  void connect_seeds(const SeedSample &a, const SeedSample &b, int axis) {
+    if (a.residual * b.residual >= 0.)
+      return;
+    std::vector<V2> path;
+    int budget = 128;
+    if (!centre_path(normalized(*a.state.a), normalized(*b.state.a), axis, path,
+                     budget))
+      return;
+    auto previous = a;
+    for (std::size_t i = 0; i < path.size(); ++i) {
+      SeedSample next = b;
+      if (i + 1 < path.size()) {
+        auto state = solve_at(*previous.state.a, path[i]);
+        if (!state.solve.success)
+          state = solve_at(*b.state.a, path[i]);
+        if (!state.solve.success) {
+          issue("a bracketed contour seed could not be equilibrated");
+          return;
+        }
+        double f = residual(*state.a);
+        if (!std::isfinite(f))
+          throw std::runtime_error(
+              "Contour constraint returned a nonfinite residual.");
+        next = {std::move(state), f};
+      }
+      if (previous.residual * next.residual <= 0.)
+        bracket_seed(previous, next);
+      previous = std::move(next);
+    }
+  }
+  // Sweeps across and along the polygon find crossings and interior loops.
   // Intersections with holes split sweeps; no segment spans different fields.
   void seeds() {
     int successful_seeds = 0;
     for (int axis = 0; axis < 2; ++axis) {
-      double low = rings[0].col(axis).minCoeff(),
-             high = rings[0].col(axis).maxCoeff();
+      double extent_low = rings[0].col(axis).minCoeff(),
+             extent_high = rings[0].col(axis).maxCoeff();
       std::vector<double> planes;
       for (int i = 0; i < settings.seed_grid; ++i)
-        planes.push_back(low +
-                         (high - low) * (double(i) + .5) / settings.seed_grid);
+        planes.push_back(extent_low + (extent_high - extent_low) *
+                                          (double(i) + .5) /
+                                          settings.seed_grid);
       planes.push_back(
           ((field.label_position - origin).cwiseQuotient(range))[axis]);
+      std::sort(planes.begin(), planes.end());
+      planes.erase(std::unique(planes.begin(), planes.end()), planes.end());
+      std::vector<SeedSample> previous_centres;
       for (double value : planes) {
-        std::vector<double> cuts;
-        for (const auto &ring : rings)
-          for (Eigen::Index i = 1; i < ring.rows(); ++i) {
-            V2 a = ring.row(i - 1), b = ring.row(i);
-            if ((a[axis] <= value && b[axis] > value) ||
-                (b[axis] <= value && a[axis] > value))
-              cuts.push_back(a[1 - axis] + (value - a[axis]) *
-                                               (b[1 - axis] - a[1 - axis]) /
-                                               (b[axis] - a[axis]));
-          }
-        std::sort(cuts.begin(), cuts.end());
-        for (std::size_t k = 1; k < cuts.size(); ++k) {
+        std::vector<SeedSample> centres;
+        for (auto [low, high] : intervals(axis, value)) {
           V2 u;
           u[axis] = value;
-          u[1 - axis] = .5 * (cuts[k - 1] + cuts[k]);
-          if (!inside(u) || cuts[k] - cuts[k - 1] < 1.e-10)
-            continue;
-          int count =
-              std::max(2, static_cast<int>(std::ceil((cuts[k] - cuts[k - 1]) *
-                                                     settings.seed_grid)));
+          int count = std::max(2, static_cast<int>(std::ceil(
+                                      (high - low) * settings.seed_grid)));
           TraceState previous;
           double old_f = 0.;
+          SeedSample centre;
+          double nearest = 1.;
           for (int j = 0; j <= count; ++j) {
             double t = std::clamp(double(j) / count, 1.e-7, 1. - 1.e-7);
-            u[1 - axis] = cuts[k - 1] + t * (cuts[k] - cuts[k - 1]);
+            u[1 - axis] = low + t * (high - low);
             auto state = solve_at(*warm, u);
             if (!state.solve.success) {
               previous = {};
@@ -338,6 +505,10 @@ class Contours {
             if (!std::isfinite(f))
               throw std::runtime_error(
                   "Contour constraint returned a nonfinite residual.");
+            if (std::abs(t - .5) < nearest) {
+              nearest = std::abs(t - .5);
+              centre = {state, f};
+            }
             if (std::abs(f) < 1.e-9 || (previous.a && old_f * f < 0.)) {
               if (covered(normalized(*state.a)) && std::abs(f) < 1.e-9) {
                 previous = std::move(state);
@@ -363,7 +534,13 @@ class Contours {
             previous = std::move(state);
             old_f = f;
           }
+          if (centre.state.a)
+            centres.push_back(std::move(centre));
         }
+        for (const auto &a : previous_centres)
+          for (const auto &b : centres)
+            connect_seeds(a, b, axis);
+        previous_centres = std::move(centres);
       }
     }
     if (!successful_seeds)

@@ -342,6 +342,8 @@ State stable_equilibrium(
     double temperature, const Settings &settings = Settings{});
 
 struct ContourSettings {
+  // Cross-field sweeps also connect their interior samples along the polygon;
+  // geometry subdivisions follow bends and avoid crossing excluded holes.
   int seed_grid = 5, max_trace_steps = 1000;
   // Distances are fractions of the complete diagram ranges, as in Settings.
   double step = .02, min_step = 1.e-6;
@@ -375,9 +377,11 @@ using ContourConstraintFactory =
 /// Trace a constraint through saved, identified closed fields, using their
 /// accepted phase amounts/compositions as warm starts. No phase boundaries
 /// are recalculated and the source is not modified. Candidates and phase-ID
-/// spacing must match the original calculation. Finite seed sampling can miss
-/// disconnected contours; increase seed_grid to assess their discovery.
-/// Use the saved field's phases and check the equilibrium constraints;
+/// spacing must match the original calculation. Seeds sweep across each field
+/// and along paths inside its polygon. Finite sampling can miss disconnected
+/// contours; increase seed_grid to assess their discovery.
+/// Use the saved field's phases, check the equilibrium constraints and reject
+/// negative Gibbs curvature along mass-conserving reactions;
 /// discovering phases and checking alternative assemblages is not repeated.
 ContourResult
 pseudosection_contours(const Result &previous,
