@@ -1,5 +1,15 @@
 """Native numerical tools and optional plotting helpers."""
 
-from .pseudosection import plot_pseudosection, refine_pseudosection
+from .contours import pseudosection_contour_levels
+from .pseudosection import (
+    plot_pseudosection,
+    plot_pseudosection_contours,
+    refine_pseudosection,
+)
 
-__all__ = ["plot_pseudosection", "refine_pseudosection"]
+__all__ = [
+    "pseudosection_contour_levels",
+    "plot_pseudosection",
+    "plot_pseudosection_contours",
+    "refine_pseudosection",
+]

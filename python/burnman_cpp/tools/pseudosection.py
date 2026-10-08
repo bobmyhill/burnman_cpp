@@ -14,6 +14,52 @@ def _value(record, name, default=None):
     )
 
 
+def _coordinate_units(result, quantities, options):
+    """SI-to-display scales for coordinates and contour values."""
+    pressure_unit = options.get("pressure_unit", "kbar")
+    temperature_unit = options.get("temperature_unit", "C")
+    entropy_unit = options.get("entropy_unit", "J/K")
+    volume_unit = options.get("volume_unit", "m3")
+    pressure_scales = {"Pa": 1.0, "GPa": 1.0e9, "kbar": 1.0e8}
+    if pressure_unit not in pressure_scales:
+        raise ValueError("pressure_unit must be 'Pa', 'GPa' or 'kbar'.")
+    if temperature_unit not in ("K", "C"):
+        raise ValueError("temperature_unit must be 'K' or 'C'.")
+    t_offset = 273.15 if temperature_unit == "C" else 0.0
+    entropy_scales = {"J/K": 1.0, "kJ/K": 1000.0, "kB/atom": 1.0}
+    volume_scales = {"m3": 1.0, "cm3": 1.0e-6, "kg/m3": 1.0}
+    if entropy_unit not in entropy_scales or volume_unit not in volume_scales:
+        raise ValueError(
+            "entropy_unit must be 'J/K', 'kJ/K' or 'kB/atom'; "
+            "volume_unit must be 'm3', 'cm3' or 'kg/m3'."
+        )
+    density = "V" in quantities and volume_unit == "kg/m3"
+    per_atom = "S" in quantities and entropy_unit == "kB/atom"
+    bulk_mass = None
+    if density or per_atom:
+        if "X" in _value(result, "diagram_type", "PT"):
+            raise ValueError("Density and per-atom entropy require a constant bulk.")
+        bulk = _value(result, "composition_start", {})
+        if not bulk:
+            raise ValueError("Density and per-atom entropy require composition_start.")
+        composition = _core.Composition(bulk, "molar")
+        bulk_mass = sum(composition.mass_composition.values())
+        entropy_scales["kB/atom"] = (
+            sum(composition.atomic_composition.values()) * constants.gas_constant
+        )
+    return (
+        dict(
+            P=pressure_scales[pressure_unit],
+            T=1.0,
+            S=entropy_scales[entropy_unit],
+            V=volume_scales[volume_unit],
+            X=1.0,
+        ),
+        t_offset,
+        bulk_mass,
+    )
+
+
 def _coordinate_transforms(
     result,
     pressure_unit="kbar",
@@ -25,51 +71,27 @@ def _coordinate_transforms(
     """Shared native-to-display transforms for phase lines and overlays."""
     import numpy as np
 
-    pressure_scales = {"Pa": 1.0, "GPa": 1.0e9, "kbar": 1.0e8}
-    if pressure_unit not in pressure_scales:
-        raise ValueError("pressure_unit must be 'Pa', 'GPa' or 'kbar'.")
-    if temperature_unit not in ("K", "C"):
-        raise ValueError("temperature_unit must be 'K' or 'C'.")
-    p_scale = pressure_scales[pressure_unit]
-    t_offset = 273.15 if temperature_unit == "C" else 0.0
-    if isinstance(result, Mapping):
-        result = dict(result)
     diagram = _value(result, "diagram_type", "PT")
     if diagram not in ("PT", "PS", "PV", "TS", "TV", "SV", "PX", "TX", "SX", "VX"):
         raise ValueError("diagram_type must select two of P, T, S, V and X.")
-    entropy_scales = {"J/K": 1.0, "kJ/K": 1000.0, "kB/atom": 1.0}
-    volume_scales = {"m3": 1.0, "cm3": 1.0e-6, "kg/m3": 1.0}
-    if entropy_unit not in entropy_scales or volume_unit not in volume_scales:
-        raise ValueError(
-            "entropy_unit must be 'J/K', 'kJ/K' or 'kB/atom'; "
-            "volume_unit must be 'm3', 'cm3' or 'kg/m3'."
-        )
+    scales, t_offset, bulk_mass = _coordinate_units(
+        result,
+        diagram,
+        dict(
+            pressure_unit=pressure_unit,
+            temperature_unit=temperature_unit,
+            entropy_unit=entropy_unit,
+            volume_unit=volume_unit,
+        ),
+    )
     density = "V" in diagram and volume_unit == "kg/m3"
     per_atom = "S" in diagram and entropy_unit == "kB/atom"
-    if density or per_atom:
-        if "X" in diagram:
-            raise ValueError("Density and per-atom entropy require a constant bulk.")
-        bulk = _value(result, "composition_start", {})
-        if not bulk:
-            raise ValueError("Density and per-atom entropy require composition_start.")
-        composition = _core.Composition(bulk, "molar")
-        bulk_mass = sum(composition.mass_composition.values())
-        entropy_scales["kB/atom"] = (
-            sum(composition.atomic_composition.values()) * constants.gas_constant
-        )
     names = dict(
         P="pressure",
         T="temperature",
         S="entropy",
         V="volume",
         X="composition_coordinate",
-    )
-    scales = dict(
-        P=p_scale,
-        T=1.0,
-        S=entropy_scales[entropy_unit],
-        V=volume_scales[volume_unit],
-        X=1.0,
     )
     axis_scale = np.array([scales[axis] for axis in diagram])
     axis_offset = np.array([t_offset if axis == "T" else 0.0 for axis in diagram])
@@ -158,6 +180,7 @@ def plot_pseudosection(
     ax=None,
     *,
     cmap="viridis",
+    assemblage_colors=None,
     colorbar=True,
     fill_alpha=0.75,
     line_color="black",
@@ -222,6 +245,12 @@ def plot_pseudosection(
     used to merge numerically identical vertices. The colourbar uses integer
     ticks and discrete colours. All thermodynamics and polygon work are native.
 
+    ``assemblage_colors`` maps tuples of native phase IDs or base model names
+    to Matplotlib colours; order is ignored. Repeat a model name for each
+    coexisting solution instance, e.g. ('g', 'fsp', 'fsp'). Unlisted fields
+    retain phase-count colours. Custom colours suppress the phase-count
+    colourbar. Named keys use model names before phase_aliases are applied.
+
     Label each identified closed field with its assemblage. ``phase_aliases``
     maps model names to abbreviations (e.g. ``{'g': 'gt'}``); repeated solution
     instances appear as ``2hb``. C++ selects interior label positions, avoiding
@@ -266,7 +295,8 @@ def plot_pseudosection(
     def point_coordinates(point):
         return coordinates([[_value(point, names[axis]) for axis in diagram]])[0]
 
-    patches, counts, domain_patches = [], [], []
+    phase_names = _value(result, "phase_names", [])
+    patches, counts, phase_groups, domain_patches = [], [], [], []
     for polygon in geometry.polygons:
         if polygon.n_phases <= 0 and not polygon.outside_model_domain:
             continue
@@ -282,6 +312,7 @@ def plot_pseudosection(
         else:
             patches.append(patch)
             counts.append(polygon.n_phases)
+            phase_groups.append(polygon.phases)
     if patches:
         low, high = min(counts), max(counts)
         palette = plt.get_cmap(cmap, high - low + 1)
@@ -294,9 +325,31 @@ def plot_pseudosection(
             alpha=fill_alpha,
             zorder=0,
         )
-        collection.set_array(np.asarray(counts, dtype=float))
+        if assemblage_colors:
+            colours = {
+                tuple(sorted((key,) if isinstance(key, str) else key)): colour
+                for key, colour in assemblage_colors.items()
+            }
+            field_colours = []
+            for phases, count in zip(phase_groups, counts):
+                field_names = tuple(
+                    sorted(
+                        phase_names[i].split(" #")[0]
+                        for i in phases
+                        if 0 <= i < len(phase_names)
+                    )
+                )
+                field_colours.append(
+                    colours.get(
+                        tuple(sorted(phases)),
+                        colours.get(field_names, palette(norm(count))),
+                    )
+                )
+            collection.set_facecolors(field_colours)
+        else:
+            collection.set_array(np.asarray(counts, dtype=float))
         ax.add_collection(collection)
-        if colorbar:
+        if colorbar and not assemblage_colors:
             bar = fig.colorbar(collection, ax=ax, ticks=sorted(set(counts)), pad=0.025)
             bar.set_label("Number of phases")
     if domain_patches:
@@ -331,7 +384,6 @@ def plot_pseudosection(
             stacklevel=2,
         )
 
-    phase_names = _value(result, "phase_names", [])
     aliases = dict(phase_aliases or {})
 
     def assemblage_text(phases):
@@ -606,6 +658,10 @@ def plot_pseudosection_contours(
     line_width=0.8,
     line_style="solid",
     label=None,
+    quantity=None,
+    value=None,
+    label_format=None,
+    label_placement="auto",
     label_fontsize=7.0,
     inline_labels=True,
     **display_options,
@@ -618,6 +674,18 @@ def plot_pseudosection_contours(
     For other axes, supply the units used to draw their phase diagram.
     The label names this contour level in the legend and, optionally, along
     sufficiently long segments; all text uses label_fontsize.
+
+    Alternatively supply ``value`` and ``quantity`` ('P', 'T', 'S', 'V' or
+    'X') to label an SI contour target in the panel's display units, even
+    when that quantity is not a diagram axis. Without quantity, value is
+    displayed unchanged, useful for composition ratios. An explicit label
+    overrides automatic formatting. ``label_format`` is a Python numeric
+    format specification, e.g. '.2f'.
+
+    ``label_placement='auto'`` labels separate segments automatically.
+    'single' places one label on the longest segment in display dimensions;
+    'coexistence' first prefers fields with the most coexisting phases. These
+    options help when contours nearly overlap in lower-variance fields.
     Return (figure, axes).
     """
     import numpy as np
@@ -625,22 +693,49 @@ def plot_pseudosection_contours(
 
     if not np.isfinite(label_fontsize) or label_fontsize <= 0.0:
         raise ValueError("label_fontsize must be positive and finite.")
+    if label_placement not in ("auto", "single", "coexistence"):
+        raise ValueError("label_placement must be 'auto', 'single' or 'coexistence'.")
+    if quantity is not None and quantity not in ("P", "T", "S", "V", "X"):
+        raise ValueError("quantity must be 'P', 'T', 'S', 'V' or 'X'.")
     options = dict(getattr(ax, "_pseudosection_display_options", {}))
-    for key, value in display_options.items():
-        if value is not None:
-            if key in options and options[key] != value:
+    for key, option in display_options.items():
+        if option is not None:
+            if key in options and options[key] != option:
                 raise ValueError("Contour display units must match the phase diagram.")
-            options[key] = value
+            options[key] = option
     diagram, names, _, _, _, coordinates, _ = _coordinate_transforms(result, **options)
     if _value(contours, "diagram_type") != diagram:
         raise ValueError("Contours and pseudosection must use the same diagram type.")
-    segments = []
+    if label is None and value is not None:
+        display_value = float(value)
+        if not np.isfinite(display_value):
+            raise ValueError("Contour label values must be finite.")
+        if quantity is not None:
+            scales, t_offset, mass = _coordinate_units(result, quantity, options)
+            if quantity == "V" and options.get("volume_unit", "m3") == "kg/m3":
+                if display_value <= 0.0:
+                    raise ValueError("Density labels require a positive volume.")
+                display_value = mass / display_value
+            else:
+                display_value = (
+                    display_value - (t_offset if quantity == "T" else 0.0)
+                ) / scales[quantity]
+        if label_format is None:
+            label_format = (
+                ".3g"
+                if quantity == "S"
+                or (quantity == "V" and options.get("volume_unit", "m3") != "kg/m3")
+                else "g"
+            )
+        label = format(display_value, label_format)
+    segments, phase_counts = [], []
     for line in _value(contours, "lines", []):
         points = _value(line, "points", [])
         if len(points) >= 2:
             segments.append(
                 coordinates([[_value(p, names[c]) for c in diagram] for p in points])
             )
+            phase_counts.append(len(_value(line, "phases", [])))
     if segments:
         lines = ContourSet(
             ax,
@@ -653,5 +748,36 @@ def plot_pseudosection_contours(
         )
         ax.collections[-1].set_label(label)
         if label is not None and inline_labels:
-            lines.clabel(fmt={0.0: str(label)}, fontsize=label_fontsize, inline=True)
+            positions = None
+            if label_placement != "auto":
+                lengths = [
+                    np.linalg.norm(
+                        np.diff(ax.transData.transform(segment), axis=0), axis=1
+                    )
+                    for segment in segments
+                ]
+                candidates = [
+                    i
+                    for i in range(len(segments))
+                    if label_placement != "coexistence"
+                    or phase_counts[i] == max(phase_counts)
+                ]
+                index = max(candidates, key=lambda i: lengths[i].sum())
+                if lengths[index].sum() > 0.0:
+                    cumulative = np.r_[0.0, np.cumsum(lengths[index])]
+                    halfway = cumulative[-1] / 2.0
+                    midpoint = np.searchsorted(cumulative, halfway, side="right") - 1
+                    fraction = (halfway - cumulative[midpoint]) / lengths[index][
+                        midpoint
+                    ]
+                    left, right = segments[index][midpoint : midpoint + 2]
+                    positions = [left + fraction * (right - left)]
+                else:
+                    return ax.figure, ax
+            lines.clabel(
+                fmt={0.0: str(label)},
+                fontsize=label_fontsize,
+                inline=True,
+                manual=positions,
+            )
     return ax.figure, ax

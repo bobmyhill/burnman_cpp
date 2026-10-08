@@ -616,6 +616,42 @@ def test_plot_has_discrete_phase_count_colours_and_hole(tmp_path):
     plt.close(fig)
 
 
+@pytest.mark.parametrize("named", [False, True])
+def test_assemblage_colours_preserve_solution_multiplicity_and_polygon_holes(named):
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import to_rgba
+
+    data = diagram([line(square(), [0, 1, 2], [2])])
+    data["phase_names"] = ["g", "g #2", "q"]
+    colours = (
+        {("q", "g", "g"): "red", ("q",): "blue"}
+        if named
+        else {
+            (2, 1, 0): "red",
+            (2,): "blue",
+        }
+    )
+    fig, ax = bm.plot_pseudosection(
+        data,
+        pressure_unit="Pa",
+        temperature_unit="K",
+        fill_alpha=1.0,
+        assemblage_colors=colours,
+        label_assemblages=False,
+    )
+    # An assemblage palette must not leave a misleading phase-count colourbar.
+    assert len(fig.axes) == 1
+    assert ax.collections[0].get_array() is None
+    fig.canvas.draw()
+    rgba = np.asarray(fig.canvas.buffer_rgba())
+    for point, colour in [((0.5, 0.5), "red"), ((0.1, 0.1), "blue")]:
+        x, y = ax.transData.transform(point).astype(int)
+        np.testing.assert_allclose(
+            rgba[rgba.shape[0] - 1 - y, x, :3] / 255.0, to_rgba(colour)[:3], atol=0.01
+        )
+    plt.close(fig)
+
+
 def test_plot_labels_assemblages_and_solution_multiplicity():
     matplotlib = pytest.importorskip("matplotlib")
     matplotlib.use("Agg")

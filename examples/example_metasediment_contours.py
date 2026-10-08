@@ -23,40 +23,6 @@ from example_metasediment_pseudosection import (
 )
 
 
-def garnet_constraint(value, phase_names):
-    """Build the constraint using garnet's index in the current field."""
-
-    def factory(a, prm, ids):
-        # Saved phase_names includes solution-instance suffixes, indexed by ID.
-        indices = [
-            i
-            for i, phase_id in enumerate(ids)
-            if phase_names[phase_id].split(" #")[0] == "g"
-        ]
-        if not indices:
-            return None
-        index = indices[0]
-        phase = a.get_phase(index)
-        # mp50 garnet: three Mg/Fe2+/Ca sites (A), Al/Fe3+ sites (B).
-        # n_occupancies in PhaseCompositionConstraint supplies multiplicities.
-        sites = ["Mgx_A", "Fex_A"]
-        if not isinstance(phase, bm.Solution) or not all(
-            site in phase.site_names for site in sites
-        ):
-            return None  # An active pure face cannot carry this ratio.
-        return bm.PhaseCompositionConstraint(
-            index,
-            sites,
-            [1.0, 0.0],
-            [1.0, 1.0],
-            value,
-            a,
-            prm,
-        )
-
-    return factory
-
-
 def calculate(diagram, density_levels, garnet_levels, seed_grid=5, step=0.02):
     phases = candidate_phases()
     settings = bm.PseudosectionContourSettings()
@@ -67,29 +33,28 @@ def calculate(diagram, density_levels, garnet_levels, seed_grid=5, step=0.02):
     )
     # The Composition object keeps density on the saved bulk's amount scale.
     mass = sum(bm.Composition(composition, "molar").mass_composition.values())
-    output = dict(density=[], garnet=[])
-    for name, levels in [("density", density_levels), ("garnet", garnet_levels)]:
-        for value in levels:
-            constraint = (
-                bm.VolumeConstraint(mass / value)
-                if name == "density"
-                else garnet_constraint(value, diagram["phase_names"])
-            )
-            contours = bm.pseudosection_contours(
-                diagram,
-                phases,
-                constraint,
-                settings=settings,
-                composition=composition,
-            )
-            print(
-                f"{name} {value:g}: {len(contours.lines)} segments, "
-                f"{contours.equilibrium_solves} native solves, "
-                f"{len(contours.diagnostics)} diagnostics",
-                flush=True,
-            )
-            output[name].append(dict(value=value, contours=contours.to_dict()))
-    return output
+    # MP14 garnet's A sites contain Mg and Fe2+; its Fe3+ B site is excluded.
+    constructors = {
+        "density": (density_levels, lambda value: bm.VolumeConstraint(mass / value)),
+        "garnet": (
+            garnet_levels,
+            lambda value: bm.PhaseCompositionConstraint.for_diagram(
+                diagram, "g", ["Mgx_A", "Fex_A"], [1.0, 0.0], [1.0, 1.0], value
+            ),
+        ),
+    }
+    return {
+        name: bm.pseudosection_contour_levels(
+            diagram,
+            phases,
+            levels,
+            constructor,
+            settings=settings,
+            composition=composition,
+            verbose=True,
+        )
+        for name, (levels, constructor) in constructors.items()
+    }
 
 
 def plot(diagram, contours, output_dir, label_fontsize=7.0):
@@ -111,7 +76,7 @@ def plot(diagram, contours, output_dir, label_fontsize=7.0):
                 record["contours"],
                 ax,
                 color="crimson" if name == "density" else "royalblue",
-                label=f'{record["value"]:g}',
+                value=record["value"],
                 label_fontsize=label_fontsize,
             )
         ax.set_title(

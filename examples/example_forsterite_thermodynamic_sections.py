@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Mg2SiO4 phase fields in P-T, P-S, V-T and V-S coordinates.
+"""Mg2SiO4 phase fields and P, T, S, V contours in four coordinate systems.
 
-Recreate the phase boundaries in Bob Myhill's thermodynamics illustration:
+Recreate the phase boundaries and contours in Bob Myhill's illustration:
 https://blogs.egu.eu/divisions/gd/2021/01/27/thermodynamics-and-geodynamics-the-perfect-couple/
 
 Use the SLB2011 periclase, bridgmanite, akimotoite and ringwoodite models.
 Each panel is calculated independently by the native pseudosection routine;
-the shared plotter displays volume as density and entropy in kB per atom.
+native constraint contours reuse these completed sections. The shared plotters
+display volume as density and entropy in kB per atom by default.
 TV and SV are the canonical names of the V-T and V-S section types.
 
 Run: python examples/example_forsterite_thermodynamic_sections.py
@@ -22,8 +23,20 @@ from burnman_cpp.minerals import SLB11
 
 BULK = bm.Composition({"Mg2SiO4": 1.0}, "molar")
 BULK_MASS = sum(BULK.mass_composition.values())
-ENTROPY_SCALE = sum(BULK.atomic_composition.values()) * 8.31446261815324
+BULK_ATOMS = sum(BULK.atomic_composition.values())
+ENTROPY_SCALE = BULK_ATOMS * bm.constants.gas_constant
 ALIASES = ["per", "bdg", "aki", "rw"]
+# Native SI targets; alternate solid/dotted S and T levels as in the figure.
+CONTOURS = {
+    "P": (bm.PressureConstraint, [p * 1.0e8 for p in range(233, 238)], "blue"),
+    "T": (bm.TemperatureConstraint, list(range(1300, 1901, 50)), "orange"),
+    "S": (
+        bm.EntropyConstraint,
+        [s * BULK_ATOMS for s in range(42, 49)],
+        "red",
+    ),
+    "V": (bm.VolumeConstraint, [BULK_MASS / 4200.0], "cyan"),
+}
 
 
 def candidate_phases():
@@ -80,23 +93,41 @@ def calculate(quick=False, verbose=False):
     return results
 
 
+def calculate_contours(results, verbose=False):
+    """Trace the two properties absent from each section's coordinate axes."""
+    contours = {}
+    for diagram, result in results.items():
+        contours[diagram] = {
+            name: bm.pseudosection_contour_levels(
+                result, candidate_phases(), levels, constraint, verbose=verbose
+            )
+            for name, (constraint, levels, _) in CONTOURS.items()
+            if name not in diagram
+        }
+    return contours
+
+
 def plot(
     results,
     output_dir,
     label_fontsize=9.0,
     *,
+    contours=None,
     volume_unit="kg/m3",
     entropy_unit="kB/atom",
 ):
     import matplotlib.pyplot as plt
-    from matplotlib.collections import PatchCollection
+    from matplotlib.lines import Line2D
 
     fig, axes = plt.subplots(2, 2, figsize=(11, 8), layout="constrained")
     colours = {
-        frozenset([0, 1, 2]): "#bdd7ee",
-        frozenset([0, 2, 3]): "#cde6d5",
-        frozenset([0, 1, 3]): "#edb4a9",
-        frozenset([0, 1, 2, 3]): "#cbb6e6",
+        ("per", "bdg", "aki"): "#bdd7ee",
+        ("per", "aki", "rw"): "#cde6d5",
+        ("per", "bdg", "rw"): "#edb4a9",
+        ("per", "bdg", "aki", "rw"): "#cbb6e6",
+        ("per", "bdg"): "#e5e5e5",
+        ("per", "aki"): "#e5e5e5",
+        ("rw",): "#e5e5e5",
     }
     for ax, (diagram, result) in zip(axes.flat, results.items()):
         bm.plot_pseudosection(
@@ -104,6 +135,7 @@ def plot(
             ax=ax,
             colorbar=False,
             fill_alpha=1.0,
+            assemblage_colors=colours,
             pressure_unit="GPa",
             temperature_unit="K",
             entropy_unit=entropy_unit,
@@ -112,19 +144,30 @@ def plot(
             label_fontsize=label_fontsize,
             label_key_path=output_dir / f"forsterite_{diagram.lower()}_labels.md",
         )
-        polygons = [
-            p
-            for p in ax.pseudosection_geometry.polygons
-            if p.n_phases > 0 and not p.outside_model_domain
-        ]
-        # Colour the coexistence fields by assemblage, as in the illustration.
-        for collection in ax.collections:
-            if isinstance(collection, PatchCollection):
-                collection.set_array(None)
-                collection.set_facecolors(
-                    [colours.get(frozenset(p.phases), "#e5e5e5") for p in polygons]
+        handles = []
+        for name, records in (contours or {}).get(diagram, {}).items():
+            colour = CONTOURS[name][2]
+            for i, record in enumerate(records):
+                bm.plot_pseudosection_contours(
+                    result,
+                    record["contours"],
+                    ax,
+                    color=colour,
+                    line_style="dotted" if name in "ST" and i % 2 else "solid",
+                    quantity=name,
+                    value=record["value"],
+                    label_fontsize=label_fontsize,
+                    label_placement="coexistence" if name == "P" else "auto",
                 )
-                break
+            legend_name = {
+                "P": "Pressure",
+                "T": "Temperature",
+                "S": "Entropy",
+                "V": "Density" if volume_unit == "kg/m3" else "Volume",
+            }[name]
+            handles.append(Line2D([], [], color=colour, label=legend_name))
+        if handles:
+            ax.legend(handles=handles, loc="upper right", fontsize=label_fontsize)
         ax.set_axisbelow(True)
         ax.grid(color="white", linewidth=1.0)
     return fig, axes
@@ -159,11 +202,16 @@ def main():
         )
         for diagnostic in result.diagnostics:
             print(diagnostic)
+    contours = calculate_contours(results, args.verbose)
+    (args.output_dir / "forsterite_contours.json").write_text(
+        json.dumps(contours, indent=2, allow_nan=False) + "\n"
+    )
     if not args.no_plots:
         fig, _ = plot(
             results,
             args.output_dir,
             args.label_fontsize,
+            contours=contours,
             volume_unit=args.volume_unit,
             entropy_unit=args.entropy_unit,
         )
