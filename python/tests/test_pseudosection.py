@@ -154,6 +154,48 @@ def test_two_phase_entries_between_seeds_retain_the_intermediate_field():
     assert sorted(field.n_phases for field in geometry.polygons) == [1, 2, 3]
 
 
+def test_boundary_probes_keep_a_narrow_field_between_equal_phase_counts():
+    endmembers = [pure(e, {e: 1.0, "O": 1.0}) for e in ("Mg", "Fe", "Ca")]
+    solution = bm.Solution(
+        bm.IdealSolution(
+            [(phase, f"[{e}]O") for phase, e in zip(endmembers, ("Mg", "Fe", "Ca"))]
+        ),
+        [1.0 / 3.0] * 3,
+        name="solution",
+    )
+    phases = [solution] + [
+        bm.CombinedMineral(
+            [endmembers[i]],
+            [1.0],
+            [sign * 10000.0 - 1.0, bm.constants.gas_constant * np.log(3), -sign * 1e-5],
+            name=name,
+        )
+        for i, sign, name in [(0, 1.0, "Mg high"), (1, -1.0, "Fe low")]
+    ]
+    bulk = {"Mg": 1.0, "Fe": 1.0, "Ca": 1.0, "O": 3.0}
+    result = bm.pseudosection(bulk, phases, (0.0, 2.0e9), (600.0, 1400.0), settings())
+
+    def check_neighbours(result):
+        assert result.resolved, result.diagnostics
+        assert len(result.boundaries) == 2
+        for line in result.boundaries:
+            assert line.assemblage == [0, 3, 6]
+            missing = [p for p in line.assemblage if p != line.zero_phase]
+            assert {tuple(line.side_a), tuple(line.side_b)} == {
+                (0, 3, 6),
+                tuple(missing),
+            }
+
+    # The initial probe crosses the entire three-phase field, whose width is
+    # about 0.6 MPa inside a 2 GPa section. Both distant neighbours have two
+    # phases; they are not the immediate neighbours of either boundary.
+    check_neighbours(result)
+    saved = result.to_dict()
+    for line in saved["boundaries"]:
+        line.update(side_a=[0, 6], side_b=[0, 3])
+    check_neighbours(bm.refine_pseudosection(bulk, phases, saved))
+
+
 def test_four_branches_at_a_phase_swap_node():
     phases = crossing_phases()
     result = bm.pseudosection(
@@ -757,7 +799,10 @@ def test_stability_selects_lower_energy_and_bulk_scaling():
         assert state.mass_balance_error < 1e-9
 
 
-def test_field_recovery_compares_the_representative_and_removes_obsolete_fields():
+@pytest.mark.parametrize("crowded_neighbours", [False, True])
+def test_field_recovery_compares_the_representative_and_removes_obsolete_fields(
+    crowded_neighbours,
+):
     lower = pure("lower", {"Mg": 1.0, "O": 1.0})
     higher = bm.CombinedMineral([lower], [1.0], [0.1, 0.0, 0.0], name="higher")
     opts = settings()
@@ -779,9 +824,20 @@ def test_field_recovery_compares_the_representative_and_removes_obsolete_fields(
     )
     first["phases"][0].update(id=0, candidate_index=0, name="higher")
     second.update(pressure=1.2e9, temperature=640.0)
+    if crowded_neighbours:
+        # The lower-energy state is far along the region. Nearby higher-energy
+        # roots must not crowd that known conflicting assemblage out of recovery.
+        saved["samples"].extend(
+            dict(first, pressure=1.5e9 + (i + 1) * 100.0) for i in range(36)
+        )
+        saved["settings"]["max_recovery_passes"] = 5
     recovered = bm.refine_pseudosection(
         saved["composition_start"], [higher, lower], saved
     )
+    if crowded_neighbours:
+        recovered = bm.refine_pseudosection(
+            saved["composition_start"], [higher, lower], recovered
+        )
     assert recovered.resolved, recovered.diagnostics
     assert not recovered.boundaries
     assert len(recovered.fields) == 1

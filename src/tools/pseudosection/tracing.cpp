@@ -1665,6 +1665,30 @@ class Tracer {
     termination = "trace step limit";
     return points;
   }
+  Eigen::MatrixXd phase_formulae(const std::vector<int> &ids,
+                                 const std::vector<PhaseState> &states) const {
+    Eigen::MatrixXd formulae = Eigen::MatrixXd::Zero(
+        static_cast<Eigen::Index>(ids.size()),
+        static_cast<Eigen::Index>(engine.elements.size()));
+    for (const auto &phase : states) {
+      auto it = std::find(ids.begin(), ids.end(), phase.id);
+      if (it != ids.end())
+        formulae.row(it - ids.begin()) =
+            phase.composition.transpose() *
+            engine.phases[static_cast<std::size_t>(phase.candidate_index)].a;
+    }
+    return formulae;
+  }
+  std::vector<int> canonical_ids(const std::vector<int> &ids) const {
+    std::map<int, int> counts;
+    for (int id : ids)
+      ++counts[id / engine.settings.max_phase_instances];
+    std::vector<int> canonical;
+    for (auto [base, count] : counts)
+      for (int copy = 0; copy < count; ++copy)
+        canonical.push_back(base * engine.settings.max_phase_instances + copy);
+    return canonical;
+  }
   void label(Boundary &line) {
     if (line.points.size() < 2)
       return;
@@ -1769,19 +1793,9 @@ class Tracer {
       side_assemblages.push_back(absent);
     // At a phase replacement, two stoichiometrically indistinguishable
     // amounts are interchangeable at coexistence. Try the opposite removal.
-    Eigen::MatrixXd formulae = Eigen::MatrixXd::Zero(
-        static_cast<Eigen::Index>(line.assemblage.size()),
-        static_cast<Eigen::Index>(engine.elements.size()));
-    for (std::size_t k = 0; k < anchor.phases.size(); ++k) {
-      auto &ph = anchor.phases[k];
-      auto it =
-          std::find(line.assemblage.begin(), line.assemblage.end(), ph.id);
-      if (it == line.assemblage.end())
-        continue;
-      formulae.row(it - line.assemblage.begin()) =
-          ph.composition.transpose() *
-          engine.phases[static_cast<std::size_t>(ph.candidate_index)].a;
-    }
+    const auto formulae = phase_formulae(line.assemblage, anchor.phases);
+    const bool observed_full_assemblage =
+        field_index.count(canonical_ids(line.assemblage)) != 0;
     Eigen::FullPivLU<Eigen::MatrixXd> variance(formulae);
     variance.setThreshold(1.e-9);
     if (variance.rank() < formulae.rows())
@@ -1845,6 +1859,15 @@ class Tracer {
       if (result.section.type == DiagramType::PT &&
           ids.size() > engine.components.size())
         return false;
+      // For an observed full assemblage, independent phase amounts cannot
+      // exchange one zero phase for another across this edge. Such a probe
+      // has skipped the narrow full assemblage.
+      // Dependent amounts retain polymorph and compound-reaction replacements.
+      if (observed_full_assemblage &&
+          !has_composition_axis(result.section.type) &&
+          variance.rank() == formulae.rows())
+        return ids == canonical_ids(line.assemblage) ||
+               ids == canonical_ids(absent);
       return has_composition_axis(result.section.type) ||
              (std::includes(line.assemblage.begin(), line.assemblage.end(),
                             ids.begin(), ids.end()) &&
@@ -2638,8 +2661,11 @@ class Tracer {
           if (!checked.insert(index).second)
             continue;
           const auto &old = result.samples[index];
+          const auto representative =
+              static_cast<std::size_t>(geometry.polygons[polygon].sample_index);
           auto state =
-              field_state(diagram_coordinates(old, result.section.type), true);
+              field_state(diagram_coordinates(old, result.section.type), true,
+                          index == sample ? representative : sample);
           if (state.success && active(state) != active(old)) {
             state.is_field_verification = old.is_field_verification;
             add_sample(state, burnman::utils::checked_int(index));
@@ -2676,7 +2702,8 @@ class Tracer {
   }
   // Try phase compositions from nearby successful solves. Usually accept the
   // first that passes all checks; compare=true selects the lowest Gibbs energy.
-  State field_state(const Eigen::Vector2d &location, bool compare = false) {
+  State field_state(const Eigen::Vector2d &location, bool compare = false,
+                    std::optional<std::size_t> alternative = std::nullopt) {
     State best;
     std::vector<std::pair<double, std::size_t>> nearby;
     for (std::size_t i = 0; i < result.samples.size(); ++i)
@@ -2687,9 +2714,15 @@ class Tracer {
              i});
       }
     std::sort(nearby.begin(), nearby.end());
-    for (std::size_t i = 0; i < std::min<std::size_t>(32, nearby.size()); ++i)
+    // The conflicting state can be far along a thin region, beyond the nearest
+    // 32 samples. Always test that known alternative when comparing roots.
+    const std::size_t extra = alternative.has_value() ? 1 : 0;
+    for (std::size_t i = 0;
+         i < std::min<std::size_t>(32, nearby.size()) + extra; ++i)
       try {
-        auto &previous = result.samples[nearby[i].second];
+        auto &previous =
+            result.samples[alternative && i == 0 ? *alternative
+                                                 : nearby[i - extra].second];
         std::vector<int> ids;
         for (auto &ph : previous.phases)
           ids.push_back(ph.id);
@@ -3074,12 +3107,31 @@ class Tracer {
           add_sample(verified, burnman::utils::checked_int(i));
       }
     reconcile_boundaries(true);
-    // Older probes could skip a narrow neighbour of a solution replacement
-    // while still assigning two different labels. Recheck these saved labels
-    // even if a coarse line has only its junction states.
+    // Older probes could skip a narrow ordinary field or a neighbour of a
+    // solution replacement while still assigning two different labels.
+    // Recheck these saved labels even if a coarse line has only its junction
+    // states.
     auto skipped_neighbour = [&](const Boundary &line) {
       if (has_composition_axis(result.section.type))
         return false;
+      if (!line.points.empty() &&
+          field_index.count(canonical_ids(line.assemblage))) {
+        const auto formulae = phase_formulae(
+            line.assemblage, line.points[line.points.size() / 2].phases);
+        Eigen::FullPivLU<Eigen::MatrixXd> amounts(formulae);
+        amounts.setThreshold(1.e-9);
+        if (amounts.rank() == formulae.rows()) {
+          auto absent = line.assemblage;
+          absent.erase(
+              std::find(absent.begin(), absent.end(), line.zero_phase));
+          auto full = canonical_ids(line.assemblage),
+               missing = canonical_ids(absent);
+          auto immediate = [&](const std::vector<int> &side) {
+            return side == full || side == missing;
+          };
+          return !immediate(line.side_a) || !immediate(line.side_b);
+        }
+      }
       const auto count = std::min(line.side_a.size(), line.side_b.size());
       const auto copies = std::count_if(
           line.assemblage.begin(), line.assemblage.end(), [&](int id) {
