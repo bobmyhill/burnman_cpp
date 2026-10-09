@@ -158,6 +158,55 @@ def test_field_conflicts_recover_a_missing_line_in_a_completed_saved_diagram(cro
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
 
 
+def test_completed_snapshot_recovers_a_dangling_internal_junction(crossing):
+    bulk, original = crossing
+    saved = json.loads(json.dumps(original))
+    saved["boundaries"] = saved["boundaries"][:1]
+    saved["samples"] = []
+    saved["fields"] = []
+    # Completed termination strings do not establish that all branches exist.
+    assert saved["resolved"]
+    assert "junction" in saved["boundaries"][0]["termination"]
+    opts = bm.PseudosectionSettings.from_dict(saved["settings"])
+    opts.max_recovery_passes = 0
+    incomplete = bm.refine_pseudosection(
+        bulk, crossing_phases(), saved, opts, resolution=(17, 21)
+    )
+    assert not incomplete.resolved
+    assert any("Unpaired internal junction" in d for d in incomplete.diagnostics)
+    opts.max_recovery_passes = 2
+    repaired = bm.refine_pseudosection(
+        bulk, crossing_phases(), saved, opts, resolution=(17, 21)
+    )
+    assert repaired.resolved, repaired.diagnostics
+    assert len(repaired.boundaries) == 4
+    assert len(bm.pseudosection_field_polygons(repaired).polygons) == 4
+    check_spacing(repaired, (17, 21))
+
+
+def test_saved_ordering_jump_recovers_the_intervening_two_ilmenite_fields():
+    from burnman_cpp.minerals import model_sets
+
+    # The old ky-out line jumped between ordered/disordered ilmenite roots.
+    # Its endpoints verify, but the midpoint favours another ilmenite instance.
+    saved = json.loads(
+        (Path(__file__).parent / "data/metasediment_ordering_segment.json").read_text()
+    )
+    result = bm.refine_pseudosection(
+        saved["composition_start"],
+        model_sets.metapelite().phases,
+        saved,
+        resolution=(21, 21),
+    )
+    assert result.resolved, result.diagnostics
+    assert any(
+        "ilm #2" in [result.phase_names[i] for i in field.phases]
+        for field in result.fields
+    )
+    assert not bm.pseudosection_field_polygons(result).diagnostics
+    check_spacing(result, (21, 21))
+
+
 def test_pyrolite_refinement_crosses_pure_to_mixed_solution_compositions():
     saved = json.loads(
         (

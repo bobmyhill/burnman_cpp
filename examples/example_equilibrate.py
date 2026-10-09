@@ -193,6 +193,7 @@ class Example:
             "pyrope–grossular solvus",
         )
         solutions = list(r.sol_array.flat)
+        recovered = 0
         for i, s in enumerate(solutions):
             if not s.success:
                 # The branches merge at the critical point, where the split
@@ -202,6 +203,7 @@ class Example:
                 gt1.set_composition([0.48, 0.52])
                 gt2.set_composition([0.52, 0.48])
                 a.set_fractions([0.5, 0.5])
+                print(f"  Retrying solvus point {i} at T={s.x[1]:.8g} K.", flush=True)
                 retry = solve(
                     comp,
                     a,
@@ -209,6 +211,12 @@ class Example:
                     "solvus endpoint retry",
                 )
                 solutions[i] = point(retry)
+                recovered += 1
+        print(
+            f"  pyrope–grossular solvus final: {sum(s.success for s in solutions)}"
+            f"/{len(solutions)} converged; {recovered} recovered by retry.",
+            flush=True,
+        )
         x = np.array([s.x for s in solutions if s.success]).T
         fig = self.figure("gt_solvus")
         if fig:

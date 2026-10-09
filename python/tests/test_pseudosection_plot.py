@@ -526,6 +526,28 @@ def test_roundoff_width_rings_are_removed_but_thin_fields_are_kept(
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
 
 
+@pytest.mark.parametrize("width,expected_count", [(0.0, 1), (2.0e-9, 2)])
+def test_intersection_roundoff_near_a_metasediment_junction(width, expected_count):
+    # Three split chords near the sp/mt/ru event in the metasediment example.
+    # Their apparent enclosed width is below the absolute coordinate roundoff
+    # band. A wider triangle at the same location must remain a distinct field.
+    triangle = [
+        (0.003085696724597525, 0.16115956844058948),
+        (0.0030856982462141706, 0.16115956405772522),
+        (0.0030856976385097486 + width, 0.16115956580818627),
+        (0.003085696724597525, 0.16115956844058948),
+    ]
+    geometry = bm.pseudosection_field_polygons(
+        diagram([line(triangle, [0, 1], [0])], [sample(0.5, 0.5, [0])]),
+        tolerance=1.0e-12,
+        merge_fields=False,
+    )
+    assert not geometry.diagnostics
+    assert len(geometry.polygons) == expected_count
+    assert {p.n_phases for p in geometry.polygons} == set(range(1, expected_count + 1))
+    assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
+
+
 def test_sample_of_missing_thin_field_is_not_hidden_by_amount_tolerance():
     data = diagram(
         [line([(0.5, 0.0), (0.5, 1.0)], [0], [1])],

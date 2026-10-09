@@ -615,16 +615,17 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
       // only coordinate roundoff. Its area error scales with its perimeter,
       // rather than the square of the vertex snapping tolerance. Do not turn
       // those zero-width excursions into unidentified phase fields.
-      double perimeter = 0., magnitude = 0.;
-      for (std::size_t i = 1; i < ring.size(); ++i) {
+      double perimeter = 0.;
+      for (std::size_t i = 1; i < ring.size(); ++i)
         perimeter +=
             (vertices.points[ring[i]] - vertices.points[ring[i - 1]]).norm();
-        magnitude =
-            std::max(magnitude, vertices.points[ring[i]].cwiseAbs().maxCoeff());
-      }
-      const double allowance = std::max(
-          area_tolerance,
-          32. * std::numeric_limits<double>::epsilon() * magnitude * perimeter);
+      // Intersections inherit absolute coordinate error on the normalised
+      // 0..1 axes, even near the origin. Use the same roundoff band as frame
+      // and verified-interior classification, rather than scaling it down
+      // again by the coordinates of a tiny ring.
+      const double allowance =
+          std::max(area_tolerance,
+                   64. * std::numeric_limits<double>::epsilon() * perimeter);
       if (value > allowance)
         faces.push_back({ring, {}, walk.labels, value, walk.dangling});
       else if (value < -allowance)

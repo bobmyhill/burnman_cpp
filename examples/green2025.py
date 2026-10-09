@@ -76,6 +76,24 @@ def compare(composition, reference_points, settings):
 
 def compare_liquidus(data, pressure_kbar, reference_temperature):
     """Intersect saved phase lines with the PDF's liquidus comparison isobar."""
+    report = dict(
+        pressure_kbar=pressure_kbar,
+        reference_temperature_C=reference_temperature,
+        reference_reading_tolerance_C=5.0,
+        calculated_temperature_C=None,
+        difference_C=None,
+        match=None,
+    )
+    pressure = data["pressure_range"]
+    temperature = data["temperature_range"]
+    if not (
+        pressure[0] <= pressure_kbar * 1.0e8 <= pressure[1]
+        and temperature[0] <= reference_temperature + 273.15 <= temperature[1]
+    ):
+        return report | dict(
+            status="not_applicable",
+            reason="Reference point is outside the calculation window.",
+        )
     liquid = {"melt", "fluid"}
     temperatures = []
     for line in data["boundaries"]:
@@ -99,13 +117,24 @@ def compare_liquidus(data, pressure_kbar, reference_temperature):
                     - 273.15
                 )
     calculated = max(temperatures) if temperatures else None
-    return dict(
-        pressure_kbar=pressure_kbar,
-        reference_temperature_C=reference_temperature,
-        reference_reading_tolerance_C=5.0,
+    return report | dict(
         calculated_temperature_C=calculated,
         difference_C=None if calculated is None else calculated - reference_temperature,
         match=calculated is not None and abs(calculated - reference_temperature) <= 5.0,
+        status=(
+            "missing_intersection"
+            if calculated is None
+            else (
+                "match"
+                if abs(calculated - reference_temperature) <= 5.0
+                else "mismatch"
+            )
+        ),
+        reason=(
+            "No liquidus intersection inside the calculation window."
+            if calculated is None
+            else None
+        ),
     )
 
 
