@@ -372,7 +372,10 @@ def test_unmet_resolution_is_reported_without_losing_verified_boundaries(crossin
         assert retained["termination"] == old["termination"]
 
 
-def test_solution_lines_refine_from_coarse_points_at_the_critical_endpoint():
+@pytest.mark.parametrize("swap_instances", [False, True])
+def test_solution_lines_refine_from_coarse_points_at_the_critical_endpoint(
+    swap_instances,
+):
     mg = pure("Mg oxide", {"Mg": 1.0, "O": 1.0})
     fe = pure("Fe oxide", {"Fe": 1.0, "O": 1.0})
     phase = bm.Solution(
@@ -398,6 +401,23 @@ def test_solution_lines_refine_from_coarse_points_at_the_critical_endpoint():
     saved = previous.to_dict()
     for line in saved["boundaries"]:
         line["points"] = [line["points"][0], line["points"][-1]]
+    if swap_instances:
+        # Copy numbers do not identify the Mg-rich and Fe-rich branches.
+        # Renumber the coexistence states while retaining each zero-amount
+        # constraint's physical phase and the canonical field assemblages.
+        def renumber(ids):
+            return sorted(1 - i for i in ids)
+
+        for node in saved["nodes"]:
+            node["assemblage"] = renumber(node["assemblage"])
+            node["zero_phases"] = renumber(node["zero_phases"])
+        for line in saved["boundaries"]:
+            line["zero_phase"] = 1 - line["zero_phase"]
+            line["assemblage"] = renumber(line["assemblage"])
+            for point in line["points"]:
+                for state in point["phases"]:
+                    state["id"] = 1 - state["id"]
+                    state["name"] = saved["phase_names"][state["id"]]
     result = bm.refine_pseudosection(
         bulk, [phase], saved, resolution=(51, 61), temperature_unit="K"
     )
@@ -418,3 +438,54 @@ def test_solution_lines_refine_from_coarse_points_at_the_critical_endpoint():
                 )
                 < 0.01
             )
+
+
+def test_refinement_rejects_a_chord_joining_opposite_solvus_arms():
+    mg = pure("Mg oxide", {"Mg": 1.0, "O": 1.0})
+    fe = pure("Fe oxide", {"Fe": 1.0, "O": 1.0})
+    phase = bm.Solution(
+        bm.SymmetricRegularSolution(
+            [(mg, "[Mg]O"), (fe, "[Fe]O")], energy_interaction=[[13000.0]]
+        ),
+        [0.5, 0.5],
+        name="oxide",
+    )
+    opts = settings()
+    opts.temperature_seeds = opts.composition_seeds = 5
+    bulk = {"Mg": 1.0, "O": 1.0}
+    previous = bm.pseudosection(
+        bulk,
+        [phase],
+        settings=opts,
+        diagram="TX",
+        pressure=1.0e9,
+        temperature_range=(600.0, 900.0),
+        composition_end={"Fe": 1.0, "O": 1.0},
+    )
+    assert previous.resolved, previous.diagnostics
+    saved = previous.to_dict()
+    ordered = sorted(
+        saved["boundaries"],
+        key=lambda line: min(line["points"], key=lambda p: p["temperature"])[
+            "composition_coordinate"
+        ],
+    )
+    arms = [ordered[0], ordered[-1]]
+    endpoints = [min(line["points"], key=lambda p: p["temperature"]) for line in arms]
+    # Both endpoints are valid coexistence equilibria. Renumber the second
+    # endpoint so its zero phase retains its physical role on that arm.
+    # This does not make the chord across the miscibility gap a phase boundary.
+    if arms[0]["zero_phase"] != arms[1]["zero_phase"]:
+        for state in endpoints[1]["phases"]:
+            state["id"] = 1 - state["id"]
+            state["name"] = saved["phase_names"][state["id"]]
+    line = dict(arms[0], id=0, start_node=-1, end_node=-1, points=endpoints)
+    saved.update(boundaries=[line], nodes=[], fields=[], samples=[], resolved=True)
+    opts.max_recovery_passes = 0
+    opts.max_lines = 1
+    result = bm.refine_pseudosection(
+        bulk, [phase], saved, opts, resolution=(21, 21), temperature_unit="K"
+    )
+    assert not result.resolved
+    assert any("requested line resolution" in d for d in result.diagnostics)
+    assert result.to_dict()["boundaries"][0]["points"] == endpoints

@@ -35,6 +35,9 @@ struct Seed {
   Eigen::Vector2d position, direction;
   std::vector<BoundaryPoint> prefix{};
   int bridge_node = -1;
+  bool force_continuation = false;
+  std::optional<std::pair<Eigen::Vector2d, Eigen::Vector2d>> recovery_section =
+      std::nullopt;
 };
 class Tracer {
   Engine engine;
@@ -46,6 +49,9 @@ class Tracer {
   std::set<std::string> attempted;
   std::set<std::string> expanded;
   std::set<std::string> retraced_segments;
+  std::set<std::string> refinement_events;
+  std::map<std::string, std::pair<Eigen::Vector2d, Eigen::Vector2d>>
+      refinement_sections;
   std::set<int> probed_junctions;
   std::map<std::vector<int>, Eigen::MatrixXd> amount_vertices;
   Eigen::VectorXd critical_axis;
@@ -175,15 +181,95 @@ class Tracer {
     return separation(engine.snapshot(a, ids)) >
            engine.settings.composition_tolerance * 10.;
   }
+  std::optional<std::vector<PhaseState>>
+  match_branch(const std::vector<PhaseState> &reference,
+               const std::vector<PhaseState> &states, int zero) const {
+    if (reference.size() != states.size())
+      return std::nullopt;
+    auto matched = reference;
+    std::map<int, std::vector<std::size_t>> groups;
+    for (std::size_t i = 0; i < reference.size(); ++i)
+      groups[reference[i].candidate_index].push_back(i);
+    for (const auto &[candidate, group] : groups) {
+      std::vector<std::size_t> permutation, best;
+      for (std::size_t i = 0; i < states.size(); ++i)
+        if (states[i].candidate_index == candidate)
+          permutation.push_back(i);
+      if (permutation.size() != group.size())
+        return std::nullopt;
+      double minimum = std::numeric_limits<double>::infinity();
+      // A model normally has at most three coexisting copies. Match their
+      // compositions, keeping the constrained zero copy in its physical role.
+      do {
+        double cost = 0.;
+        for (std::size_t k = 0; k < group.size(); ++k) {
+          const auto &before = reference[group[k]];
+          const auto &after = states[permutation[k]];
+          if ((before.id == zero) != (after.id == zero) ||
+              before.composition.size() != after.composition.size() ||
+              !after.composition.allFinite()) {
+            cost = std::numeric_limits<double>::infinity();
+            break;
+          }
+          cost += (before.composition - after.composition).squaredNorm();
+        }
+        if (cost < minimum) {
+          minimum = cost;
+          best = permutation;
+        }
+      } while (std::next_permutation(permutation.begin(), permutation.end()));
+      if (best.empty())
+        return std::nullopt;
+      for (std::size_t k = 0; k < group.size(); ++k) {
+        matched[group[k]] = states[best[k]];
+        matched[group[k]].id = reference[group[k]].id;
+        matched[group[k]].name = reference[group[k]].name;
+      }
+    }
+    return matched;
+  }
   bool same_branch(const Assemblage &a, const Assemblage &b,
-                   const std::vector<int> &ids) const {
-    auto old = engine.snapshot(a, ids), next = engine.snapshot(b, ids);
+                   const std::vector<int> &ids, int zero = -1) const {
+    auto old = engine.snapshot(a, ids);
+    auto matched = match_branch(old, engine.snapshot(b, ids), zero);
+    if (!matched)
+      return false;
+    const auto &next = *matched;
     for (std::size_t i = 0; i < ids.size(); ++i)
       for (std::size_t j = i + 1; j < ids.size(); ++j)
         if (old[i].candidate_index == old[j].candidate_index &&
             (old[i].composition - old[j].composition)
                     .dot(next[i].composition - next[j].composition) <= 0.)
           return false;
+    return true;
+  }
+  bool continuous_branch(const Assemblage &a, const Assemblage &b,
+                         const std::vector<int> &ids, int zero) const {
+    auto before = engine.snapshot(a, ids);
+    auto after = match_branch(before, engine.snapshot(b, ids), zero);
+    return after && same_branch(a, b, ids, zero) &&
+           composition_change(before, *after) <= .1;
+  }
+  bool predicted_branch(const Assemblage &previous, const Assemblage &next,
+                        const std::vector<int> &ids, int zero,
+                        const std::vector<PhaseState> &predicted) const {
+    if (!continuous_branch(previous, next, ids, zero))
+      return false;
+    auto corrected = match_branch(predicted, engine.snapshot(next, ids), zero);
+    if (!corrected)
+      return false;
+    const auto before = engine.snapshot(previous, ids);
+    if (composition_change(predicted, *corrected) >
+        std::max(100. * engine.settings.composition_tolerance,
+                 .5 * composition_change(before, predicted)))
+      return false;
+    const double total = previous.get_n_moles();
+    for (std::size_t k = 0; k < before.size(); ++k)
+      if (std::abs((*corrected)[k].amount - predicted[k].amount) / total >
+          std::max(100. * engine.settings.amount_tolerance,
+                   .5 * std::abs(predicted[k].amount - before[k].amount) /
+                       total))
+        return false;
     return true;
   }
   double composition_change(const std::vector<PhaseState> &first,
@@ -1212,7 +1298,7 @@ class Tracer {
         auto c = boundary_constraints(*trial.a, zero, u, unit);
         auto s = engine.solve(*trial.a, c);
         if (!valid(*trial.a, s) || !distinct(*trial.a, ids) ||
-            !same_branch(previous, *trial.a, ids))
+            !same_branch(previous, *trial.a, ids, zero))
           return false;
         engine.set_pt(trial.a->get_pressure(), trial.a->get_temperature());
         trial.minimum =
@@ -1384,6 +1470,7 @@ class Tracer {
     end_node = -1;
     std::vector<BoundaryPoint> points;
     double step = engine.settings.step;
+    auto recovery_section = seed.recovery_section;
     auto ids = seed.ids;
     double travelled = 0.;
     Eigen::Vector2d initial_unit =
@@ -1392,8 +1479,24 @@ class Tracer {
          ++iteration) {
       auto old_x = solve.x;
       auto old_u = normalised_coordinates(*a);
+      const auto unit =
+          engine.project_direction(direction, *a).cwiseQuotient(range).eval();
+      Eigen::Vector2d correction_normal = unit;
       current_ids = ids;
       double requested = step;
+      if (recovery_section) {
+        const auto &[where, normal] = *recovery_section;
+        const double remaining = (where - old_u).dot(normal);
+        const double projection = unit.dot(normal);
+        if (std::abs(remaining) < 1.e-11)
+          recovery_section.reset();
+        else if (remaining * projection > 0.) {
+          // Visit the section that refinement actually found unstable;
+          // a normal tracing step can leap across the entire narrow event.
+          requested = std::min(requested, std::abs(remaining / projection));
+          correction_normal = normal;
+        }
+      }
       double affinity = 0.;
       // Predict the first phase-out event from amount derivatives.
       auto prm = engine.parameters(*a);
@@ -1472,8 +1575,6 @@ class Tracer {
         }
         requested = std::min(requested, event_step * .7);
       }
-      auto unit =
-          engine.project_direction(direction, *a).cwiseQuotient(range).eval();
       int border_axis = -1;
       double border = 0., border_step = requested;
       for (int k = 0; k < 2; ++k)
@@ -1494,8 +1595,10 @@ class Tracer {
       std::string failure;
       bool merged = false;
       std::vector<Minimum> ms;
+      std::vector<PhaseState> predicted;
       for (int retry = 0; retry < 16; ++retry) {
-        if (used < engine.settings.min_step && border_axis < 0)
+        if (used < engine.settings.min_step && border_axis < 0 &&
+            !(recovery_section && requested < engine.settings.min_step))
           break;
         next = engine.copy_assemblage(*a);
         try {
@@ -1504,6 +1607,7 @@ class Tracer {
               (border == 0. || border == 1.))
             next = engine.make_at(ids, engine.snapshot(*next, ids),
                                   engine.coordinates(*next));
+          predicted = engine.snapshot(*next, ids);
           ConstraintList c;
           current_ids = ids;
           if (border_axis >= 0) {
@@ -1513,9 +1617,10 @@ class Tracer {
             c = boundary_constraints(*next, seed.zero, u, n);
           } else
             c = boundary_constraints(*next, seed.zero, old_u + used * unit,
-                                     unit);
+                                     correction_normal);
           next_s = engine.solve(*next, c);
-          merged = !distinct(*next, ids) || !same_branch(*a, *next, ids);
+          merged =
+              !distinct(*next, ids) || !same_branch(*a, *next, ids, seed.zero);
           accepted = valid(*next, next_s) && !merged &&
                      (normalised_coordinates(*next) - old_u).norm() <=
                          std::max(used * 3, engine.settings.node_tolerance);
@@ -1524,11 +1629,10 @@ class Tracer {
           // skipping the intervening entry of a second solution instance.
           // Reduce the continuation step before accepting that discontinuity.
           if (accepted &&
-              composition_change(engine.snapshot(*a, ids),
-                                 engine.snapshot(*next, ids)) > .1) {
+              !predicted_branch(*a, *next, ids, seed.zero, predicted)) {
             accepted = false;
             failure =
-                "Solution composition changed by more than 0.1 in one step.";
+                "Boundary correction did not preserve its predicted branch.";
           }
           if (accepted) {
             // A required competitor can leave its EOS domain while all
@@ -1549,8 +1653,9 @@ class Tracer {
       if (!accepted && next) {
         auto target =
             (old_u + std::max(used, engine.settings.min_step) * unit).eval();
-        if (refit_composition_faces(next, ids, seed.zero, target, unit, next_s,
-                                    affinity, &ms)) {
+        if (refit_composition_faces(next, ids, seed.zero, target,
+                                    correction_normal, next_s, affinity, &ms) &&
+            predicted_branch(*a, *next, ids, seed.zero, predicted)) {
           accepted = true;
           stability_verified = true;
           border_axis = -1;
@@ -1572,14 +1677,29 @@ class Tracer {
       if (!stability_verified)
         affinity = engine.stability(*next, &ms);
       if (engine.settings.active_solution_faces) {
-        Eigen::Vector2d target = old_u + used * unit, normal = unit;
+        Eigen::Vector2d target = old_u + used * unit,
+                        normal = correction_normal;
         if (border_axis >= 0) {
           target[border_axis] = border;
           normal.setZero();
           normal[border_axis] = 1.;
         }
-        refit_composition_faces(next, ids, seed.zero, target, normal, next_s,
-                                affinity, &ms);
+        auto refitted = next;
+        auto refitted_solve = next_s;
+        double refitted_affinity = affinity;
+        auto refitted_minima = ms;
+        if (refit_composition_faces(refitted, ids, seed.zero, target, normal,
+                                    refitted_solve, refitted_affinity,
+                                    &refitted_minima) &&
+            continuous_branch(*a, *refitted, ids, seed.zero) &&
+            continuous_branch(*next, *refitted, ids, seed.zero) &&
+            (normalised_coordinates(*refitted) - old_u).norm() <=
+                std::max(used * 3., engine.settings.node_tolerance)) {
+          next = std::move(refitted);
+          next_s = std::move(refitted_solve);
+          affinity = refitted_affinity;
+          ms = std::move(refitted_minima);
+        }
       }
       if (affinity < -engine.settings.affinity_tolerance) {
         // A previously absent phase becomes stable: add it at zero amount and
@@ -2172,7 +2292,7 @@ class Tracer {
         kept.points.push_back(entry.second);
   }
   void trace(const Seed &seed) {
-    if (covered(seed))
+    if (!seed.force_continuation && covered(seed))
       return;
     current_ids = seed.ids;
     try {
@@ -2213,6 +2333,16 @@ class Tracer {
               (normalised_coordinates(*a) - seed.position).norm() >
                   engine.settings.node_tolerance)
             continue;
+          if (seed.force_continuation) {
+            const auto matched = match_branch(
+                seed.phases, engine.snapshot(*a, seed.ids), seed.zero);
+            if (!matched ||
+                composition_change(seed.phases, *matched) >
+                    100. * engine.settings.composition_tolerance ||
+                (normalised_coordinates(*a) - seed.position).norm() >
+                    engine.settings.node_tolerance)
+              continue;
+          }
           d = tangent(s, *a);
           if (!d.size())
             continue;
@@ -2241,7 +2371,7 @@ class Tracer {
       Seed corrected = seed;
       corrected.position = normalised_coordinates(*a);
       corrected.phases = engine.snapshot(*a, seed.ids);
-      if (covered(corrected))
+      if (!seed.force_continuation && covered(corrected))
         return;
       // Near a known critical point, nearly identical-copy roots can satisfy
       // reaction tolerances without locating a solvus. Its separation-based
@@ -2553,14 +2683,16 @@ class Tracer {
       for (std::size_t k = 1; k < line.points.size(); ++k) {
         const auto &left = line.points[k - 1];
         const auto &right = line.points[k];
-        if (composition_change(left.phases, right.phases) <= .1)
+        const auto key = interval_key(line, left, right);
+        const bool requested = refinement_events.count(key) != 0;
+        if (!requested && composition_change(left.phases, right.phases) <= .1)
           continue;
         const auto u = (.5 * (normalise(left) + normalise(right))).eval();
         Eigen::Vector2d along = normalise(right) - normalise(left);
         if (along.norm() < engine.settings.min_step)
           continue;
         along.normalize();
-        bool unstable = false;
+        bool unstable = requested;
         for (const auto *initial : {&left, &right})
           try {
             auto a = engine.make_at(line.assemblage, initial->phases,
@@ -2577,13 +2709,7 @@ class Tracer {
           }
         if (!unstable)
           continue;
-        std::ostringstream key;
-        key << std::setprecision(17) << line.zero_phase << ':' << left.pressure
-            << ',' << left.temperature << ':' << right.pressure << ','
-            << right.temperature;
-        for (int id : line.assemblage)
-          key << ':' << id;
-        if (!retraced_segments.insert(key.str()).second)
+        if (!retraced_segments.insert(key).second)
           continue;
         // The saved chord skips a stable phase entry. Retrace its two arms
         // with composition-controlled steps so ordinary phase-entry recovery
@@ -2593,9 +2719,19 @@ class Tracer {
                                 static_cast<std::ptrdiff_t>(index));
         rebuild_incidence();
         const auto count = result.boundaries.size();
-        for (const auto &p : {previous.points[k - 1], previous.points[k]})
-          queue.push_back({previous.assemblage, previous.zero_phase, -1,
-                           p.phases, normalise(p), along});
+        for (const auto &p : {previous.points[k - 1], previous.points[k]}) {
+          Seed seed{previous.assemblage,
+                    previous.zero_phase,
+                    -1,
+                    p.phases,
+                    normalise(p),
+                    along};
+          seed.force_continuation = requested;
+          if (auto section = refinement_sections.find(key);
+              section != refinement_sections.end())
+            seed.recovery_section = section->second;
+          queue.push_back(std::move(seed));
+        }
         search();
         const bool replaced = result.boundaries.size() > count;
         if (result.boundaries.size() == count) {
@@ -2717,114 +2853,343 @@ class Tracer {
     }
     return false;
   }
-  // Correct a segment point onto its equilibrium boundary. Ordinary field
-  // recovery needs curvature; requested spacing also subdivides straight lines.
+  struct SectionTrace {
+    std::shared_ptr<Assemblage> assemblage;
+    std::vector<BoundaryPoint> points;
+    std::string failure;
+    bool event = false;
+    std::optional<Eigen::Vector2d> event_position;
+  };
+  // Reach an interior section by continuation, not by accepting an unrelated
+  // root returned from a distant endpoint or an interpolated composition.
+  SectionTrace refine_from_endpoint(const Boundary &line,
+                                    const BoundaryPoint &initial,
+                                    const BoundaryPoint &opposite,
+                                    const Eigen::Vector2d &target,
+                                    const Eigen::Vector2d &normal) {
+    SectionTrace out;
+    try {
+      auto a =
+          engine.make_at(line.assemblage, initial.phases,
+                         diagram_coordinates(initial, result.section.type));
+      current_ids = line.assemblage;
+      auto c =
+          boundary_constraints(*a, line.zero_phase, normalise(initial), normal);
+      auto solved = engine.solve(*a, c);
+      if (!valid(*a, solved) || !distinct(*a, line.assemblage)) {
+        out.failure = "Endpoint does not supply a distinct equilibrium. " +
+                      solved.message;
+        return out;
+      }
+      for (int step = 0; step < engine.settings.max_trace_steps; ++step) {
+        const auto position = normalised_coordinates(*a);
+        const double remaining = (target - position).dot(normal);
+        if (std::abs(remaining) < 1.e-11 && !out.points.empty()) {
+          out.assemblage = a;
+          return out;
+        }
+        auto direction = tangent(solved, *a);
+        if (!direction.size()) {
+          out.failure =
+              "Boundary tangent is singular before the target section.";
+          return out;
+        }
+        auto unit =
+            engine.project_direction(direction, *a).cwiseQuotient(range).eval();
+        if (unit.dot(normal) * remaining < 0.) {
+          direction = -direction;
+          unit = -unit;
+        }
+        const double projection = unit.dot(normal);
+        if (std::abs(projection) < 1.e-10) {
+          out.failure = "Boundary turns before the target section.";
+          return out;
+        }
+        double used =
+            std::min(engine.settings.step, std::abs(remaining / projection));
+        const auto prm = engine.parameters(*a);
+        if (closing_solvus(*a, line.assemblage, line.zero_phase, direction,
+                           prm)) {
+          auto critical = engine.copy_assemblage(*a);
+          auto critical_solve = solved;
+          std::vector<BoundaryPoint> end;
+          if (!approach_critical(critical, line.assemblage, line.zero_phase,
+                                 critical_solve, end) ||
+              (target - normalised_coordinates(*critical)).dot(normal) *
+                      remaining >=
+                  -1.e-11 * std::abs(remaining)) {
+            out.failure =
+                "An intervening critical point requires boundary recovery.";
+            out.event = true;
+            return out;
+          }
+        }
+        const auto parameters =
+            get_parameter_vector(*a, engine.free_vectors.empty() ? 0 : 1);
+        for (std::size_t k = 0; k < line.assemblage.size(); ++k) {
+          if (line.assemblage[k] == line.zero_phase)
+            continue;
+          const int index =
+              prm.phase_amount_indices[static_cast<Eigen::Index>(k)];
+          if (direction[index] < -1.e-12)
+            used = std::min(used, .8 * std::max(0., parameters[index]) /
+                                      -direction[index]);
+        }
+        if (used < engine.settings.min_step &&
+            std::abs(remaining / projection) >= engine.settings.min_step) {
+          out.failure =
+              "An intervening phase-out event requires boundary recovery.";
+          out.event = true;
+          return out;
+        }
+        bool accepted = false;
+        for (int retry = 0; retry < 16; ++retry) {
+          auto next = engine.copy_assemblage(*a);
+          try {
+            predict(*next, parameters, used * direction, prm);
+            const auto predicted = engine.snapshot(*next, line.assemblage);
+            const auto section_position = (position + used * unit).eval();
+            current_ids = line.assemblage;
+            auto next_constraints = boundary_constraints(
+                *next, line.zero_phase, section_position, normal);
+            auto next_solved = engine.solve(*next, next_constraints);
+            bool active_face = false;
+            for (std::size_t k = 0; k < line.assemblage.size(); ++k) {
+              const auto basis = engine.composition_basis(
+                  *a->get_phase(k),
+                  line.assemblage[k] / engine.settings.max_phase_instances);
+              active_face = active_face || basis.rows() != basis.cols();
+            }
+            if (engine.settings.active_solution_faces &&
+                (active_face || !valid(*next, next_solved))) {
+              // A copied endpoint can retain a pure composition face after
+              // the branch has entered the solution interior. Supply a local,
+              // mass-balanced seed on the new face, then apply the same
+              // predictor and branch checks as for the ordinary correction.
+              auto states = engine.snapshot(*a, line.assemblage);
+              auto other =
+                  match_branch(states, opposite.phases, line.zero_phase);
+              const double distance =
+                  (normalise(opposite) - position).dot(normal);
+              if (other && std::abs(distance) > 1.e-12) {
+                const double weight = std::clamp(
+                    (section_position - position).dot(normal) / distance, 0.,
+                    1.);
+                for (std::size_t k = 0; k < states.size(); ++k) {
+                  const double amount = (1. - weight) * states[k].amount +
+                                        weight * (*other)[k].amount;
+                  if (amount > 0.)
+                    states[k].composition = ((1. - weight) * states[k].amount *
+                                                 states[k].composition +
+                                             weight * (*other)[k].amount *
+                                                 (*other)[k].composition) /
+                                            amount;
+                  else
+                    states[k].composition =
+                        (1. - weight) * states[k].composition +
+                        weight * (*other)[k].composition;
+                  states[k].amount = amount;
+                }
+                auto constrained = next;
+                auto constrained_solve = next_solved;
+                next = engine.make_at(line.assemblage, states,
+                                      origin +
+                                          section_position.cwiseProduct(range));
+                next_constraints = boundary_constraints(
+                    *next, line.zero_phase, section_position, normal);
+                next_solved = engine.solve(*next, next_constraints);
+                if (!valid(*next, next_solved)) {
+                  next = std::move(constrained);
+                  next_solved = std::move(constrained_solve);
+                }
+              }
+            }
+            auto compatible = [&]() {
+              if (!valid(*next, next_solved) ||
+                  !distinct(*next, line.assemblage) ||
+                  !predicted_branch(*a, *next, line.assemblage, line.zero_phase,
+                                    predicted))
+                return false;
+              return (normalised_coordinates(*next) - section_position)
+                         .norm() <=
+                     std::max(used * 3., engine.settings.node_tolerance);
+            };
+            if (compatible()) {
+              std::vector<Minimum> minima;
+              double affinity = engine.stability(*next, &minima);
+              auto before_refit = next;
+              bool face_refitted = false;
+              if (affinity < -engine.settings.affinity_tolerance)
+                face_refitted = refit_composition_faces(
+                    next, line.assemblage, line.zero_phase, section_position,
+                    normal, next_solved, affinity, &minima);
+              if (affinity < -engine.settings.affinity_tolerance) {
+                out.failure = "An intervening phase-entry event requires "
+                              "boundary recovery.";
+                out.event = true;
+                out.event_position = normalised_coordinates(*next);
+                return out;
+              }
+              if (compatible() ||
+                  (face_refitted &&
+                   continuous_branch(*a, *next, line.assemblage,
+                                     line.zero_phase) &&
+                   continuous_branch(*before_refit, *next, line.assemblage,
+                                     line.zero_phase) &&
+                   (normalised_coordinates(*next) - section_position).norm() <=
+                       std::max(used * 3., engine.settings.node_tolerance))) {
+                out.points.push_back(
+                    point(*next, line.assemblage, next_solved, affinity));
+                a = std::move(next);
+                solved = std::move(next_solved);
+                accepted = true;
+                break;
+              }
+            }
+            out.failure =
+                "Boundary correction did not preserve its predicted branch. " +
+                next_solved.message;
+          } catch (const std::exception &error) {
+            out.failure = error.what();
+          }
+          used *= .5;
+          if (used < engine.settings.min_step)
+            break;
+        }
+        if (!accepted)
+          return out;
+      }
+      out.failure = "Local boundary continuation limit reached.";
+    } catch (const std::exception &error) {
+      out.failure = error.what();
+    }
+    return out;
+  }
+  static std::string interval_key(const Boundary &line,
+                                  const BoundaryPoint &left,
+                                  const BoundaryPoint &right) {
+    std::ostringstream key;
+    key << std::setprecision(17) << line.zero_phase << ':' << left.pressure
+        << ',' << left.temperature << ':' << right.pressure << ','
+        << right.temperature;
+    for (int id : line.assemblage)
+      key << ':' << id;
+    return key.str();
+  }
+  // Both endpoint continuations must meet on the same physical branch. A
+  // critical endpoint has no distinct tangent; approach from the other end.
   bool refine_segment(Boundary &line, std::size_t right_index,
                       bool require_curvature, std::string *failure = nullptr,
                       double curvature_tolerance = 1.e-8,
                       double fraction = .5) {
-    const auto left = normalise(line.points[right_index - 1]);
-    const auto right = normalise(line.points[right_index]);
-    double length = (right - left).norm();
+    const auto &first = line.points[right_index - 1];
+    const auto &last = line.points[right_index];
+    const auto left = normalise(first), right = normalise(last);
+    const double length = (right - left).norm();
     if (length < (require_curvature
                       ? engine.settings.min_step
                       : 64. * std::numeric_limits<double>::epsilon()))
       return false;
-    // At a critical endpoint the two compositions coincide. The other endpoint
-    // can supply a distinct starting pair for the inserted state.
-    std::string failures;
-    auto rejected = [&](int side, const std::string &reason) {
-      failures += (side == 0   ? "left endpoint: "
-                   : side == 1 ? "; right endpoint: "
-                               : "; interpolated endpoints: ") +
-                  reason;
+    const Eigen::Vector2d target = left + fraction * (right - left);
+    const Eigen::Vector2d normal = (right - left).normalized();
+    auto critical_endpoint = [&](const BoundaryPoint &p, int id) {
+      return id >= 0 &&
+             result.nodes.at(static_cast<std::size_t>(id)).kind ==
+                 "critical_point" &&
+             separation(p.phases) <=
+                 engine.settings.composition_tolerance * 10.;
     };
-    for (int side = 0; side < 3; ++side)
-      try {
-        const Eigen::Vector2d middle = left + fraction * (right - left);
-        auto states =
-            line.points[right_index - 1 + static_cast<std::size_t>(side == 1)]
-                .phases;
-        if (side == 2)
-          // Mixing the endpoints preserves mass balance and supplies small
-          // nonzero site fractions when a solution leaves a pure endmember.
-          for (auto &state : states) {
-            const auto &other = line.points[right_index].phases;
-            auto match = std::find_if(
-                other.begin(), other.end(),
-                [&](const PhaseState &p) { return p.id == state.id; });
-            if (match == other.end())
-              continue;
-            const double amount =
-                (1. - fraction) * state.amount + fraction * match->amount;
-            if (amount > 0.)
-              state.composition =
-                  ((1. - fraction) * state.amount * state.composition +
-                   fraction * match->amount * match->composition) /
-                  amount;
-            else
-              state.composition = (1. - fraction) * state.composition +
-                                  fraction * match->composition;
-            state.amount = amount;
-          }
-        auto a = engine.make_at(line.assemblage, states,
-                                origin + middle.cwiseProduct(range));
-        current_ids = line.assemblage;
-        const Eigen::Vector2d normal = (right - left).normalized();
-        auto c = boundary_constraints(*a, line.zero_phase, middle, normal);
-        auto s = engine.solve(*a, c);
-        auto acceptable = [&]() {
-          const auto position = normalised_coordinates(*a);
-          return valid(*a, s) && distinct(*a, line.assemblage) &&
-                 (position - middle).norm() <= length &&
-                 (require_curvature
-                      ? segment_distance(position, left, right) >
-                            curvature_tolerance
-                      : std::min((position - left).norm(),
-                                 (position - right).norm()) >
-                            64. * std::numeric_limits<double>::epsilon());
-        };
-        if (!acceptable()) {
-          rejected(side, "Boundary checks failed. " + s.message);
-          continue;
-        }
-        std::vector<Minimum> minima;
-        double affinity =
-            engine.stability(*a, require_curvature ? nullptr : &minima);
-        if (!require_curvature &&
-            affinity < -engine.settings.affinity_tolerance)
-          refit_composition_faces(a, line.assemblage, line.zero_phase, middle,
-                                  normal, s, affinity, &minima);
-        if (affinity < -engine.settings.affinity_tolerance || !acceptable()) {
-          std::ostringstream alternatives;
-          for (std::size_t k = 0; k < minima.size(); ++k)
-            if (minima[k].affinity < -engine.settings.affinity_tolerance)
-              alternatives << " " << engine.phases[k].material->get_name()
-                           << " affinity=" << minima[k].affinity << " J/mol;";
-          rejected(side, "Boundary checks failed after checking stability "
-                         "(minimum affinity " +
-                             std::to_string(affinity) + " J/mol). " +
-                             s.message + alternatives.str());
-          continue;
-        }
-        line.points.insert(line.points.begin() +
-                               static_cast<std::ptrdiff_t>(right_index),
-                           point(*a, line.assemblage, s, affinity));
-        return true;
-      } catch (const std::exception &error) {
-        rejected(side, error.what());
+    const bool left_critical =
+        right_index == 1 && critical_endpoint(first, line.start_node);
+    const bool right_critical = right_index + 1 == line.points.size() &&
+                                critical_endpoint(last, line.end_node);
+    SectionTrace forward, backward;
+    if (!left_critical)
+      forward = refine_from_endpoint(line, first, last, target, normal);
+    if (!right_critical)
+      backward = refine_from_endpoint(line, last, first, target, normal);
+    std::string reason;
+    if ((!left_critical && !forward.assemblage) ||
+        (!right_critical && !backward.assemblage) ||
+        (left_critical && right_critical))
+      reason = "left endpoint: " + forward.failure +
+               "; right endpoint: " + backward.failure;
+    else if (forward.assemblage && backward.assemblage) {
+      const auto one = engine.snapshot(*forward.assemblage, line.assemblage);
+      auto other = match_branch(
+          one, engine.snapshot(*backward.assemblage, line.assemblage),
+          line.zero_phase);
+      double amount_change = 0.;
+      if (other) {
+        const double total = forward.assemblage->get_n_moles();
+        for (std::size_t i = 0; i < one.size(); ++i)
+          amount_change =
+              std::max(amount_change,
+                       std::abs(one[i].amount - (*other)[i].amount) / total);
       }
-    if (!require_curvature && engine.settings.verbose) {
-      const auto &p = line.points[right_index - 1];
-      const auto &q = line.points[right_index];
-      std::cerr << "Boundary " << line.id << ": could not refine segment "
-                << right_index << " between P=" << p.pressure
-                << " Pa, T=" << p.temperature << " K and P=" << q.pressure
-                << " Pa, T=" << q.temperature << " K: " << failures << '\n';
+      if (!other ||
+          composition_change(one, *other) >
+              100. * engine.settings.composition_tolerance ||
+          amount_change > 100. * engine.settings.amount_tolerance ||
+          (normalised_coordinates(*forward.assemblage) -
+           normalised_coordinates(*backward.assemblage))
+                  .norm() > engine.settings.min_step)
+        reason =
+            "Endpoint continuations reach different boundary roots "
+            "(composition difference " +
+            std::to_string(other ? composition_change(one, *other)
+                                 : std::numeric_limits<double>::infinity()) +
+            ", relative amount difference " + std::to_string(amount_change) +
+            ", normalised coordinate difference " +
+            std::to_string((normalised_coordinates(*forward.assemblage) -
+                            normalised_coordinates(*backward.assemblage))
+                               .norm()) +
+            ").";
     }
-    if (failure)
-      *failure = failures;
-    return false;
+    if (forward.event || backward.event) {
+      const auto key = interval_key(line, first, last);
+      refinement_events.insert(key);
+      const auto position = forward.event_position ? forward.event_position
+                                                   : backward.event_position;
+      if (position)
+        refinement_sections[key] = {*position, normal};
+    }
+    if (!reason.empty()) {
+      if (failure)
+        *failure = reason;
+      return false;
+    }
+    auto points = std::move(forward.points);
+    if (!backward.points.empty()) {
+      if (!points.empty())
+        backward.points.pop_back();
+      points.insert(points.end(), backward.points.rbegin(),
+                    backward.points.rend());
+    }
+    if (points.empty() || (require_curvature &&
+                           std::none_of(points.begin(), points.end(),
+                                        [&](const BoundaryPoint &p) {
+                                          return segment_distance(normalise(p),
+                                                                  left, right) >
+                                                 curvature_tolerance;
+                                        })))
+      return false;
+    auto reference = points.front().phases;
+    for (auto &p : points) {
+      auto aligned = match_branch(reference, p.phases, line.zero_phase);
+      if (!aligned) {
+        if (failure)
+          *failure = "Solution copies could not be matched along the refined "
+                     "interval.";
+        return false;
+      }
+      p.phases = std::move(*aligned);
+      reference = p.phases;
+    }
+    line.points.insert(line.points.begin() +
+                           static_cast<std::ptrdiff_t>(right_index),
+                       points.begin(), points.end());
+    return true;
   }
   bool refine_chords(const FieldPolygon &polygon,
                      const Eigen::Vector2d &conflict) {
@@ -3499,6 +3864,9 @@ class Tracer {
       result.boundaries[i].id = burnman::utils::checked_int(i);
     // Rebuild from surviving records; earlier failures may now be recovered.
     result.diagnostics = refine_line_spacing();
+    if (topology_pass < engine.settings.max_recovery_passes &&
+        !refinement_events.empty() && recover_branch_jumps())
+      return finish(verification_pass, topology_pass + 1);
     for (auto &n : result.nodes)
       n.incident_lines.clear();
     for (auto &line : result.boundaries) {
