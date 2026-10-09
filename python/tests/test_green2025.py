@@ -14,6 +14,49 @@ import burnman_cpp as bm
 NAMES = ("klb1", "re46", "at1", "mix1g", "ton101u", "ton101s")
 
 
+@pytest.mark.parametrize(
+    "pressure, temperature, lines, status, match",
+    [
+        (15.0, 1200.0, True, "match", True),
+        (15.0, 1210.0, True, "mismatch", False),
+        (15.0, 1200.0, False, "missing_intersection", False),
+        (25.0, 1200.0, True, "not_applicable", None),
+        (15.0, 1800.0, True, "not_applicable", None),
+    ],
+)
+def test_liquidus_comparison_distinguishes_missing_and_out_of_window_references(
+    monkeypatch, pressure, temperature, lines, status, match
+):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[2] / "examples"))
+    helper = importlib.import_module("green2025")
+    data = dict(
+        pressure_range=[1.0e9, 2.0e9],
+        temperature_range=[1000.0, 2000.0],
+        phase_names=["melt", "solid"],
+        boundaries=(
+            [
+                dict(
+                    side_a=[0],
+                    side_b=[0, 1],
+                    points=[
+                        dict(pressure=1.0e9, temperature=1473.15),
+                        dict(pressure=2.0e9, temperature=1473.15),
+                    ],
+                )
+            ]
+            if lines
+            else []
+        ),
+    )
+    result = helper.compare_liquidus(data, pressure, temperature)
+    assert result["status"] == status
+    assert result["match"] is match
+    if status in {"not_applicable", "missing_intersection"}:
+        assert result["calculated_temperature_C"] is None
+        assert result["difference_C"] is None
+        assert result["reason"]
+
+
 @pytest.fixture(scope="module", params=NAMES)
 def benchmark(request):
     with pytest.MonkeyPatch.context() as patch:

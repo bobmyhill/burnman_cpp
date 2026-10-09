@@ -20,6 +20,7 @@
 #include <cmath>
 #include <deque>
 #include <iostream>
+#include <iomanip>
 #include <map>
 #include <set>
 #include <sstream>
@@ -44,6 +45,8 @@ class Tracer {
   std::vector<WorkState> grid;
   std::set<std::string> attempted;
   std::set<std::string> expanded;
+  std::set<std::string> retraced_segments;
+  std::set<int> probed_junctions;
   std::map<std::vector<int>, Eigen::MatrixXd> amount_vertices;
   Eigen::VectorXd critical_axis;
   std::optional<LineResolution> line_resolution;
@@ -182,6 +185,17 @@ class Tracer {
                     .dot(next[i].composition - next[j].composition) <= 0.)
           return false;
     return true;
+  }
+  double composition_change(const std::vector<PhaseState> &first,
+                            const std::vector<PhaseState> &second) const {
+    double change = 0.;
+    for (const auto &phase : first)
+      for (const auto &other : second)
+        if (phase.id == other.id &&
+            phase.composition.size() == other.composition.size())
+          change =
+              std::max(change, (phase.composition - other.composition).norm());
+    return change;
   }
   bool closing_solvus(const Assemblage &a, const std::vector<int> &ids,
                       int zero, const Eigen::VectorXd &direction,
@@ -379,14 +393,20 @@ class Tracer {
       id = it->second;
     result.fields[static_cast<std::size_t>(id)].sample_indices.push_back(index);
   }
-  bool covered(const Seed &seed) const {
+  bool covered(const Seed &seed) {
     for (auto &line : result.boundaries)
       if (line.assemblage == seed.ids && line.zero_phase == seed.zero) {
         // A nearby curve can belong to another junction. Only an incident
         // branch covers a seed attached to this exact thermodynamic event.
         if (seed.node >= 0) {
-          if (line.start_node == seed.node || line.end_node == seed.node)
-            return true;
+          for (bool start : {true, false})
+            if ((start ? line.start_node : line.end_node) == seed.node &&
+                !line.points.empty() &&
+                composition_change(
+                    (start ? line.points.front() : line.points.back()).phases,
+                    seed.phases) <=
+                    engine.settings.composition_tolerance * 100.)
+              return true;
           continue;
         }
         for (std::size_t k = 1; k < line.points.size(); ++k) {
@@ -397,9 +417,34 @@ class Tracer {
                   ? std::clamp((seed.position - a).dot(d) / d.squaredNorm(), 0.,
                                1.)
                   : 0.;
-          if ((a + f * d - seed.position).norm() <
-              engine.settings.node_tolerance * 2)
+          if ((a + f * d - seed.position).norm() >=
+                  engine.settings.node_tolerance * 2 ||
+              d.norm() < 1.e-12)
+            continue;
+          const auto &initial =
+              line.points[k - 1 + static_cast<std::size_t>(f > .5)];
+          if ((normalise(initial) - seed.position).norm() < 1.e-10 &&
+              composition_change(initial.phases, seed.phases) < 1.e-8)
             return true;
+          // A nearby chord is only a search hint. Correct its saved state
+          // onto the seed's section before treating it as the same branch.
+          try {
+            auto work =
+                engine.make_at(line.assemblage, initial.phases,
+                               origin + seed.position.cwiseProduct(range));
+            current_ids = line.assemblage;
+            auto c = boundary_constraints(*work, line.zero_phase, seed.position,
+                                          d.normalized());
+            auto s = engine.solve(*work, c);
+            if (valid(*work, s) && distinct(*work, line.assemblage) &&
+                (normalised_coordinates(*work) - seed.position).norm() <
+                    1.e-8 &&
+                composition_change(engine.snapshot(*work, line.assemblage),
+                                   seed.phases) <=
+                    engine.settings.composition_tolerance * 100.)
+              return true;
+          } catch (const std::exception &) {
+          }
         }
       }
     return false;
@@ -1475,6 +1520,16 @@ class Tracer {
                      (normalised_coordinates(*next) - old_u).norm() <=
                          std::max(used * 3, engine.settings.node_tolerance);
           failure = next_s.message;
+          // Newton can jump from one stable ordering minimum to another,
+          // skipping the intervening entry of a second solution instance.
+          // Reduce the continuation step before accepting that discontinuity.
+          if (accepted &&
+              composition_change(engine.snapshot(*a, ids),
+                                 engine.snapshot(*next, ids)) > .1) {
+            accepted = false;
+            failure =
+                "Solution composition changed by more than 0.1 in one step.";
+          }
           if (accepted) {
             // A required competitor can leave its EOS domain while all
             // phases on this line still have valid volumes. Check before
@@ -1976,33 +2031,62 @@ class Tracer {
   }
   bool same_curve(const Boundary &first, const Boundary &second,
                   bool partial = false, bool require_equilibrium = false) {
-    auto near = [&](const Boundary &one, const Boundary &two) {
+    auto same_saved_states = [&](const Boundary &one, const Boundary &two) {
       for (auto &p : one.points) {
         auto u = normalise(p);
-        double minimum = std::numeric_limits<double>::infinity();
-        for (std::size_t k = 1; k < two.points.size(); ++k) {
-          auto a = normalise(two.points[k - 1]), b = normalise(two.points[k]);
-          auto d = (b - a).eval();
-          double f = (d.squaredNorm() != 0.)
-                         ? std::clamp((u - a).dot(d) / d.squaredNorm(), 0., 1.)
-                         : 0.;
-          minimum = std::min(minimum, (u - a - f * d).norm());
-        }
-        if (minimum > engine.settings.node_tolerance * 2.)
+        if (std::none_of(two.points.begin(), two.points.end(),
+                         [&](const BoundaryPoint &q) {
+                           return (normalise(q) - u).norm() < 1.e-10 &&
+                                  composition_change(p.phases, q.phases) <
+                                      1.e-8;
+                         }))
           return false;
       }
       return true;
     };
-    if (!partial && !require_equilibrium && near(first, second) &&
-        near(second, first))
+    // Only identical saved equilibria bypass correction. Geometric proximity
+    // alone can merge different arms of a narrow field or ordering transition.
+    if (!partial && !require_equilibrium && same_saved_states(first, second) &&
+        same_saved_states(second, first))
       return true;
     // Coarse chords of the same curved equilibrium line can be farther apart
     // than node tolerance. Verify equivalence by correcting the other saved
     // state onto each interior point's section, including its compositions.
     auto verified = [&](const Boundary &one, const Boundary &two) {
       int checked = 0;
-      for (std::size_t i = 1; i + 1 < one.points.size(); ++i) {
-        auto &target = one.points[i];
+      const bool two_points = one.points.size() == 2;
+      for (std::size_t i = two_points ? 0 : 1; i + 1 < one.points.size(); ++i) {
+        auto target = one.points[i];
+        auto &left = one.points[two_points ? 0 : i - 1];
+        auto &right = one.points[i + 1];
+        Eigen::Vector2d normal = normalise(right) - normalise(left);
+        if (normal.norm() < 1.e-12 && partial)
+          normal = normalise(target) - normalise(left);
+        if (normal.norm() < 1.e-12)
+          continue;
+        normal.normalize();
+        // Two-point records have no saved interior state. Verify their
+        // midpoint thermodynamically before comparing the other trace.
+        if (two_points)
+          try {
+            const auto middle =
+                (.5 * (normalise(left) + normalise(right))).eval();
+            auto a = engine.make_at(one.assemblage, left.phases,
+                                    origin + middle.cwiseProduct(range));
+            current_ids = one.assemblage;
+            auto c = boundary_constraints(*a, one.zero_phase, middle, normal);
+            auto s = engine.solve(*a, c);
+            if (!valid(*a, s) || !distinct(*a, one.assemblage) ||
+                (normalised_coordinates(*a) - middle).norm() >
+                    (normalise(right) - normalise(left)).norm())
+              return false;
+            const double affinity = engine.stability(*a);
+            if (affinity < -engine.settings.affinity_tolerance)
+              return false;
+            target = point(*a, one.assemblage, s, affinity);
+          } catch (const std::exception &) {
+            return false;
+          }
         if (separation(target.phases) < .002)
           continue;
         auto u = normalise(target);
@@ -2016,16 +2100,12 @@ class Tracer {
             closest = k;
           }
         }
+        for (std::size_t k = 1; k < two.points.size(); ++k)
+          minimum = std::min(minimum,
+                             segment_distance(u, normalise(two.points[k - 1]),
+                                              normalise(two.points[k])));
         if (minimum > engine.settings.step * 3.)
           return false;
-        auto &left = one.points[i - 1];
-        auto &right = one.points[i + 1];
-        Eigen::Vector2d normal = normalise(right) - normalise(left);
-        if (normal.norm() < 1.e-12 && partial)
-          normal = u - normalise(left);
-        if (normal.norm() < 1.e-12)
-          continue;
-        normal.normalize();
         try {
           auto a =
               engine.make_at(two.assemblage, two.points[closest].phases,
@@ -2138,7 +2218,8 @@ class Tracer {
             continue;
           accepted = true;
           break;
-        } catch (const std::exception &) {
+        } catch (const std::exception &error) {
+          s.message = error.what();
         }
       if (!accepted) {
         if (engine.settings.verbose) {
@@ -2448,10 +2529,200 @@ class Tracer {
         break;
     }
   }
-  // Correct a segment midpoint onto its equilibrium boundary. Ordinary field
+  void rebuild_incidence() {
+    for (auto &n : result.nodes)
+      n.incident_lines.clear();
+    for (std::size_t i = 0; i < result.boundaries.size(); ++i) {
+      auto &line = result.boundaries[i];
+      line.id = burnman::utils::checked_int(i);
+      for (int id : {line.start_node, line.end_node})
+        if (id >= 0) {
+          auto &incident =
+              result.nodes.at(static_cast<std::size_t>(id)).incident_lines;
+          if (std::find(incident.begin(), incident.end(), line.id) ==
+              incident.end())
+            incident.push_back(line.id);
+        }
+    }
+  }
+  bool recover_branch_jumps() {
+    if (!engine.settings.max_recovery_passes)
+      return false;
+    for (std::size_t index = 0; index < result.boundaries.size(); ++index) {
+      const auto &line = result.boundaries[index];
+      for (std::size_t k = 1; k < line.points.size(); ++k) {
+        const auto &left = line.points[k - 1];
+        const auto &right = line.points[k];
+        if (composition_change(left.phases, right.phases) <= .1)
+          continue;
+        const auto u = (.5 * (normalise(left) + normalise(right))).eval();
+        Eigen::Vector2d along = normalise(right) - normalise(left);
+        if (along.norm() < engine.settings.min_step)
+          continue;
+        along.normalize();
+        bool unstable = false;
+        for (const auto *initial : {&left, &right})
+          try {
+            auto a = engine.make_at(line.assemblage, initial->phases,
+                                    origin + u.cwiseProduct(range));
+            current_ids = line.assemblage;
+            auto c = boundary_constraints(*a, line.zero_phase, u, along);
+            auto s = engine.solve(*a, c);
+            if (valid(*a, s) && distinct(*a, line.assemblage) &&
+                (normalised_coordinates(*a) - u).norm() <=
+                    (normalise(right) - normalise(left)).norm() &&
+                engine.stability(*a) < -engine.settings.affinity_tolerance)
+              unstable = true;
+          } catch (const std::exception &) {
+          }
+        if (!unstable)
+          continue;
+        std::ostringstream key;
+        key << std::setprecision(17) << line.zero_phase << ':' << left.pressure
+            << ',' << left.temperature << ':' << right.pressure << ','
+            << right.temperature;
+        for (int id : line.assemblage)
+          key << ':' << id;
+        if (!retraced_segments.insert(key.str()).second)
+          continue;
+        // The saved chord skips a stable phase entry. Retrace its two arms
+        // with composition-controlled steps so ordinary phase-entry recovery
+        // can locate the intervening junctions and expand their branches.
+        Boundary previous = line;
+        result.boundaries.erase(result.boundaries.begin() +
+                                static_cast<std::ptrdiff_t>(index));
+        rebuild_incidence();
+        const auto count = result.boundaries.size();
+        for (const auto &p : {previous.points[k - 1], previous.points[k]})
+          queue.push_back({previous.assemblage, previous.zero_phase, -1,
+                           p.phases, normalise(p), along});
+        search();
+        const bool replaced = result.boundaries.size() > count;
+        if (result.boundaries.size() == count) {
+          result.boundaries.insert(result.boundaries.begin() +
+                                       static_cast<std::ptrdiff_t>(index),
+                                   std::move(previous));
+        }
+        rebuild_incidence();
+        return replaced;
+      }
+    }
+    return false;
+  }
+  bool recover_junctions() {
+    const auto count = result.boundaries.size();
+    const auto nodes = result.nodes.size();
+    std::vector<int> retried;
+    for (const auto &n : result.nodes) {
+      if (n.kind != "junction" || n.incident_lines.size() != 1 ||
+          model_excluded(n) ||
+          normalise(n)
+                  .cwiseMin(Eigen::Vector2d::Ones() - normalise(n))
+                  .minCoeff() <= 1.e-10)
+        continue;
+      for (const auto &line : result.boundaries) {
+        if (line.points.empty() ||
+            (line.start_node != n.id && line.end_node != n.id))
+          continue;
+        const auto &p =
+            line.start_node == n.id ? line.points.front() : line.points.back();
+        std::vector<int> ids, zeros;
+        double total = 0.;
+        for (const auto &phase : p.phases)
+          total += std::abs(phase.amount);
+        for (const auto &phase : p.phases) {
+          ids.push_back(phase.id);
+          if (std::abs(phase.amount) <= 1.e-10 * std::max(1., total))
+            zeros.push_back(phase.id);
+        }
+        if (zeros.size() < 2)
+          continue;
+        std::ostringstream key;
+        key << n.id << ':';
+        for (int id : ids)
+          key << id << ',';
+        key << ':';
+        for (int zero : zeros)
+          key << zero << ',';
+        expanded.erase(key.str());
+        const auto suffix = ":" + std::to_string(n.id);
+        for (auto it = attempted.begin(); it != attempted.end();)
+          if (it->size() >= suffix.size() &&
+              it->compare(it->size() - suffix.size(), suffix.size(), suffix) ==
+                  0)
+            it = attempted.erase(it);
+          else
+            ++it;
+        try {
+          auto a = engine.make_at(ids, p.phases,
+                                  diagram_coordinates(p, result.section.type));
+          expand(*a, ids, zeros, n.id);
+          retried.push_back(n.id);
+        } catch (const std::exception &error) {
+          if (engine.settings.verbose)
+            std::cerr << "Junction recovery at node " << n.id << ": "
+                      << error.what() << '\n';
+        }
+        break;
+      }
+    }
+    search();
+    // An exact multi-zero starting state can have a singular corrector even
+    // though stable branches exist nearby. Bracket verified equilibria around
+    // the event as a second way to seed those branches.
+    for (int id : retried) {
+      int degree = 0;
+      for (const auto &line : result.boundaries)
+        if (line.start_node == id || line.end_node == id)
+          ++degree;
+      if (degree != 1 || !probed_junctions.insert(id).second)
+        continue;
+      const auto centre =
+          normalise(result.nodes.at(static_cast<std::size_t>(id)));
+      const double radius = std::min(engine.settings.step * .25,
+                                     engine.settings.node_tolerance * 4.);
+      std::vector<WorkState> neighbours;
+      for (const Eigen::Vector2d &offset :
+           {Eigen::Vector2d(1., 0.), Eigen::Vector2d(1., 1.),
+            Eigen::Vector2d(0., 1.), Eigen::Vector2d(-1., 1.),
+            Eigen::Vector2d(-1., 0.), Eigen::Vector2d(-1., -1.),
+            Eigen::Vector2d(0., -1.), Eigen::Vector2d(1., -1.)}) {
+        const auto position = (centre + radius * offset).eval();
+        WorkState neighbour;
+        if (inside(position, 0.))
+          try {
+            neighbour = engine.stable_at(origin + position.cwiseProduct(range));
+            if (neighbour.state.success)
+              add_sample(neighbour.state);
+          } catch (const std::exception &error) {
+            if (engine.settings.verbose)
+              std::cerr << "Junction neighbourhood at node " << id << ": "
+                        << error.what() << '\n';
+          }
+        neighbours.push_back(std::move(neighbour));
+      }
+      for (std::size_t k = 0; k < neighbours.size(); ++k)
+        bracket(neighbours[k], neighbours[(k + 1) % neighbours.size()]);
+    }
+    search();
+    if (result.boundaries.size() != count || result.nodes.size() != nodes)
+      return true;
+    for (int id : retried) {
+      int degree = 0;
+      for (const auto &line : result.boundaries)
+        if (line.start_node == id || line.end_node == id)
+          ++degree;
+      if (degree > 1)
+        return true;
+    }
+    return false;
+  }
+  // Correct a segment point onto its equilibrium boundary. Ordinary field
   // recovery needs curvature; requested spacing also subdivides straight lines.
   bool refine_segment(Boundary &line, std::size_t right_index,
-                      bool require_curvature) {
+                      bool require_curvature, std::string *failure = nullptr,
+                      double curvature_tolerance = 1.e-8,
+                      double fraction = .5) {
     const auto left = normalise(line.points[right_index - 1]);
     const auto right = normalise(line.points[right_index]);
     double length = (right - left).norm();
@@ -2468,9 +2739,9 @@ class Tracer {
                                : "; interpolated endpoints: ") +
                   reason;
     };
-    for (int side = 0; side < (require_curvature ? 1 : 3); ++side)
+    for (int side = 0; side < 3; ++side)
       try {
-        const Eigen::Vector2d middle = .5 * (left + right);
+        const Eigen::Vector2d middle = left + fraction * (right - left);
         auto states =
             line.points[right_index - 1 + static_cast<std::size_t>(side == 1)]
                 .phases;
@@ -2484,14 +2755,17 @@ class Tracer {
                 [&](const PhaseState &p) { return p.id == state.id; });
             if (match == other.end())
               continue;
-            const double amount = state.amount + match->amount;
+            const double amount =
+                (1. - fraction) * state.amount + fraction * match->amount;
             if (amount > 0.)
-              state.composition = (state.amount * state.composition +
-                                   match->amount * match->composition) /
-                                  amount;
+              state.composition =
+                  ((1. - fraction) * state.amount * state.composition +
+                   fraction * match->amount * match->composition) /
+                  amount;
             else
-              state.composition = .5 * (state.composition + match->composition);
-            state.amount = .5 * amount;
+              state.composition = (1. - fraction) * state.composition +
+                                  fraction * match->composition;
+            state.amount = amount;
           }
         auto a = engine.make_at(line.assemblage, states,
                                 origin + middle.cwiseProduct(range));
@@ -2504,7 +2778,8 @@ class Tracer {
           return valid(*a, s) && distinct(*a, line.assemblage) &&
                  (position - middle).norm() <= length &&
                  (require_curvature
-                      ? segment_distance(position, left, right) > 1.e-8
+                      ? segment_distance(position, left, right) >
+                            curvature_tolerance
                       : std::min((position - left).norm(),
                                  (position - right).norm()) >
                             64. * std::numeric_limits<double>::epsilon());
@@ -2521,10 +2796,15 @@ class Tracer {
           refit_composition_faces(a, line.assemblage, line.zero_phase, middle,
                                   normal, s, affinity, &minima);
         if (affinity < -engine.settings.affinity_tolerance || !acceptable()) {
+          std::ostringstream alternatives;
+          for (std::size_t k = 0; k < minima.size(); ++k)
+            if (minima[k].affinity < -engine.settings.affinity_tolerance)
+              alternatives << " " << engine.phases[k].material->get_name()
+                           << " affinity=" << minima[k].affinity << " J/mol;";
           rejected(side, "Boundary checks failed after checking stability "
                          "(minimum affinity " +
                              std::to_string(affinity) + " J/mol). " +
-                             s.message);
+                             s.message + alternatives.str());
           continue;
         }
         line.points.insert(line.points.begin() +
@@ -2542,9 +2822,12 @@ class Tracer {
                 << " Pa, T=" << p.temperature << " K and P=" << q.pressure
                 << " Pa, T=" << q.temperature << " K: " << failures << '\n';
     }
+    if (failure)
+      *failure = failures;
     return false;
   }
-  bool refine_chords(const FieldPolygon &polygon) {
+  bool refine_chords(const FieldPolygon &polygon,
+                     const Eigen::Vector2d &conflict) {
     bool refined = false;
     for (auto &line : result.boundaries)
       for (std::size_t k = line.points.size(); k > 1; --k) {
@@ -2565,7 +2848,24 @@ class Tracer {
         if (!borders(polygon.vertices) &&
             !std::any_of(polygon.holes.begin(), polygon.holes.end(), borders))
           continue;
-        refined = refine_segment(line, k - 1, true) || refined;
+        const auto direction = (right - left).eval();
+        const double distance = segment_distance(conflict, left, right);
+        if (distance > direction.norm())
+          continue;
+        // Resolve curvature relative to the disputed field's width. A fixed
+        // 1e-8 chord cutoff can exceed the entire width of a narrow field.
+        const double tolerance =
+            std::max(64. * std::numeric_limits<double>::epsilon(),
+                     std::min(1.e-8, distance * .125));
+        // Correct nearest the disputed sample, which can lie very close to
+        // an endpoint. Repeated midpoint subdivision can exhaust recovery
+        // passes before reaching that part of a long chord.
+        const double fraction = std::clamp((conflict - left).dot(direction) /
+                                               direction.squaredNorm(),
+                                           .01, .99);
+        refined =
+            refine_segment(line, k - 1, true, nullptr, tolerance, fraction) ||
+            refined;
       }
     return refined;
   }
@@ -2596,6 +2896,7 @@ class Tracer {
     std::size_t completed = 0;
     for (auto &line : result.boundaries) {
       std::size_t added = 0, failed = 0;
+      std::string failures;
       auto last_progress = std::chrono::steady_clock::now();
       auto progress = [&]() {
         std::cerr << "Line " << completed + 1 << '/' << result.boundaries.size()
@@ -2612,13 +2913,22 @@ class Tracer {
                                                          result.section.type)))
                                .cwiseAbs()
                                .eval();
+        std::string reason;
         if ((delta.array() <= spacing.array() * (1. + 1.e-12)).all()) {
           ++k;
-        } else if (double(added) < limit && refine_segment(line, k, false)) {
+        } else if (double(added) < limit &&
+                   refine_segment(line, k, false, &reason)) {
           ++added;
           // Check both new segments; a curved midpoint need not halve each
           // axis.
         } else {
+          const auto &p = line.points[k - 1];
+          const auto &q = line.points[k];
+          std::ostringstream detail;
+          detail << " Segment " << k << " between P=" << p.pressure
+                 << " Pa, T=" << p.temperature << " K and P=" << q.pressure
+                 << " Pa, T=" << q.temperature << " K: " << reason;
+          failures += detail.str();
           ++failed;
           ++k;
         }
@@ -2636,7 +2946,8 @@ class Tracer {
                          std::to_string(failed) + " segments" +
                          (double(added) >= limit
                               ? " (refinement limit reached)."
-                              : " (equilibrium refinement failed)."));
+                              : " (equilibrium refinement failed).") +
+                         failures);
     }
     return issues;
   }
@@ -2666,7 +2977,10 @@ class Tracer {
           auto state =
               field_state(diagram_coordinates(old, result.section.type), true,
                           index == sample ? representative : sample);
-          if (state.success && active(state) != active(old)) {
+          const double roundoff = 64. * std::numeric_limits<double>::epsilon() *
+                                  std::max(1., std::abs(old.gibbs));
+          if (state.success && (active(state) != active(old) ||
+                                state.gibbs < old.gibbs - roundoff)) {
             state.is_field_verification = old.is_field_verification;
             add_sample(state, burnman::utils::checked_int(index));
             refined = true;
@@ -2676,13 +2990,29 @@ class Tracer {
       // A sample can disagree with a coarse chord even when its physical
       // phase line already exists. Correct that perimeter before searching
       // for missing lines; otherwise covered seeds make recovery stall.
-      for (auto [sample, polygon] : conflicts)
-        refined = refine_chords(geometry.polygons[polygon]) || refined;
-      changed = changed || refined;
       if (refined) {
         geometry = field_polygons(result, 1.e-8, true, false);
         conflicts = field_conflicts(result, geometry);
       }
+      // Chord accuracy is a separate local task from finding missing phase
+      // lines. Continue while accepted equilibrium points improve the
+      // perimeter, rather than spending one topology pass per subdivision.
+      for (int iteration = 0;
+           iteration < engine.settings.max_refinement_iterations &&
+           !conflicts.empty();
+           ++iteration) {
+        bool corrected = false;
+        for (auto [sample, polygon] : conflicts)
+          corrected = refine_chords(geometry.polygons[polygon],
+                                    normalise(result.samples[sample])) ||
+                      corrected;
+        if (!corrected)
+          break;
+        refined = true;
+        geometry = field_polygons(result, 1.e-8, true, false);
+        conflicts = field_conflicts(result, geometry);
+      }
+      changed = changed || refined;
       if (conflicts.empty())
         break;
       for (auto [sample, polygon] : conflicts) {
@@ -2735,7 +3065,11 @@ class Tracer {
           return work.state;
         const double roundoff = 64. * std::numeric_limits<double>::epsilon() *
                                 std::max(1., std::abs(work.state.gibbs));
-        if (!best.success || work.state.gibbs < best.gibbs - roundoff)
+        // A roundoff tie must not depend on which opposing warm start was
+        // tried first: that otherwise swaps equivalent labels on each pass.
+        if (!best.success || work.state.gibbs < best.gibbs - roundoff ||
+            (std::abs(work.state.gibbs - best.gibbs) <= roundoff &&
+             active(work.state) < active(best)))
           best = work.state;
       } catch (const std::exception &) {
       }
@@ -3014,8 +3348,16 @@ class Tracer {
     }
     result.boundaries = std::move(unique);
   }
-  Result finish(int verification_pass = 0) {
+  Result finish(int verification_pass = 0, int topology_pass = 0) {
     separate_junctions();
+    if (topology_pass < engine.settings.max_recovery_passes) {
+      bool retraced = false;
+      const auto budget = result.boundaries.size();
+      for (std::size_t i = 0; i < budget && recover_branch_jumps(); ++i)
+        retraced = true;
+      if (retraced)
+        return finish(verification_pass, topology_pass + 1);
+    }
     model_domain();
     join_frame_limits();
     join_model_limits();
@@ -3185,6 +3527,9 @@ class Tracer {
     for (auto &state : result.samples)
       if (!state.success && !state.outside_model_domain)
         result.diagnostics.push_back("Unresolved seed: " + state.message);
+    if (topology_pass < engine.settings.max_recovery_passes &&
+        recover_junctions())
+      return finish(verification_pass, topology_pass + 1);
     // Verify closed interiors: stale edge labels can agree with each other
     // while still describing the wrong field. Open faces remain unresolved.
     if (engine.settings.verbose && line_resolution)
@@ -3224,6 +3569,14 @@ class Tracer {
         result.diagnostics.push_back(
             "Unpaired solution critical endpoint at node " +
             std::to_string(n.id) + "; its adjoining field remains unresolved.");
+      else if (n.kind == "junction" && n.incident_lines.size() == 1 &&
+               !model_excluded(n) &&
+               normalise(n)
+                       .cwiseMin(Eigen::Vector2d::Ones() - normalise(n))
+                       .minCoeff() > 1.e-10)
+        result.diagnostics.push_back(
+            "Unpaired internal junction at node " + std::to_string(n.id) +
+            "; its outgoing branches remain unresolved.");
     if (!queue.empty())
       result.diagnostics.push_back(
           "Boundary search limit reached; increase max_lines.");
