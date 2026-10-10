@@ -295,6 +295,56 @@ def test_verified_interior_can_identify_face_thinner_than_snap_tolerance():
     assert enclosed.sample_index == 0
 
 
+@pytest.mark.parametrize("axes", ["PS", "TV"])
+@pytest.mark.parametrize("variance,expected_count", [(0, 2), (1, 3)])
+def test_latent_invariant_roundoff_is_aligned_but_univariant_strips_remain(
+    axes, variance, expected_count
+):
+    ranges = dict(P=(23.2e9, 23.9e9), T=(1400.0, 1700.0),
+                  S=(300.0, 340.0), V=(3.3e-5, 3.7e-5))
+    names = dict(P="pressure", T="temperature", S="entropy", V="volume")
+
+    def point(x, y):
+        values = dict(pressure=23.5e9, temperature=1532.0)
+        for axis, value in zip(axes, (x, y)):
+            low, high = ranges[axis]
+            values[names[axis]] = low + value * (high - low)
+        return values
+
+    phases = [0, 1, 2, 3]
+    data = dict(
+        diagram_type=axes,
+        pressure_range=ranges["P"], temperature_range=ranges["T"],
+        entropy_range=ranges["S"], volume_range=ranges["V"],
+        fields=[],
+        nodes=[dict(id=i, kind="junction", gibbs_variance=variance,
+                    pt_nullity=0, assemblage=phases, **point(0.5, y))
+               for i, y in enumerate((0.0, 1.0))],
+        boundaries=[dict(
+            id=-1, start_node=0, end_node=1, assemblage=phases,
+            side_b=[0, 1, 2], side_a=[0, 1, 3],
+            points=[point(0.5, 0.0), point(0.5 + delta, 0.5), point(0.5, 1.0)],
+        ) for delta in (-1.e-12, 1.e-12)],
+        samples=[dict(success=True, **point(x, 0.5),
+                      phases=[dict(id=i, amount=1.0) for i in ids])
+                 for x, ids in [(0.25, [0, 1, 2]), (0.75, [0, 1, 3])]],
+    )
+    before = json.dumps(data, sort_keys=True)
+    geometry = bm.pseudosection_field_polygons(
+        data, tolerance=1.e-12, merge_fields=False
+    )
+    assert json.dumps(data, sort_keys=True) == before
+    assert len(geometry.polygons) == expected_count
+    assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
+    if variance == 0:
+        assert not geometry.diagnostics
+        assert {tuple(p.phases) for p in geometry.polygons} == {
+            (0, 1, 2), (0, 1, 3)
+        }
+    else:
+        assert any(0.0 < p.area < 1.e-11 for p in geometry.polygons)
+
+
 def test_nested_and_disconnected_fields():
     data = diagram(
         [line(square(), [0, 1], [0]), line(square(0.4, 0.6), [0, 1, 2], [0, 1])]
@@ -556,6 +606,43 @@ def test_sample_of_missing_thin_field_is_not_hidden_by_amount_tolerance():
     geometry = bm.pseudosection_field_polygons(data)
     assert any(
         "conflicting equilibrium assemblage at sample 1" in d
+        for d in geometry.diagnostics
+    )
+
+
+@pytest.mark.parametrize("retains_equations", [False, True])
+@pytest.mark.parametrize("trace_fraction", [-5.e-7, -5.e-10, 0.0, 5.e-8])
+def test_subcutoff_phase_count_needs_equilibrium_support(
+    retains_equations, trace_fraction
+):
+    interior = sample(0.5 + 5.e-9, 0.5, [0])
+    if retains_equations:
+        interior["phases"].append(dict(id=1, amount=trace_fraction))
+    data = diagram(
+        [line([(0.5, 0.0), (0.5, 1.0)], [0], [0, 1])],
+        [sample(0.9, 0.5, [0, 1]), interior],
+    )
+    geometry = bm.pseudosection_field_polygons(data)
+    conflicts = [d for d in geometry.diagnostics if "conflicting equilibrium" in d]
+    assert bool(conflicts) == (not retains_equations or trace_fraction < -1.e-7)
+
+
+def test_near_edge_conflict_is_not_hidden_by_a_field_elsewhere():
+    data = diagram(
+        [
+            line([(0.3, 0.0), (0.3, 1.0)], [1], [0]),
+            line([(0.5, 0.0), (0.5, 1.0)], [0], [1]),
+        ],
+        [
+            sample(0.1, 0.5, [1]),
+            sample(0.4, 0.5, [0]),
+            sample(0.8, 0.5, [1]),
+            sample(0.5 - 5.0e-9, 0.5, [1]),
+        ],
+    )
+    geometry = bm.pseudosection_field_polygons(data, merge_fields=False)
+    assert any(
+        "conflicting equilibrium assemblage at sample 3" in d
         for d in geometry.diagnostics
     )
 

@@ -19,8 +19,8 @@
 #include <chrono>
 #include <cmath>
 #include <deque>
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 #include <map>
 #include <set>
 #include <sstream>
@@ -52,6 +52,9 @@ class Tracer {
   std::set<std::string> refinement_events;
   std::map<std::string, std::pair<Eigen::Vector2d, Eigen::Vector2d>>
       refinement_sections;
+  // Failed proposals are retried through branch recovery, not by inserting
+  // the same points on every field-recovery iteration.
+  std::map<std::string, std::string> rejected_curve_edits;
   std::set<int> probed_junctions;
   std::map<std::vector<int>, Eigen::MatrixXd> amount_vertices;
   Eigen::VectorXd critical_axis;
@@ -394,20 +397,56 @@ class Tracer {
     out.phases = std::move(states);
     return out;
   }
-  void add_sample(const State &state, int existing = -1) {
+  bool additional_phase_support(const State &state, const State &old) const {
+    double total = 0.;
+    for (const auto &phase : state.phases)
+      total += phase.amount;
+    for (const auto &phase : state.phases)
+      if (std::abs(phase.amount) <= engine.settings.amount_tolerance * total &&
+          std::count_if(state.phases.begin(), state.phases.end(),
+                        [&](const PhaseState &p) {
+                          return p.candidate_index == phase.candidate_index;
+                        }) == 1 &&
+          std::none_of(old.phases.begin(), old.phases.end(),
+                       [&](const PhaseState &p) {
+                         return p.candidate_index == phase.candidate_index;
+                       }))
+        return true;
+    return false;
+  }
+  void add_sample(const State &state, int existing = -1,
+                  bool retain_support = false) {
+    if (existing >= 0) {
+      for (auto it = field_comparisons.begin(); it != field_comparisons.end();)
+        if (it->first.first == static_cast<std::size_t>(existing) ||
+            it->first.second == static_cast<std::size_t>(existing))
+          it = field_comparisons.erase(it);
+        else
+          ++it;
+    }
     int index = existing >= 0
                     ? existing
                     : burnman::utils::checked_int(result.samples.size());
     State canonical = state;
     if (state.success) {
       double total = 0.;
-      for (auto &ph : state.phases)
+      std::map<int, int> candidate_counts;
+      for (auto &ph : state.phases) {
         total += ph.amount;
+        ++candidate_counts[ph.candidate_index];
+      }
       canonical.phases.erase(
           std::remove_if(canonical.phases.begin(), canonical.phases.end(),
                          [&](auto &ph) {
-                           return ph.amount <=
-                                  engine.settings.amount_tolerance * total;
+                           // Retain a newly verified, numerically zero phase
+                           // as evidence of boundary count precision. Keep
+                           // solution-copy numbering unchanged: this support
+                           // is restricted to a separate single-instance
+                           // candidate, not a vanishing copy of an active one.
+                           return ph.amount <= engine.settings.amount_tolerance * total &&
+                                  !(retain_support &&
+                                    candidate_counts[ph.candidate_index] == 1 &&
+                                    ph.amount >= -engine.settings.amount_tolerance * total);
                          }),
           canonical.phases.end());
       // A saved, nearly identical solution pair is one phase, not two minima.
@@ -549,7 +588,11 @@ class Tracer {
     second.erase(0, second.find_first_not_of(' '));
     return {line.termination.substr(0, split), second};
   }
-  void trim_junction_overshoot(Boundary &line) const {
+  void trim_junction_overshoot(Boundary &line) {
+    // Closed returns need the coverage check in reconcile_boundaries(), which
+    // distinguishes a retraced spur from a genuine closed phase boundary.
+    if (line.start_node >= 0 && line.start_node == line.end_node)
+      return;
     auto [back, forward] = statuses(line);
     for (bool start : {false, true}) {
       int n = start ? line.start_node : line.end_node;
@@ -566,9 +609,35 @@ class Tracer {
         auto u = normalise(line.points[tip]);
         auto before = normalise(line.points[previous]);
         auto incoming = (u - before).eval(), remaining = (junction - u).eval();
-        if (remaining.norm() > engine.settings.node_tolerance * 2. ||
-            remaining.dot(incoming) >= -1.e-18)
+        if (remaining.dot(incoming) >= -1.e-18)
           break;
+        if (remaining.norm() > engine.settings.node_tolerance * 2.) {
+          // Zooming a diagram magnifies an otherwise small overshoot. A
+          // longer reversing tail needs evidence that this same branch passes
+          // through the junction between its two saved points, rather than
+          // merely turning near it.
+          if (segment_distance(junction, u, before) > 1.e-8)
+            break;
+          try {
+            auto a = engine.make_at(line.assemblage,
+                                    line.points[previous].phases,
+                                    origin + junction.cwiseProduct(range));
+            current_ids = line.assemblage;
+            auto c = boundary_constraints(*a, line.zero_phase, junction,
+                                          incoming.normalized());
+            auto solved = engine.solve(*a, c);
+            const auto &endpoint = start ? line.points.front() : line.points.back();
+            if (!valid(*a, solved) || !distinct(*a, line.assemblage) ||
+                (normalised_coordinates(*a) - junction).norm() > 1.e-8 ||
+                engine.stability(*a) < -engine.settings.affinity_tolerance ||
+                composition_change(engine.snapshot(*a, line.assemblage),
+                                   endpoint.phases) >
+                    engine.settings.composition_tolerance * 100.)
+              break;
+          } catch (const std::exception &) {
+            break;
+          }
+        }
         line.points.erase(line.points.begin() +
                           static_cast<std::ptrdiff_t>(tip));
       }
@@ -2049,11 +2118,14 @@ class Tracer {
               !(replaces_solution && variance.rank() + 1 == formulae.rows() &&
                 ids.size() + 1 < line.assemblage.size()));
     };
+    double next_offset =
+        std::min(std::max(engine.settings.node_tolerance * 4, 1.e-3),
+                 length * .125);
+    bool expanded_for_amount = false;
     for (int retry = 0; retry < 24; ++retry) {
-      double offset =
-          std::min(std::max(engine.settings.node_tolerance * 4, 1.e-3),
-                   length * .125) *
-          std::pow(.5, retry);
+      const double offset = next_offset;
+      next_offset *= .5;
+      double unresolved_fraction = 0.;
       for (int sign : {-1, 1}) {
         auto u = (centre + sign * offset * side).eval();
         if (!inside(u))
@@ -2064,6 +2136,21 @@ class Tracer {
         for (auto &subset : side_assemblages)
           try {
             auto work = engine.fixed_at(subset, anchor.phases, actual);
+            // A real entering phase can still lie below the reporting cutoff
+            // on this probe. Shrinking then makes both labels identical forever.
+            // Retain its unrounded fraction to choose one more distant probe.
+            if (result.section.type == DiagramType::PT && !replaces_solution &&
+                variance.rank() == formulae.rows() &&
+                subset == line.assemblage && work.state.success) {
+              double total = 0.;
+              for (const auto &phase : work.state.phases)
+                total += phase.amount;
+              for (const auto &phase : work.state.phases)
+                if (phase.id == line.zero_phase && phase.amount > 0. &&
+                    phase.amount <= engine.settings.amount_tolerance * total)
+                  unresolved_fraction =
+                      std::max(unresolved_fraction, phase.amount / total);
+            }
             // A finite-tolerance solve can retain a zero-amount boundary
             // phase. Remove its chemical equations and reverify the actual
             // field before using its compositions to identify a replacement.
@@ -2092,6 +2179,26 @@ class Tracer {
         if (!side_states[static_cast<std::size_t>(slot)].success)
           side_states[static_cast<std::size_t>(slot)] =
               engine.stable_at(actual).state;
+      }
+      // Grow only for measured positive phase entry, bounded away from the
+      // line's endpoints. The usual immediate-neighbour checks still reject
+      // a probe that skips another phase field; subsequent retries shrink it.
+      if (!expanded_for_amount && unresolved_fraction > 0. &&
+          side_states[0].success && side_states[1].success &&
+          active(side_states[0]) == active(side_states[1])) {
+        expanded_for_amount = true;
+        const double larger =
+            std::min(length * .125,
+                     offset * 4. * engine.settings.amount_tolerance /
+                         unresolved_fraction);
+        if (larger > offset * 1.5) {
+          if (engine.settings.verbose)
+            std::cerr << "Growing neighbour probe for phase " << line.zero_phase
+                      << ": fraction=" << unresolved_fraction
+                      << ", offset=" << offset << " -> " << larger << '\n';
+          next_offset = larger;
+          continue;
+        }
       }
       // Canonical IDs record how many copies survive, not which solution
       // branch they occupy. Preserve a verified composition replacement
@@ -2711,6 +2818,20 @@ class Tracer {
           continue;
         if (!retraced_segments.insert(key).second)
           continue;
+        // Recovery of a rejected geometric edit is itself provisional. In
+        // particular, finding one outgoing arm does not establish that it
+        // can replace the last accepted interval without losing a field.
+        std::optional<Result> verified_result;
+        std::deque<Seed> verified_queue;
+        decltype(field_index) verified_fields;
+        decltype(attempted) verified_attempted, verified_expanded;
+        if (rejected_curve_edits.count(key)) {
+          verified_result = result;
+          verified_queue = queue;
+          verified_fields = field_index;
+          verified_attempted = attempted;
+          verified_expanded = expanded;
+        }
         // The saved chord skips a stable phase entry. Retrace its two arms
         // with composition-controlled steps so ordinary phase-entry recovery
         // can locate the intervening junctions and expand their branches.
@@ -2734,6 +2855,37 @@ class Tracer {
         }
         search();
         const bool replaced = result.boundaries.size() > count;
+        if (replaced && verified_result) {
+          std::optional<EditFailure> failure;
+          for (std::size_t retry = 0; retry <= result.samples.size(); ++retry) {
+            auto geometry =
+                field_polygons(*verified_result, 1.e-8, true, false);
+            failure = validate_curve_edits(geometry);
+            if (!failure ||
+                failure->reason !=
+                    "equilibrium sample changed during verification")
+              break;
+            // A thermodynamically corrected sample is evidence for both
+            // subdivisions. Recheck geometry using that correction instead
+            // of rejecting a legitimate recovery as a stale-label conflict.
+            verified_result->samples = result.samples;
+            verified_result->fields = result.fields;
+            verified_fields = field_index;
+          }
+          if (failure) {
+            result = std::move(*verified_result);
+            queue = std::move(verified_queue);
+            field_index = std::move(verified_fields);
+            attempted = std::move(verified_attempted);
+            expanded = std::move(verified_expanded);
+            field_comparisons.clear();
+            rejected_curve_edits[key] +=
+                " Local boundary recovery was also rejected: " +
+                failure->reason + ".";
+            rebuild_incidence();
+            return false;
+          }
+        }
         if (result.boundaries.size() == count) {
           result.boundaries.insert(result.boundaries.begin() +
                                        static_cast<std::ptrdiff_t>(index),
@@ -3065,13 +3217,13 @@ class Tracer {
     }
     return out;
   }
-  static std::string interval_key(const Boundary &line,
-                                  const BoundaryPoint &left,
-                                  const BoundaryPoint &right) {
+  std::string interval_key(const Boundary &line, const BoundaryPoint &left,
+                           const BoundaryPoint &right) const {
     std::ostringstream key;
-    key << std::setprecision(17) << line.zero_phase << ':' << left.pressure
-        << ',' << left.temperature << ':' << right.pressure << ','
-        << right.temperature;
+    const auto first = diagram_coordinates(left, result.section.type),
+               last = diagram_coordinates(right, result.section.type);
+    key << std::setprecision(17) << line.zero_phase << ':' << first[0] << ','
+        << first[1] << ':' << last[0] << ',' << last[1];
     for (int id : line.assemblage)
       key << ':' << id;
     return key.str();
@@ -3080,8 +3232,8 @@ class Tracer {
   // critical endpoint has no distinct tangent; approach from the other end.
   bool refine_segment(Boundary &line, std::size_t right_index,
                       bool require_curvature, std::string *failure = nullptr,
-                      double curvature_tolerance = 1.e-8,
-                      double fraction = .5) {
+                      double curvature_tolerance = 1.e-8, double fraction = .5,
+                      double *chord_error = nullptr) {
     const auto &first = line.points[right_index - 1];
     const auto &last = line.points[right_index];
     const auto left = normalise(first), right = normalise(last);
@@ -3166,13 +3318,12 @@ class Tracer {
       points.insert(points.end(), backward.points.rbegin(),
                     backward.points.rend());
     }
-    if (points.empty() || (require_curvature &&
-                           std::none_of(points.begin(), points.end(),
-                                        [&](const BoundaryPoint &p) {
-                                          return segment_distance(normalise(p),
-                                                                  left, right) >
-                                                 curvature_tolerance;
-                                        })))
+    double error = 0.;
+    for (const auto &p : points)
+      error = std::max(error, segment_distance(normalise(p), left, right));
+    if (chord_error)
+      *chord_error = error;
+    if (points.empty() || (require_curvature && error <= curvature_tolerance))
       return false;
     auto reference = points.front().phases;
     for (auto &p : points) {
@@ -3191,14 +3342,365 @@ class Tracer {
                        points.begin(), points.end());
     return true;
   }
-  bool refine_chords(const FieldPolygon &polygon,
-                     const Eigen::Vector2d &conflict) {
-    bool refined = false;
-    for (auto &line : result.boundaries)
+  struct FieldComparison {
+    State state;
+    bool unique = false;
+  };
+  std::map<std::pair<std::size_t, std::size_t>, FieldComparison>
+      field_comparisons;
+  std::optional<double> field_potential(const State &state) const {
+    auto axes = diagram_axes(result.section.type);
+    if (axes[1] == Coordinate::X) {
+      if (!result.section.fixed_coordinate)
+        return std::nullopt;
+      axes[1] = *result.section.fixed_coordinate;
+    }
+    const auto fixed = [&](Coordinate axis) {
+      return axes[0] == axis || axes[1] == axis;
+    };
+    if (fixed(Coordinate::P) && fixed(Coordinate::T))
+      return state.gibbs;
+    if (fixed(Coordinate::P) && fixed(Coordinate::S))
+      return state.gibbs + state.temperature * state.entropy;
+    if (fixed(Coordinate::T) && fixed(Coordinate::V))
+      return state.gibbs - state.pressure * state.volume;
+    if (fixed(Coordinate::S) && fixed(Coordinate::V))
+      return state.gibbs + state.temperature * state.entropy -
+             state.pressure * state.volume;
+    // PV and TS fix a conjugate pair. Gibbs energies at their different
+    // physical temperatures/pressures cannot order the competing states.
+    return std::nullopt;
+  }
+  // A saved sample is a constraint on geometry only after both competing
+  // assemblages have been corrected at precisely the same coordinates.
+  // Unresolved potential ties remain ambiguous; they must not swap labels.
+  FieldComparison select_field_roots(std::vector<WorkState> roots,
+                                     const Eigen::Vector2d &location) {
+    FieldComparison comparison;
+    if (roots.empty())
+      return comparison;
+    const bool comparable = field_potential(roots.front().state).has_value();
+    const auto energy = [&](const State &state) {
+      return field_potential(state).value_or(state.gibbs);
+    };
+    // Avoid repeated precision checks of the same sampled assemblage. Keep
+    // its best root among the supplied warm starts at these exact coordinates.
+    std::map<std::vector<int>, WorkState> alternatives;
+    for (auto &root : roots) {
+      auto key = active(root.state);
+      auto found = alternatives.find(key);
+      const bool tied =
+          found != alternatives.end() && result.section.type == DiagramType::PT &&
+          std::abs(energy(root.state) - energy(found->second.state)) <=
+              64. * std::numeric_limits<double>::epsilon() *
+                  std::max({1., std::abs(energy(root.state)),
+                            std::abs(energy(found->second.state))});
+      if (found == alternatives.end() ||
+          // Equal rounded counts can conceal a retained sub-cutoff phase.
+          // Preserve those extra equilibrium equations when energies tie.
+          (tied && root.state.phases.size() > found->second.state.phases.size()) ||
+          (comparable && energy(root.state) < energy(found->second.state) &&
+           !(tied && root.state.phases.size() < found->second.state.phases.size())))
+        alternatives[key] = std::move(root);
+    }
+    if (alternatives.size() == 1)
+      return {alternatives.begin()->second.state, true};
+    auto best = alternatives.begin();
+    if (comparable)
+      best = std::min_element(alternatives.begin(), alternatives.end(),
+                              [&](const auto &a, const auto &b) {
+                                return energy(a.second.state) <
+                                       energy(b.second.state);
+                              });
+    comparison.state = best->second.state;
+    const double roundoff =
+        64. * std::numeric_limits<double>::epsilon() *
+        std::max(1., std::abs(energy(comparison.state)));
+    bool tied = !comparable;
+    for (const auto &[key, root] : alternatives)
+      if (key != best->first &&
+          energy(root.state) - energy(comparison.state) <= roundoff)
+        tied = true;
+    if (!tied)
+      return {comparison.state, true};
+    // The normal acceptance tolerances still apply when energies distinguish
+    // the roots. Tighten only an unresolved tie, without letting a clearly
+    // higher-energy root prevent verification of the competing minima.
+    for (auto it = alternatives.begin(); it != alternatives.end();)
+      if (comparable &&
+          energy(it->second.state) - energy(comparison.state) > roundoff)
+        it = alternatives.erase(it);
+      else
+        ++it;
+    // Check convergence and stability locally. Energy repeatability is an
+    // empirical allowance, not a rigorous bound on all undiscovered minima.
+    for (double accuracy : {.01, .0001, .000001}) {
+      std::vector<std::pair<State, double>> verified;
+      bool incomplete = false;
+      for (const auto &[key, root] : alternatives) {
+        try {
+          auto first =
+              engine.fixed_at(root.ids, root.state.phases, location, accuracy);
+          if (!first.state.success || !first.assemblage ||
+              !distinct(*first.assemblage, first.ids)) {
+            // A negative candidate affinity from a converged, mass-balanced
+            // root rejects that assemblage. A failed correction alone does not.
+            const bool unstable =
+                first.assemblage &&
+                first.state.minimum_affinity <
+                    -engine.settings.affinity_tolerance * accuracy &&
+                first.state.equilibrium_error <=
+                    engine.settings.affinity_tolerance * .1 * accuracy &&
+                first.state.mass_balance_error <=
+                    engine.settings.mass_balance_tolerance * accuracy &&
+                (normalise(first.state) - normalise(location)).norm() <=
+                    64. * std::numeric_limits<double>::epsilon();
+            incomplete = incomplete || !unstable;
+            if (engine.settings.verbose)
+              std::cerr << "Local field verification accuracy=" << accuracy
+                        << ": " << first.state.message << '\n';
+            continue;
+          }
+          auto second = engine.fixed_at(first.ids, first.state.phases, location,
+                                        accuracy);
+          if (!second.state.success || !second.assemblage ||
+              !distinct(*second.assemblage, second.ids) ||
+              active(first.state) != active(second.state)) {
+            incomplete = true;
+            continue;
+          }
+          const double uncertainty =
+              std::max(64. * std::numeric_limits<double>::epsilon() *
+                           std::max({1., std::abs(energy(first.state)),
+                                     std::abs(energy(second.state))}),
+                       4. * std::abs(energy(first.state) - energy(second.state)));
+          verified.emplace_back(std::move(second.state), uncertainty);
+        } catch (const std::exception &) {
+          incomplete = true;
+        }
+      }
+      if (verified.empty())
+        continue;
+      if (comparable)
+        std::sort(verified.begin(), verified.end(),
+                  [&](const auto &a, const auto &b) {
+                    return energy(a.first) < energy(b.first);
+                  });
+      comparison.state = verified.front().first;
+      comparison.unique = !incomplete;
+      for (std::size_t i = 1; i < verified.size(); ++i)
+        if (active(verified[i].first) != active(comparison.state) &&
+            (!comparable ||
+             energy(verified[i].first) - energy(comparison.state) <=
+                 verified.front().second + verified[i].second))
+          comparison.unique = false;
+      if (comparison.unique) {
+        comparison.state.message = "Closed field verified against competing "
+                                   "roots with local precision checks";
+        return comparison;
+      }
+    }
+    comparison.unique = false;
+    comparison.state.message = "Competing interior assemblages remain "
+                               "unresolved after local precision checks";
+    return comparison;
+  }
+  FieldComparison compare_fields(std::size_t sample, std::size_t opposing) {
+    const auto key = std::pair{sample, opposing};
+    if (const auto found = field_comparisons.find(key);
+        found != field_comparisons.end())
+      return found->second;
+    const auto location =
+        diagram_coordinates(result.samples[sample], result.section.type);
+    std::vector<WorkState> roots;
+    for (std::size_t index : {sample, opposing}) {
+      try {
+        const auto &previous = result.samples[index];
+        std::vector<int> ids;
+        for (const auto &phase : previous.phases)
+          ids.push_back(phase.id);
+        auto work = engine.fixed_at(ids, previous.phases, location);
+        if (work.state.success && work.assemblage &&
+            distinct(*work.assemblage, work.ids))
+          roots.push_back(std::move(work));
+      } catch (const std::exception &) {
+      }
+    }
+    auto comparison = select_field_roots(std::move(roots), location);
+    if (result.section.type == DiagramType::PT && comparison.state.success)
+      field_comparisons.emplace(key, comparison);
+    return comparison;
+  }
+  struct CurveEdit {
+    std::size_t boundary;
+    BoundaryPoint first, last;
+    std::vector<BoundaryPoint> points;
+  };
+  using ConflictKey = std::pair<std::size_t, std::vector<int>>;
+  std::set<ConflictKey> conflict_keys(const FieldPolygons &geometry) const {
+    std::set<ConflictKey> keys;
+    for (auto [sample, polygon] : field_conflicts(result, geometry, true))
+      keys.emplace(sample, geometry.polygons[polygon].phases);
+    return keys;
+  }
+  // Apply only to a provisional result. Original endpoints are retained, so
+  // independent interval proposals can be split without index invalidation.
+  void apply_curve_edit(const CurveEdit &edit) {
+    auto &points = result.boundaries[edit.boundary].points;
+    auto first = std::find_if(points.begin(), points.end(), [&](const auto &p) {
+      return diagram_coordinates(p, result.section.type) ==
+             diagram_coordinates(edit.first, result.section.type);
+    });
+    auto last = std::find_if(first, points.end(), [&](const auto &p) {
+      return diagram_coordinates(p, result.section.type) ==
+             diagram_coordinates(edit.last, result.section.type);
+    });
+    if (first == points.end() || last == points.end())
+      throw std::logic_error("Curve edit endpoints were not retained.");
+    const auto offset = first - points.begin() + 1;
+    points.erase(first + 1, last);
+    points.insert(points.begin() + offset, edit.points.begin(),
+                  edit.points.end());
+  }
+  struct EditFailure {
+    std::string reason;
+    std::optional<std::size_t> sample;
+  };
+  std::optional<EditFailure> validate_curve_edits(const FieldPolygons &before) {
+    auto established = conflict_keys(before);
+    auto after = field_polygons(result, 1.e-8, true, false);
+    std::optional<EditFailure> failure;
+    bool relabelled = false;
+    // Check every newly conflicting sample, not just one per assemblage.
+    // Otherwise a pre-existing conflict can mask a second, damaged interval.
+    for (auto [sample, polygon] : field_conflicts(result, after, true)) {
+      const auto &field = after.polygons[polygon];
+      if (established.count({sample, field.phases}))
+        continue;
+      const auto opposing = static_cast<std::size_t>(field.sample_index);
+      for (auto [index, alternative] :
+           {std::pair{sample, opposing}, std::pair{opposing, sample}}) {
+        auto comparison = compare_fields(index, alternative);
+        if (!comparison.state.success || !comparison.unique) {
+          if (!failure)
+            failure = EditFailure{"competing equilibrium assemblages remain "
+                                  "ambiguous at sample " +
+                                      std::to_string(index),
+                                  index};
+          continue;
+        }
+        if (active(comparison.state) != active(result.samples[index]) ||
+            additional_phase_support(comparison.state, result.samples[index])) {
+          comparison.state.is_field_verification =
+              result.samples[index].is_field_verification;
+          add_sample(comparison.state, burnman::utils::checked_int(index), true);
+          // Labels were corrected thermodynamically, not to make an edit
+          // appear successful. Rebuild both subdivisions before retrying.
+          relabelled = true;
+        }
+      }
+      if (!failure)
+        failure = EditFailure{
+            "would assign a verified equilibrium assemblage to the wrong field "
+            "at sample " +
+                std::to_string(sample),
+            sample};
+    }
+    // Correct all disputed samples together before rebuilding either
+    // subdivision. One correction per rebuild is both costly and sensitive
+    // to a fixed retry count near a solution critical point.
+    if (relabelled)
+      return EditFailure{"equilibrium sample changed during verification",
+                         std::nullopt};
+    if (failure)
+      return failure;
+    const auto open_count = [](const FieldPolygons &geometry) {
+      return std::count_if(geometry.polygons.begin(), geometry.polygons.end(),
+                           [](const auto &p) {
+                             return p.has_open_boundary &&
+                                    !p.outside_model_domain;
+                           });
+    };
+    if (open_count(after) > open_count(before))
+      return EditFailure{"would leave an additional open field boundary",
+                         std::nullopt};
+    return std::nullopt;
+  }
+  // Validate cheap batches, bisecting a rejected batch down to the affected
+  // interval. Result geometry is never exposed with an unverified proposal.
+  bool commit_curve_edits(const std::vector<CurveEdit> &edits,
+                          std::size_t begin, std::size_t end) {
+    if (begin == end)
+      return false;
+    std::map<std::size_t, Boundary> previous;
+    for (std::size_t i = begin; i < end; ++i)
+      previous.try_emplace(edits[i].boundary,
+                           result.boundaries[edits[i].boundary]);
+    auto restore = [&]() {
+      for (const auto &[index, boundary] : previous)
+        result.boundaries[index] = boundary;
+    };
+    std::optional<EditFailure> failure;
+    // A verified root correction may change a representative on either
+    // side. Retry with the corrected samples, without counting it as an edit.
+    for (std::size_t retry = 0; retry <= result.samples.size(); ++retry) {
+      auto before = field_polygons(result, 1.e-8, true, false);
+      for (std::size_t i = begin; i < end; ++i)
+        apply_curve_edit(edits[i]);
+      failure = validate_curve_edits(before);
+      if (!failure)
+        return true;
+      restore();
+      if (failure->reason != "equilibrium sample changed during verification")
+        break;
+    }
+    if (end - begin > 1) {
+      const auto middle = begin + (end - begin) / 2;
+      const bool left = commit_curve_edits(edits, begin, middle);
+      const bool right = commit_curve_edits(edits, middle, end);
+      return left || right;
+    }
+    const auto &edit = edits[begin];
+    const auto &line = result.boundaries[edit.boundary];
+    const auto key = interval_key(line, edit.first, edit.last);
+    std::ostringstream issue;
+    issue << "Curve edit rejected on boundary " << line.id
+          << " between P=" << std::setprecision(17) << edit.first.pressure
+          << " Pa, T=" << edit.first.temperature
+          << " K and P=" << edit.last.pressure
+          << " Pa, T=" << edit.last.temperature << " K: " << failure->reason
+          << "; retained the last accepted "
+          << "interval pending local boundary recovery.";
+    rejected_curve_edits[key] = issue.str();
+    refinement_events.insert(key);
+    // Branch recovery tests the interval rather than accepting its proposed
+    // chord. A sampled conflict supplies a section near the disputed part.
+    const auto along = (normalise(edit.last) - normalise(edit.first)).eval();
+    if (failure->sample && along.norm() > 0.)
+      refinement_sections[key] = {normalise(result.samples[*failure->sample]),
+                                  along.normalized()};
+    return false;
+  }
+  void propose_chord_edits(
+      const FieldPolygon &polygon, const Eigen::Vector2d &conflict,
+      std::vector<CurveEdit> &edits,
+      std::set<std::pair<std::size_t, std::size_t>> &proposed_intervals) {
+    for (std::size_t index = 0; index < result.boundaries.size(); ++index) {
+      const auto &line = result.boundaries[index];
       for (std::size_t k = line.points.size(); k > 1; --k) {
+        if (proposed_intervals.count({index, k - 1}))
+          continue;
         const auto left = normalise(line.points[k - 2]);
         const auto right = normalise(line.points[k - 1]);
         if ((right - left).norm() < engine.settings.min_step)
+          continue;
+        const auto direction = (right - left).eval();
+        const double projection =
+            (conflict - left).dot(direction) / direction.squaredNorm();
+        // Interior corrections stay between the endpoint sections. Their
+        // swept area cannot contain a sample beyond either section, so
+        // refining such a neighbour cannot repair this field assignment.
+        if (projection <= 0. || projection >= 1.)
           continue;
         auto borders = [&](const Eigen::MatrixXd &ring) {
           for (Eigen::Index i = 1; i < ring.rows(); ++i) {
@@ -3213,7 +3715,6 @@ class Tracer {
         if (!borders(polygon.vertices) &&
             !std::any_of(polygon.holes.begin(), polygon.holes.end(), borders))
           continue;
-        const auto direction = (right - left).eval();
         const double distance = segment_distance(conflict, left, right);
         if (distance > direction.norm())
           continue;
@@ -3225,14 +3726,78 @@ class Tracer {
         // Correct nearest the disputed sample, which can lie very close to
         // an endpoint. Repeated midpoint subdivision can exhaust recovery
         // passes before reaching that part of a long chord.
-        const double fraction = std::clamp((conflict - left).dot(direction) /
-                                               direction.squaredNorm(),
-                                           .01, .99);
-        refined =
-            refine_segment(line, k - 1, true, nullptr, tolerance, fraction) ||
-            refined;
+        const double fraction = std::clamp(projection, .01, .99);
+        const auto key =
+            interval_key(line, line.points[k - 2], line.points[k - 1]);
+        if (rejected_curve_edits.count(key))
+          continue;
+        Boundary proposed = line;
+        double old_error = 0.;
+        std::string failure;
+        if (!refine_segment(proposed, k - 1, true, &failure, tolerance,
+                            fraction, &old_error)) {
+          if (engine.settings.verbose && !failure.empty())
+            std::cerr << "Chord correction at boundary " << line.id
+                      << ", segment " << k - 1 << ": " << failure << '\n';
+          continue;
+        }
+        const auto added = proposed.points.size() - line.points.size();
+        // Independent interior corrections estimate the remaining error of
+        // the proposed chords. More points alone are not evidence of progress.
+        double remaining_error = 0.;
+        bool verified = true;
+        for (std::size_t j = k - 1; j <= k - 1 + added; ++j) {
+          auto probe = proposed;
+          double error = 0.;
+          std::string reason;
+          const bool corrected =
+              refine_segment(probe, j, false, &reason, tolerance, .5, &error);
+          if (!corrected && !reason.empty()) {
+            if (engine.settings.verbose)
+              std::cerr << "Chord error verification at boundary " << line.id
+                        << ", segment " << k - 1 << ": " << reason << '\n';
+            verified = false;
+            break;
+          }
+          remaining_error = std::max(remaining_error, error);
+        }
+        const double progress_tolerance = std::max(
+            64. * std::numeric_limits<double>::epsilon(), tolerance * .125);
+        const auto improves = [&]() {
+          return remaining_error <= tolerance ||
+                 remaining_error < old_error - progress_tolerance;
+        };
+        if (verified && !improves()) {
+          // An endpoint probe measures only that part of the old chord.
+          // Compare the children's midpoint errors with an old midpoint
+          // too, especially where curvature increases towards a critical
+          // endpoint away from the disputed sample's first probe.
+          auto midpoint = line;
+          double midpoint_error = 0.;
+          std::string reason;
+          if (refine_segment(midpoint, k - 1, false, &reason, tolerance, .5,
+                             &midpoint_error))
+            old_error = std::max(old_error, midpoint_error);
+          else if (!reason.empty())
+            verified = false;
+        }
+        if (!verified || !improves()) {
+          if (engine.settings.verbose && verified)
+            std::cerr << "Chord error did not decrease at boundary " << line.id
+                      << ", segment " << k - 1 << ": " << old_error << " -> "
+                      << remaining_error << '\n';
+          continue;
+        }
+        edits.push_back(
+            {index,
+             line.points[k - 2],
+             line.points[k - 1],
+             {proposed.points.begin() + static_cast<std::ptrdiff_t>(k - 1),
+              proposed.points.begin() +
+                  static_cast<std::ptrdiff_t>(k - 1 + added)}});
+        proposed_intervals.emplace(index, k - 1);
       }
-    return refined;
+    }
   }
   std::vector<std::string> refine_line_spacing() {
     std::vector<std::string> issues;
@@ -3259,7 +3824,10 @@ class Tracer {
       std::cerr << "Refining " << result.boundaries.size()
                 << " phase lines to the requested resolution.\n";
     std::size_t completed = 0;
-    for (auto &line : result.boundaries) {
+    std::vector<CurveEdit> edits;
+    for (std::size_t index = 0; index < result.boundaries.size(); ++index) {
+      const auto &original = result.boundaries[index];
+      auto line = original;
       std::size_t added = 0, failed = 0;
       std::string failures;
       auto last_progress = std::chrono::steady_clock::now();
@@ -3280,6 +3848,10 @@ class Tracer {
                                .eval();
         std::string reason;
         if ((delta.array() <= spacing.array() * (1. + 1.e-12)).all()) {
+          ++k;
+        } else if (rejected_curve_edits.count(interval_key(
+                       line, line.points[k - 1], line.points[k]))) {
+          ++failed;
           ++k;
         } else if (double(added) < limit &&
                    refine_segment(line, k, false, &reason)) {
@@ -3313,18 +3885,36 @@ class Tracer {
                               ? " (refinement limit reached)."
                               : " (equilibrium refinement failed).") +
                          failures);
+      // Keep proposals at the granularity of the original intervals. If one
+      // fails validation, all other verified refinements can still survive.
+      std::size_t cursor = 0;
+      for (std::size_t k = 1; k < original.points.size(); ++k) {
+        const auto first = cursor++;
+        while (cursor < line.points.size() &&
+               diagram_coordinates(line.points[cursor], result.section.type) !=
+                   diagram_coordinates(original.points[k], result.section.type))
+          ++cursor;
+        if (cursor > first + 1)
+          edits.push_back(
+              {index,
+               original.points[k - 1],
+               original.points[k],
+               {line.points.begin() + static_cast<std::ptrdiff_t>(first + 1),
+                line.points.begin() + static_cast<std::ptrdiff_t>(cursor)}});
+      }
     }
+    commit_curve_edits(edits, 0, edits.size());
     return issues;
   }
   bool recover_fields() {
     bool changed = false;
     for (int pass = 0; pass < engine.settings.max_recovery_passes; ++pass) {
       auto geometry = field_polygons(result, 1.e-8, true, false);
-      auto conflicts = field_conflicts(result, geometry);
+      auto conflicts = field_conflicts(result, geometry, true);
       if (conflicts.empty())
         break;
       const auto count = result.boundaries.size();
-      bool refined = false;
+      bool relabelled = false;
       std::set<std::size_t> checked;
       for (auto [sample, polygon] : conflicts) {
         // Either the conflicting sample or the region's representative can
@@ -3339,45 +3929,70 @@ class Tracer {
           const auto &old = result.samples[index];
           const auto representative =
               static_cast<std::size_t>(geometry.polygons[polygon].sample_index);
-          auto state =
-              field_state(diagram_coordinates(old, result.section.type), true,
-                          index == sample ? representative : sample);
-          const double roundoff = 64. * std::numeric_limits<double>::epsilon() *
-                                  std::max(1., std::abs(old.gibbs));
-          if (state.success && (active(state) != active(old) ||
-                                state.gibbs < old.gibbs - roundoff)) {
+          auto comparison =
+              compare_fields(index, index == sample ? representative : sample);
+          auto &state = comparison.state;
+          const auto previous_potential = field_potential(old);
+          const auto next_potential = field_potential(state);
+          const double roundoff =
+              64. * std::numeric_limits<double>::epsilon() *
+              std::max(1., std::abs(previous_potential.value_or(old.gibbs)));
+          if (comparison.unique && state.success &&
+              (active(state) != active(old) ||
+               additional_phase_support(state, old) ||
+               (previous_potential && next_potential &&
+                *next_potential < *previous_potential - roundoff))) {
             state.is_field_verification = old.is_field_verification;
-            add_sample(state, burnman::utils::checked_int(index));
-            refined = true;
+            add_sample(state, burnman::utils::checked_int(index), true);
+            relabelled = true;
           }
         }
       }
       // A sample can disagree with a coarse chord even when its physical
       // phase line already exists. Correct that perimeter before searching
       // for missing lines; otherwise covered seeds make recovery stall.
-      if (refined) {
+      if (relabelled) {
         geometry = field_polygons(result, 1.e-8, true, false);
-        conflicts = field_conflicts(result, geometry);
+        conflicts = field_conflicts(result, geometry, true);
       }
-      // Chord accuracy is a separate local task from finding missing phase
-      // lines. Continue while accepted equilibrium points improve the
-      // perimeter, rather than spending one topology pass per subdivision.
+      bool refined = false;
+      // Only a verified reduction in chord error permits another local
+      // iteration. Relabelling a sample does not spend a topology pass.
       for (int iteration = 0;
            iteration < engine.settings.max_refinement_iterations &&
            !conflicts.empty();
            ++iteration) {
-        bool corrected = false;
+        const auto started = std::chrono::steady_clock::now();
+        if (engine.settings.verbose)
+          std::cerr << "Field chord checks, recovery pass " << pass + 1
+                    << ", iteration " << iteration + 1 << ": "
+                    << conflicts.size() << " conflicting samples.\n";
+        std::vector<CurveEdit> edits;
+        std::set<std::pair<std::size_t, std::size_t>> proposed_intervals;
         for (auto [sample, polygon] : conflicts)
-          corrected = refine_chords(geometry.polygons[polygon],
-                                    normalise(result.samples[sample])) ||
-                      corrected;
+          propose_chord_edits(geometry.polygons[polygon],
+                              normalise(result.samples[sample]), edits,
+                              proposed_intervals);
+        // Independent proposals share one before/after subdivision. Rebuild
+        // per rejected interval only when batch bisection needs to isolate it.
+        const bool corrected = commit_curve_edits(edits, 0, edits.size());
+        if (engine.settings.verbose)
+          std::cerr << "Field chord checks: " << edits.size()
+                    << " proposed intervals, "
+                    << (corrected ? "verified improvement"
+                                  : "no verified improvement")
+                    << " ("
+                    << std::chrono::duration<double>(
+                           std::chrono::steady_clock::now() - started)
+                           .count()
+                    << " s).\n";
         if (!corrected)
           break;
         refined = true;
         geometry = field_polygons(result, 1.e-8, true, false);
-        conflicts = field_conflicts(result, geometry);
+        conflicts = field_conflicts(result, geometry, true);
       }
-      changed = changed || refined;
+      changed = changed || refined || relabelled;
       if (conflicts.empty())
         break;
       for (auto [sample, polygon] : conflicts) {
@@ -3395,52 +4010,75 @@ class Tracer {
     }
     return changed;
   }
-  // Try phase compositions from nearby successful solves. Usually accept the
-  // first that passes all checks; compare=true selects the lowest Gibbs energy.
+  // Interior verification must compare the known competing assemblages. The
+  // first successful warm root can be metastable within the affinity tolerance.
   State field_state(const Eigen::Vector2d &location, bool compare = false,
-                    std::optional<std::size_t> alternative = std::nullopt) {
-    State best;
+                    const std::vector<std::size_t> &alternatives = {}) {
+    std::vector<WorkState> roots;
     std::vector<std::pair<double, std::size_t>> nearby;
     for (std::size_t i = 0; i < result.samples.size(); ++i)
-      if (result.samples[i].success) {
-        auto &s = result.samples[i];
-        nearby.push_back(
-            {(normalise(s) - normalise(location[0], location[1])).squaredNorm(),
-             i});
-      }
+      if (result.samples[i].success)
+        nearby.emplace_back(
+            (normalise(result.samples[i]) - normalise(location)).squaredNorm(),
+            i);
     std::sort(nearby.begin(), nearby.end());
-    // The conflicting state can be far along a thin region, beyond the nearest
-    // 32 samples. Always test that known alternative when comparing roots.
-    const std::size_t extra = alternative.has_value() ? 1 : 0;
-    for (std::size_t i = 0;
-         i < std::min<std::size_t>(32, nearby.size()) + extra; ++i)
+    auto starts = alternatives;
+    for (std::size_t i = 0; i < std::min<std::size_t>(32, nearby.size()); ++i)
+      if (std::find(starts.begin(), starts.end(), nearby[i].second) ==
+          starts.end())
+        starts.push_back(nearby[i].second);
+    for (const auto index : starts)
       try {
-        auto &previous =
-            result.samples[alternative && i == 0 ? *alternative
-                                                 : nearby[i - extra].second];
+        const auto &previous = result.samples[index];
         std::vector<int> ids;
-        for (auto &ph : previous.phases)
-          ids.push_back(ph.id);
+        for (const auto &phase : previous.phases)
+          ids.push_back(phase.id);
         auto work = engine.fixed_at(ids, previous.phases, location);
-        if (!work.state.success || !distinct(*work.assemblage, work.ids))
+        if (!work.state.success || !work.assemblage ||
+            !distinct(*work.assemblage, work.ids))
           continue;
-        work.state.message =
-            "Closed field verified from a neighbouring equilibrium state";
         if (!compare)
           return work.state;
-        const double roundoff = 64. * std::numeric_limits<double>::epsilon() *
-                                std::max(1., std::abs(work.state.gibbs));
-        // A roundoff tie must not depend on which opposing warm start was
-        // tried first: that otherwise swaps equivalent labels on each pass.
-        if (!best.success || work.state.gibbs < best.gibbs - roundoff ||
-            (std::abs(work.state.gibbs - best.gibbs) <= roundoff &&
-             active(work.state) < active(best)))
-          best = work.state;
+        roots.push_back(std::move(work));
       } catch (const std::exception &) {
       }
-    if (best.success)
-      return best;
-    return engine.stable_at(location).state;
+    if (roots.empty())
+      return engine.stable_at(location).state;
+    auto comparison = select_field_roots(roots, location);
+    // Tight verification can reject every supplied warm assemblage. Search
+    // for a missing phase locally, then compare that discovery with the known
+    // roots rather than treating a cold solve as the sole field label.
+    for (double accuracy : {.01, .0001, .000001}) {
+      if (comparison.unique)
+        break;
+      try {
+        WorkState discovered;
+        {
+          struct RestoreAffinity {
+            double &target;
+            double previous;
+            ~RestoreAffinity() { target = previous; }
+          } restore{engine.settings.affinity_tolerance,
+                    engine.settings.affinity_tolerance};
+          engine.settings.affinity_tolerance *= accuracy;
+          discovered = engine.stable_at(location);
+        }
+        if (!discovered.state.success || !discovered.assemblage)
+          continue;
+        auto corrected = engine.fixed_at(discovered.ids,
+                                         discovered.state.phases, location,
+                                         accuracy);
+        if (!corrected.state.success || !corrected.assemblage ||
+            !distinct(*corrected.assemblage, corrected.ids))
+          continue;
+        roots.push_back(std::move(corrected));
+        comparison = select_field_roots(roots, location);
+      } catch (const std::exception &) {
+      }
+    }
+    if (!comparison.unique)
+      comparison.state.success = false;
+    return comparison.state;
   }
   bool model_excluded(double first, double second) const {
     Eigen::Vector2d p = normalise(first, second);
@@ -3900,26 +4538,73 @@ class Tracer {
       return finish(verification_pass, topology_pass + 1);
     // Verify closed interiors: stale edge labels can agree with each other
     // while still describing the wrong field. Open faces remain unresolved.
-    if (engine.settings.verbose && line_resolution)
+    if (engine.settings.verbose)
       std::cerr << "Checking phase field consistency.\n";
     model_domain();
     auto geometry = field_polygons(result, 1.e-8, true, false);
+    std::set<std::size_t> contested_interiors;
+    for (const auto &[sample, polygon] :
+         field_conflicts(result, geometry, true))
+      contested_interiors.insert(polygon);
+    auto last_field_progress = std::chrono::steady_clock::now();
+    std::size_t checked_interiors = 0;
     for (std::size_t i = 0; i < geometry.polygons.size(); ++i) {
       auto &polygon = geometry.polygons[i];
       if (polygon.outside_model_domain || polygon.has_open_boundary ||
           (polygon.sample_index >= 0 &&
            result.samples[static_cast<std::size_t>(polygon.sample_index)]
-               .is_field_verification) ||
-          polygon.label_clearance <= 0.)
+               .is_field_verification &&
+           !contested_interiors.count(i)))
         continue;
-      auto state = field_state(polygon.label_position);
+      ++checked_interiors;
+      // Check at least one starting state for every sampled assemblage in
+      // this face. Proximity alone can fill all warm-start slots with the
+      // same higher-energy root and overwrite a correctly identified field.
+      std::map<std::vector<int>, std::pair<double, std::size_t>> alternatives;
+      for (std::size_t j = 0; j < result.samples.size(); ++j) {
+        const auto &sample = result.samples[j];
+        if (!sample.success || sample.outside_model_domain ||
+            !polygon.contains_rectangle(
+                diagram_coordinates(sample, result.section.type),
+                range * (64. * std::numeric_limits<double>::epsilon())))
+          continue;
+        const auto distance =
+            (normalise(sample) - normalise(polygon.label_position))
+                .squaredNorm();
+        auto [it, inserted] =
+            alternatives.emplace(active(sample), std::pair{distance, j});
+        if (!inserted && distance < it->second.first)
+          it->second = {distance, j};
+      }
+      std::vector<std::size_t> starts;
+      for (const auto &[phases, choice] : alternatives)
+        starts.push_back(choice.second);
+      auto state = field_state(polygon.label_position, true, starts);
       if (state.success) {
         state.is_field_verification = true;
-        add_sample(state);
+        int existing = -1;
+        if (polygon.sample_index >= 0 &&
+            (normalise(result.samples[static_cast<std::size_t>(
+                 polygon.sample_index)]) -
+             normalise(state))
+                    .norm() <= 64. * std::numeric_limits<double>::epsilon())
+          existing = polygon.sample_index;
+        // Replace a disproved root at the identical location. Keeping both
+        // leaves the older root first in an equal-clearance representative tie.
+        add_sample(state, existing);
       } else
         result.diagnostics.push_back(
             "Could not verify the assemblage of closed region " +
             std::to_string(i) + ": " + state.message);
+      if (engine.settings.verbose &&
+          std::chrono::steady_clock::now() - last_field_progress >=
+              std::chrono::seconds(5)) {
+        std::cerr << "Checked " << checked_interiors
+                  << " field interiors (region " << i + 1 << '/'
+                  << geometry.polygons.size() << "); "
+                  << engine.equilibrium_solves << " equilibrium solves.\n";
+        last_field_progress = std::chrono::steady_clock::now();
+      }
     }
     // Report the geometry after interior verification. Successful endpoint
     // solves alone do not guarantee a closed, identified planar subdivision.
@@ -3932,6 +4617,12 @@ class Tracer {
     result.diagnostics.insert(result.diagnostics.end(),
                               verified_geometry.diagnostics.begin(),
                               verified_geometry.diagnostics.end());
+    for (const auto &line : result.boundaries)
+      for (std::size_t k = 1; k < line.points.size(); ++k)
+        if (const auto issue = rejected_curve_edits.find(
+                interval_key(line, line.points[k - 1], line.points[k]));
+            issue != rejected_curve_edits.end())
+          result.diagnostics.push_back(issue->second);
     for (auto &n : result.nodes)
       if (n.kind == "critical_point" && n.incident_lines.size() == 1)
         result.diagnostics.push_back(

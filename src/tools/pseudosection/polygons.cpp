@@ -298,13 +298,10 @@ std::pair<Point, double> label_point(const Face &face,
 } // namespace
 
 std::vector<std::pair<std::size_t, std::size_t>>
-detail::field_conflicts(const Result &result, const FieldPolygons &geometry) {
+detail::field_conflicts(const Result &result, const FieldPolygons &geometry,
+                        bool all_samples) {
   const auto ranges = result.coordinate_ranges();
   Point scale(ranges[0][1] - ranges[0][0], ranges[1][1] - ranges[1][0]);
-  std::set<Phases> represented;
-  for (const auto &polygon : geometry.polygons)
-    if (!polygon.has_open_boundary && !polygon.outside_model_domain)
-      represented.insert(polygon.phases);
   std::vector<std::pair<std::size_t, std::size_t>> conflicts;
   for (std::size_t i = 0; i < geometry.polygons.size(); ++i) {
     const auto &polygon = geometry.polygons[i];
@@ -330,15 +327,27 @@ detail::field_conflicts(const Result &result, const FieldPolygons &geometry) {
         if (phase.amount > result.settings.amount_tolerance * total)
           phases.push_back(phase.id);
       std::sort(phases.begin(), phases.end());
-      if (phases == polygon.phases || checked.count(phases))
+      if (phases == polygon.phases || (!all_samples && checked.count(phases)))
         continue;
-      // Close-to-edge probes can lie across a curved line's straight chord.
-      // A field absent from the subdivision must still be accounted for,
-      // however narrow it is; its boundary will be recovered thermodynamically.
-      double band =
-          represented.count(phases)
-              ? std::max(1.e-8, result.settings.node_tolerance * 2.)
-          : result.section.type == DiagramType::PT
+      // A verified equilibrium can retain an entering phase below the amount
+      // reporting cutoff. Its full equations already support this region's
+      // assemblage; the rounded count alone is not a missing-boundary witness.
+      // An actually omitted phase, or an extra active phase, still conflicts.
+      Phases supported;
+      for (const auto &phase : sample.phases)
+        if (phase.amount >= -result.settings.amount_tolerance * total)
+          supported.push_back(phase.id);
+      std::sort(supported.begin(), supported.end());
+      if (std::includes(polygon.phases.begin(), polygon.phases.end(),
+                        phases.begin(), phases.end()) &&
+          std::includes(supported.begin(), supported.end(),
+                        polygon.phases.begin(), polygon.phases.end()))
+        continue;
+      // Exclude coordinate roundoff and the amount precision of indirectly
+      // constrained axes. Curvature and competing roots need local checks,
+      // regardless of whether this assemblage exists elsewhere in the diagram.
+      const double band =
+          result.section.type == DiagramType::PT
               ? 64. * std::numeric_limits<double>::epsilon()
               : std::max(1.e-8, result.settings.amount_tolerance * 2.);
       if (polygon.contains_rectangle(location, scale * band)) {
@@ -445,15 +454,68 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     values.erase(std::unique(values.begin(), values.end()), values.end());
     return values;
   };
+  // An invariant has one physical P,T, even when its different phase amounts
+  // span a latent S/V interval. Independent correctors leave small P,T
+  // differences along overlapping copies of that interval. In PS and TV these
+  // differences must not enclose fictitious fields. Align only connected,
+  // zero-variance invariant traces that agree within Newton's P,T accuracy;
+  // retain the original equilibrium states and every S/V coordinate. In SV
+  // the same invariant can occupy a finite area, so no alignment is needed.
+  const bool latent_invariant = result.section.type == DiagramType::PS ||
+                                result.section.type == DiagramType::TV;
+  std::map<int, const Node *> invariant_nodes;
+  std::map<int, int> invariant_groups;
+  if (latent_invariant)
+    for (const auto &node : result.nodes)
+      if (node.kind == "junction" && node.gibbs_variance == 0 &&
+          node.pt_nullity == 0 &&
+          !node.assemblage.empty()) {
+        invariant_nodes.emplace(node.id, &node);
+        invariant_groups.emplace(node.id, node.id);
+      }
+  auto invariant_group = [&](int id) {
+    while (invariant_groups.at(id) != id)
+      id = invariant_groups.at(id);
+    return id;
+  };
+  auto same_invariant = [](const auto &a, const auto &b) {
+    return std::abs(a.pressure - b.pressure) <= .2 &&
+           std::abs(a.temperature - b.temperature) <= 1.e-6;
+  };
+  std::set<const Boundary *> invariant_lines;
+  for (const auto &line : result.boundaries)
+    if (!line.points.empty() && invariant_nodes.count(line.start_node) &&
+        invariant_nodes.count(line.end_node)) {
+      const auto &first = *invariant_nodes.at(line.start_node);
+      const auto &last = *invariant_nodes.at(line.end_node);
+      if (canonical(line.assemblage) != canonical(first.assemblage) ||
+          canonical(line.assemblage) != canonical(last.assemblage) ||
+          !same_invariant(first, last) ||
+          !std::all_of(line.points.begin(), line.points.end(),
+                       [&](const BoundaryPoint &point) {
+                         return same_invariant(first, point);
+                       }))
+        continue;
+      invariant_groups[invariant_group(last.id)] = invariant_group(first.id);
+      invariant_lines.insert(&line);
+    }
   std::map<int, Point> nodes;
-  for (auto &node : result.nodes)
-    nodes.emplace(node.id, coordinate(node));
+  for (auto &node : result.nodes) {
+    auto point = coordinate(node);
+    if (invariant_nodes.count(node.id))
+      point[0] = coordinate(*invariant_nodes.at(invariant_group(node.id)))[0];
+    nodes.emplace(node.id, point);
+  }
   std::set<int> line_ends;
   std::vector<Segment> segments;
   for (auto &line : result.boundaries) {
     std::vector<Point> points;
-    for (auto &point : line.points)
-      points.push_back(coordinate(point));
+    for (auto &point : line.points) {
+      auto value = coordinate(point);
+      if (invariant_lines.count(&line))
+        value[0] = nodes.at(line.start_node)[0];
+      points.push_back(value);
+    }
     if (points.size() < 2)
       continue;
     if (nodes.count(line.start_node))

@@ -207,6 +207,123 @@ def test_saved_ordering_jump_recovers_the_intervening_two_ilmenite_fields():
     check_spacing(result, (21, 21))
 
 
+@pytest.mark.parametrize("crowded", [False, True])
+@pytest.mark.parametrize("previously_verified", [False, True])
+def test_interior_verification_compares_the_known_plagioclase_root(
+    crowded, previously_verified
+):
+    from copy import deepcopy
+    from burnman_cpp.minerals import model_sets
+
+    # Perimeter and warm roots captured immediately before interior checking
+    # changed a correct basalt field to a metastable plagioclase-free root.
+    saved = json.loads(
+        (Path(__file__).parent / "data/basalt_field_verification.json").read_text()
+    )
+    saved["samples"][0]["is_field_verification"] = previously_verified
+    if crowded:
+        # The physically competing state must be tried even when more than
+        # 32 closer starting states all supply the higher-energy assemblage.
+        for i in range(40):
+            sample = deepcopy(saved["samples"][0])
+            sample["pressure"] += (i + 1) * 10.0
+            saved["samples"].append(sample)
+    result = bm.refine_pseudosection(
+        saved["composition_start"], model_sets.metabasite().phases, saved
+    )
+    geometry = bm.pseudosection_field_polygons(result, merge_fields=False)
+    polygons = [
+        polygon for polygon in geometry.polygons
+        if polygon.contains_rectangle(
+            [906391997.4521586, 725.3100445735436], [1.e-5, 1.e-10]
+        )
+    ]
+    assert len(polygons) == 1
+    assert not polygons[0].has_open_boundary
+    assert [result.phase_names[i] for i in polygons[0].phases] == [
+        "hb", "hb #2", "hb #3", "pl", "ep", "bi", "q", "sph", "ab"
+    ]
+
+
+@pytest.mark.parametrize(
+    "name, point, expected",
+    [
+        (
+            "plagioclase",
+            [906391997.4521586, 725.3100445735436],
+            ["hb", "hb #2", "hb #3", "pl", "ep", "bi", "q", "sph", "ab"],
+        ),
+        (
+            "amphibole",
+            [1478685047.4731708, 808.0422314933551],
+            ["hb", "hb #2", "hb #3", "g", "ep", "q", "ru", "sph", "H2O", "ms"],
+        ),
+    ],
+)
+def test_local_basalt_fields_resolve_competing_interior_roots(name, point, expected):
+    from burnman_cpp.minerals import model_sets
+
+    # Small independently seeded diagrams around the two basalt regressions.
+    # The amphibole case also needs a new chlorite-bearing root: both supplied
+    # assemblages at its ambiguous interior fail tighter stability checks.
+    saved = json.loads(
+        (Path(__file__).parent / f"data/basalt_local_{name}.json").read_text()
+    )
+    ambiguous_location = None
+    if name == "amphibole":
+        before = bm.pseudosection_field_polygons(saved, merge_fields=False)
+        ambiguous_location = next(
+            p.label_position for p in before.polygons
+            if not p.has_open_boundary and not p.phases
+        )
+    result = bm.refine_pseudosection(
+        saved["composition_start"], model_sets.metabasite().phases, saved
+    )
+    assert result.resolved, result.diagnostics
+    geometry = bm.pseudosection_field_polygons(result, merge_fields=False)
+    assert not geometry.diagnostics
+    containing = [
+        polygon for polygon in geometry.polygons
+        if polygon.contains_rectangle(point, [1.e-5, 1.e-10])
+    ]
+    assert len(containing) == 1
+    assert not containing[0].has_open_boundary
+    assert [result.phase_names[i] for i in containing[0].phases] == expected
+    if ambiguous_location is not None:
+        recovered = [
+            p for p in geometry.polygons
+            if p.contains_rectangle(ambiguous_location, [1.e-5, 1.e-10])
+        ]
+        assert len(recovered) == 1
+        assert "chl" in [result.phase_names[i] for i in recovered[0].phases]
+        assert result.samples[recovered[0].sample_index].minimum_affinity >= -0.002
+
+
+def test_local_pyrolite_neighbours_escape_the_phase_amount_cutoff():
+    saved = json.loads(
+        (Path(__file__).parent / "data/pyrolite_local_opx.json").read_text()
+    )
+    example = runpy.run_path(str(
+        Path(__file__).parents[2] / "examples/example_pyrolite_pseudosection.py"
+    ))
+    result = bm.refine_pseudosection(
+        saved["composition_start"], example["candidate_phases"](), saved
+    )
+    assert result.resolved, result.diagnostics
+    geometry = bm.pseudosection_field_polygons(result, merge_fields=False)
+    assert not geometry.diagnostics
+    assert {tuple(p.phases) for p in geometry.polygons} == {
+        tuple(f["phases"]) for f in saved["fields"]
+    }
+    assert all(not p.has_open_boundary for p in geometry.polygons)
+    for line in result.boundaries:
+        assert line.side_a != line.side_b
+    polygon = next(p for p in geometry.polygons if p.contains_rectangle(
+        [5403210373.62519, 690.4929506484826], [1.e-5, 1.e-10]
+    ))
+    assert "opx" in [result.phase_names[i] for i in polygon.phases]
+
+
 def test_pyrolite_refinement_crosses_pure_to_mixed_solution_compositions():
     saved = json.loads(
         (
@@ -257,6 +374,114 @@ def test_curved_line_refinement_checks_actual_equilibrium_and_default_plot_units
     geometry = bm.pseudosection_field_polygons(refined)
     assert not geometry.diagnostics
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
+
+
+def test_near_endpoint_chord_improvement_resolves_a_verified_sample():
+    phases = curved_phases()
+    bulk = {"Mg": 1.0, "O": 1.0}
+    opts = settings()
+    previous = bm.pseudosection(
+        bulk, phases, (0.0, 5.0e9), (600.0, 1400.0), opts
+    )
+    data = previous.to_dict()
+    points = data["boundaries"][0]["points"]
+    a, b = points[len(points) // 2:len(points) // 2 + 2]
+    fraction = 0.01
+    temperature = (1.0 - fraction) * a["temperature"] + fraction * b["temperature"]
+    chord = (1.0 - fraction) * a["pressure"] + fraction * b["pressure"]
+    # Locate the actual coexistence pressure independently from tracing.
+    low, high = data["pressure_range"]
+    for _ in range(60):
+        middle = (low + high) / 2.0
+        for phase in phases:
+            phase.set_state(middle, temperature)
+        if phases[0].molar_gibbs < phases[1].molar_gibbs:
+            low = middle
+        else:
+            high = middle
+    pressure = (chord + (low + high) / 2.0) / 2.0
+
+    def verified(p, t):
+        tight = bm.PseudosectionSettings.from_dict(data["settings"])
+        tight.affinity_tolerance = 1.0e-5
+        state = bm.stable_equilibrium(bulk, phases, p, t, tight)
+        assert state.success, state.message
+        return dict(
+            data["samples"][0], pressure=p, temperature=t,
+            entropy=state.entropy, volume=state.volume,
+            success=True, is_field_verification=True, message=state.message,
+            gibbs=state.gibbs, mass_balance_error=state.mass_balance_error,
+            minimum_affinity=state.minimum_affinity,
+            equilibrium_error=state.equilibrium_error,
+            phases=[dict(id=q.id, candidate_index=q.candidate_index, name=q.name,
+                         amount=q.amount, composition=list(q.composition))
+                    for q in state.phases],
+        )
+
+    data["samples"] = [
+        verified(1.0e9, 1000.0), verified(4.8e9, 1000.0),
+        verified(pressure, temperature),
+    ]
+    assert bm.pseudosection_field_polygons(data).diagnostics
+    # Recover using the existing line; adding another line cannot hide a
+    # failure to accept an improvement near the endpoint of this chord.
+    opts.max_lines = 1
+    result = bm.refine_pseudosection(bulk, phases, data, opts)
+    assert result.resolved, result.diagnostics
+    assert len(result.boundaries) == 1
+    assert len(result.boundaries[0].points) > len(points)
+    geometry = bm.pseudosection_field_polygons(result)
+    assert not geometry.diagnostics
+    containing = [p for p in geometry.polygons if p.contains_rectangle(
+        [pressure, temperature], [1.0e-4, 1.0e-10]
+    )]
+    assert len(containing) == 1
+    assert containing[0].phases == [q["id"] for q in data["samples"][2]["phases"]]
+    # The sample lies beyond the preceding interval's endpoint. Refining
+    # that neighbouring arc cannot change this sample's field assignment.
+    # Preserve it while correcting the interval that actually brackets it.
+    untouched_a, untouched_b = points[len(points) // 2 - 1:len(points) // 2 + 1]
+    values = [(p.pressure, p.temperature) for p in result.boundaries[0].points]
+    start = values.index((untouched_a["pressure"], untouched_a["temperature"]))
+    assert values[start + 1] == (untouched_b["pressure"], untouched_b["temperature"])
+
+
+@pytest.mark.parametrize("recovery_passes", [0, 2])
+def test_metasediment_curve_edit_preserves_verified_neighbouring_assemblages(
+    recovery_passes,
+):
+    from burnman_cpp.minerals import model_sets
+
+    # Chl-out and Mt-out from the fresh metasediment calculation. Refining
+    # boundary 38 used to join two regions and incorrectly add Mt at this
+    # known equilibrium sample, despite retaining every original point.
+    data = json.loads(
+        (Path(__file__).parent / "data" / "metasediment_curve_edit.json").read_text()
+    )
+    opts = bm.PseudosectionSettings.from_dict(data["settings"])
+    opts.verbose = False
+    opts.max_recovery_passes = recovery_passes
+    opts.max_lines = 4
+    location = [data["samples"][0][c] for c in ("pressure", "temperature")]
+    expected = sorted(q["id"] for q in data["samples"][0]["phases"])
+    result = bm.refine_pseudosection(
+        data["composition_start"],
+        model_sets.metapelite().phases,
+        data,
+        opts,
+        resolution=(101, 201),
+    )
+    geometry = bm.pseudosection_field_polygons(result, merge_fields=False)
+    containing = [
+        p for p in geometry.polygons
+        if p.contains_rectangle(location, [1.0e-5, 1.0e-10])
+    ]
+    assert len(containing) == 1
+    assert containing[0].phases == expected
+    assert any("Curve edit rejected" in d for d in result.diagnostics)
+    assert sum(len(line.points) for line in result.boundaries) > sum(
+        len(line["points"]) for line in data["boundaries"]
+    )
 
 
 @pytest.mark.parametrize("diagram", ["PX", "TX"])

@@ -144,6 +144,10 @@ struct Engine {
   // Equilibrate the supplied phases and check for lower-energy alternatives.
   WorkState fixed_at(const std::vector<int> &, const std::vector<PhaseState> &,
                      const Eigen::Vector2d &);
+  // Local verification tightens Newton convergence and acceptance together;
+  // ordinary continuation retains its configured accuracy.
+  WorkState fixed_at(const std::vector<int> &, const std::vector<PhaseState> &,
+                     const Eigen::Vector2d &, double accuracy);
   std::shared_ptr<Assemblage> make_at(const std::vector<int> &,
                                       const std::vector<PhaseState> &,
                                       const Eigen::Vector2d &);
@@ -166,6 +170,10 @@ struct Engine {
   equilibrate_phase_set(const std::vector<int> &,
                         const std::vector<PhaseState> &, double, double,
                         std::optional<Eigen::Vector2d> = std::nullopt);
+  WorkState equilibrate_phase_set(const std::vector<int> &,
+                                  const std::vector<PhaseState> &, double,
+                                  double, std::optional<Eigen::Vector2d>,
+                                  double accuracy);
   std::shared_ptr<Assemblage> make_assemblage(const std::vector<int> &,
                                               const std::vector<PhaseState> &,
                                               double, double,
@@ -175,6 +183,8 @@ struct Engine {
   // reactions and constraints; lower-energy alternatives need a separate check.
   optim::roots::DampedNewtonResult solve(Assemblage &, ConstraintList &,
                                          bool vary_composition = true);
+  optim::roots::DampedNewtonResult
+  solve(Assemblage &, ConstraintList &, bool vary_composition, double accuracy);
   Eigen::VectorXd potentials(const Assemblage &) const;
   // Return the most negative candidate affinity, or zero if none is negative.
   // Optionally return each candidate's best composition and affinity.
@@ -190,7 +200,8 @@ ConstraintList constraints(std::unique_ptr<EqualityConstraint>,
 // Successful samples inconsistent with their containing region: sample,
 // polygon indices. Ignore the uncertainty band around approximated chords.
 std::vector<std::pair<std::size_t, std::size_t>>
-field_conflicts(const Result &, const FieldPolygons &);
+field_conflicts(const Result &, const FieldPolygons &,
+                bool all_samples = false);
 // Find changes in the equilibrium variables that move along a line in the
 // diagram. The returned direction moves one unit in the rescaled diagram.
 // coordinate_rank counts independent ways to move in the diagram; return an
