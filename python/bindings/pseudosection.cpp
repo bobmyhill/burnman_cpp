@@ -338,6 +338,8 @@ pseudosections::Result saved_result(const py::dict &data, bool full = false) {
     for (auto item : data["nodes"]) {
       auto value = py::reinterpret_borrow<py::dict>(item);
       Node node;
+      if (!full)
+        node.gibbs_variance = node.pt_nullity = -1; // unknown unless supplied
       node.id = value["id"].cast<int>();
       node.pressure = value["pressure"].cast<double>();
       node.temperature = value["temperature"].cast<double>();
@@ -346,12 +348,18 @@ pseudosections::Result saved_result(const py::dict &data, bool full = false) {
       node.volume = extensive(value, "volume", Coordinate::V);
       if (value.contains("incident_lines"))
         node.incident_lines = value["incident_lines"].cast<std::vector<int>>();
-      if (full) {
+      // Polygon construction also needs invariant metadata when plotting a
+      // saved dictionary, without requiring all resumable equilibrium data.
+      if (full || value.contains("kind"))
         node.kind = value["kind"].cast<std::string>();
+      if (full || value.contains("assemblage"))
         node.assemblage = value["assemblage"].cast<std::vector<int>>();
-        node.zero_phases = value["zero_phases"].cast<std::vector<int>>();
+      if (full || value.contains("gibbs_variance"))
         node.gibbs_variance = value["gibbs_variance"].cast<int>();
+      if (full || value.contains("pt_nullity"))
         node.pt_nullity = value["pt_nullity"].cast<int>();
+      if (full) {
+        node.zero_phases = value["zero_phases"].cast<std::vector<int>>();
         if (value.contains("critical_mode"))
           node.critical_mode = value["critical_mode"].cast<Eigen::VectorXd>();
       }
@@ -360,10 +368,11 @@ pseudosections::Result saved_result(const py::dict &data, bool full = false) {
   for (auto item : data["boundaries"]) {
     auto value = py::reinterpret_borrow<py::dict>(item);
     Boundary line;
+    if (full || value.contains("assemblage"))
+      line.assemblage = value["assemblage"].cast<std::vector<int>>();
     if (full) {
       line.id = value["id"].cast<int>();
       line.zero_phase = value["zero_phase"].cast<int>();
-      line.assemblage = value["assemblage"].cast<std::vector<int>>();
       line.termination = value["termination"].cast<std::string>();
     }
     if (value.contains("start_node"))
