@@ -18,6 +18,7 @@
 #include "burnman/tools/equilibration/equilibrate.hpp"
 #include "burnman/tools/pseudosection.hpp"
 #include <algorithm>
+#include <functional>
 #include <map>
 
 namespace burnman::pseudosections::detail {
@@ -144,10 +145,7 @@ struct Engine {
   // Equilibrate the supplied phases and check for lower-energy alternatives.
   WorkState fixed_at(const std::vector<int> &, const std::vector<PhaseState> &,
                      const Eigen::Vector2d &);
-  // Local verification tightens Newton convergence and acceptance together;
-  // ordinary continuation retains its configured accuracy.
-  WorkState fixed_at(const std::vector<int> &, const std::vector<PhaseState> &,
-                     const Eigen::Vector2d &, double accuracy);
+
   std::shared_ptr<Assemblage> make_at(const std::vector<int> &,
                                       const std::vector<PhaseState> &,
                                       const Eigen::Vector2d &);
@@ -170,10 +168,6 @@ struct Engine {
   equilibrate_phase_set(const std::vector<int> &,
                         const std::vector<PhaseState> &, double, double,
                         std::optional<Eigen::Vector2d> = std::nullopt);
-  WorkState equilibrate_phase_set(const std::vector<int> &,
-                                  const std::vector<PhaseState> &, double,
-                                  double, std::optional<Eigen::Vector2d>,
-                                  double accuracy);
   std::shared_ptr<Assemblage> make_assemblage(const std::vector<int> &,
                                               const std::vector<PhaseState> &,
                                               double, double,
@@ -183,8 +177,6 @@ struct Engine {
   // reactions and constraints; lower-energy alternatives need a separate check.
   optim::roots::DampedNewtonResult solve(Assemblage &, ConstraintList &,
                                          bool vary_composition = true);
-  optim::roots::DampedNewtonResult
-  solve(Assemblage &, ConstraintList &, bool vary_composition, double accuracy);
   Eigen::VectorXd potentials(const Assemblage &) const;
   // Return the most negative candidate affinity, or zero if none is negative.
   // Optionally return each candidate's best composition and affinity.
@@ -193,15 +185,30 @@ struct Engine {
   std::vector<PhaseState> snapshot(const Assemblage &,
                                    const std::vector<int> &) const;
   Eigen::MatrixXd composition_basis(const Material &, int) const;
+  Eigen::MatrixXd phase_formulae(const std::vector<int> &ids,
+                                 const std::vector<PhaseState> &states) const;
+  std::vector<int> active_phases(const State &) const;
+  std::vector<int> canonical_ids(const std::vector<int> &) const;
+  bool distinct(const Assemblage &, const std::vector<int> &) const;
 };
 // Row 0 fixes the phase amount/contour target; row 1 fixes the moving plane.
 ConstraintList constraints(std::unique_ptr<EqualityConstraint>,
                            std::unique_ptr<EqualityConstraint>);
-// Successful samples inconsistent with their containing region: sample,
-// polygon indices. Ignore the uncertainty band around approximated chords.
-std::vector<std::pair<std::size_t, std::size_t>>
-field_conflicts(const Result &, const FieldPolygons &,
-                bool all_samples = false);
+// Boundary termination and EOS envelopes are independent of field labelling.
+bool unfinished_boundary(const std::string &status);
+std::pair<std::string, std::string> boundary_statuses(const Boundary &);
+std::vector<Eigen::MatrixXd>
+excluded_model_regions(Engine &, const Eigen::Vector2d &origin,
+                       const Eigen::Vector2d &range);
+void join_model_limits(Result &);
+void join_frame_limits(Result &, Engine &);
+int field_variance(const Assemblage &, std::size_t n_phases);
+double solution_separation(const std::vector<PhaseState> &);
+// Insert verified corrector points until each selected axis meets its spacing.
+// Failed segments remain explicit diagnostics; the caller owns branch recovery.
+std::vector<std::string> refine_line_spacing(
+    Result &, Engine &, const LineResolution &,
+    const std::function<bool(Boundary &, std::size_t)> &refine_segment);
 // Find changes in the equilibrium variables that move along a line in the
 // diagram. The returned direction moves one unit in the rescaled diagram.
 // coordinate_rank counts independent ways to move in the diagram; return an
@@ -211,6 +218,15 @@ Eigen::VectorXd continuation_tangent(const Engine &,
                                      const Assemblage &,
                                      const Eigen::Vector2d &,
                                      int *coordinate_rank = nullptr);
+// Right/left neighbouring assemblages from a regular field response or a
+// single P-T reaction's entropy/volume slope. A composition section can return
+// only its full branch; the opposite side then needs a local probe. Releases
+// the phase-amount constraint and performs no nonlinear equilibrium solves.
+std::array<std::vector<int>, 2>
+boundary_sides(Engine &, Assemblage &, const std::vector<int> &, int,
+               const optim::roots::DampedNewtonResult &,
+               const Eigen::Vector2d &range, const Eigen::Vector2d &normal,
+               std::array<State, 2> *limiting_states = nullptr);
 std::unique_ptr<EqualityConstraint>
 continuation_plane(const Engine &, const Assemblage &, Eigen::Index,
                    const Eigen::Vector2d &target,

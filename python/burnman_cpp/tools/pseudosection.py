@@ -179,7 +179,9 @@ def refine_pseudosection(
     All added points are solved and checked in C++. Failed refinements leave
     accepted points intact and report unmet spacing in ``result.diagnostics``.
     Completed diagrams reuse their saved lines without reopening each junction.
-    Field checks still trigger boundary recovery if inconsistencies are found.
+    Field labels use perimeter evidence and saved minimizations. Conflicting
+    evidence is reported as provisional labelling, without interior solves or
+    automatic curve edits.
     Set ``settings.verbose = True`` to report refinement and checking progress.
     Save the returned result with ``save_pseudosection``. Omitted resolution
     retains ordinary boundary recovery and the saved settings by default.
@@ -248,12 +250,12 @@ def plot_pseudosection(
     basalt example's JSON. Return ``(figure, axes)``. Matplotlib is imported
     only when this function is called; install ``burnman_cpp[examples]``.
 
-    C++ joins the traced polylines into planar polygons, preserving holes and
-    disconnected regions. By default the calculation frame closes fields at
-    its edges. Unfinished lines are never extended to manufacture closure.
-    Adjacent identified regions with identical assemblages are merged and
-    their internal line segments removed. Set ``merge_fields=False`` to see
-    the original subdivision. Disconnected regions retain separate labels.
+    C++ finds closed loops through saved stable vertices and traced lines,
+    preserving holes and disconnected regions. Incidental chord crossings
+    do not create vertices or subdivide a field. Each loop is filled independently,
+    allowing coarse curves to overlap. The calculation frame closes edge fields;
+    unfinished interior lines are never extended to manufacture closure.
+    ``merge_fields`` is retained for compatibility and has no effect.
     Boundaries where solution compositions switch remain visible even when
     both fields have the same assemblage names.
     Connected segments separating the same two assemblages are drawn as one
@@ -262,8 +264,12 @@ def plot_pseudosection(
     ``line_capstyle`` accepts ``'butt'``, ``'round'`` or ``'projecting'``;
     ``line_joinstyle`` accepts ``'miter'``, ``'round'`` or ``'bevel'``.
     Both default to ``'round'``.
-    Fields with conflicting or missing assemblage counts stay uncoloured and
-    issue a warning. Each coexisting solution instance counts as one phase.
+    Fields use agreed exterior-loop labels, then common admissible assemblages
+    around the loop and saved interior minimizations. Boundary lengths never
+    resolve conflicting assemblages. Provisional labels remain coloured and are
+    identified by ``is_provisional`` and polygon diagnostics. Fields without
+    any assemblage evidence stay uncoloured and issue a warning.
+    Each coexisting solution instance counts as one phase.
     Native ``excluded_regions`` are drawn with grey hatching: the solid model
     cannot be evaluated there within its required mechanically stable EOS domain.
     Such regions have no assemblage count and are distinct from solve failures.
@@ -469,7 +475,7 @@ def plot_pseudosection(
             if (
                 _value(node, "incident_lines", [])
                 and _value(node, "kind") == "junction"
-                and (not merge_fields or _value(node, "id") in visible_nodes)
+                and _value(node, "id") in visible_nodes
             ):
                 ax.plot(
                     *point_coordinates(node),

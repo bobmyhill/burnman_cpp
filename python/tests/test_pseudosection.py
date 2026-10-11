@@ -55,7 +55,7 @@ def settings():
     return s
 
 
-def test_trace_phase_uses_configured_amount_tolerance_in_field_verification():
+def test_trace_phase_uses_configured_amount_tolerance_in_saved_samples():
     phases = [
         pure("MgO", {"Mg": 1.0, "O": 1.0}),
         pure("FeO", {"Fe": 1.0, "O": 1.0}),
@@ -72,7 +72,7 @@ def test_trace_phase_uses_configured_amount_tolerance_in_field_verification():
     )
     assert result.resolved, result.diagnostics
     assert all(len(s.phases) == 2 for s in result.samples if s.success)
-    assert any(s.success and s.is_field_verification for s in result.samples)
+    assert all(not s.is_field_verification for s in result.samples)
     geometry = bm.pseudosection_field_polygons(result)
     assert not geometry.diagnostics
     assert len(geometry.polygons) == 1
@@ -128,8 +128,8 @@ def test_two_phase_entries_between_seeds_retain_the_intermediate_field():
         ) / 1.0e-5
         assert point.pressure == pytest.approx(pressure, abs=0.1)
     # A saved diagram with that line omitted still has closed, coloured faces.
-    # Its successful samples must expose the inconsistent subdivision, and
-    # resuming must use those samples to recover the missing boundary.
+    # Its perimeter labels still agree, but a sampled assemblage has no
+    # corresponding region. Report that gap without adding a new line.
     incomplete = result.to_dict()
     incomplete["boundaries"] = [
         boundary
@@ -137,21 +137,16 @@ def test_two_phase_entries_between_seeds_retain_the_intermediate_field():
         if boundary["zero_phase"] != line.zero_phase
     ]
     geometry = bm.pseudosection_field_polygons(incomplete)
-    assert any("conflicting equilibrium assemblage" in d for d in geometry.diagnostics)
-    opts.max_recovery_passes = 0
-    unresolved = bm.refine_pseudosection(
-        {"Mg": 0.3, "Fe": 0.3, "Ca": 0.4, "O": 1.0}, phases, incomplete, opts
-    )
-    assert not unresolved.resolved
-    assert any("No closed region" in d for d in unresolved.diagnostics)
-    opts.max_recovery_passes = 2
-    repaired = bm.refine_pseudosection(
-        {"Mg": 0.3, "Fe": 0.3, "Ca": 0.4, "O": 1.0}, phases, incomplete, opts
-    )
-    assert repaired.resolved, repaired.diagnostics
-    geometry = bm.pseudosection_field_polygons(repaired)
     assert not geometry.diagnostics
-    assert sorted(field.n_phases for field in geometry.polygons) == [1, 2, 3]
+    for passes in (0, 2):
+        opts.max_recovery_passes = passes
+        unresolved = bm.refine_pseudosection(
+            {"Mg": 0.3, "Fe": 0.3, "Ca": 0.4, "O": 1.0}, phases, incomplete, opts
+        )
+        assert not unresolved.resolved
+        assert any("No closed region" in d for d in unresolved.diagnostics)
+        assert len(unresolved.boundaries) == 1
+        assert all(p.phases for p in bm.pseudosection_field_polygons(unresolved).polygons)
 
 
 def test_boundary_probes_keep_a_narrow_field_between_equal_phase_counts():
@@ -272,7 +267,7 @@ def curved_phases():
     return [first, second]
 
 
-def test_resume_refines_curved_chords_that_misclassify_equilibrium_samples():
+def test_resume_refines_curved_chords_only_when_resolution_is_requested():
     phases = curved_phases()
     opts = settings()
     bulk = {"Mg": 1.0, "O": 1.0}
@@ -281,11 +276,11 @@ def test_resume_refines_curved_chords_that_misclassify_equilibrium_samples():
     saved = result.to_dict()
     line = saved["boundaries"][0]
     line["points"] = [line["points"][0], line["points"][-1]]
-    assert any(
-        "conflicting equilibrium assemblage" in d
-        for d in bm.pseudosection_field_polygons(saved).diagnostics
-    )
-    repaired = bm.refine_pseudosection(bulk, phases, saved, opts)
+    assert not bm.pseudosection_field_polygons(saved).diagnostics
+    unchanged = bm.refine_pseudosection(bulk, phases, saved, opts)
+    assert len(unchanged.boundaries[0].points) == 2
+    assert unchanged.equilibrium_solves == saved["equilibrium_solves"]
+    repaired = bm.refine_pseudosection(bulk, phases, saved, opts, resolution=(31, 31))
     assert repaired.resolved, repaired.diagnostics
     assert len(repaired.boundaries) == 1
     assert len(repaired.boundaries[0].points) > 2
@@ -309,8 +304,8 @@ def test_resume_removes_a_verified_retraced_part_of_a_curved_boundary():
     original = line["points"]
     assert len(original) > 10
     # The retained edge and the duplicate have real equilibrium states, but
-    # use different chords. An out-and-back chord creates a false dangling
-    # edge unless its coverage is checked thermodynamically.
+    # use different chords. A closed out-and-back trace has zero area; it
+    # must not create a field or make an otherwise complete loop open.
     line["points"] = original[::6] + [original[-1]]
     duplicate = dict(
         line,
@@ -320,7 +315,7 @@ def test_resume_removes_a_verified_retraced_part_of_a_curved_boundary():
         termination="junction; junction",
     )
     saved["boundaries"].append(duplicate)
-    assert any(
+    assert not any(
         p.has_open_boundary for p in bm.pseudosection_field_polygons(saved).polygons
     )
     repaired = bm.refine_pseudosection(bulk, phases, saved, opts)
@@ -332,7 +327,7 @@ def test_resume_removes_a_verified_retraced_part_of_a_curved_boundary():
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
 
 
-def test_field_verification_keeps_coordinates_when_a_phase_is_dropped():
+def test_resume_does_not_relocate_or_reverify_samples_from_another_domain():
     mg = pure("Mg", {"Mg": 1.0, "O": 1.0})
     fe = pure("Fe", {"Fe": 1.0, "O": 1.0})
     phases = [
@@ -359,11 +354,11 @@ def test_field_verification_keeps_coordinates_when_a_phase_is_dropped():
     saved["temperature_range"] = saved["temperature_range_K"] = [700.0, 700.1]
     saved["samples"] = saved["samples"][:1]
     repaired = bm.refine_pseudosection(bulk, phases, saved, opts)
-    verified = [s for s in repaired.samples if s.success and s.is_field_verification]
-    assert len(verified) == 1
-    assert len(verified[0].phases) == 1
-    assert verified[0].pressure == pytest.approx(100500.0, abs=0.1)
-    assert verified[0].temperature == pytest.approx(700.05, abs=1e-6)
+    assert repaired.to_dict()["samples"] == saved["samples"]
+    assert repaired.equilibrium_solves == saved["equilibrium_solves"]
+    geometry = bm.pseudosection_field_polygons(repaired)
+    assert geometry.polygons[0].is_provisional
+    assert any("label is provisional" in d for d in geometry.diagnostics)
 
 
 def test_solvus_recovery_matches_compositions_of_renumbered_solution_copies():
@@ -592,24 +587,29 @@ def test_settings_dictionary_rejects_unknown_options():
         bm.PseudosectionSettings.from_dict({"minimum_step": 1.0e-7})
 
 
-def test_verified_closed_fields_count_as_resolved_when_edge_labels_are_stale():
+def test_conflicting_loops_recheck_stale_edges_without_interior_samples():
     bulk = {"Mg": 1.0, "Fe": 1.0, "O": 2.0}
     previous = bm.pseudosection(
         bulk, crossing_phases(), (0.0, 2e9), (600.0, 1400.0), settings()
     ).to_dict()
+    expected = {tuple(f["phases"]) for f in previous["fields"]}
     labels = [f["phases"] for f in previous["fields"][:2]]
     for line in previous["boundaries"]:
         line["side_a"], line["side_b"] = labels
     previous["samples"] = previous["fields"] = []
     opts = settings()
-    opts.max_lines = 4
+    opts.max_lines = 8
     opts.max_recovery_passes = 0
     result = bm.refine_pseudosection(bulk, crossing_phases(), previous, opts)
     assert not any("No field edge" in d for d in result.diagnostics)
     polygons = bm.pseudosection_field_polygons(result, merge_fields=False)
     assert len(polygons.polygons) == 4
     assert all(p.n_phases == 2 and p.phases for p in polygons.polygons)
-    assert len({tuple(p.phases) for p in polygons.polygons}) == 4
+    assert {tuple(p.phases) for p in polygons.polygons} == expected
+    assert not any(p.is_provisional for p in polygons.polygons)
+    assert result.resolved, result.diagnostics
+    assert result.equilibrium_solves > previous["equilibrium_solves"]
+    assert not any(s.is_field_verification for s in result.samples)
 
 
 @pytest.mark.parametrize("case_index", range(3))
@@ -800,7 +800,7 @@ def test_stability_selects_lower_energy_and_bulk_scaling():
 
 
 @pytest.mark.parametrize("crowded_neighbours", [False, True])
-def test_field_recovery_compares_the_representative_and_removes_obsolete_fields(
+def test_resume_retains_conflicting_seed_assemblages_as_provisional_evidence(
     crowded_neighbours,
 ):
     lower = pure("lower", {"Mg": 1.0, "O": 1.0})
@@ -838,11 +838,15 @@ def test_field_recovery_compares_the_representative_and_removes_obsolete_fields(
         recovered = bm.refine_pseudosection(
             saved["composition_start"], [higher, lower], recovered
         )
-    assert recovered.resolved, recovered.diagnostics
+    assert not recovered.resolved
     assert not recovered.boundaries
-    assert len(recovered.fields) == 1
-    assert recovered.fields[0].phases == [3]
-    assert all(s.phases[0].name == "lower" for s in recovered.samples if s.success)
+    assert {tuple(f.phases) for f in recovered.fields} == {(0,), (3,)}
+    assert recovered.to_dict()["samples"] == saved["samples"]
+    assert recovered.equilibrium_solves == saved["equilibrium_solves"]
+    geometry = bm.pseudosection_field_polygons(recovered)
+    assert len(geometry.polygons) == 1
+    assert geometry.polygons[0].is_provisional
+    assert geometry.polygons[0].phases == [0]
 
 
 def test_pyrolite_small_lp_seed_grows_during_equilibrium_refinement():
