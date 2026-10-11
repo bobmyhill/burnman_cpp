@@ -231,7 +231,7 @@ struct Result {
   // remaining candidates cannot represent the bulk or a required EOS fails.
   // These are model limits, not equilibrium phase lines.
   std::vector<Eigen::MatrixXd> excluded_regions;
-  // True when no problems remain after checking boundaries and field interiors.
+  // True when boundary topology and perimeter labelling have no diagnostics.
   // Even if true, the fields may not represent the global minimum Gibbs energy.
   bool resolved = false;
   // Cumulative work, including the previous result when refined.
@@ -242,10 +242,16 @@ struct FieldPolygon {
   // field_id refers to Field::id; sample_index indexes Result::samples.
   // Either can be -1 when identification is unavailable.
   int field_id = -1, n_phases = 0, sample_index = -1;
+  // Source reaction arcs forming the exterior and holes; useful for targeted
+  // side-label recovery without equilibrating arbitrary polygon interiors.
+  std::vector<int> boundary_ids;
   bool has_open_boundary = false;
+  // A display label chosen despite missing or conflicting perimeter evidence.
+  // This does not assert a resolved topology or a newly verified equilibrium.
+  bool is_provisional = false;
   bool outside_model_domain = false;
   std::vector<int> phases;
-  // Zero-based faces in the original, unmerged planar subdivision.
+  // Zero-based closed-loop index, also used by diagnostics.
   std::vector<int> source_regions;
   // Closed rings in the selected diagram coordinates (SI units). Holes
   // have opposite winding. Area is a fraction of the diagram domain.
@@ -265,8 +271,8 @@ struct FieldPolygon {
 struct FieldPolygons {
   std::vector<FieldPolygon> polygons;
   std::vector<std::string> diagnostics;
-  // Visible, intersection-split edges in diagram units, excluding dissolved
-  // internal edges. Unfinished and unclassified edges remain visible.
+  // Saved curve segments in diagram units. Incidental chord crossings do
+  // not split edges or create junctions. Unfinished edges remain visible.
   std::vector<Eigen::MatrixXd> boundary_segments;
   // Connected segments with the same two assemblages, stopping at endpoints
   // and junctions. Closed loops repeat their first point.
@@ -275,15 +281,19 @@ struct FieldPolygons {
   std::vector<int> boundary_nodes;
 };
 
-/// Construct field polygons from the traced lines, retaining holes and
+/// Find closed loops through saved stable vertices and traced lines, retaining holes and
 /// disconnected regions. Optionally use the calculation frame to close edge
 /// fields. No equilibrium solves or raster interpolation are performed.
 /// tolerance measures distance after each diagram axis is rescaled to 0..1.
-/// Unknown counts have n_phases=0; ambiguous assemblages have empty phases.
-/// Both cases have a diagnostic unless outside_model_domain marks an exclusion.
-/// Adjacent identified faces with identical phase IDs are merged by default;
-/// disconnected regions and different numbers of solution copies stay separate.
-/// source_regions retains original indices, also used by diagnostics.
+/// Agreed exterior-loop labels take priority; otherwise intersect admissible
+/// boundary assemblages around the loop, then use a saved interior sample.
+/// With no perimeter labels, the nearest saved sample is provisional evidence.
+/// Unresolved conflicts remain unidentified; boundary lengths never select an
+/// assemblage. Missing or conflicting evidence adds a diagnostic.
+/// Model-domain exclusions remain unidentified.
+/// Interior chord crossings do not connect traces. Each closed loop is filled
+/// independently; no polygon union or overlap repair is performed.
+/// merge_fields is retained for compatibility and has no effect.
 FieldPolygons field_polygons(const Result &result, double tolerance = 1.e-8,
                              bool close_domain = true,
                              bool merge_fields = true);

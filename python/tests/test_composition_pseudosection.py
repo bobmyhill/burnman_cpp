@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+import runpy
 import subprocess
 import sys
 
@@ -176,6 +177,31 @@ def test_unequal_atom_totals_preserve_supplied_amounts(diagram):
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0, abs=1e-8)
 
 
+@pytest.mark.parametrize("fixture", [
+    "harzburgite_garnet_composition_boundary.json",
+    "harzburgite_thin_composition_field.json",
+])
+def test_composition_boundary_labels_preserve_immediate_fields(fixture):
+    saved = json.loads(
+        (Path(__file__).parent / "data" / fixture).read_text()
+    )
+    example = runpy.run_path(
+        str(Path(__file__).parents[2] / "examples/example_pyrolite_pseudosection.py")
+    )
+    result = bm.refine_pseudosection(
+        saved["composition_start"], example["candidate_phases"](), saved,
+        resolution=(2, 2),
+    )
+    assert len(result.boundaries) == 1
+    boundary = result.boundaries[0]
+    # Independent minimizations confirm these immediate neighbours. A branch
+    # confined to the boundary cannot label a field; a wide probe cannot skip
+    # the thin field in favour of a different, more distant assemblage.
+    assert {tuple(boundary.side_a), tuple(boundary.side_b)} == {
+        tuple(phases) for phases in saved["expected_sides"]
+    }
+
+
 @pytest.mark.parametrize("diagram", ["PX", "TX"])
 def test_composition_section_resumes_saved_partial_lines(diagram):
     settings = section_settings()
@@ -245,7 +271,7 @@ print(json.dumps(result.to_dict()))
     result = bm.PseudosectionResult.from_dict(json.loads(output.stdout))
     assert result.resolved, result.diagnostics
     geometry = bm.pseudosection_field_polygons(result)
-    assert not geometry.diagnostics
+    assert all("label is provisional" in d for d in geometry.diagnostics), geometry.diagnostics
     assert sorted(p.n_phases for p in geometry.polygons) == [1, 1, 1, 2, 2, 2]
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0, abs=1e-8)
     assert all(not p.has_open_boundary for p in geometry.polygons)

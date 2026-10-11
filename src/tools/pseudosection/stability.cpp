@@ -508,18 +508,12 @@ WorkState Engine::stable_at(const Eigen::Vector2d &q) {
 WorkState Engine::fixed_at(const std::vector<int> &ids,
                            const std::vector<PhaseState> &states,
                            const Eigen::Vector2d &q) {
-  return fixed_at(ids, states, q, 1.);
-}
-WorkState Engine::fixed_at(const std::vector<int> &ids,
-                           const std::vector<PhaseState> &states,
-                           const Eigen::Vector2d &q, double accuracy) {
   if (!free_vectors.empty())
     set_bulk(q[1]);
   const auto physical = physical_coordinates(q);
   auto out = equilibrate_phase_set(
       ids, states, physical[0], physical[1],
-      direct_coordinates() ? std::nullopt : std::optional<Eigen::Vector2d>(q),
-      accuracy);
+      direct_coordinates() ? std::nullopt : std::optional<Eigen::Vector2d>(q));
   if (out.state.success)
     physical_seed << out.state.pressure, out.state.temperature;
   return out;
@@ -981,13 +975,6 @@ Engine::copy_assemblage(const Assemblage &input) const {
 }
 optim::roots::DampedNewtonResult Engine::solve(Assemblage &a, ConstraintList &c,
                                                bool vary_composition) {
-  return solve(a, c, vary_composition, 1.);
-}
-optim::roots::DampedNewtonResult Engine::solve(Assemblage &a, ConstraintList &c,
-                                               bool vary_composition,
-                                               double accuracy) {
-  if (!std::isfinite(accuracy) || accuracy <= 0. || accuracy > 1.)
-    throw std::invalid_argument("Verification accuracy must lie in (0, 1].");
   const bool varying = vary_composition && !free_vectors.empty();
   const double base_x = composition_coordinate(a);
   const auto composition =
@@ -1016,7 +1003,6 @@ optim::roots::DampedNewtonResult Engine::solve(Assemblage &a, ConstraintList &c,
     tol[prm.phase_amount_indices[k]] = 1.e-9;
   tol[0] = .2;
   tol[1] = 1.e-6;
-  tol *= accuracy;
   Eigen::VectorXd scales = Eigen::VectorXd::Ones(prm.n_parameters);
   scales[0] = 1.e9;
   scales[1] = 1000.;
@@ -1032,18 +1018,17 @@ optim::roots::DampedNewtonResult Engine::solve(Assemblage &a, ConstraintList &c,
       double reactions = a.get_n_reactions()
                              ? a.get_reaction_affinities().cwiseAbs().maxCoeff()
                              : 0.;
-      bool verified =
-          reactions <= settings.affinity_tolerance * .1 * accuracy &&
-          mass_error(a, varying) <= settings.mass_balance_tolerance * accuracy;
+      bool verified = reactions <= settings.affinity_tolerance * .1 &&
+                      mass_error(a, varying) <= settings.mass_balance_tolerance;
       auto inequalities = calculate_constraints(a, varying ? 1 : 0);
-      verified = verified &&
-                 (inequalities.first * s.x + inequalities.second).maxCoeff() <=
-                     1.e-9 * accuracy;
+      verified =
+          verified &&
+          (inequalities.first * s.x + inequalities.second).maxCoeff() <= 1.e-9;
       for (auto &group : fixed) {
         auto &constraint = group[0];
         auto derivative = constraint->derivative(s.x, a, s.x.size());
         double allowance =
-            std::max(1.e-10 * accuracy, derivative.cwiseAbs().dot(tol) * 2.);
+            std::max(1.e-10, derivative.cwiseAbs().dot(tol) * 2.);
         verified =
             verified && std::abs(constraint->evaluate(s.x, a)) <= allowance;
       }
@@ -1061,8 +1046,8 @@ optim::roots::DampedNewtonResult Engine::solve(Assemblage &a, ConstraintList &c,
   // the original accepted state if an ill-conditioned constraint walk fails.
   try {
     ++equilibrium_solves;
-    auto result = equilibrate(composition, a, fixed, vectors, 1.e-9 * accuracy,
-                              false, false, 150, false, tol);
+    auto result = equilibrate(composition, a, fixed, vectors, 1.e-9, false,
+                              false, 150, false, tol);
     auto s = result.sol_array(0);
     if (verify(s))
       return s;
@@ -1072,8 +1057,8 @@ optim::roots::DampedNewtonResult Engine::solve(Assemblage &a, ConstraintList &c,
   if (varying)
     set_coordinate(a, base_x);
   ++equilibrium_solves;
-  auto result = equilibrate(composition, a, fixed, vectors, 1.e-9 * accuracy,
-                            false, false, 150, false, tol, scales);
+  auto result = equilibrate(composition, a, fixed, vectors, 1.e-9, false, false,
+                            150, false, tol, scales);
   auto s = result.sol_array(0);
   verify(s);
   return s;
@@ -1173,12 +1158,6 @@ Eigen::MatrixXd Engine::composition_basis(const Material &m, int index) const {
 WorkState Engine::equilibrate_phase_set(
     const std::vector<int> &ids, const std::vector<PhaseState> &states,
     double p, double t, std::optional<Eigen::Vector2d> requested) {
-  return equilibrate_phase_set(ids, states, p, t, requested, 1.);
-}
-WorkState Engine::equilibrate_phase_set(
-    const std::vector<int> &ids, const std::vector<PhaseState> &states,
-    double p, double t, std::optional<Eigen::Vector2d> requested,
-    double accuracy) {
   const double fixed_pressure = p, fixed_temperature = t;
   WorkState out;
   out.ids = ids;
@@ -1194,7 +1173,7 @@ WorkState Engine::equilibrate_phase_set(
               : constraints(
                     std::make_unique<PressureConstraint>(fixed_pressure),
                     std::make_unique<TemperatureConstraint>(fixed_temperature));
-      sol = solve(*out.assemblage, c, false, accuracy);
+      sol = solve(*out.assemblage, c, false);
       record_coordinates(out.state, *out.assemblage);
       p = out.state.pressure;
       t = out.state.temperature;
@@ -1251,7 +1230,7 @@ WorkState Engine::equilibrate_phase_set(
           sol.success &&
           out.state.equilibrium_error <= settings.affinity_tolerance * .1 &&
           out.state.mass_balance_error <= settings.mass_balance_tolerance &&
-          out.state.minimum_affinity >= -settings.affinity_tolerance * accuracy;
+          out.state.minimum_affinity >= -settings.affinity_tolerance;
       if (out.state.success) {
         std::vector<int> copies(phases.size(), 0);
         for (std::size_t i = 0; i < out.state.phases.size(); ++i) {
@@ -1527,6 +1506,58 @@ WorkState Engine::stable(double p, double t) {
     if (!ph.available)
       out.state.excluded_phases.push_back(ph.domain_error);
   return out;
+}
+Eigen::MatrixXd
+Engine::phase_formulae(const std::vector<int> &ids,
+                       const std::vector<PhaseState> &states) const {
+  Eigen::MatrixXd formulae =
+      Eigen::MatrixXd::Zero(static_cast<Eigen::Index>(ids.size()),
+                            static_cast<Eigen::Index>(elements.size()));
+  for (const auto &phase : states) {
+    auto it = std::find(ids.begin(), ids.end(), phase.id);
+    if (it != ids.end())
+      formulae.row(it - ids.begin()) =
+          phase.composition.transpose() *
+          phases[static_cast<std::size_t>(phase.candidate_index)].a;
+  }
+  return formulae;
+}
+std::vector<int> Engine::active_phases(const State &s) const {
+  double total = 0.;
+  for (auto &ph : s.phases)
+    total += ph.amount;
+  std::map<int, int> count;
+  for (auto &ph : s.phases)
+    if (ph.amount > settings.amount_tolerance * total)
+      ++count[ph.candidate_index];
+  std::vector<int> ids;
+  for (auto [base, n] : count)
+    for (int j = 0; j < n; ++j)
+      ids.push_back(base * settings.max_phase_instances + j);
+  return ids;
+}
+std::vector<int> Engine::canonical_ids(const std::vector<int> &ids) const {
+  std::map<int, int> counts;
+  for (int id : ids)
+    ++counts[id / settings.max_phase_instances];
+  std::vector<int> canonical;
+  for (auto [base, count] : counts)
+    for (int copy = 0; copy < count; ++copy)
+      canonical.push_back(base * settings.max_phase_instances + copy);
+  return canonical;
+}
+double solution_separation(const std::vector<PhaseState> &states) {
+  double minimum = std::numeric_limits<double>::infinity();
+  for (std::size_t i = 0; i < states.size(); ++i)
+    for (std::size_t j = i + 1; j < states.size(); ++j)
+      if (states[i].candidate_index == states[j].candidate_index)
+        minimum = std::min(
+            minimum, (states[i].composition - states[j].composition).norm());
+  return minimum;
+}
+bool Engine::distinct(const Assemblage &a, const std::vector<int> &ids) const {
+  return solution_separation(snapshot(a, ids)) >
+         settings.composition_tolerance * 10.;
 }
 } // namespace burnman::pseudosections::detail
 namespace burnman::pseudosections {

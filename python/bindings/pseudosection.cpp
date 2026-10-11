@@ -358,8 +358,9 @@ pseudosections::Result saved_result(const py::dict &data, bool full = false) {
         node.gibbs_variance = value["gibbs_variance"].cast<int>();
       if (full || value.contains("pt_nullity"))
         node.pt_nullity = value["pt_nullity"].cast<int>();
-      if (full) {
+      if (full || value.contains("zero_phases"))
         node.zero_phases = value["zero_phases"].cast<std::vector<int>>();
+      if (full) {
         if (value.contains("critical_mode"))
           node.critical_mode = value["critical_mode"].cast<Eigen::VectorXd>();
       }
@@ -370,9 +371,12 @@ pseudosections::Result saved_result(const py::dict &data, bool full = false) {
     Boundary line;
     if (full || value.contains("assemblage"))
       line.assemblage = value["assemblage"].cast<std::vector<int>>();
-    if (full) {
+    // Loop constraints need the reaction metadata for dictionary plotting too.
+    if (full || value.contains("id"))
       line.id = value["id"].cast<int>();
+    if (full || value.contains("zero_phase"))
       line.zero_phase = value["zero_phase"].cast<int>();
+    if (full) {
       line.termination = value["termination"].cast<std::string>();
     }
     if (value.contains("start_node"))
@@ -561,9 +565,11 @@ void bind_pseudosection(py::module_ &m) {
       .def_readonly("n_phases", &FieldPolygon::n_phases)
       .def_readonly("sample_index", &FieldPolygon::sample_index)
       .def_readonly("has_open_boundary", &FieldPolygon::has_open_boundary)
+      .def_readonly("is_provisional", &FieldPolygon::is_provisional)
       .def_readonly("outside_model_domain", &FieldPolygon::outside_model_domain)
       .def_readonly("phases", &FieldPolygon::phases)
       .def_readonly("source_regions", &FieldPolygon::source_regions)
+      .def_readonly("boundary_ids", &FieldPolygon::boundary_ids)
       .def_readonly("area", &FieldPolygon::area)
       .def_readonly("label_clearance", &FieldPolygon::label_clearance)
       .def("contains_rectangle", &FieldPolygon::contains_rectangle,
@@ -704,9 +710,10 @@ void bind_pseudosection(py::module_ &m) {
       },
       py::arg("result"), py::arg("tolerance") = 1.e-8,
       py::arg("close_domain") = true, py::arg("merge_fields") = true,
-      "Build closed field polygons in C++, including holes. Merge adjacent "
-      "identical assemblages by default; source_regions preserves raw face "
-      "indices. Accept a native result or saved JSON dictionary.");
+      "Find closed loops through saved vertices and traces, including holes. "
+      "Incidental chord crossings do not create vertices. merge_fields is "
+      "retained for compatibility and has no effect. Accept a native result "
+      "or saved JSON dictionary.");
   m.def("stable_equilibrium", &stable_equilibrium, py::arg("composition"),
         py::arg("phases"), py::arg("pressure"), py::arg("temperature"),
         py::arg("settings") = Settings{},

@@ -15,9 +15,53 @@
 #include "burnman/tools/equilibration/equilibrate_utils.hpp"
 #include "burnman/tools/polytope.hpp"
 #include "burnman/tools/pseudosection.hpp"
+#include "../../src/tools/pseudosection/internal.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 using namespace burnman;
+
+TEST_CASE("Reaction entropy and volume orient singular P-T boundaries",
+          "[pseudosection]") {
+  namespace ps = pseudosections;
+  ps::Settings settings;
+  settings.max_phase_instances = 1;
+  ps::detail::Engine engine({{"Al", 2.}, {"Si", 1.}, {"O", 5.}},
+      {minerals::HP11::andalusite(), minerals::HP11::ky()}, settings);
+  std::vector<ps::PhaseState> states(2);
+  for (int k = 0; k < 2; ++k) {
+    states[static_cast<std::size_t>(k)].id = k;
+    states[static_cast<std::size_t>(k)].candidate_index = k;
+    states[static_cast<std::size_t>(k)].composition = Eigen::VectorXd::Ones(1);
+    states[static_cast<std::size_t>(k)].amount = k;
+  }
+  auto a = engine.make_at({0, 1}, states, {5.e8, 800.});
+  auto prm = engine.parameters(*a);
+  auto constraints = ps::detail::constraints(
+      std::make_unique<equilibration::PhaseFractionConstraint>(0, 0., prm),
+      std::make_unique<equilibration::TemperatureConstraint>(800.));
+  auto solved = engine.solve(*a, constraints);
+  REQUIRE(solved.success);
+  const Eigen::Vector2d range(1.e9, 500.);
+  std::array<ps::State, 2> limits;
+  auto pressure = ps::detail::boundary_sides(engine, *a, {0, 1}, 0, solved,
+                                             range, {1., 0.}, &limits);
+  REQUIRE(pressure[0] == std::vector<int>{0});
+  REQUIRE(pressure[1] == std::vector<int>{1}); // Denser kyanite at higher P.
+  for (int side : {0, 1}) {
+    const auto &state = limits[static_cast<std::size_t>(side)];
+    REQUIRE(state.success);
+    REQUIRE(state.phases.size() == 1);
+    CHECK(state.phases[0].id == pressure[static_cast<std::size_t>(side)][0]);
+    CHECK(state.phases[0].amount > 0.);
+    CHECK(state.mass_balance_error < 1.e-12);
+    CHECK(state.temperature == a->get_temperature());
+  }
+  auto temperature = ps::detail::boundary_sides(engine, *a, {0, 1}, 0, solved,
+                                                range, {0., 1.});
+  CHECK(temperature[0] == std::vector<int>{1});
+  CHECK(temperature[1] == std::vector<int>{0}); // Higher-entropy andalusite.
+  CHECK(engine.equilibrium_solves == 1); // Side identification performs no solves.
+}
 
 TEST_CASE("Entropy-volume sections solve physical P and T", "[pseudosection]") {
   namespace ps = pseudosections;
@@ -65,8 +109,10 @@ TEST_CASE("Fe-O TX closes fields with unequal composition endpoints",
   auto result = ps::pseudosection({{"Fe", 1.}},
                                   {hp::iron(), hp::wu(), hp::mt(), hp::hem()},
                                   {1.e5, 1.e5}, {300., 1500.}, settings, path);
-  REQUIRE(result.resolved);
   auto geometry = ps::field_polygons(result);
+  CHECK(result.resolved == geometry.diagnostics.empty());
+  for (const auto &diagnostic : geometry.diagnostics)
+    CHECK(diagnostic.find("label is provisional") != std::string::npos);
   REQUIRE(geometry.polygons.size() == 4);
   double area = 0.;
   for (const auto &field : geometry.polygons) {

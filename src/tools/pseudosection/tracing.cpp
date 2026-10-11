@@ -19,7 +19,6 @@
 #include <chrono>
 #include <cmath>
 #include <deque>
-#include <iomanip>
 #include <iostream>
 #include <map>
 #include <set>
@@ -35,9 +34,6 @@ struct Seed {
   Eigen::Vector2d position, direction;
   std::vector<BoundaryPoint> prefix{};
   int bridge_node = -1;
-  bool force_continuation = false;
-  std::optional<std::pair<Eigen::Vector2d, Eigen::Vector2d>> recovery_section =
-      std::nullopt;
 };
 class Tracer {
   Engine engine;
@@ -48,24 +44,10 @@ class Tracer {
   std::vector<WorkState> grid;
   std::set<std::string> attempted;
   std::set<std::string> expanded;
-  std::set<std::string> retraced_segments;
-  std::set<std::string> refinement_events;
-  std::map<std::string, std::pair<Eigen::Vector2d, Eigen::Vector2d>>
-      refinement_sections;
-  // Failed proposals are retried through branch recovery, not by inserting
-  // the same points on every field-recovery iteration.
-  std::map<std::string, std::string> rejected_curve_edits;
-  std::set<int> probed_junctions;
   std::map<std::vector<int>, Eigen::MatrixXd> amount_vertices;
   Eigen::VectorXd critical_axis;
   std::optional<LineResolution> line_resolution;
-  int field_variance(const Assemblage &a, std::size_t n_phases) const {
-    // Subtract signed counts: an overcomplete assemblage has negative variance.
-    return burnman::utils::checked_int(
-        static_cast<std::ptrdiff_t>(
-            a.get_independent_element_indices().size()) -
-        static_cast<std::ptrdiff_t>(n_phases) + 2);
-  }
+  std::set<int> unstable_lines;
   Eigen::Vector2d normalise(double first, double second) const {
     return (Eigen::Vector2d(first, second) - origin).cwiseQuotient(range);
   }
@@ -171,73 +153,9 @@ class Tracer {
     return s.success && s.x.allFinite() && inside(normalised_coordinates(a)) &&
            engine.mass_error(a) <= engine.settings.mass_balance_tolerance;
   }
-  double separation(const std::vector<PhaseState> &states) const {
-    double minimum = std::numeric_limits<double>::infinity();
-    for (std::size_t i = 0; i < states.size(); ++i)
-      for (std::size_t j = i + 1; j < states.size(); ++j)
-        if (states[i].candidate_index == states[j].candidate_index)
-          minimum = std::min(
-              minimum, (states[i].composition - states[j].composition).norm());
-    return minimum;
-  }
-  bool distinct(const Assemblage &a, const std::vector<int> &ids) const {
-    return separation(engine.snapshot(a, ids)) >
-           engine.settings.composition_tolerance * 10.;
-  }
-  std::optional<std::vector<PhaseState>>
-  match_branch(const std::vector<PhaseState> &reference,
-               const std::vector<PhaseState> &states, int zero) const {
-    if (reference.size() != states.size())
-      return std::nullopt;
-    auto matched = reference;
-    std::map<int, std::vector<std::size_t>> groups;
-    for (std::size_t i = 0; i < reference.size(); ++i)
-      groups[reference[i].candidate_index].push_back(i);
-    for (const auto &[candidate, group] : groups) {
-      std::vector<std::size_t> permutation, best;
-      for (std::size_t i = 0; i < states.size(); ++i)
-        if (states[i].candidate_index == candidate)
-          permutation.push_back(i);
-      if (permutation.size() != group.size())
-        return std::nullopt;
-      double minimum = std::numeric_limits<double>::infinity();
-      // A model normally has at most three coexisting copies. Match their
-      // compositions, keeping the constrained zero copy in its physical role.
-      do {
-        double cost = 0.;
-        for (std::size_t k = 0; k < group.size(); ++k) {
-          const auto &before = reference[group[k]];
-          const auto &after = states[permutation[k]];
-          if ((before.id == zero) != (after.id == zero) ||
-              before.composition.size() != after.composition.size() ||
-              !after.composition.allFinite()) {
-            cost = std::numeric_limits<double>::infinity();
-            break;
-          }
-          cost += (before.composition - after.composition).squaredNorm();
-        }
-        if (cost < minimum) {
-          minimum = cost;
-          best = permutation;
-        }
-      } while (std::next_permutation(permutation.begin(), permutation.end()));
-      if (best.empty())
-        return std::nullopt;
-      for (std::size_t k = 0; k < group.size(); ++k) {
-        matched[group[k]] = states[best[k]];
-        matched[group[k]].id = reference[group[k]].id;
-        matched[group[k]].name = reference[group[k]].name;
-      }
-    }
-    return matched;
-  }
   bool same_branch(const Assemblage &a, const Assemblage &b,
-                   const std::vector<int> &ids, int zero = -1) const {
-    auto old = engine.snapshot(a, ids);
-    auto matched = match_branch(old, engine.snapshot(b, ids), zero);
-    if (!matched)
-      return false;
-    const auto &next = *matched;
+                   const std::vector<int> &ids) const {
+    auto old = engine.snapshot(a, ids), next = engine.snapshot(b, ids);
     for (std::size_t i = 0; i < ids.size(); ++i)
       for (std::size_t j = i + 1; j < ids.size(); ++j)
         if (old[i].candidate_index == old[j].candidate_index &&
@@ -245,46 +163,6 @@ class Tracer {
                     .dot(next[i].composition - next[j].composition) <= 0.)
           return false;
     return true;
-  }
-  bool continuous_branch(const Assemblage &a, const Assemblage &b,
-                         const std::vector<int> &ids, int zero) const {
-    auto before = engine.snapshot(a, ids);
-    auto after = match_branch(before, engine.snapshot(b, ids), zero);
-    return after && same_branch(a, b, ids, zero) &&
-           composition_change(before, *after) <= .1;
-  }
-  bool predicted_branch(const Assemblage &previous, const Assemblage &next,
-                        const std::vector<int> &ids, int zero,
-                        const std::vector<PhaseState> &predicted) const {
-    if (!continuous_branch(previous, next, ids, zero))
-      return false;
-    auto corrected = match_branch(predicted, engine.snapshot(next, ids), zero);
-    if (!corrected)
-      return false;
-    const auto before = engine.snapshot(previous, ids);
-    if (composition_change(predicted, *corrected) >
-        std::max(100. * engine.settings.composition_tolerance,
-                 .5 * composition_change(before, predicted)))
-      return false;
-    const double total = previous.get_n_moles();
-    for (std::size_t k = 0; k < before.size(); ++k)
-      if (std::abs((*corrected)[k].amount - predicted[k].amount) / total >
-          std::max(100. * engine.settings.amount_tolerance,
-                   .5 * std::abs(predicted[k].amount - before[k].amount) /
-                       total))
-        return false;
-    return true;
-  }
-  double composition_change(const std::vector<PhaseState> &first,
-                            const std::vector<PhaseState> &second) const {
-    double change = 0.;
-    for (const auto &phase : first)
-      for (const auto &other : second)
-        if (phase.id == other.id &&
-            phase.composition.size() == other.composition.size())
-          change =
-              std::max(change, (phase.composition - other.composition).norm());
-    return change;
   }
   bool closing_solvus(const Assemblage &a, const std::vector<int> &ids,
                       int zero, const Eigen::VectorXd &direction,
@@ -342,20 +220,6 @@ class Tracer {
     if (!engine.free_vectors.empty())
       engine.set_coordinate(a, old_coordinate + (guess - x)[guess.size() - 1]);
   }
-  std::vector<int> active(const State &s) const {
-    double total = 0.;
-    for (auto &ph : s.phases)
-      total += ph.amount;
-    std::map<int, int> count;
-    for (auto &ph : s.phases)
-      if (ph.amount > engine.settings.amount_tolerance * total)
-        ++count[ph.candidate_index];
-    std::vector<int> ids;
-    for (auto [base, n] : count)
-      for (int j = 0; j < n; ++j)
-        ids.push_back(base * engine.settings.max_phase_instances + j);
-    return ids;
-  }
   static bool composition_order(const PhaseState &a, const PhaseState &b) {
     if (a.candidate_index != b.candidate_index)
       return a.candidate_index < b.candidate_index;
@@ -397,56 +261,20 @@ class Tracer {
     out.phases = std::move(states);
     return out;
   }
-  bool additional_phase_support(const State &state, const State &old) const {
-    double total = 0.;
-    for (const auto &phase : state.phases)
-      total += phase.amount;
-    for (const auto &phase : state.phases)
-      if (std::abs(phase.amount) <= engine.settings.amount_tolerance * total &&
-          std::count_if(state.phases.begin(), state.phases.end(),
-                        [&](const PhaseState &p) {
-                          return p.candidate_index == phase.candidate_index;
-                        }) == 1 &&
-          std::none_of(old.phases.begin(), old.phases.end(),
-                       [&](const PhaseState &p) {
-                         return p.candidate_index == phase.candidate_index;
-                       }))
-        return true;
-    return false;
-  }
-  void add_sample(const State &state, int existing = -1,
-                  bool retain_support = false) {
-    if (existing >= 0) {
-      for (auto it = field_comparisons.begin(); it != field_comparisons.end();)
-        if (it->first.first == static_cast<std::size_t>(existing) ||
-            it->first.second == static_cast<std::size_t>(existing))
-          it = field_comparisons.erase(it);
-        else
-          ++it;
-    }
+  void add_sample(const State &state, int existing = -1) {
     int index = existing >= 0
                     ? existing
                     : burnman::utils::checked_int(result.samples.size());
     State canonical = state;
     if (state.success) {
       double total = 0.;
-      std::map<int, int> candidate_counts;
-      for (auto &ph : state.phases) {
+      for (auto &ph : state.phases)
         total += ph.amount;
-        ++candidate_counts[ph.candidate_index];
-      }
       canonical.phases.erase(
           std::remove_if(canonical.phases.begin(), canonical.phases.end(),
                          [&](auto &ph) {
-                           // Retain a newly verified, numerically zero phase
-                           // as evidence of boundary count precision. Keep
-                           // solution-copy numbering unchanged: this support
-                           // is restricted to a separate single-instance
-                           // candidate, not a vanishing copy of an active one.
-                           return ph.amount <= engine.settings.amount_tolerance * total &&
-                                  !(retain_support &&
-                                    candidate_counts[ph.candidate_index] == 1 &&
-                                    ph.amount >= -engine.settings.amount_tolerance * total);
+                           return ph.amount <=
+                                  engine.settings.amount_tolerance * total;
                          }),
           canonical.phases.end());
       // A saved, nearly identical solution pair is one phase, not two minima.
@@ -507,7 +335,7 @@ class Tracer {
       result.diagnostics.push_back(msg.str());
       return;
     }
-    auto ids = active(canonical);
+    auto ids = engine.active_phases(canonical);
     auto it = field_index.find(ids);
     int id;
     if (it == field_index.end()) {
@@ -518,20 +346,14 @@ class Tracer {
       id = it->second;
     result.fields[static_cast<std::size_t>(id)].sample_indices.push_back(index);
   }
-  bool covered(const Seed &seed) {
+  bool covered(const Seed &seed) const {
     for (auto &line : result.boundaries)
       if (line.assemblage == seed.ids && line.zero_phase == seed.zero) {
         // A nearby curve can belong to another junction. Only an incident
         // branch covers a seed attached to this exact thermodynamic event.
         if (seed.node >= 0) {
-          for (bool start : {true, false})
-            if ((start ? line.start_node : line.end_node) == seed.node &&
-                !line.points.empty() &&
-                composition_change(
-                    (start ? line.points.front() : line.points.back()).phases,
-                    seed.phases) <=
-                    engine.settings.composition_tolerance * 100.)
-              return true;
+          if (line.start_node == seed.node || line.end_node == seed.node)
+            return true;
           continue;
         }
         for (std::size_t k = 1; k < line.points.size(); ++k) {
@@ -542,106 +364,12 @@ class Tracer {
                   ? std::clamp((seed.position - a).dot(d) / d.squaredNorm(), 0.,
                                1.)
                   : 0.;
-          if ((a + f * d - seed.position).norm() >=
-                  engine.settings.node_tolerance * 2 ||
-              d.norm() < 1.e-12)
-            continue;
-          const auto &initial =
-              line.points[k - 1 + static_cast<std::size_t>(f > .5)];
-          if ((normalise(initial) - seed.position).norm() < 1.e-10 &&
-              composition_change(initial.phases, seed.phases) < 1.e-8)
+          if ((a + f * d - seed.position).norm() <
+              engine.settings.node_tolerance * 2)
             return true;
-          // A nearby chord is only a search hint. Correct its saved state
-          // onto the seed's section before treating it as the same branch.
-          try {
-            auto work =
-                engine.make_at(line.assemblage, initial.phases,
-                               origin + seed.position.cwiseProduct(range));
-            current_ids = line.assemblage;
-            auto c = boundary_constraints(*work, line.zero_phase, seed.position,
-                                          d.normalized());
-            auto s = engine.solve(*work, c);
-            if (valid(*work, s) && distinct(*work, line.assemblage) &&
-                (normalised_coordinates(*work) - seed.position).norm() <
-                    1.e-8 &&
-                composition_change(engine.snapshot(*work, line.assemblage),
-                                   seed.phases) <=
-                    engine.settings.composition_tolerance * 100.)
-              return true;
-          } catch (const std::exception &) {
-          }
         }
       }
     return false;
-  }
-  static bool unfinished(const std::string &status) {
-    return status.find("failed") != std::string::npos ||
-           status.find("unresolved") != std::string::npos ||
-           status == "trace step limit";
-  }
-  static std::pair<std::string, std::string> statuses(const Boundary &line) {
-    auto split = line.termination.find(';');
-    if (split == std::string::npos)
-      throw std::invalid_argument(
-          "Boundary termination must describe both directions.");
-    auto second = line.termination.substr(split + 1);
-    second.erase(0, second.find_first_not_of(' '));
-    return {line.termination.substr(0, split), second};
-  }
-  void trim_junction_overshoot(Boundary &line) {
-    // Closed returns need the coverage check in reconcile_boundaries(), which
-    // distinguishes a retraced spur from a genuine closed phase boundary.
-    if (line.start_node >= 0 && line.start_node == line.end_node)
-      return;
-    auto [back, forward] = statuses(line);
-    for (bool start : {false, true}) {
-      int n = start ? line.start_node : line.end_node;
-      if (n < 0 || (start ? back : forward) != "junction")
-        continue;
-      // The stability tolerance can admit a point just beyond zero affinity.
-      // Keep the exact junction and remove only the local reversing tail,
-      // rather than displaying a doubled-back spur as an unfinished phase
-      // boundary.
-      auto junction = normalise(result.nodes[static_cast<std::size_t>(n)]);
-      while (line.points.size() > 2) {
-        std::size_t tip = start ? 1 : line.points.size() - 2,
-                    previous = start ? 2 : line.points.size() - 3;
-        auto u = normalise(line.points[tip]);
-        auto before = normalise(line.points[previous]);
-        auto incoming = (u - before).eval(), remaining = (junction - u).eval();
-        if (remaining.dot(incoming) >= -1.e-18)
-          break;
-        if (remaining.norm() > engine.settings.node_tolerance * 2.) {
-          // Zooming a diagram magnifies an otherwise small overshoot. A
-          // longer reversing tail needs evidence that this same branch passes
-          // through the junction between its two saved points, rather than
-          // merely turning near it.
-          if (segment_distance(junction, u, before) > 1.e-8)
-            break;
-          try {
-            auto a = engine.make_at(line.assemblage,
-                                    line.points[previous].phases,
-                                    origin + junction.cwiseProduct(range));
-            current_ids = line.assemblage;
-            auto c = boundary_constraints(*a, line.zero_phase, junction,
-                                          incoming.normalized());
-            auto solved = engine.solve(*a, c);
-            const auto &endpoint = start ? line.points.front() : line.points.back();
-            if (!valid(*a, solved) || !distinct(*a, line.assemblage) ||
-                (normalised_coordinates(*a) - junction).norm() > 1.e-8 ||
-                engine.stability(*a) < -engine.settings.affinity_tolerance ||
-                composition_change(engine.snapshot(*a, line.assemblage),
-                                   endpoint.phases) >
-                    engine.settings.composition_tolerance * 100.)
-              break;
-          } catch (const std::exception &) {
-            break;
-          }
-        }
-        line.points.erase(line.points.begin() +
-                          static_cast<std::ptrdiff_t>(tip));
-      }
-    }
   }
   std::vector<int> event_signature(const std::vector<int> &ids,
                                    bool polymorphs = false) const {
@@ -683,7 +411,7 @@ class Tracer {
             (!compatible_kind || !same_event(old, ids, zero)))
           continue;
         if (kind == "critical_point" &&
-            separation(engine.snapshot(a, ids)) < 1.e-8 &&
+            solution_separation(engine.snapshot(a, ids)) < 1.e-8 &&
             critical_axis.size()) {
           engine.record_coordinates(old, a);
           old.critical_mode = critical_axis;
@@ -701,7 +429,8 @@ class Tracer {
     n.kind = kind;
     n.assemblage = ids;
     n.zero_phases = zero;
-    if (kind == "critical_point" && separation(engine.snapshot(a, ids)) < 1.e-8)
+    if (kind == "critical_point" &&
+        solution_separation(engine.snapshot(a, ids)) < 1.e-8)
       n.critical_mode = critical_axis;
     n.gibbs_variance = field_variance(a, ids.size());
     n.pt_nullity = 0;
@@ -740,7 +469,7 @@ class Tracer {
     for (auto &line : result.boundaries) {
       if (line.points.empty())
         continue;
-      auto [back, forward] = statuses(line);
+      auto [back, forward] = boundary_statuses(line);
       for (bool start : {true, false}) {
         if ((start ? back : forward) != "junction")
           continue;
@@ -970,9 +699,9 @@ class Tracer {
                           << ls.F.tail(ls.F.size() - 2).cwiseAbs().maxCoeff()
                           << ", left mass=" << engine.mass_error(*left) << '\n';
               if (!valid(*left, ls) || !valid(*right, rs) ||
-                  separation(engine.snapshot(*left, ids)) <
+                  solution_separation(engine.snapshot(*left, ids)) <
                       delta * factor * .5 ||
-                  separation(engine.snapshot(*right, ids)) <
+                  solution_separation(engine.snapshot(*right, ids)) <
                       delta * factor * .5 ||
                   (normalised_coordinates(*left) -
                    normalised_coordinates(*right))
@@ -1057,7 +786,7 @@ class Tracer {
                                .norm()
                         << '\n';
             if (!valid(*near, ns) ||
-                separation(engine.snapshot(*near, ids)) < delta * .5 ||
+                solution_separation(engine.snapshot(*near, ids)) < delta * .5 ||
                 (!exact &&
                  (normalised_coordinates(*near) - normalised_coordinates(a))
                          .norm() > engine.settings.node_tolerance))
@@ -1107,8 +836,8 @@ class Tracer {
               if (engine.settings.verbose)
                 std::cerr << "Critical arm separation " << target << ": "
                           << s.success << '\n';
-              if (!valid(*trial, s) ||
-                  separation(engine.snapshot(*trial, ids)) < target * .5)
+              if (!valid(*trial, s) || solution_separation(engine.snapshot(
+                                           *trial, ids)) < target * .5)
                 continue;
               double aff = engine.stability(*trial);
               if (aff < -engine.settings.affinity_tolerance)
@@ -1298,7 +1027,7 @@ class Tracer {
         constraints(std::make_unique<PhaseFractionConstraint>(zi, 0., prm),
                     std::make_unique<PhaseFractionConstraint>(oi, 0., prm));
     auto s = engine.solve(a, c);
-    bool verified = valid(a, s), separate = distinct(a, ids);
+    bool verified = valid(a, s), separate = engine.distinct(a, ids);
     std::vector<Minimum> minima;
     double affinity = verified ? engine.stability(a, &minima) : 0.;
     if (verified && separate &&
@@ -1313,7 +1042,7 @@ class Tracer {
         a = *refitted;
         engine.set_coordinate(a, engine.composition_coordinate(*refitted));
         verified = valid(a, s);
-        separate = distinct(a, ids);
+        separate = engine.distinct(a, ids);
       }
     }
     const auto offset = (normalised_coordinates(a) - previous).eval();
@@ -1366,8 +1095,8 @@ class Tracer {
         current_ids = ids;
         auto c = boundary_constraints(*trial.a, zero, u, unit);
         auto s = engine.solve(*trial.a, c);
-        if (!valid(*trial.a, s) || !distinct(*trial.a, ids) ||
-            !same_branch(previous, *trial.a, ids, zero))
+        if (!valid(*trial.a, s) || !engine.distinct(*trial.a, ids) ||
+            !same_branch(previous, *trial.a, ids))
           return false;
         engine.set_pt(trial.a->get_pressure(), trial.a->get_temperature());
         trial.minimum =
@@ -1509,7 +1238,7 @@ class Tracer {
         } else
           c = boundary_constraints(*trial, zero, where, normal);
         auto solve = engine.solve(*trial, c);
-        if (!valid(*trial, solve) || !distinct(*trial, ids) ||
+        if (!valid(*trial, solve) || !engine.distinct(*trial, ids) ||
             (normalised_coordinates(*trial) - where).norm() >
                 engine.settings.step * 3.)
           return false;
@@ -1539,7 +1268,6 @@ class Tracer {
     end_node = -1;
     std::vector<BoundaryPoint> points;
     double step = engine.settings.step;
-    auto recovery_section = seed.recovery_section;
     auto ids = seed.ids;
     double travelled = 0.;
     Eigen::Vector2d initial_unit =
@@ -1548,24 +1276,8 @@ class Tracer {
          ++iteration) {
       auto old_x = solve.x;
       auto old_u = normalised_coordinates(*a);
-      const auto unit =
-          engine.project_direction(direction, *a).cwiseQuotient(range).eval();
-      Eigen::Vector2d correction_normal = unit;
       current_ids = ids;
       double requested = step;
-      if (recovery_section) {
-        const auto &[where, normal] = *recovery_section;
-        const double remaining = (where - old_u).dot(normal);
-        const double projection = unit.dot(normal);
-        if (std::abs(remaining) < 1.e-11)
-          recovery_section.reset();
-        else if (remaining * projection > 0.) {
-          // Visit the section that refinement actually found unstable;
-          // a normal tracing step can leap across the entire narrow event.
-          requested = std::min(requested, std::abs(remaining / projection));
-          correction_normal = normal;
-        }
-      }
       double affinity = 0.;
       // Predict the first phase-out event from amount derivatives.
       auto prm = engine.parameters(*a);
@@ -1644,6 +1356,8 @@ class Tracer {
         }
         requested = std::min(requested, event_step * .7);
       }
+      auto unit =
+          engine.project_direction(direction, *a).cwiseQuotient(range).eval();
       int border_axis = -1;
       double border = 0., border_step = requested;
       for (int k = 0; k < 2; ++k)
@@ -1664,10 +1378,8 @@ class Tracer {
       std::string failure;
       bool merged = false;
       std::vector<Minimum> ms;
-      std::vector<PhaseState> predicted;
       for (int retry = 0; retry < 16; ++retry) {
-        if (used < engine.settings.min_step && border_axis < 0 &&
-            !(recovery_section && requested < engine.settings.min_step))
+        if (used < engine.settings.min_step && border_axis < 0)
           break;
         next = engine.copy_assemblage(*a);
         try {
@@ -1676,7 +1388,6 @@ class Tracer {
               (border == 0. || border == 1.))
             next = engine.make_at(ids, engine.snapshot(*next, ids),
                                   engine.coordinates(*next));
-          predicted = engine.snapshot(*next, ids);
           ConstraintList c;
           current_ids = ids;
           if (border_axis >= 0) {
@@ -1686,23 +1397,13 @@ class Tracer {
             c = boundary_constraints(*next, seed.zero, u, n);
           } else
             c = boundary_constraints(*next, seed.zero, old_u + used * unit,
-                                     correction_normal);
+                                     unit);
           next_s = engine.solve(*next, c);
-          merged =
-              !distinct(*next, ids) || !same_branch(*a, *next, ids, seed.zero);
+          merged = !engine.distinct(*next, ids) || !same_branch(*a, *next, ids);
           accepted = valid(*next, next_s) && !merged &&
                      (normalised_coordinates(*next) - old_u).norm() <=
                          std::max(used * 3, engine.settings.node_tolerance);
           failure = next_s.message;
-          // Newton can jump from one stable ordering minimum to another,
-          // skipping the intervening entry of a second solution instance.
-          // Reduce the continuation step before accepting that discontinuity.
-          if (accepted &&
-              !predicted_branch(*a, *next, ids, seed.zero, predicted)) {
-            accepted = false;
-            failure =
-                "Boundary correction did not preserve its predicted branch.";
-          }
           if (accepted) {
             // A required competitor can leave its EOS domain while all
             // phases on this line still have valid volumes. Check before
@@ -1722,16 +1423,15 @@ class Tracer {
       if (!accepted && next) {
         auto target =
             (old_u + std::max(used, engine.settings.min_step) * unit).eval();
-        if (refit_composition_faces(next, ids, seed.zero, target,
-                                    correction_normal, next_s, affinity, &ms) &&
-            predicted_branch(*a, *next, ids, seed.zero, predicted)) {
+        if (refit_composition_faces(next, ids, seed.zero, target, unit, next_s,
+                                    affinity, &ms)) {
           accepted = true;
           stability_verified = true;
           border_axis = -1;
         }
       }
       if (!accepted) {
-        if (merged && separation(engine.snapshot(*a, ids)) < .01) {
+        if (merged && solution_separation(engine.snapshot(*a, ids)) < .01) {
           approach_critical(a, ids, seed.zero, solve, points);
           end_node = node(*a, ids, {seed.zero}, "critical_point", &solve.J);
           termination = "solution critical point";
@@ -1746,29 +1446,14 @@ class Tracer {
       if (!stability_verified)
         affinity = engine.stability(*next, &ms);
       if (engine.settings.active_solution_faces) {
-        Eigen::Vector2d target = old_u + used * unit,
-                        normal = correction_normal;
+        Eigen::Vector2d target = old_u + used * unit, normal = unit;
         if (border_axis >= 0) {
           target[border_axis] = border;
           normal.setZero();
           normal[border_axis] = 1.;
         }
-        auto refitted = next;
-        auto refitted_solve = next_s;
-        double refitted_affinity = affinity;
-        auto refitted_minima = ms;
-        if (refit_composition_faces(refitted, ids, seed.zero, target, normal,
-                                    refitted_solve, refitted_affinity,
-                                    &refitted_minima) &&
-            continuous_branch(*a, *refitted, ids, seed.zero) &&
-            continuous_branch(*next, *refitted, ids, seed.zero) &&
-            (normalised_coordinates(*refitted) - old_u).norm() <=
-                std::max(used * 3., engine.settings.node_tolerance)) {
-          next = std::move(refitted);
-          next_s = std::move(refitted_solve);
-          affinity = refitted_affinity;
-          ms = std::move(refitted_minima);
-        }
+        refit_composition_faces(next, ids, seed.zero, target, normal, next_s,
+                                affinity, &ms);
       }
       if (affinity < -engine.settings.affinity_tolerance) {
         // A previously absent phase becomes stable: add it at zero amount and
@@ -1888,7 +1573,7 @@ class Tracer {
       }
       auto new_direction = tangent(next_s, *next);
       if (!new_direction.size()) {
-        bool critical = separation(engine.snapshot(*next, ids)) < .01;
+        bool critical = solution_separation(engine.snapshot(*next, ids)) < .01;
         if (critical)
           approach_critical(next, ids, seed.zero, next_s, points);
         end_node =
@@ -1908,30 +1593,6 @@ class Tracer {
     }
     termination = "trace step limit";
     return points;
-  }
-  Eigen::MatrixXd phase_formulae(const std::vector<int> &ids,
-                                 const std::vector<PhaseState> &states) const {
-    Eigen::MatrixXd formulae = Eigen::MatrixXd::Zero(
-        static_cast<Eigen::Index>(ids.size()),
-        static_cast<Eigen::Index>(engine.elements.size()));
-    for (const auto &phase : states) {
-      auto it = std::find(ids.begin(), ids.end(), phase.id);
-      if (it != ids.end())
-        formulae.row(it - ids.begin()) =
-            phase.composition.transpose() *
-            engine.phases[static_cast<std::size_t>(phase.candidate_index)].a;
-    }
-    return formulae;
-  }
-  std::vector<int> canonical_ids(const std::vector<int> &ids) const {
-    std::map<int, int> counts;
-    for (int id : ids)
-      ++counts[id / engine.settings.max_phase_instances];
-    std::vector<int> canonical;
-    for (auto [base, count] : counts)
-      for (int copy = 0; copy < count; ++copy)
-        canonical.push_back(base * engine.settings.max_phase_instances + copy);
-    return canonical;
   }
   void label(Boundary &line) {
     if (line.points.size() < 2)
@@ -1968,6 +1629,7 @@ class Tracer {
       along /= span;
     auto location = (origin + centre.cwiseProduct(range)).eval();
     BoundaryPoint anchor;
+    std::array<std::vector<int>, 2> neighbours;
     for (int attempt = 0; attempt < 3; ++attempt)
       try {
         auto states =
@@ -1992,10 +1654,11 @@ class Tracer {
             state.amount = .5 * amount;
           }
         auto a = engine.make_at(line.assemblage, states, location);
+
         current_ids = line.assemblage;
         auto c = boundary_constraints(*a, line.zero_phase, centre, along);
         auto s = engine.solve(*a, c);
-        if (!valid(*a, s) || !distinct(*a, line.assemblage))
+        if (!valid(*a, s) || !engine.distinct(*a, line.assemblage))
           continue;
         std::vector<Minimum> minima;
         double affinity = engine.stability(*a, &minima);
@@ -2014,6 +1677,26 @@ class Tracer {
                           .normalized()
                           .eval();
           along = unit.dot(along) < 0. ? -unit : unit;
+        }
+        // At a regular phase-out arc, differentiate the actual equilibrium
+        // rather than probing across an arbitrarily wide neighbouring field.
+        std::array<State, 2> limiting_states;
+        neighbours = boundary_sides(
+            engine, *a, line.assemblage, line.zero_phase, s, range,
+            Eigen::Vector2d(-along[1], along[0]), &limiting_states);
+        if (!neighbours[0].empty() && !neighbours[1].empty()) {
+          line.side_a = neighbours[0];
+          line.side_b = neighbours[1];
+          line.is_solution_replacement = line.side_a == line.side_b;
+          for (auto &state : limiting_states)
+            if (state.success) {
+              state.minimum_affinity = affinity;
+              add_sample(state);
+            }
+          if (engine.settings.verbose)
+            std::cerr << "Boundary " << line.id
+                      << ": side assemblages from equilibrium response.\n";
+          return;
         }
         break;
       } catch (const std::exception &) {
@@ -2037,9 +1720,9 @@ class Tracer {
       side_assemblages.push_back(absent);
     // At a phase replacement, two stoichiometrically indistinguishable
     // amounts are interchangeable at coexistence. Try the opposite removal.
-    const auto formulae = phase_formulae(line.assemblage, anchor.phases);
+    const auto formulae = engine.phase_formulae(line.assemblage, anchor.phases);
     const bool observed_full_assemblage =
-        field_index.count(canonical_ids(line.assemblage)) != 0;
+        field_index.count(engine.canonical_ids(line.assemblage)) != 0;
     Eigen::FullPivLU<Eigen::MatrixXd> variance(formulae);
     variance.setThreshold(1.e-9);
     if (variance.rank() < formulae.rows())
@@ -2097,7 +1780,7 @@ class Tracer {
       return !a.empty() && !b.empty() && a != b;
     };
     auto immediate_neighbour = [&](const State &state) {
-      const auto ids = active(state);
+      const auto ids = engine.active_phases(state);
       // Finite equality tolerances can accept a probe still on a phase line.
       // A PT field needs two Gibbs degrees of freedom, including both P and T.
       if (result.section.type == DiagramType::PT &&
@@ -2110,18 +1793,27 @@ class Tracer {
       if (observed_full_assemblage &&
           !has_composition_axis(result.section.type) &&
           variance.rank() == formulae.rows())
-        return ids == canonical_ids(line.assemblage) ||
-               ids == canonical_ids(absent);
+        return ids == engine.canonical_ids(line.assemblage) ||
+               ids == engine.canonical_ids(absent);
       return has_composition_axis(result.section.type) ||
              (std::includes(line.assemblage.begin(), line.assemblage.end(),
                             ids.begin(), ids.end()) &&
               !(replaces_solution && variance.rank() + 1 == formulae.rows() &&
                 ids.size() + 1 < line.assemblage.size()));
     };
-    double next_offset =
-        std::min(std::max(engine.settings.node_tolerance * 4, 1.e-3),
-                 length * .125);
+    double next_offset = std::min(
+        std::max(engine.settings.node_tolerance * 4, 1.e-3), length * .125);
     bool expanded_for_amount = false;
+    auto distinguishes_sides = [&]() {
+      if (!side_states[0].success || !side_states[1].success)
+        return false;
+      for (std::size_t slot = 0; slot < side_states.size(); ++slot)
+        if (!neighbours[slot].empty() &&
+            engine.active_phases(side_states[slot]) != neighbours[slot])
+          return false;
+      return engine.active_phases(side_states[0]) !=
+             engine.active_phases(side_states[1]);
+    };
     for (int retry = 0; retry < 24; ++retry) {
       const double offset = next_offset;
       next_offset *= .5;
@@ -2137,8 +1829,9 @@ class Tracer {
           try {
             auto work = engine.fixed_at(subset, anchor.phases, actual);
             // A real entering phase can still lie below the reporting cutoff
-            // on this probe. Shrinking then makes both labels identical forever.
-            // Retain its unrounded fraction to choose one more distant probe.
+            // on this probe. Shrinking then makes both labels identical
+            // forever. Retain its unrounded fraction to choose one more distant
+            // probe.
             if (result.section.type == DiagramType::PT && !replaces_solution &&
                 variance.rank() == formulae.rows() &&
                 subset == line.assemblage && work.state.success) {
@@ -2155,7 +1848,7 @@ class Tracer {
             // phase. Remove its chemical equations and reverify the actual
             // field before using its compositions to identify a replacement.
             while (work.state.success &&
-                   active(work.state).size() < work.ids.size()) {
+                   engine.active_phases(work.state).size() < work.ids.size()) {
               std::vector<int> surviving;
               double total = 0.;
               for (const auto &p : work.state.phases)
@@ -2165,10 +1858,11 @@ class Tracer {
                   surviving.push_back(p.id);
               work = engine.fixed_at(surviving, work.state.phases, actual);
             }
-            if (!work.state.success || !distinct(*work.assemblage, work.ids) ||
+            if (!work.state.success ||
+                !engine.distinct(*work.assemblage, work.ids) ||
                 (result.section.type == DiagramType::PT &&
-                 field_variance(*work.assemblage, active(work.state).size()) <
-                     2) ||
+                 field_variance(*work.assemblage,
+                                engine.active_phases(work.state).size()) < 2) ||
                 !immediate_neighbour(work.state))
               continue;
             work.state.message = "Stable neighbouring field";
@@ -2185,12 +1879,12 @@ class Tracer {
       // a probe that skips another phase field; subsequent retries shrink it.
       if (!expanded_for_amount && unresolved_fraction > 0. &&
           side_states[0].success && side_states[1].success &&
-          active(side_states[0]) == active(side_states[1])) {
+          engine.active_phases(side_states[0]) ==
+              engine.active_phases(side_states[1])) {
         expanded_for_amount = true;
-        const double larger =
-            std::min(length * .125,
-                     offset * 4. * engine.settings.amount_tolerance /
-                         unresolved_fraction);
+        const double larger = std::min(
+            length * .125, offset * 4. * engine.settings.amount_tolerance /
+                               unresolved_fraction);
         if (larger > offset * 1.5) {
           if (engine.settings.verbose)
             std::cerr << "Growing neighbour probe for phase " << line.zero_phase
@@ -2204,7 +1898,8 @@ class Tracer {
       // branch they occupy. Preserve a verified composition replacement
       // instead of overwriting both sides with the same fresh LP root.
       if (side_states[0].success && side_states[1].success &&
-          active(side_states[0]) == active(side_states[1]) &&
+          engine.active_phases(side_states[0]) ==
+              engine.active_phases(side_states[1]) &&
           !different_solution_branches(side_states[0], side_states[1]))
         for (int sign : {-1, 1}) {
           auto u = (centre + sign * offset * side).eval();
@@ -2222,8 +1917,7 @@ class Tracer {
       for (auto &state : side_states)
         if (state.success && !immediate_neighbour(state))
           state = State{};
-      if (side_states[0].success && side_states[1].success &&
-          active(side_states[0]) != active(side_states[1]))
+      if (distinguishes_sides())
         break;
       // Each side can need a different perturbation to escape an active face
       // while remaining inside its narrow field. Retain verified neighbours
@@ -2233,8 +1927,7 @@ class Tracer {
           previous_sides[slot] = side_states[slot];
         else if (previous_sides[slot].success)
           side_states[slot] = previous_sides[slot];
-      if (side_states[0].success && side_states[1].success &&
-          active(side_states[0]) != active(side_states[1]))
+      if (distinguishes_sides())
         break;
       if (side_states[0].success && side_states[1].success &&
           different_solution_branches(side_states[0], side_states[1])) {
@@ -2242,12 +1935,16 @@ class Tracer {
         break;
       }
     }
+    for (std::size_t slot = 0; slot < side_states.size(); ++slot)
+      if (!neighbours[slot].empty() &&
+          engine.active_phases(side_states[slot]) != neighbours[slot])
+        side_states[slot] = State{};
     if (side_states[0].success) {
-      line.side_a = active(side_states[0]);
+      line.side_a = engine.active_phases(side_states[0]);
       add_sample(side_states[0]);
     }
     if (side_states[1].success) {
-      line.side_b = active(side_states[1]);
+      line.side_b = engine.active_phases(side_states[1]);
       add_sample(side_states[1]);
     }
     if (line.side_a.empty() || line.side_b.empty() ||
@@ -2258,63 +1955,34 @@ class Tracer {
   }
   bool same_curve(const Boundary &first, const Boundary &second,
                   bool partial = false, bool require_equilibrium = false) {
-    auto same_saved_states = [&](const Boundary &one, const Boundary &two) {
+    auto near = [&](const Boundary &one, const Boundary &two) {
       for (auto &p : one.points) {
         auto u = normalise(p);
-        if (std::none_of(two.points.begin(), two.points.end(),
-                         [&](const BoundaryPoint &q) {
-                           return (normalise(q) - u).norm() < 1.e-10 &&
-                                  composition_change(p.phases, q.phases) <
-                                      1.e-8;
-                         }))
+        double minimum = std::numeric_limits<double>::infinity();
+        for (std::size_t k = 1; k < two.points.size(); ++k) {
+          auto a = normalise(two.points[k - 1]), b = normalise(two.points[k]);
+          auto d = (b - a).eval();
+          double f = (d.squaredNorm() != 0.)
+                         ? std::clamp((u - a).dot(d) / d.squaredNorm(), 0., 1.)
+                         : 0.;
+          minimum = std::min(minimum, (u - a - f * d).norm());
+        }
+        if (minimum > engine.settings.node_tolerance * 2.)
           return false;
       }
       return true;
     };
-    // Only identical saved equilibria bypass correction. Geometric proximity
-    // alone can merge different arms of a narrow field or ordering transition.
-    if (!partial && !require_equilibrium && same_saved_states(first, second) &&
-        same_saved_states(second, first))
+    if (!partial && !require_equilibrium && near(first, second) &&
+        near(second, first))
       return true;
     // Coarse chords of the same curved equilibrium line can be farther apart
     // than node tolerance. Verify equivalence by correcting the other saved
     // state onto each interior point's section, including its compositions.
     auto verified = [&](const Boundary &one, const Boundary &two) {
       int checked = 0;
-      const bool two_points = one.points.size() == 2;
-      for (std::size_t i = two_points ? 0 : 1; i + 1 < one.points.size(); ++i) {
-        auto target = one.points[i];
-        auto &left = one.points[two_points ? 0 : i - 1];
-        auto &right = one.points[i + 1];
-        Eigen::Vector2d normal = normalise(right) - normalise(left);
-        if (normal.norm() < 1.e-12 && partial)
-          normal = normalise(target) - normalise(left);
-        if (normal.norm() < 1.e-12)
-          continue;
-        normal.normalize();
-        // Two-point records have no saved interior state. Verify their
-        // midpoint thermodynamically before comparing the other trace.
-        if (two_points)
-          try {
-            const auto middle =
-                (.5 * (normalise(left) + normalise(right))).eval();
-            auto a = engine.make_at(one.assemblage, left.phases,
-                                    origin + middle.cwiseProduct(range));
-            current_ids = one.assemblage;
-            auto c = boundary_constraints(*a, one.zero_phase, middle, normal);
-            auto s = engine.solve(*a, c);
-            if (!valid(*a, s) || !distinct(*a, one.assemblage) ||
-                (normalised_coordinates(*a) - middle).norm() >
-                    (normalise(right) - normalise(left)).norm())
-              return false;
-            const double affinity = engine.stability(*a);
-            if (affinity < -engine.settings.affinity_tolerance)
-              return false;
-            target = point(*a, one.assemblage, s, affinity);
-          } catch (const std::exception &) {
-            return false;
-          }
-        if (separation(target.phases) < .002)
+      for (std::size_t i = 1; i + 1 < one.points.size(); ++i) {
+        auto &target = one.points[i];
+        if (solution_separation(target.phases) < .002)
           continue;
         auto u = normalise(target);
         double minimum = std::numeric_limits<double>::infinity();
@@ -2327,12 +1995,16 @@ class Tracer {
             closest = k;
           }
         }
-        for (std::size_t k = 1; k < two.points.size(); ++k)
-          minimum = std::min(minimum,
-                             segment_distance(u, normalise(two.points[k - 1]),
-                                              normalise(two.points[k])));
         if (minimum > engine.settings.step * 3.)
           return false;
+        auto &left = one.points[i - 1];
+        auto &right = one.points[i + 1];
+        Eigen::Vector2d normal = normalise(right) - normalise(left);
+        if (normal.norm() < 1.e-12 && partial)
+          normal = u - normalise(left);
+        if (normal.norm() < 1.e-12)
+          continue;
+        normal.normalize();
         try {
           auto a =
               engine.make_at(two.assemblage, two.points[closest].phases,
@@ -2340,7 +2012,7 @@ class Tracer {
           current_ids = two.assemblage;
           auto c = boundary_constraints(*a, two.zero_phase, u, normal);
           auto s = engine.solve(*a, c);
-          if (!valid(*a, s) || !distinct(*a, two.assemblage) ||
+          if (!valid(*a, s) || !engine.distinct(*a, two.assemblage) ||
               (normalised_coordinates(*a) - u).norm() >
                   engine.settings.node_tolerance)
             return false;
@@ -2399,7 +2071,7 @@ class Tracer {
         kept.points.push_back(entry.second);
   }
   void trace(const Seed &seed) {
-    if (!seed.force_continuation && covered(seed))
+    if (covered(seed))
       return;
     current_ids = seed.ids;
     try {
@@ -2424,7 +2096,7 @@ class Tracer {
             return;
           auto c = boundary_constraints(*a, seed.zero, seed.position, normal);
           s = engine.solve(*a, c);
-          if (!valid(*a, s) || !distinct(*a, seed.ids) ||
+          if (!valid(*a, s) || !engine.distinct(*a, seed.ids) ||
               (seed.node >= 0 &&
                (normalised_coordinates(*a) - seed.position).norm() >
                    engine.settings.node_tolerance))
@@ -2440,23 +2112,12 @@ class Tracer {
               (normalised_coordinates(*a) - seed.position).norm() >
                   engine.settings.node_tolerance)
             continue;
-          if (seed.force_continuation) {
-            const auto matched = match_branch(
-                seed.phases, engine.snapshot(*a, seed.ids), seed.zero);
-            if (!matched ||
-                composition_change(seed.phases, *matched) >
-                    100. * engine.settings.composition_tolerance ||
-                (normalised_coordinates(*a) - seed.position).norm() >
-                    engine.settings.node_tolerance)
-              continue;
-          }
           d = tangent(s, *a);
           if (!d.size())
             continue;
           accepted = true;
           break;
-        } catch (const std::exception &error) {
-          s.message = error.what();
+        } catch (const std::exception &) {
         }
       if (!accepted) {
         if (engine.settings.verbose) {
@@ -2478,12 +2139,12 @@ class Tracer {
       Seed corrected = seed;
       corrected.position = normalised_coordinates(*a);
       corrected.phases = engine.snapshot(*a, seed.ids);
-      if (!seed.force_continuation && covered(corrected))
+      if (covered(corrected))
         return;
       // Near a known critical point, nearly identical-copy roots can satisfy
       // reaction tolerances without locating a solvus. Its separation-based
       // branch recovery supplies finite, distinct compositions instead.
-      if (separation(corrected.phases) < .002)
+      if (solution_separation(corrected.phases) < .002)
         for (const auto &n : result.nodes)
           if (n.kind == "critical_point" &&
               (normalise(n) - corrected.position).norm() <
@@ -2597,7 +2258,7 @@ class Tracer {
       const std::size_t count = result.boundaries.size();
       for (std::size_t index = 0; index < count; ++index) {
         auto &line = result.boundaries[index];
-        auto [backward, forward] = statuses(line);
+        auto [backward, forward] = boundary_statuses(line);
         for (bool back : {false, true}) {
           auto &status = back ? backward : forward;
           if (!line.points.empty()) {
@@ -2609,7 +2270,7 @@ class Tracer {
           // it a junction. Such a point does not describe two coexisting
           // phases.
           if (status != "solution critical point" && !line.points.empty() &&
-              separation(
+              solution_separation(
                   (back ? line.points.front() : line.points.back()).phases) <=
                   engine.settings.composition_tolerance * 10.) {
             status = "reduced variance";
@@ -2624,7 +2285,8 @@ class Tracer {
                 result.nodes[static_cast<std::size_t>(n)].critical_mode.size())
               continue;
           }
-          if (!unfinished(status) && status != "reduced variance" && !critical)
+          if (!unfinished_boundary(status) && status != "reduced variance" &&
+              !critical)
             continue;
           if (line.points.size() < 2)
             continue;
@@ -2636,7 +2298,7 @@ class Tracer {
           // solution copies. Rewind to the last genuinely distinct state.
           while (
               line.points.size() > 2 &&
-              separation(
+              solution_separation(
                   (back ? line.points.front() : line.points.back()).phases) <=
                   engine.settings.composition_tolerance * 10.) {
             if (back)
@@ -2666,7 +2328,7 @@ class Tracer {
           if (along.norm() < 1.e-12)
             continue;
           along.normalize();
-          if (unfinished(status))
+          if (unfinished_boundary(status))
             (back ? line.start_node : line.end_node) = -1;
           try {
             auto a =
@@ -2685,7 +2347,7 @@ class Tracer {
             if (affinity < -engine.settings.affinity_tolerance)
               continue;
             bool near_critical = false;
-            if (unfinished(status) || status == "reduced variance") {
+            if (unfinished_boundary(status) || status == "reduced variance") {
               auto states = engine.snapshot(*a, line.assemblage);
               auto z = std::find_if(
                   states.begin(), states.end(),
@@ -2766,1319 +2428,121 @@ class Tracer {
         break;
     }
   }
-  void rebuild_incidence() {
-    for (auto &n : result.nodes)
-      n.incident_lines.clear();
-    for (std::size_t i = 0; i < result.boundaries.size(); ++i) {
-      auto &line = result.boundaries[i];
-      line.id = burnman::utils::checked_int(i);
-      for (int id : {line.start_node, line.end_node})
-        if (id >= 0) {
-          auto &incident =
-              result.nodes.at(static_cast<std::size_t>(id)).incident_lines;
-          if (std::find(incident.begin(), incident.end(), line.id) ==
-              incident.end())
-            incident.push_back(line.id);
-        }
-    }
-  }
-  bool recover_branch_jumps() {
-    if (!engine.settings.max_recovery_passes)
+  // Correct a segment midpoint when the caller requests finer line spacing.
+  bool refine_segment(Boundary &line, std::size_t right_index) {
+    const auto left = normalise(line.points[right_index - 1]);
+    const auto right = normalise(line.points[right_index]);
+    double length = (right - left).norm();
+    if (length < 64. * std::numeric_limits<double>::epsilon())
       return false;
-    for (std::size_t index = 0; index < result.boundaries.size(); ++index) {
-      const auto &line = result.boundaries[index];
-      for (std::size_t k = 1; k < line.points.size(); ++k) {
-        const auto &left = line.points[k - 1];
-        const auto &right = line.points[k];
-        const auto key = interval_key(line, left, right);
-        const bool requested = refinement_events.count(key) != 0;
-        if (!requested && composition_change(left.phases, right.phases) <= .1)
-          continue;
-        const auto u = (.5 * (normalise(left) + normalise(right))).eval();
-        Eigen::Vector2d along = normalise(right) - normalise(left);
-        if (along.norm() < engine.settings.min_step)
-          continue;
-        along.normalize();
-        bool unstable = requested;
-        for (const auto *initial : {&left, &right})
-          try {
-            auto a = engine.make_at(line.assemblage, initial->phases,
-                                    origin + u.cwiseProduct(range));
-            current_ids = line.assemblage;
-            auto c = boundary_constraints(*a, line.zero_phase, u, along);
-            auto s = engine.solve(*a, c);
-            if (valid(*a, s) && distinct(*a, line.assemblage) &&
-                (normalised_coordinates(*a) - u).norm() <=
-                    (normalise(right) - normalise(left)).norm() &&
-                engine.stability(*a) < -engine.settings.affinity_tolerance)
-              unstable = true;
-          } catch (const std::exception &) {
-          }
-        if (!unstable)
-          continue;
-        if (!retraced_segments.insert(key).second)
-          continue;
-        // Recovery of a rejected geometric edit is itself provisional. In
-        // particular, finding one outgoing arm does not establish that it
-        // can replace the last accepted interval without losing a field.
-        std::optional<Result> verified_result;
-        std::deque<Seed> verified_queue;
-        decltype(field_index) verified_fields;
-        decltype(attempted) verified_attempted, verified_expanded;
-        if (rejected_curve_edits.count(key)) {
-          verified_result = result;
-          verified_queue = queue;
-          verified_fields = field_index;
-          verified_attempted = attempted;
-          verified_expanded = expanded;
-        }
-        // The saved chord skips a stable phase entry. Retrace its two arms
-        // with composition-controlled steps so ordinary phase-entry recovery
-        // can locate the intervening junctions and expand their branches.
-        Boundary previous = line;
-        result.boundaries.erase(result.boundaries.begin() +
-                                static_cast<std::ptrdiff_t>(index));
-        rebuild_incidence();
-        const auto count = result.boundaries.size();
-        for (const auto &p : {previous.points[k - 1], previous.points[k]}) {
-          Seed seed{previous.assemblage,
-                    previous.zero_phase,
-                    -1,
-                    p.phases,
-                    normalise(p),
-                    along};
-          seed.force_continuation = requested;
-          if (auto section = refinement_sections.find(key);
-              section != refinement_sections.end())
-            seed.recovery_section = section->second;
-          queue.push_back(std::move(seed));
-        }
-        search();
-        const bool replaced = result.boundaries.size() > count;
-        if (replaced && verified_result) {
-          std::optional<EditFailure> failure;
-          for (std::size_t retry = 0; retry <= result.samples.size(); ++retry) {
-            auto geometry =
-                field_polygons(*verified_result, 1.e-8, true, false);
-            failure = validate_curve_edits(geometry);
-            if (!failure ||
-                failure->reason !=
-                    "equilibrium sample changed during verification")
-              break;
-            // A thermodynamically corrected sample is evidence for both
-            // subdivisions. Recheck geometry using that correction instead
-            // of rejecting a legitimate recovery as a stale-label conflict.
-            verified_result->samples = result.samples;
-            verified_result->fields = result.fields;
-            verified_fields = field_index;
-          }
-          if (failure) {
-            result = std::move(*verified_result);
-            queue = std::move(verified_queue);
-            field_index = std::move(verified_fields);
-            attempted = std::move(verified_attempted);
-            expanded = std::move(verified_expanded);
-            field_comparisons.clear();
-            rejected_curve_edits[key] +=
-                " Local boundary recovery was also rejected: " +
-                failure->reason + ".";
-            rebuild_incidence();
-            return false;
-          }
-        }
-        if (result.boundaries.size() == count) {
-          result.boundaries.insert(result.boundaries.begin() +
-                                       static_cast<std::ptrdiff_t>(index),
-                                   std::move(previous));
-        }
-        rebuild_incidence();
-        return replaced;
-      }
-    }
-    return false;
-  }
-  bool recover_junctions() {
-    const auto count = result.boundaries.size();
-    const auto nodes = result.nodes.size();
-    std::vector<int> retried;
-    for (const auto &n : result.nodes) {
-      if (n.kind != "junction" || n.incident_lines.size() != 1 ||
-          model_excluded(n) ||
-          normalise(n)
-                  .cwiseMin(Eigen::Vector2d::Ones() - normalise(n))
-                  .minCoeff() <= 1.e-10)
-        continue;
-      for (const auto &line : result.boundaries) {
-        if (line.points.empty() ||
-            (line.start_node != n.id && line.end_node != n.id))
-          continue;
-        const auto &p =
-            line.start_node == n.id ? line.points.front() : line.points.back();
-        std::vector<int> ids, zeros;
-        double total = 0.;
-        for (const auto &phase : p.phases)
-          total += std::abs(phase.amount);
-        for (const auto &phase : p.phases) {
-          ids.push_back(phase.id);
-          if (std::abs(phase.amount) <= 1.e-10 * std::max(1., total))
-            zeros.push_back(phase.id);
-        }
-        if (zeros.size() < 2)
-          continue;
-        std::ostringstream key;
-        key << n.id << ':';
-        for (int id : ids)
-          key << id << ',';
-        key << ':';
-        for (int zero : zeros)
-          key << zero << ',';
-        expanded.erase(key.str());
-        const auto suffix = ":" + std::to_string(n.id);
-        for (auto it = attempted.begin(); it != attempted.end();)
-          if (it->size() >= suffix.size() &&
-              it->compare(it->size() - suffix.size(), suffix.size(), suffix) ==
-                  0)
-            it = attempted.erase(it);
-          else
-            ++it;
-        try {
-          auto a = engine.make_at(ids, p.phases,
-                                  diagram_coordinates(p, result.section.type));
-          expand(*a, ids, zeros, n.id);
-          retried.push_back(n.id);
-        } catch (const std::exception &error) {
-          if (engine.settings.verbose)
-            std::cerr << "Junction recovery at node " << n.id << ": "
-                      << error.what() << '\n';
-        }
-        break;
-      }
-    }
-    search();
-    // An exact multi-zero starting state can have a singular corrector even
-    // though stable branches exist nearby. Bracket verified equilibria around
-    // the event as a second way to seed those branches.
-    for (int id : retried) {
-      int degree = 0;
-      for (const auto &line : result.boundaries)
-        if (line.start_node == id || line.end_node == id)
-          ++degree;
-      if (degree != 1 || !probed_junctions.insert(id).second)
-        continue;
-      const auto centre =
-          normalise(result.nodes.at(static_cast<std::size_t>(id)));
-      const double radius = std::min(engine.settings.step * .25,
-                                     engine.settings.node_tolerance * 4.);
-      std::vector<WorkState> neighbours;
-      for (const Eigen::Vector2d &offset :
-           {Eigen::Vector2d(1., 0.), Eigen::Vector2d(1., 1.),
-            Eigen::Vector2d(0., 1.), Eigen::Vector2d(-1., 1.),
-            Eigen::Vector2d(-1., 0.), Eigen::Vector2d(-1., -1.),
-            Eigen::Vector2d(0., -1.), Eigen::Vector2d(1., -1.)}) {
-        const auto position = (centre + radius * offset).eval();
-        WorkState neighbour;
-        if (inside(position, 0.))
-          try {
-            neighbour = engine.stable_at(origin + position.cwiseProduct(range));
-            if (neighbour.state.success)
-              add_sample(neighbour.state);
-          } catch (const std::exception &error) {
-            if (engine.settings.verbose)
-              std::cerr << "Junction neighbourhood at node " << id << ": "
-                        << error.what() << '\n';
-          }
-        neighbours.push_back(std::move(neighbour));
-      }
-      for (std::size_t k = 0; k < neighbours.size(); ++k)
-        bracket(neighbours[k], neighbours[(k + 1) % neighbours.size()]);
-    }
-    search();
-    if (result.boundaries.size() != count || result.nodes.size() != nodes)
-      return true;
-    for (int id : retried) {
-      int degree = 0;
-      for (const auto &line : result.boundaries)
-        if (line.start_node == id || line.end_node == id)
-          ++degree;
-      if (degree > 1)
-        return true;
-    }
-    return false;
-  }
-  struct SectionTrace {
-    std::shared_ptr<Assemblage> assemblage;
-    std::vector<BoundaryPoint> points;
-    std::string failure;
-    bool event = false;
-    std::optional<Eigen::Vector2d> event_position;
-  };
-  // Reach an interior section by continuation, not by accepting an unrelated
-  // root returned from a distant endpoint or an interpolated composition.
-  SectionTrace refine_from_endpoint(const Boundary &line,
-                                    const BoundaryPoint &initial,
-                                    const BoundaryPoint &opposite,
-                                    const Eigen::Vector2d &target,
-                                    const Eigen::Vector2d &normal) {
-    SectionTrace out;
-    try {
-      auto a =
-          engine.make_at(line.assemblage, initial.phases,
-                         diagram_coordinates(initial, result.section.type));
-      current_ids = line.assemblage;
-      auto c =
-          boundary_constraints(*a, line.zero_phase, normalise(initial), normal);
-      auto solved = engine.solve(*a, c);
-      if (!valid(*a, solved) || !distinct(*a, line.assemblage)) {
-        out.failure = "Endpoint does not supply a distinct equilibrium. " +
-                      solved.message;
-        return out;
-      }
-      for (int step = 0; step < engine.settings.max_trace_steps; ++step) {
-        const auto position = normalised_coordinates(*a);
-        const double remaining = (target - position).dot(normal);
-        if (std::abs(remaining) < 1.e-11 && !out.points.empty()) {
-          out.assemblage = a;
-          return out;
-        }
-        auto direction = tangent(solved, *a);
-        if (!direction.size()) {
-          out.failure =
-              "Boundary tangent is singular before the target section.";
-          return out;
-        }
-        auto unit =
-            engine.project_direction(direction, *a).cwiseQuotient(range).eval();
-        if (unit.dot(normal) * remaining < 0.) {
-          direction = -direction;
-          unit = -unit;
-        }
-        const double projection = unit.dot(normal);
-        if (std::abs(projection) < 1.e-10) {
-          out.failure = "Boundary turns before the target section.";
-          return out;
-        }
-        double used =
-            std::min(engine.settings.step, std::abs(remaining / projection));
-        const auto prm = engine.parameters(*a);
-        if (closing_solvus(*a, line.assemblage, line.zero_phase, direction,
-                           prm)) {
-          auto critical = engine.copy_assemblage(*a);
-          auto critical_solve = solved;
-          std::vector<BoundaryPoint> end;
-          if (!approach_critical(critical, line.assemblage, line.zero_phase,
-                                 critical_solve, end) ||
-              (target - normalised_coordinates(*critical)).dot(normal) *
-                      remaining >=
-                  -1.e-11 * std::abs(remaining)) {
-            out.failure =
-                "An intervening critical point requires boundary recovery.";
-            out.event = true;
-            return out;
-          }
-        }
-        const auto parameters =
-            get_parameter_vector(*a, engine.free_vectors.empty() ? 0 : 1);
-        for (std::size_t k = 0; k < line.assemblage.size(); ++k) {
-          if (line.assemblage[k] == line.zero_phase)
-            continue;
-          const int index =
-              prm.phase_amount_indices[static_cast<Eigen::Index>(k)];
-          if (direction[index] < -1.e-12)
-            used = std::min(used, .8 * std::max(0., parameters[index]) /
-                                      -direction[index]);
-        }
-        if (used < engine.settings.min_step &&
-            std::abs(remaining / projection) >= engine.settings.min_step) {
-          out.failure =
-              "An intervening phase-out event requires boundary recovery.";
-          out.event = true;
-          return out;
-        }
-        bool accepted = false;
-        for (int retry = 0; retry < 16; ++retry) {
-          auto next = engine.copy_assemblage(*a);
-          try {
-            predict(*next, parameters, used * direction, prm);
-            const auto predicted = engine.snapshot(*next, line.assemblage);
-            const auto section_position = (position + used * unit).eval();
-            current_ids = line.assemblage;
-            auto next_constraints = boundary_constraints(
-                *next, line.zero_phase, section_position, normal);
-            auto next_solved = engine.solve(*next, next_constraints);
-            bool active_face = false;
-            for (std::size_t k = 0; k < line.assemblage.size(); ++k) {
-              const auto basis = engine.composition_basis(
-                  *a->get_phase(k),
-                  line.assemblage[k] / engine.settings.max_phase_instances);
-              active_face = active_face || basis.rows() != basis.cols();
-            }
-            if (engine.settings.active_solution_faces &&
-                (active_face || !valid(*next, next_solved))) {
-              // A copied endpoint can retain a pure composition face after
-              // the branch has entered the solution interior. Supply a local,
-              // mass-balanced seed on the new face, then apply the same
-              // predictor and branch checks as for the ordinary correction.
-              auto states = engine.snapshot(*a, line.assemblage);
-              auto other =
-                  match_branch(states, opposite.phases, line.zero_phase);
-              const double distance =
-                  (normalise(opposite) - position).dot(normal);
-              if (other && std::abs(distance) > 1.e-12) {
-                const double weight = std::clamp(
-                    (section_position - position).dot(normal) / distance, 0.,
-                    1.);
-                for (std::size_t k = 0; k < states.size(); ++k) {
-                  const double amount = (1. - weight) * states[k].amount +
-                                        weight * (*other)[k].amount;
-                  if (amount > 0.)
-                    states[k].composition = ((1. - weight) * states[k].amount *
-                                                 states[k].composition +
-                                             weight * (*other)[k].amount *
-                                                 (*other)[k].composition) /
-                                            amount;
-                  else
-                    states[k].composition =
-                        (1. - weight) * states[k].composition +
-                        weight * (*other)[k].composition;
-                  states[k].amount = amount;
-                }
-                auto constrained = next;
-                auto constrained_solve = next_solved;
-                next = engine.make_at(line.assemblage, states,
-                                      origin +
-                                          section_position.cwiseProduct(range));
-                next_constraints = boundary_constraints(
-                    *next, line.zero_phase, section_position, normal);
-                next_solved = engine.solve(*next, next_constraints);
-                if (!valid(*next, next_solved)) {
-                  next = std::move(constrained);
-                  next_solved = std::move(constrained_solve);
-                }
-              }
-            }
-            auto compatible = [&]() {
-              if (!valid(*next, next_solved) ||
-                  !distinct(*next, line.assemblage) ||
-                  !predicted_branch(*a, *next, line.assemblage, line.zero_phase,
-                                    predicted))
-                return false;
-              return (normalised_coordinates(*next) - section_position)
-                         .norm() <=
-                     std::max(used * 3., engine.settings.node_tolerance);
-            };
-            if (compatible()) {
-              std::vector<Minimum> minima;
-              double affinity = engine.stability(*next, &minima);
-              auto before_refit = next;
-              bool face_refitted = false;
-              if (affinity < -engine.settings.affinity_tolerance)
-                face_refitted = refit_composition_faces(
-                    next, line.assemblage, line.zero_phase, section_position,
-                    normal, next_solved, affinity, &minima);
-              if (affinity < -engine.settings.affinity_tolerance) {
-                out.failure = "An intervening phase-entry event requires "
-                              "boundary recovery.";
-                out.event = true;
-                out.event_position = normalised_coordinates(*next);
-                return out;
-              }
-              if (compatible() ||
-                  (face_refitted &&
-                   continuous_branch(*a, *next, line.assemblage,
-                                     line.zero_phase) &&
-                   continuous_branch(*before_refit, *next, line.assemblage,
-                                     line.zero_phase) &&
-                   (normalised_coordinates(*next) - section_position).norm() <=
-                       std::max(used * 3., engine.settings.node_tolerance))) {
-                out.points.push_back(
-                    point(*next, line.assemblage, next_solved, affinity));
-                a = std::move(next);
-                solved = std::move(next_solved);
-                accepted = true;
-                break;
-              }
-            }
-            out.failure =
-                "Boundary correction did not preserve its predicted branch. " +
-                next_solved.message;
-          } catch (const std::exception &error) {
-            out.failure = error.what();
-          }
-          used *= .5;
-          if (used < engine.settings.min_step)
-            break;
-        }
-        if (!accepted)
-          return out;
-      }
-      out.failure = "Local boundary continuation limit reached.";
-    } catch (const std::exception &error) {
-      out.failure = error.what();
-    }
-    return out;
-  }
-  std::string interval_key(const Boundary &line, const BoundaryPoint &left,
-                           const BoundaryPoint &right) const {
-    std::ostringstream key;
-    const auto first = diagram_coordinates(left, result.section.type),
-               last = diagram_coordinates(right, result.section.type);
-    key << std::setprecision(17) << line.zero_phase << ':' << first[0] << ','
-        << first[1] << ':' << last[0] << ',' << last[1];
-    for (int id : line.assemblage)
-      key << ':' << id;
-    return key.str();
-  }
-  // Both endpoint continuations must meet on the same physical branch. A
-  // critical endpoint has no distinct tangent; approach from the other end.
-  bool refine_segment(Boundary &line, std::size_t right_index,
-                      bool require_curvature, std::string *failure = nullptr,
-                      double curvature_tolerance = 1.e-8, double fraction = .5,
-                      double *chord_error = nullptr) {
-    const auto &first = line.points[right_index - 1];
-    const auto &last = line.points[right_index];
-    const auto left = normalise(first), right = normalise(last);
-    const double length = (right - left).norm();
-    if (length < (require_curvature
-                      ? engine.settings.min_step
-                      : 64. * std::numeric_limits<double>::epsilon()))
-      return false;
-    const Eigen::Vector2d target = left + fraction * (right - left);
-    const Eigen::Vector2d normal = (right - left).normalized();
-    auto critical_endpoint = [&](const BoundaryPoint &p, int id) {
-      return id >= 0 &&
-             result.nodes.at(static_cast<std::size_t>(id)).kind ==
-                 "critical_point" &&
-             separation(p.phases) <=
-                 engine.settings.composition_tolerance * 10.;
+    // At a critical endpoint the two compositions coincide. The other endpoint
+    // can supply a distinct starting pair for the inserted state.
+    std::string failures;
+    bool unstable = false;
+    auto rejected = [&](int side, const std::string &reason) {
+      failures += (side == 0   ? "left endpoint: "
+                   : side == 1 ? "; right endpoint: "
+                               : "; interpolated endpoints: ") +
+                  reason;
     };
-    const bool left_critical =
-        right_index == 1 && critical_endpoint(first, line.start_node);
-    const bool right_critical = right_index + 1 == line.points.size() &&
-                                critical_endpoint(last, line.end_node);
-    SectionTrace forward, backward;
-    if (!left_critical)
-      forward = refine_from_endpoint(line, first, last, target, normal);
-    if (!right_critical)
-      backward = refine_from_endpoint(line, last, first, target, normal);
-    std::string reason;
-    if ((!left_critical && !forward.assemblage) ||
-        (!right_critical && !backward.assemblage) ||
-        (left_critical && right_critical))
-      reason = "left endpoint: " + forward.failure +
-               "; right endpoint: " + backward.failure;
-    else if (forward.assemblage && backward.assemblage) {
-      const auto one = engine.snapshot(*forward.assemblage, line.assemblage);
-      auto other = match_branch(
-          one, engine.snapshot(*backward.assemblage, line.assemblage),
-          line.zero_phase);
-      double amount_change = 0.;
-      if (other) {
-        const double total = forward.assemblage->get_n_moles();
-        for (std::size_t i = 0; i < one.size(); ++i)
-          amount_change =
-              std::max(amount_change,
-                       std::abs(one[i].amount - (*other)[i].amount) / total);
-      }
-      if (!other ||
-          composition_change(one, *other) >
-              100. * engine.settings.composition_tolerance ||
-          amount_change > 100. * engine.settings.amount_tolerance ||
-          (normalised_coordinates(*forward.assemblage) -
-           normalised_coordinates(*backward.assemblage))
-                  .norm() > engine.settings.min_step)
-        reason =
-            "Endpoint continuations reach different boundary roots "
-            "(composition difference " +
-            std::to_string(other ? composition_change(one, *other)
-                                 : std::numeric_limits<double>::infinity()) +
-            ", relative amount difference " + std::to_string(amount_change) +
-            ", normalised coordinate difference " +
-            std::to_string((normalised_coordinates(*forward.assemblage) -
-                            normalised_coordinates(*backward.assemblage))
-                               .norm()) +
-            ").";
-    }
-    if (forward.event || backward.event) {
-      const auto key = interval_key(line, first, last);
-      refinement_events.insert(key);
-      const auto position = forward.event_position ? forward.event_position
-                                                   : backward.event_position;
-      if (position)
-        refinement_sections[key] = {*position, normal};
-    }
-    if (!reason.empty()) {
-      if (failure)
-        *failure = reason;
-      return false;
-    }
-    auto points = std::move(forward.points);
-    if (!backward.points.empty()) {
-      if (!points.empty())
-        backward.points.pop_back();
-      points.insert(points.end(), backward.points.rbegin(),
-                    backward.points.rend());
-    }
-    double error = 0.;
-    for (const auto &p : points)
-      error = std::max(error, segment_distance(normalise(p), left, right));
-    if (chord_error)
-      *chord_error = error;
-    if (points.empty() || (require_curvature && error <= curvature_tolerance))
-      return false;
-    auto reference = points.front().phases;
-    for (auto &p : points) {
-      auto aligned = match_branch(reference, p.phases, line.zero_phase);
-      if (!aligned) {
-        if (failure)
-          *failure = "Solution copies could not be matched along the refined "
-                     "interval.";
-        return false;
-      }
-      p.phases = std::move(*aligned);
-      reference = p.phases;
-    }
-    line.points.insert(line.points.begin() +
-                           static_cast<std::ptrdiff_t>(right_index),
-                       points.begin(), points.end());
-    return true;
-  }
-  struct FieldComparison {
-    State state;
-    bool unique = false;
-  };
-  std::map<std::pair<std::size_t, std::size_t>, FieldComparison>
-      field_comparisons;
-  std::optional<double> field_potential(const State &state) const {
-    auto axes = diagram_axes(result.section.type);
-    if (axes[1] == Coordinate::X) {
-      if (!result.section.fixed_coordinate)
-        return std::nullopt;
-      axes[1] = *result.section.fixed_coordinate;
-    }
-    const auto fixed = [&](Coordinate axis) {
-      return axes[0] == axis || axes[1] == axis;
-    };
-    if (fixed(Coordinate::P) && fixed(Coordinate::T))
-      return state.gibbs;
-    if (fixed(Coordinate::P) && fixed(Coordinate::S))
-      return state.gibbs + state.temperature * state.entropy;
-    if (fixed(Coordinate::T) && fixed(Coordinate::V))
-      return state.gibbs - state.pressure * state.volume;
-    if (fixed(Coordinate::S) && fixed(Coordinate::V))
-      return state.gibbs + state.temperature * state.entropy -
-             state.pressure * state.volume;
-    // PV and TS fix a conjugate pair. Gibbs energies at their different
-    // physical temperatures/pressures cannot order the competing states.
-    return std::nullopt;
-  }
-  // A saved sample is a constraint on geometry only after both competing
-  // assemblages have been corrected at precisely the same coordinates.
-  // Unresolved potential ties remain ambiguous; they must not swap labels.
-  FieldComparison select_field_roots(std::vector<WorkState> roots,
-                                     const Eigen::Vector2d &location) {
-    FieldComparison comparison;
-    if (roots.empty())
-      return comparison;
-    const bool comparable = field_potential(roots.front().state).has_value();
-    const auto energy = [&](const State &state) {
-      return field_potential(state).value_or(state.gibbs);
-    };
-    // Avoid repeated precision checks of the same sampled assemblage. Keep
-    // its best root among the supplied warm starts at these exact coordinates.
-    std::map<std::vector<int>, WorkState> alternatives;
-    for (auto &root : roots) {
-      auto key = active(root.state);
-      auto found = alternatives.find(key);
-      const bool tied =
-          found != alternatives.end() && result.section.type == DiagramType::PT &&
-          std::abs(energy(root.state) - energy(found->second.state)) <=
-              64. * std::numeric_limits<double>::epsilon() *
-                  std::max({1., std::abs(energy(root.state)),
-                            std::abs(energy(found->second.state))});
-      if (found == alternatives.end() ||
-          // Equal rounded counts can conceal a retained sub-cutoff phase.
-          // Preserve those extra equilibrium equations when energies tie.
-          (tied && root.state.phases.size() > found->second.state.phases.size()) ||
-          (comparable && energy(root.state) < energy(found->second.state) &&
-           !(tied && root.state.phases.size() < found->second.state.phases.size())))
-        alternatives[key] = std::move(root);
-    }
-    if (alternatives.size() == 1)
-      return {alternatives.begin()->second.state, true};
-    auto best = alternatives.begin();
-    if (comparable)
-      best = std::min_element(alternatives.begin(), alternatives.end(),
-                              [&](const auto &a, const auto &b) {
-                                return energy(a.second.state) <
-                                       energy(b.second.state);
-                              });
-    comparison.state = best->second.state;
-    const double roundoff =
-        64. * std::numeric_limits<double>::epsilon() *
-        std::max(1., std::abs(energy(comparison.state)));
-    bool tied = !comparable;
-    for (const auto &[key, root] : alternatives)
-      if (key != best->first &&
-          energy(root.state) - energy(comparison.state) <= roundoff)
-        tied = true;
-    if (!tied)
-      return {comparison.state, true};
-    // The normal acceptance tolerances still apply when energies distinguish
-    // the roots. Tighten only an unresolved tie, without letting a clearly
-    // higher-energy root prevent verification of the competing minima.
-    for (auto it = alternatives.begin(); it != alternatives.end();)
-      if (comparable &&
-          energy(it->second.state) - energy(comparison.state) > roundoff)
-        it = alternatives.erase(it);
-      else
-        ++it;
-    // Check convergence and stability locally. Energy repeatability is an
-    // empirical allowance, not a rigorous bound on all undiscovered minima.
-    for (double accuracy : {.01, .0001, .000001}) {
-      std::vector<std::pair<State, double>> verified;
-      bool incomplete = false;
-      for (const auto &[key, root] : alternatives) {
-        try {
-          auto first =
-              engine.fixed_at(root.ids, root.state.phases, location, accuracy);
-          if (!first.state.success || !first.assemblage ||
-              !distinct(*first.assemblage, first.ids)) {
-            // A negative candidate affinity from a converged, mass-balanced
-            // root rejects that assemblage. A failed correction alone does not.
-            const bool unstable =
-                first.assemblage &&
-                first.state.minimum_affinity <
-                    -engine.settings.affinity_tolerance * accuracy &&
-                first.state.equilibrium_error <=
-                    engine.settings.affinity_tolerance * .1 * accuracy &&
-                first.state.mass_balance_error <=
-                    engine.settings.mass_balance_tolerance * accuracy &&
-                (normalise(first.state) - normalise(location)).norm() <=
-                    64. * std::numeric_limits<double>::epsilon();
-            incomplete = incomplete || !unstable;
-            if (engine.settings.verbose)
-              std::cerr << "Local field verification accuracy=" << accuracy
-                        << ": " << first.state.message << '\n';
-            continue;
-          }
-          auto second = engine.fixed_at(first.ids, first.state.phases, location,
-                                        accuracy);
-          if (!second.state.success || !second.assemblage ||
-              !distinct(*second.assemblage, second.ids) ||
-              active(first.state) != active(second.state)) {
-            incomplete = true;
-            continue;
-          }
-          const double uncertainty =
-              std::max(64. * std::numeric_limits<double>::epsilon() *
-                           std::max({1., std::abs(energy(first.state)),
-                                     std::abs(energy(second.state))}),
-                       4. * std::abs(energy(first.state) - energy(second.state)));
-          verified.emplace_back(std::move(second.state), uncertainty);
-        } catch (const std::exception &) {
-          incomplete = true;
-        }
-      }
-      if (verified.empty())
-        continue;
-      if (comparable)
-        std::sort(verified.begin(), verified.end(),
-                  [&](const auto &a, const auto &b) {
-                    return energy(a.first) < energy(b.first);
-                  });
-      comparison.state = verified.front().first;
-      comparison.unique = !incomplete;
-      for (std::size_t i = 1; i < verified.size(); ++i)
-        if (active(verified[i].first) != active(comparison.state) &&
-            (!comparable ||
-             energy(verified[i].first) - energy(comparison.state) <=
-                 verified.front().second + verified[i].second))
-          comparison.unique = false;
-      if (comparison.unique) {
-        comparison.state.message = "Closed field verified against competing "
-                                   "roots with local precision checks";
-        return comparison;
-      }
-    }
-    comparison.unique = false;
-    comparison.state.message = "Competing interior assemblages remain "
-                               "unresolved after local precision checks";
-    return comparison;
-  }
-  FieldComparison compare_fields(std::size_t sample, std::size_t opposing) {
-    const auto key = std::pair{sample, opposing};
-    if (const auto found = field_comparisons.find(key);
-        found != field_comparisons.end())
-      return found->second;
-    const auto location =
-        diagram_coordinates(result.samples[sample], result.section.type);
-    std::vector<WorkState> roots;
-    for (std::size_t index : {sample, opposing}) {
+    for (int side = 0; side < 3; ++side)
       try {
-        const auto &previous = result.samples[index];
-        std::vector<int> ids;
-        for (const auto &phase : previous.phases)
-          ids.push_back(phase.id);
-        auto work = engine.fixed_at(ids, previous.phases, location);
-        if (work.state.success && work.assemblage &&
-            distinct(*work.assemblage, work.ids))
-          roots.push_back(std::move(work));
-      } catch (const std::exception &) {
-      }
-    }
-    auto comparison = select_field_roots(std::move(roots), location);
-    if (result.section.type == DiagramType::PT && comparison.state.success)
-      field_comparisons.emplace(key, comparison);
-    return comparison;
-  }
-  struct CurveEdit {
-    std::size_t boundary;
-    BoundaryPoint first, last;
-    std::vector<BoundaryPoint> points;
-  };
-  using ConflictKey = std::pair<std::size_t, std::vector<int>>;
-  std::set<ConflictKey> conflict_keys(const FieldPolygons &geometry) const {
-    std::set<ConflictKey> keys;
-    for (auto [sample, polygon] : field_conflicts(result, geometry, true))
-      keys.emplace(sample, geometry.polygons[polygon].phases);
-    return keys;
-  }
-  // Apply only to a provisional result. Original endpoints are retained, so
-  // independent interval proposals can be split without index invalidation.
-  void apply_curve_edit(const CurveEdit &edit) {
-    auto &points = result.boundaries[edit.boundary].points;
-    auto first = std::find_if(points.begin(), points.end(), [&](const auto &p) {
-      return diagram_coordinates(p, result.section.type) ==
-             diagram_coordinates(edit.first, result.section.type);
-    });
-    auto last = std::find_if(first, points.end(), [&](const auto &p) {
-      return diagram_coordinates(p, result.section.type) ==
-             diagram_coordinates(edit.last, result.section.type);
-    });
-    if (first == points.end() || last == points.end())
-      throw std::logic_error("Curve edit endpoints were not retained.");
-    const auto offset = first - points.begin() + 1;
-    points.erase(first + 1, last);
-    points.insert(points.begin() + offset, edit.points.begin(),
-                  edit.points.end());
-  }
-  struct EditFailure {
-    std::string reason;
-    std::optional<std::size_t> sample;
-  };
-  std::optional<EditFailure> validate_curve_edits(const FieldPolygons &before) {
-    auto established = conflict_keys(before);
-    auto after = field_polygons(result, 1.e-8, true, false);
-    std::optional<EditFailure> failure;
-    bool relabelled = false;
-    // Check every newly conflicting sample, not just one per assemblage.
-    // Otherwise a pre-existing conflict can mask a second, damaged interval.
-    for (auto [sample, polygon] : field_conflicts(result, after, true)) {
-      const auto &field = after.polygons[polygon];
-      if (established.count({sample, field.phases}))
-        continue;
-      const auto opposing = static_cast<std::size_t>(field.sample_index);
-      for (auto [index, alternative] :
-           {std::pair{sample, opposing}, std::pair{opposing, sample}}) {
-        auto comparison = compare_fields(index, alternative);
-        if (!comparison.state.success || !comparison.unique) {
-          if (!failure)
-            failure = EditFailure{"competing equilibrium assemblages remain "
-                                  "ambiguous at sample " +
-                                      std::to_string(index),
-                                  index};
+        const Eigen::Vector2d middle = .5 * (left + right);
+        auto states =
+            line.points[right_index - 1 + static_cast<std::size_t>(side == 1)]
+                .phases;
+        if (side == 2)
+          // Mixing the endpoints preserves mass balance and supplies small
+          // nonzero site fractions when a solution leaves a pure endmember.
+          for (auto &state : states) {
+            const auto &other = line.points[right_index].phases;
+            auto match = std::find_if(
+                other.begin(), other.end(),
+                [&](const PhaseState &p) { return p.id == state.id; });
+            if (match == other.end())
+              continue;
+            const double amount = state.amount + match->amount;
+            if (amount > 0.)
+              state.composition = (state.amount * state.composition +
+                                   match->amount * match->composition) /
+                                  amount;
+            else
+              state.composition = .5 * (state.composition + match->composition);
+            state.amount = .5 * amount;
+          }
+        auto a = engine.make_at(line.assemblage, states,
+                                origin + middle.cwiseProduct(range));
+        current_ids = line.assemblage;
+        const Eigen::Vector2d normal = (right - left).normalized();
+        auto c = boundary_constraints(*a, line.zero_phase, middle, normal);
+        auto s = engine.solve(*a, c);
+        auto acceptable = [&]() {
+          const auto position = normalised_coordinates(*a);
+          return valid(*a, s) && engine.distinct(*a, line.assemblage) &&
+                 (position - middle).norm() <= length &&
+                 std::min((position - left).norm(), (position - right).norm()) >
+                     64. * std::numeric_limits<double>::epsilon();
+        };
+        if (!acceptable()) {
+          rejected(side, "Boundary checks failed. " + s.message);
           continue;
         }
-        if (active(comparison.state) != active(result.samples[index]) ||
-            additional_phase_support(comparison.state, result.samples[index])) {
-          comparison.state.is_field_verification =
-              result.samples[index].is_field_verification;
-          add_sample(comparison.state, burnman::utils::checked_int(index), true);
-          // Labels were corrected thermodynamically, not to make an edit
-          // appear successful. Rebuild both subdivisions before retrying.
-          relabelled = true;
+        std::vector<Minimum> minima;
+        double affinity = engine.stability(*a, &minima);
+        if (affinity < -engine.settings.affinity_tolerance)
+          refit_composition_faces(a, line.assemblage, line.zero_phase, middle,
+                                  normal, s, affinity, &minima);
+        if (affinity < -engine.settings.affinity_tolerance || !acceptable()) {
+          unstable = unstable || affinity < -engine.settings.affinity_tolerance;
+          rejected(side, "Boundary checks failed after checking stability "
+                         "(minimum affinity " +
+                             std::to_string(affinity) + " J/mol). " +
+                             s.message);
+          continue;
         }
-      }
-      if (!failure)
-        failure = EditFailure{
-            "would assign a verified equilibrium assemblage to the wrong field "
-            "at sample " +
-                std::to_string(sample),
-            sample};
-    }
-    // Correct all disputed samples together before rebuilding either
-    // subdivision. One correction per rebuild is both costly and sensitive
-    // to a fixed retry count near a solution critical point.
-    if (relabelled)
-      return EditFailure{"equilibrium sample changed during verification",
-                         std::nullopt};
-    if (failure)
-      return failure;
-    const auto open_count = [](const FieldPolygons &geometry) {
-      return std::count_if(geometry.polygons.begin(), geometry.polygons.end(),
-                           [](const auto &p) {
-                             return p.has_open_boundary &&
-                                    !p.outside_model_domain;
-                           });
-    };
-    if (open_count(after) > open_count(before))
-      return EditFailure{"would leave an additional open field boundary",
-                         std::nullopt};
-    return std::nullopt;
-  }
-  // Validate cheap batches, bisecting a rejected batch down to the affected
-  // interval. Result geometry is never exposed with an unverified proposal.
-  bool commit_curve_edits(const std::vector<CurveEdit> &edits,
-                          std::size_t begin, std::size_t end) {
-    if (begin == end)
-      return false;
-    std::map<std::size_t, Boundary> previous;
-    for (std::size_t i = begin; i < end; ++i)
-      previous.try_emplace(edits[i].boundary,
-                           result.boundaries[edits[i].boundary]);
-    auto restore = [&]() {
-      for (const auto &[index, boundary] : previous)
-        result.boundaries[index] = boundary;
-    };
-    std::optional<EditFailure> failure;
-    // A verified root correction may change a representative on either
-    // side. Retry with the corrected samples, without counting it as an edit.
-    for (std::size_t retry = 0; retry <= result.samples.size(); ++retry) {
-      auto before = field_polygons(result, 1.e-8, true, false);
-      for (std::size_t i = begin; i < end; ++i)
-        apply_curve_edit(edits[i]);
-      failure = validate_curve_edits(before);
-      if (!failure)
+        line.points.insert(line.points.begin() +
+                               static_cast<std::ptrdiff_t>(right_index),
+                           point(*a, line.assemblage, s, affinity));
         return true;
-      restore();
-      if (failure->reason != "equilibrium sample changed during verification")
-        break;
+      } catch (const std::exception &error) {
+        rejected(side, error.what());
+      }
+    if (unstable)
+      unstable_lines.insert(line.id);
+    if (engine.settings.verbose) {
+      const auto &p = line.points[right_index - 1];
+      const auto &q = line.points[right_index];
+      std::cerr << "Boundary " << line.id << ": could not refine segment "
+                << right_index << " between P=" << p.pressure
+                << " Pa, T=" << p.temperature << " K and P=" << q.pressure
+                << " Pa, T=" << q.temperature << " K: " << failures << '\n';
     }
-    if (end - begin > 1) {
-      const auto middle = begin + (end - begin) / 2;
-      const bool left = commit_curve_edits(edits, begin, middle);
-      const bool right = commit_curve_edits(edits, middle, end);
-      return left || right;
-    }
-    const auto &edit = edits[begin];
-    const auto &line = result.boundaries[edit.boundary];
-    const auto key = interval_key(line, edit.first, edit.last);
-    std::ostringstream issue;
-    issue << "Curve edit rejected on boundary " << line.id
-          << " between P=" << std::setprecision(17) << edit.first.pressure
-          << " Pa, T=" << edit.first.temperature
-          << " K and P=" << edit.last.pressure
-          << " Pa, T=" << edit.last.temperature << " K: " << failure->reason
-          << "; retained the last accepted "
-          << "interval pending local boundary recovery.";
-    rejected_curve_edits[key] = issue.str();
-    refinement_events.insert(key);
-    // Branch recovery tests the interval rather than accepting its proposed
-    // chord. A sampled conflict supplies a section near the disputed part.
-    const auto along = (normalise(edit.last) - normalise(edit.first)).eval();
-    if (failure->sample && along.norm() > 0.)
-      refinement_sections[key] = {normalise(result.samples[*failure->sample]),
-                                  along.normalized()};
     return false;
   }
-  void propose_chord_edits(
-      const FieldPolygon &polygon, const Eigen::Vector2d &conflict,
-      std::vector<CurveEdit> &edits,
-      std::set<std::pair<std::size_t, std::size_t>> &proposed_intervals) {
-    for (std::size_t index = 0; index < result.boundaries.size(); ++index) {
-      const auto &line = result.boundaries[index];
-      for (std::size_t k = line.points.size(); k > 1; --k) {
-        if (proposed_intervals.count({index, k - 1}))
-          continue;
-        const auto left = normalise(line.points[k - 2]);
-        const auto right = normalise(line.points[k - 1]);
-        if ((right - left).norm() < engine.settings.min_step)
-          continue;
-        const auto direction = (right - left).eval();
-        const double projection =
-            (conflict - left).dot(direction) / direction.squaredNorm();
-        // Interior corrections stay between the endpoint sections. Their
-        // swept area cannot contain a sample beyond either section, so
-        // refining such a neighbour cannot repair this field assignment.
-        if (projection <= 0. || projection >= 1.)
-          continue;
-        auto borders = [&](const Eigen::MatrixXd &ring) {
-          for (Eigen::Index i = 1; i < ring.rows(); ++i) {
-            const Eigen::Vector2d middle =
-                .5 * (ring.row(i - 1) + ring.row(i)).transpose();
-            if (segment_distance(normalise(middle[0], middle[1]), left, right) <
-                1.e-8)
-              return true;
-          }
-          return false;
-        };
-        if (!borders(polygon.vertices) &&
-            !std::any_of(polygon.holes.begin(), polygon.holes.end(), borders))
-          continue;
-        const double distance = segment_distance(conflict, left, right);
-        if (distance > direction.norm())
-          continue;
-        // Resolve curvature relative to the disputed field's width. A fixed
-        // 1e-8 chord cutoff can exceed the entire width of a narrow field.
-        const double tolerance =
-            std::max(64. * std::numeric_limits<double>::epsilon(),
-                     std::min(1.e-8, distance * .125));
-        // Correct nearest the disputed sample, which can lie very close to
-        // an endpoint. Repeated midpoint subdivision can exhaust recovery
-        // passes before reaching that part of a long chord.
-        const double fraction = std::clamp(projection, .01, .99);
-        const auto key =
-            interval_key(line, line.points[k - 2], line.points[k - 1]);
-        if (rejected_curve_edits.count(key))
-          continue;
-        Boundary proposed = line;
-        double old_error = 0.;
-        std::string failure;
-        if (!refine_segment(proposed, k - 1, true, &failure, tolerance,
-                            fraction, &old_error)) {
-          if (engine.settings.verbose && !failure.empty())
-            std::cerr << "Chord correction at boundary " << line.id
-                      << ", segment " << k - 1 << ": " << failure << '\n';
-          continue;
-        }
-        const auto added = proposed.points.size() - line.points.size();
-        // Independent interior corrections estimate the remaining error of
-        // the proposed chords. More points alone are not evidence of progress.
-        double remaining_error = 0.;
-        bool verified = true;
-        for (std::size_t j = k - 1; j <= k - 1 + added; ++j) {
-          auto probe = proposed;
-          double error = 0.;
-          std::string reason;
-          const bool corrected =
-              refine_segment(probe, j, false, &reason, tolerance, .5, &error);
-          if (!corrected && !reason.empty()) {
-            if (engine.settings.verbose)
-              std::cerr << "Chord error verification at boundary " << line.id
-                        << ", segment " << k - 1 << ": " << reason << '\n';
-            verified = false;
-            break;
-          }
-          remaining_error = std::max(remaining_error, error);
-        }
-        const double progress_tolerance = std::max(
-            64. * std::numeric_limits<double>::epsilon(), tolerance * .125);
-        const auto improves = [&]() {
-          return remaining_error <= tolerance ||
-                 remaining_error < old_error - progress_tolerance;
-        };
-        if (verified && !improves()) {
-          // An endpoint probe measures only that part of the old chord.
-          // Compare the children's midpoint errors with an old midpoint
-          // too, especially where curvature increases towards a critical
-          // endpoint away from the disputed sample's first probe.
-          auto midpoint = line;
-          double midpoint_error = 0.;
-          std::string reason;
-          if (refine_segment(midpoint, k - 1, false, &reason, tolerance, .5,
-                             &midpoint_error))
-            old_error = std::max(old_error, midpoint_error);
-          else if (!reason.empty())
-            verified = false;
-        }
-        if (!verified || !improves()) {
-          if (engine.settings.verbose && verified)
-            std::cerr << "Chord error did not decrease at boundary " << line.id
-                      << ", segment " << k - 1 << ": " << old_error << " -> "
-                      << remaining_error << '\n';
-          continue;
-        }
-        edits.push_back(
-            {index,
-             line.points[k - 2],
-             line.points[k - 1],
-             {proposed.points.begin() + static_cast<std::ptrdiff_t>(k - 1),
-              proposed.points.begin() +
-                  static_cast<std::ptrdiff_t>(k - 1 + added)}});
-        proposed_intervals.emplace(index, k - 1);
-      }
-    }
-  }
-  std::vector<std::string> refine_line_spacing() {
-    std::vector<std::string> issues;
-    if (!line_resolution)
-      return issues;
-    const auto axes = diagram_axes(result.section.type);
-    auto measured = [&](Eigen::Vector2d q) {
-      if (line_resolution->reciprocal_volume)
-        for (int axis = 0; axis < 2; ++axis)
-          if (axes[static_cast<std::size_t>(axis)] == Coordinate::V)
-            q[axis] = 1. / q[axis];
-      return q;
-    };
-    const auto ranges = result.coordinate_ranges();
-    Eigen::Vector2d spacing = (measured({ranges[0][1], ranges[1][1]}) -
-                               measured({ranges[0][0], ranges[1][0]}))
-                                  .cwiseAbs();
-    for (int axis = 0; axis < 2; ++axis)
-      spacing[axis] /=
-          line_resolution->axis_points[static_cast<std::size_t>(axis)] - 1;
-    const double limit = double(engine.settings.max_trace_steps) *
-                         engine.settings.max_refinement_iterations;
-    if (engine.settings.verbose)
-      std::cerr << "Refining " << result.boundaries.size()
-                << " phase lines to the requested resolution.\n";
-    std::size_t completed = 0;
-    std::vector<CurveEdit> edits;
-    for (std::size_t index = 0; index < result.boundaries.size(); ++index) {
-      const auto &original = result.boundaries[index];
-      auto line = original;
-      std::size_t added = 0, failed = 0;
-      std::string failures;
-      auto last_progress = std::chrono::steady_clock::now();
-      auto progress = [&]() {
-        std::cerr << "Line " << completed + 1 << '/' << result.boundaries.size()
-                  << " (boundary " << line.id << "): " << added
-                  << " points added, " << failed << " unresolved segments; "
-                  << engine.equilibrium_solves
-                  << " equilibrium solves in this refinement.\n";
-        last_progress = std::chrono::steady_clock::now();
-      };
-      for (std::size_t k = 1; k < line.points.size();) {
-        const auto delta = (measured(diagram_coordinates(line.points[k],
-                                                         result.section.type)) -
-                            measured(diagram_coordinates(line.points[k - 1],
-                                                         result.section.type)))
-                               .cwiseAbs()
-                               .eval();
-        std::string reason;
-        if ((delta.array() <= spacing.array() * (1. + 1.e-12)).all()) {
-          ++k;
-        } else if (rejected_curve_edits.count(interval_key(
-                       line, line.points[k - 1], line.points[k]))) {
-          ++failed;
-          ++k;
-        } else if (double(added) < limit &&
-                   refine_segment(line, k, false, &reason)) {
-          ++added;
-          // Check both new segments; a curved midpoint need not halve each
-          // axis.
-        } else {
-          const auto &p = line.points[k - 1];
-          const auto &q = line.points[k];
-          std::ostringstream detail;
-          detail << " Segment " << k << " between P=" << p.pressure
-                 << " Pa, T=" << p.temperature << " K and P=" << q.pressure
-                 << " Pa, T=" << q.temperature << " K: " << reason;
-          failures += detail.str();
-          ++failed;
-          ++k;
-        }
-        if (engine.settings.verbose &&
-            std::chrono::steady_clock::now() - last_progress >=
-                std::chrono::seconds(5))
-          progress();
-      }
-      if (engine.settings.verbose)
-        progress();
-      ++completed;
-      if (failed)
-        issues.push_back("Boundary " + std::to_string(line.id) +
-                         ": requested line resolution was not reached on " +
-                         std::to_string(failed) + " segments" +
-                         (double(added) >= limit
-                              ? " (refinement limit reached)."
-                              : " (equilibrium refinement failed).") +
-                         failures);
-      // Keep proposals at the granularity of the original intervals. If one
-      // fails validation, all other verified refinements can still survive.
-      std::size_t cursor = 0;
-      for (std::size_t k = 1; k < original.points.size(); ++k) {
-        const auto first = cursor++;
-        while (cursor < line.points.size() &&
-               diagram_coordinates(line.points[cursor], result.section.type) !=
-                   diagram_coordinates(original.points[k], result.section.type))
-          ++cursor;
-        if (cursor > first + 1)
-          edits.push_back(
-              {index,
-               original.points[k - 1],
-               original.points[k],
-               {line.points.begin() + static_cast<std::ptrdiff_t>(first + 1),
-                line.points.begin() + static_cast<std::ptrdiff_t>(cursor)}});
-      }
-    }
-    commit_curve_edits(edits, 0, edits.size());
-    return issues;
-  }
-  bool recover_fields() {
-    bool changed = false;
-    for (int pass = 0; pass < engine.settings.max_recovery_passes; ++pass) {
-      auto geometry = field_polygons(result, 1.e-8, true, false);
-      auto conflicts = field_conflicts(result, geometry, true);
-      if (conflicts.empty())
-        break;
-      const auto count = result.boundaries.size();
-      bool relabelled = false;
-      std::set<std::size_t> checked;
-      for (auto [sample, polygon] : conflicts) {
-        // Either the conflicting sample or the region's representative can
-        // be a higher-energy root within finite affinity tolerances. Compare
-        // both against nearby warm starts before interpreting the mismatch
-        // as evidence of a missing boundary.
-        for (std::size_t index :
-             {sample, static_cast<std::size_t>(
-                          geometry.polygons[polygon].sample_index)}) {
-          if (!checked.insert(index).second)
-            continue;
-          const auto &old = result.samples[index];
-          const auto representative =
-              static_cast<std::size_t>(geometry.polygons[polygon].sample_index);
-          auto comparison =
-              compare_fields(index, index == sample ? representative : sample);
-          auto &state = comparison.state;
-          const auto previous_potential = field_potential(old);
-          const auto next_potential = field_potential(state);
-          const double roundoff =
-              64. * std::numeric_limits<double>::epsilon() *
-              std::max(1., std::abs(previous_potential.value_or(old.gibbs)));
-          if (comparison.unique && state.success &&
-              (active(state) != active(old) ||
-               additional_phase_support(state, old) ||
-               (previous_potential && next_potential &&
-                *next_potential < *previous_potential - roundoff))) {
-            state.is_field_verification = old.is_field_verification;
-            add_sample(state, burnman::utils::checked_int(index), true);
-            relabelled = true;
-          }
-        }
-      }
-      // A sample can disagree with a coarse chord even when its physical
-      // phase line already exists. Correct that perimeter before searching
-      // for missing lines; otherwise covered seeds make recovery stall.
-      if (relabelled) {
-        geometry = field_polygons(result, 1.e-8, true, false);
-        conflicts = field_conflicts(result, geometry, true);
-      }
-      bool refined = false;
-      // Only a verified reduction in chord error permits another local
-      // iteration. Relabelling a sample does not spend a topology pass.
-      for (int iteration = 0;
-           iteration < engine.settings.max_refinement_iterations &&
-           !conflicts.empty();
-           ++iteration) {
-        const auto started = std::chrono::steady_clock::now();
-        if (engine.settings.verbose)
-          std::cerr << "Field chord checks, recovery pass " << pass + 1
-                    << ", iteration " << iteration + 1 << ": "
-                    << conflicts.size() << " conflicting samples.\n";
-        std::vector<CurveEdit> edits;
-        std::set<std::pair<std::size_t, std::size_t>> proposed_intervals;
-        for (auto [sample, polygon] : conflicts)
-          propose_chord_edits(geometry.polygons[polygon],
-                              normalise(result.samples[sample]), edits,
-                              proposed_intervals);
-        // Independent proposals share one before/after subdivision. Rebuild
-        // per rejected interval only when batch bisection needs to isolate it.
-        const bool corrected = commit_curve_edits(edits, 0, edits.size());
-        if (engine.settings.verbose)
-          std::cerr << "Field chord checks: " << edits.size()
-                    << " proposed intervals, "
-                    << (corrected ? "verified improvement"
-                                  : "no verified improvement")
-                    << " ("
-                    << std::chrono::duration<double>(
-                           std::chrono::steady_clock::now() - started)
-                           .count()
-                    << " s).\n";
-        if (!corrected)
-          break;
-        refined = true;
-        geometry = field_polygons(result, 1.e-8, true, false);
-        conflicts = field_conflicts(result, geometry, true);
-      }
-      changed = changed || refined || relabelled;
-      if (conflicts.empty())
-        break;
-      for (auto [sample, polygon] : conflicts) {
-        WorkState left, right;
-        left.state = result.samples[sample];
-        right.state = result.samples[static_cast<std::size_t>(
-            geometry.polygons[polygon].sample_index)];
-        bracket(left, right);
-      }
-      search();
-      if (result.boundaries.size() == count && !refined)
-        break;
-      changed = true;
-      recover();
-    }
-    return changed;
-  }
-  // Interior verification must compare the known competing assemblages. The
-  // first successful warm root can be metastable within the affinity tolerance.
-  State field_state(const Eigen::Vector2d &location, bool compare = false,
-                    const std::vector<std::size_t> &alternatives = {}) {
-    std::vector<WorkState> roots;
+  // Repair an unsuccessful seed using the discovered neighbouring fields.
+  State field_state(const Eigen::Vector2d &location) {
     std::vector<std::pair<double, std::size_t>> nearby;
     for (std::size_t i = 0; i < result.samples.size(); ++i)
       if (result.samples[i].success)
-        nearby.emplace_back(
-            (normalise(result.samples[i]) - normalise(location)).squaredNorm(),
-            i);
+        nearby.push_back(
+            {(normalise(result.samples[i]) - normalise(location)).squaredNorm(),
+             i});
     std::sort(nearby.begin(), nearby.end());
-    auto starts = alternatives;
     for (std::size_t i = 0; i < std::min<std::size_t>(32, nearby.size()); ++i)
-      if (std::find(starts.begin(), starts.end(), nearby[i].second) ==
-          starts.end())
-        starts.push_back(nearby[i].second);
-    for (const auto index : starts)
       try {
-        const auto &previous = result.samples[index];
+        const auto &previous = result.samples[nearby[i].second];
         std::vector<int> ids;
         for (const auto &phase : previous.phases)
           ids.push_back(phase.id);
         auto work = engine.fixed_at(ids, previous.phases, location);
-        if (!work.state.success || !work.assemblage ||
-            !distinct(*work.assemblage, work.ids))
-          continue;
-        if (!compare)
+        if (work.state.success && engine.distinct(*work.assemblage, work.ids)) {
+          work.state.message =
+              "Closed field verified from a neighbouring equilibrium state";
           return work.state;
-        roots.push_back(std::move(work));
-      } catch (const std::exception &) {
-      }
-    if (roots.empty())
-      return engine.stable_at(location).state;
-    auto comparison = select_field_roots(roots, location);
-    // Tight verification can reject every supplied warm assemblage. Search
-    // for a missing phase locally, then compare that discovery with the known
-    // roots rather than treating a cold solve as the sole field label.
-    for (double accuracy : {.01, .0001, .000001}) {
-      if (comparison.unique)
-        break;
-      try {
-        WorkState discovered;
-        {
-          struct RestoreAffinity {
-            double &target;
-            double previous;
-            ~RestoreAffinity() { target = previous; }
-          } restore{engine.settings.affinity_tolerance,
-                    engine.settings.affinity_tolerance};
-          engine.settings.affinity_tolerance *= accuracy;
-          discovered = engine.stable_at(location);
         }
-        if (!discovered.state.success || !discovered.assemblage)
-          continue;
-        auto corrected = engine.fixed_at(discovered.ids,
-                                         discovered.state.phases, location,
-                                         accuracy);
-        if (!corrected.state.success || !corrected.assemblage ||
-            !distinct(*corrected.assemblage, corrected.ids))
-          continue;
-        roots.push_back(std::move(corrected));
-        comparison = select_field_roots(roots, location);
       } catch (const std::exception &) {
       }
-    }
-    if (!comparison.unique)
-      comparison.state.success = false;
-    return comparison.state;
+    return engine.stable_at(location).state;
   }
   bool model_excluded(double first, double second) const {
     Eigen::Vector2d p = normalise(first, second);
@@ -4100,201 +2564,11 @@ class Tracer {
     const auto q = diagram_coordinates(point, result.section.type);
     return model_excluded(q[0], q[1]);
   }
-  void join_frame_limits() {
-    // A corrector can already have accepted a frame point before an amount
-    // null direction obscures the outgoing P,T tangent (especially at T=0).
-    // Classify that accepted endpoint; do not extend an interior curve to it.
-    for (auto &line : result.boundaries) {
-      if (line.points.empty())
-        continue;
-      auto [back, forward] = statuses(line);
-      for (bool start : {true, false}) {
-        auto &status = start ? back : forward;
-        auto &id = start ? line.start_node : line.end_node;
-        if (!unfinished(status))
-          continue;
-        auto &point = start ? line.points.front() : line.points.back();
-        auto u = normalise(point);
-        if (!u.allFinite() || !inside(u, 1.e-10) ||
-            std::min(u.cwiseAbs().minCoeff(),
-                     (u - Eigen::Vector2d::Ones()).cwiseAbs().minCoeff()) >
-                1.e-10 ||
-            point.mass_balance_error > engine.settings.mass_balance_tolerance ||
-            point.minimum_affinity < -engine.settings.affinity_tolerance)
-          continue;
-        id = -1;
-        for (auto &previous : result.nodes)
-          if (previous.kind == "domain_edge" &&
-              (normalise(previous) - u).norm() < 1.e-10) {
-            id = previous.id;
-            break;
-          }
-        if (id < 0) {
-          Node n;
-          n.id = burnman::utils::checked_int(result.nodes.size());
-          n.kind = "domain_edge";
-          n.pressure = point.pressure;
-          n.temperature = point.temperature;
-          n.entropy = point.entropy;
-          n.volume = point.volume;
-          n.composition_coordinate = point.composition_coordinate;
-          n.assemblage = line.assemblage;
-          n.zero_phases = {line.zero_phase};
-          auto a =
-              engine.make_at(line.assemblage, point.phases,
-                             diagram_coordinates(point, result.section.type));
-          n.gibbs_variance = field_variance(*a, line.assemblage.size());
-          result.nodes.push_back(n);
-          id = n.id;
-        }
-        status = "domain edge";
-      }
-      line.termination = back + "; " + forward;
-    }
-  }
-  void join_model_limits() {
-    for (auto &line : result.boundaries) {
-      auto [back, forward] = statuses(line);
-      for (bool start : {true, false}) {
-        auto &id = start ? line.start_node : line.end_node;
-        if (line.points.empty() ||
-            (id >= 0 && result.nodes.at(static_cast<std::size_t>(id)).kind !=
-                            "model_domain_limit"))
-          continue;
-        auto &point = start ? line.points.front() : line.points.back();
-        auto u = normalise(point);
-        double distance = std::numeric_limits<double>::infinity();
-        int region_index = -1, segment = -1;
-        for (std::size_t r = 0; r < result.excluded_regions.size(); ++r) {
-          auto &ring = result.excluded_regions[r];
-          // Exclude the top/frame closure: only the actual EOS limit can
-          // receive a terminated phase line. Keep the last thermodynamically
-          // verified point, adjusting the plotted domain envelope within node
-          // tolerance.
-          for (int i = 1; i < ring.rows() - 2; ++i) {
-            auto a = normalise(ring(i - 1, 0), ring(i - 1, 1)),
-                 b = normalise(ring(i, 0), ring(i, 1));
-            auto delta = (b - a).eval();
-            double f =
-                (delta.squaredNorm() != 0.)
-                    ? std::clamp((u - a).dot(delta) / delta.squaredNorm(), 0.,
-                                 1.)
-                    : 0.;
-            double d = (u - a - f * delta).norm();
-            if (d < distance) {
-              distance = d;
-              region_index = burnman::utils::checked_int(r);
-              segment = i;
-            }
-          }
-        }
-        if (region_index < 0 || distance > engine.settings.node_tolerance * 2.)
-          continue;
-        auto &ring =
-            result.excluded_regions[static_cast<std::size_t>(region_index)];
-        bool attached = false;
-        for (int i = 0; i < ring.rows(); ++i)
-          if ((normalise(ring(i, 0), ring(i, 1)) - u).norm() < 1.e-12)
-            attached = true;
-        if (!attached) {
-          Eigen::MatrixXd updated(ring.rows() + 1, 2);
-          updated.topRows(segment) = ring.topRows(segment);
-          updated.row(segment) =
-              diagram_coordinates(point, result.section.type).transpose();
-          updated.bottomRows(ring.rows() - segment) =
-              ring.bottomRows(ring.rows() - segment);
-          ring = std::move(updated);
-        }
-        // Recomputed EOS envelopes must retain connections from a saved run
-        // too.
-        if (id < 0) {
-          Node n;
-          n.id = burnman::utils::checked_int(result.nodes.size());
-          n.kind = "model_domain_limit";
-          n.pressure = point.pressure;
-          n.temperature = point.temperature;
-          n.entropy = point.entropy;
-          n.volume = point.volume;
-          n.composition_coordinate = point.composition_coordinate;
-          n.zero_phases = {line.zero_phase};
-          n.assemblage = line.assemblage;
-          result.nodes.push_back(n);
-          id = n.id;
-        }
-        (start ? back : forward) = "model domain limit";
-      }
-      line.termination = back + "; " + forward;
-    }
-  }
   // Find the lower-pressure EOS feasibility limit. This is a boundary of
   // the admissible model domain, not a zero-amount phase-equilibrium line.
   void model_domain() {
-    if (!engine.settings.exclude_invalid_eos ||
-        !result.excluded_regions.empty())
-      return;
-    auto feasible = [&](double pn, double tn) {
-      return engine.eos_bulk_feasible_at(
-          origin + Eigen::Vector2d(pn, tn).cwiseProduct(range));
-    };
-    auto lower_pressure = [&](double tn) {
-      if (feasible(0., tn))
-        return 0.;
-      if (!feasible(1., tn))
-        return 1.;
-      double low = 0., high = 1.;
-      for (int i = 0; i < 35; ++i) {
-        double middle = .5 * (low + high);
-        if (feasible(middle, tn))
-          high = middle;
-        else
-          low = middle;
-      }
-      return .5 * (low + high);
-    };
-    std::vector<Eigen::Vector2d> curve;
-    auto flush = [&]() {
-      if (curve.empty())
-        return;
-      std::vector<Eigen::Vector2d> ring{{0., curve.front()[1]}};
-      ring.insert(ring.end(), curve.begin(), curve.end());
-      ring.push_back({0., curve.back()[1]});
-      ring.push_back(ring.front());
-      Eigen::MatrixXd physical(ring.size(), 2);
-      for (std::size_t i = 0; i < ring.size(); ++i)
-        physical.row(static_cast<Eigen::Index>(i)) =
-            (origin + ring[i].cwiseProduct(range)).transpose();
-      result.excluded_regions.push_back(std::move(physical));
-      curve.clear();
-    };
-    double previous = lower_pressure(0.);
-    if (previous > 0.)
-      curve.push_back({previous, 0.});
-    for (int j = 1; j <= 64; ++j) {
-      double t = double(j) / 64., left = double(j - 1) / 64.,
-             p = lower_pressure(t);
-      if ((previous == 0.) != (p == 0.)) {
-        double low = left, high = t;
-        for (int i = 0; i < 32; ++i) {
-          double mid = .5 * (low + high);
-          bool exists = lower_pressure(mid) > 0.;
-          if (exists == (p > 0.))
-            high = mid;
-          else
-            low = mid;
-        }
-        Eigen::Vector2d edge(0., .5 * (low + high));
-        if (p > 0.)
-          curve.push_back(edge);
-        else {
-          curve.push_back(edge);
-          flush();
-        }
-      }
-      if (p > 0.)
-        curve.push_back({p, t});
-      previous = p;
-    }
-    flush();
+    if (result.excluded_regions.empty())
+      result.excluded_regions = excluded_model_regions(engine, origin, range);
   }
   // Resuming overlapping partial traces can complete several records of the
   // same physical edge. Keep one polyline so chord differences do not create
@@ -4351,19 +2625,11 @@ class Tracer {
     }
     result.boundaries = std::move(unique);
   }
-  Result finish(int verification_pass = 0, int topology_pass = 0) {
+  Result finish() {
     separate_junctions();
-    if (topology_pass < engine.settings.max_recovery_passes) {
-      bool retraced = false;
-      const auto budget = result.boundaries.size();
-      for (std::size_t i = 0; i < budget && recover_branch_jumps(); ++i)
-        retraced = true;
-      if (retraced)
-        return finish(verification_pass, topology_pass + 1);
-    }
     model_domain();
-    join_frame_limits();
-    join_model_limits();
+    detail::join_frame_limits(result, engine);
+    detail::join_model_limits(result);
     for (auto &state : result.samples)
       if (model_excluded(state)) {
         state.success = false;
@@ -4400,8 +2666,6 @@ class Tracer {
                                  });
             }),
         result.boundaries.end());
-    for (auto &line : result.boundaries)
-      trim_junction_overshoot(line);
     // Older junction correctors could return to the same node in both
     // directions, leaving a collinear out-and-back spur. Replace it only
     // when equilibrium and compositions verify that another edge covers it;
@@ -4452,16 +2716,15 @@ class Tracer {
           add_sample(verified, burnman::utils::checked_int(i));
       }
     reconcile_boundaries(true);
-    // Older probes could skip a narrow ordinary field or a neighbour of a
-    // solution replacement while still assigning two different labels.
-    // Recheck these saved labels even if a coarse line has only its junction
-    // states.
+    // Older probes could skip a narrow neighbour of a solution replacement
+    // while still assigning two different labels. Recheck these saved labels
+    // even if a coarse line has only its junction states.
     auto skipped_neighbour = [&](const Boundary &line) {
       if (has_composition_axis(result.section.type))
         return false;
       if (!line.points.empty() &&
-          field_index.count(canonical_ids(line.assemblage))) {
-        const auto formulae = phase_formulae(
+          field_index.count(engine.canonical_ids(line.assemblage))) {
+        const auto formulae = engine.phase_formulae(
             line.assemblage, line.points[line.points.size() / 2].phases);
         Eigen::FullPivLU<Eigen::MatrixXd> amounts(formulae);
         amounts.setThreshold(1.e-9);
@@ -4469,8 +2732,8 @@ class Tracer {
           auto absent = line.assemblage;
           absent.erase(
               std::find(absent.begin(), absent.end(), line.zero_phase));
-          auto full = canonical_ids(line.assemblage),
-               missing = canonical_ids(absent);
+          auto full = engine.canonical_ids(line.assemblage),
+               missing = engine.canonical_ids(absent);
           auto immediate = [&](const std::vector<int> &side) {
             return side == full || side == missing;
           };
@@ -4485,10 +2748,18 @@ class Tracer {
           });
       return copies > 1 && count + 1 < line.assemblage.size();
     };
+    // Retry only arcs belonging to conflicting closed loops. A short arc can
+    // have two plausible but incorrect side labels, so count differences alone
+    // do not establish that the immediate neighbours were found.
+    std::set<int> conflicting_edges;
+    for (const auto &polygon : field_polygons(result).polygons)
+      if (polygon.is_provisional && !polygon.outside_model_domain)
+        conflicting_edges.insert(polygon.boundary_ids.begin(),
+                                 polygon.boundary_ids.end());
     for (auto &line : result.boundaries)
       if (line.side_a.empty() || line.side_b.empty() ||
           (line.side_a == line.side_b && !line.is_solution_replacement) ||
-          skipped_neighbour(line)) {
+          skipped_neighbour(line) || conflicting_edges.count(line.id)) {
         try {
           label(line);
         } catch (const std::exception &error) {
@@ -4501,19 +2772,62 @@ class Tracer {
     for (std::size_t i = 0; i < result.boundaries.size(); ++i)
       result.boundaries[i].id = burnman::utils::checked_int(i);
     // Rebuild from surviving records; earlier failures may now be recovered.
-    result.diagnostics = refine_line_spacing();
-    if (topology_pass < engine.settings.max_recovery_passes &&
-        !refinement_events.empty() && recover_branch_jumps())
-      return finish(verification_pass, topology_pass + 1);
+    result.diagnostics =
+        line_resolution
+            ? detail::refine_line_spacing(result, engine, *line_resolution,
+                                          [&](Boundary &line, std::size_t k) {
+                                            return refine_segment(line, k);
+                                          })
+            : std::vector<std::string>{};
+    // A verified unstable midpoint invalidates the old chord. Retrace its
+    // endpoints once so ordinary phase-entry recovery finds the missing arcs.
+    if (engine.settings.max_recovery_passes && !unstable_lines.empty()) {
+      auto old = std::move(result.boundaries);
+      result.boundaries.clear();
+      for (auto &line : old)
+        if (unstable_lines.count(line.id)) {
+          for (bool start : {true, false}) {
+            const auto &p = start ? line.points.front() : line.points.back();
+            const auto &q = start ? line.points.back() : line.points.front();
+            queue.push_back({line.assemblage, line.zero_phase,
+                             start ? line.start_node : line.end_node, p.phases,
+                             normalise(p),
+                             (normalise(q) - normalise(p)).normalized()});
+          }
+        } else
+          result.boundaries.push_back(std::move(line));
+      unstable_lines.clear();
+      attempted.clear();
+      expanded.clear();
+      for (auto &n : result.nodes)
+        n.incident_lines.clear();
+      for (std::size_t i = 0; i < result.boundaries.size(); ++i) {
+        auto &line = result.boundaries[i];
+        line.id = burnman::utils::checked_int(i);
+        for (int n : {line.start_node, line.end_node})
+          if (n >= 0)
+            result.nodes.at(static_cast<std::size_t>(n))
+                .incident_lines.push_back(line.id);
+      }
+      search();
+      recover();
+      reconcile_boundaries();
+      for (std::size_t i = 0; i < result.boundaries.size(); ++i)
+        result.boundaries[i].id = burnman::utils::checked_int(i);
+      result.diagnostics = detail::refine_line_spacing(
+          result, engine, *line_resolution, [&](Boundary &line, std::size_t k) {
+            return refine_segment(line, k);
+          });
+    }
     for (auto &n : result.nodes)
       n.incident_lines.clear();
     for (auto &line : result.boundaries) {
-      auto [back, forward] = statuses(line);
-      if (unfinished(back))
+      auto [back, forward] = boundary_statuses(line);
+      if (unfinished_boundary(back))
         line.start_node = -1;
-      if (unfinished(forward))
+      if (unfinished_boundary(forward))
         line.end_node = -1;
-      if (unfinished(back) || unfinished(forward))
+      if (unfinished_boundary(back) || unfinished_boundary(forward))
         result.diagnostics.push_back("Boundary " + std::to_string(line.id) +
                                      ": " + line.termination);
       if (line.side_a.empty() || line.side_b.empty() ||
@@ -4533,109 +2847,24 @@ class Tracer {
     for (auto &state : result.samples)
       if (!state.success && !state.outside_model_domain)
         result.diagnostics.push_back("Unresolved seed: " + state.message);
-    if (topology_pass < engine.settings.max_recovery_passes &&
-        recover_junctions())
-      return finish(verification_pass, topology_pass + 1);
-    // Verify closed interiors: stale edge labels can agree with each other
-    // while still describing the wrong field. Open faces remain unresolved.
-    if (engine.settings.verbose)
-      std::cerr << "Checking phase field consistency.\n";
-    model_domain();
-    auto geometry = field_polygons(result, 1.e-8, true, false);
-    std::set<std::size_t> contested_interiors;
-    for (const auto &[sample, polygon] :
-         field_conflicts(result, geometry, true))
-      contested_interiors.insert(polygon);
-    auto last_field_progress = std::chrono::steady_clock::now();
-    std::size_t checked_interiors = 0;
-    for (std::size_t i = 0; i < geometry.polygons.size(); ++i) {
-      auto &polygon = geometry.polygons[i];
-      if (polygon.outside_model_domain || polygon.has_open_boundary ||
-          (polygon.sample_index >= 0 &&
-           result.samples[static_cast<std::size_t>(polygon.sample_index)]
-               .is_field_verification &&
-           !contested_interiors.count(i)))
-        continue;
-      ++checked_interiors;
-      // Check at least one starting state for every sampled assemblage in
-      // this face. Proximity alone can fill all warm-start slots with the
-      // same higher-energy root and overwrite a correctly identified field.
-      std::map<std::vector<int>, std::pair<double, std::size_t>> alternatives;
-      for (std::size_t j = 0; j < result.samples.size(); ++j) {
-        const auto &sample = result.samples[j];
-        if (!sample.success || sample.outside_model_domain ||
-            !polygon.contains_rectangle(
-                diagram_coordinates(sample, result.section.type),
-                range * (64. * std::numeric_limits<double>::epsilon())))
-          continue;
-        const auto distance =
-            (normalise(sample) - normalise(polygon.label_position))
-                .squaredNorm();
-        auto [it, inserted] =
-            alternatives.emplace(active(sample), std::pair{distance, j});
-        if (!inserted && distance < it->second.first)
-          it->second = {distance, j};
-      }
-      std::vector<std::size_t> starts;
-      for (const auto &[phases, choice] : alternatives)
-        starts.push_back(choice.second);
-      auto state = field_state(polygon.label_position, true, starts);
-      if (state.success) {
-        state.is_field_verification = true;
-        int existing = -1;
-        if (polygon.sample_index >= 0 &&
-            (normalise(result.samples[static_cast<std::size_t>(
-                 polygon.sample_index)]) -
-             normalise(state))
-                    .norm() <= 64. * std::numeric_limits<double>::epsilon())
-          existing = polygon.sample_index;
-        // Replace a disproved root at the identical location. Keeping both
-        // leaves the older root first in an equal-clearance representative tie.
-        add_sample(state, existing);
-      } else
-        result.diagnostics.push_back(
-            "Could not verify the assemblage of closed region " +
-            std::to_string(i) + ": " + state.message);
-      if (engine.settings.verbose &&
-          std::chrono::steady_clock::now() - last_field_progress >=
-              std::chrono::seconds(5)) {
-        std::cerr << "Checked " << checked_interiors
-                  << " field interiors (region " << i + 1 << '/'
-                  << geometry.polygons.size() << "); "
-                  << engine.equilibrium_solves << " equilibrium solves.\n";
-        last_field_progress = std::chrono::steady_clock::now();
-      }
-    }
-    // Report the geometry after interior verification. Successful endpoint
-    // solves alone do not guarantee a closed, identified planar subdivision.
+    if (engine.settings.verbose && line_resolution)
+      std::cerr
+          << "Checking phase field consistency from saved boundary labels.\n";
+    // Identify fields from their actual perimeter and existing minimizations.
+    // Labelling does not trigger new equilibrium searches or curve recovery.
     auto verified_geometry = field_polygons(result, 1.e-8, true, false);
-    // Interior checks can expose a conflict only after duplicate removal or
-    // the first successful field solve. Recover it in this calculation too.
-    if (verification_pass < engine.settings.max_recovery_passes &&
-        !field_conflicts(result, verified_geometry).empty() && recover_fields())
-      return finish(verification_pass + 1);
     result.diagnostics.insert(result.diagnostics.end(),
                               verified_geometry.diagnostics.begin(),
                               verified_geometry.diagnostics.end());
-    for (const auto &line : result.boundaries)
-      for (std::size_t k = 1; k < line.points.size(); ++k)
-        if (const auto issue = rejected_curve_edits.find(
-                interval_key(line, line.points[k - 1], line.points[k]));
-            issue != rejected_curve_edits.end())
-          result.diagnostics.push_back(issue->second);
     for (auto &n : result.nodes)
       if (n.kind == "critical_point" && n.incident_lines.size() == 1)
         result.diagnostics.push_back(
             "Unpaired solution critical endpoint at node " +
             std::to_string(n.id) + "; its adjoining field remains unresolved.");
-      else if (n.kind == "junction" && n.incident_lines.size() == 1 &&
-               !model_excluded(n) &&
-               normalise(n)
-                       .cwiseMin(Eigen::Vector2d::Ones() - normalise(n))
-                       .minCoeff() > 1.e-10)
-        result.diagnostics.push_back(
-            "Unpaired internal junction at node " + std::to_string(n.id) +
-            "; its outgoing branches remain unresolved.");
+    for (const auto &node : result.nodes)
+      if (node.kind == "junction" && node.incident_lines.size() == 1)
+        result.diagnostics.push_back("Unpaired internal junction at node " +
+                                     std::to_string(node.id) + ".");
     if (!queue.empty())
       result.diagnostics.push_back(
           "Boundary search limit reached; increase max_lines.");
@@ -4801,7 +3030,6 @@ public:
       }
     search();
     recover();
-    recover_fields();
     return finish();
   }
   Result resume(const Result &previous,
@@ -4832,8 +3060,8 @@ public:
     if (!engine.settings.required_eos_phases.empty())
       result.excluded_regions.clear();
     model_domain();
-    join_frame_limits();
-    join_model_limits();
+    detail::join_frame_limits(result, engine);
+    detail::join_model_limits(result);
     auto samples = std::move(result.samples);
     result.samples.clear();
     result.fields.clear();
@@ -4842,17 +3070,43 @@ public:
     for (std::size_t i = 0; i < result.nodes.size(); ++i)
       if (result.nodes[i].id != static_cast<int>(i))
         throw std::invalid_argument("Saved node IDs must be contiguous.");
-    if (resolution && previous.resolved) {
+    const bool dangling_junction = std::any_of(
+        result.nodes.begin(), result.nodes.end(), [&](const Node &node) {
+          return node.kind == "junction" &&
+                 std::count_if(result.boundaries.begin(),
+                               result.boundaries.end(),
+                               [&](const Boundary &line) {
+                                 return line.start_node == node.id ||
+                                        line.end_node == node.id;
+                               }) == 1;
+        });
+    if (resolution && previous.resolved &&
+        (!dangling_junction || !engine.settings.max_recovery_passes)) {
       // Completed junctions already have their branches. Refine the saved
-      // lines, recovering unfinished ends and any conflicts found in fields.
+      // lines and recover unfinished boundary ends.
       recover();
       return finish();
+    }
+    // A seed-only saved calculation still supplies initial boundary brackets.
+    if (!previous.resolved && previous.fields.empty() &&
+        result.boundaries.empty() && engine.settings.max_recovery_passes) {
+      for (const auto &state : result.samples)
+        if (state.success && inside(normalise(state))) {
+          auto ids = engine.active_phases(state);
+          grid.push_back(
+              {state,
+               engine.make_at(ids, state.phases,
+                              diagram_coordinates(state, result.section.type)),
+               ids});
+        }
+      for (std::size_t i = 1; i < grid.size(); ++i)
+        bracket(grid[i - 1], grid[i]);
     }
     // Successful endpoint states seed all untraced branches at their junction.
     for (auto &line : result.boundaries) {
       if (line.points.empty())
         continue;
-      auto [back, forward] = statuses(line);
+      auto [back, forward] = boundary_statuses(line);
       for (bool start : {true, false}) {
         auto status = start ? back : forward;
         int id = start ? line.start_node : line.end_node;
@@ -4894,7 +3148,6 @@ public:
     }
     recover();
     search();
-    recover_fields();
     return finish();
   }
 };

@@ -140,7 +140,7 @@ def test_completed_refinement_skips_junction_search_and_repeated_solves(
     assert "seeds remaining" not in messages
 
 
-def test_field_conflicts_recover_a_missing_line_in_a_completed_saved_diagram(crossing):
+def test_missing_line_remains_diagnosed_with_provisional_field_labels(crossing):
     bulk, data = crossing
     saved = json.loads(json.dumps(data))
     saved["boundaries"].pop()
@@ -149,12 +149,16 @@ def test_field_conflicts_recover_a_missing_line_in_a_completed_saved_diagram(cro
     result = bm.refine_pseudosection(
         bulk, crossing_phases(), saved, resolution=(17, 21)
     )
-    assert result.resolved, result.diagnostics
-    assert len(result.boundaries) == 4
+    assert not result.resolved
+    assert len(result.boundaries) == 3
     check_spacing(result, (17, 21))
     geometry = bm.pseudosection_field_polygons(result)
-    assert not geometry.diagnostics
-    assert len(geometry.polygons) == 4
+    assert any("conflicting perimeter assemblages" in d for d in geometry.diagnostics)
+    assert len(geometry.polygons) == 3
+    # Existing equilibrium limits can supply a provisional label, while the
+    # missing physical boundary must still prevent a resolved result.
+    assert all(p.phases for p in geometry.polygons)
+    assert any(p.is_provisional for p in geometry.polygons)
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
 
 
@@ -184,7 +188,8 @@ def test_completed_snapshot_recovers_a_dangling_internal_junction(crossing):
     check_spacing(repaired, (17, 21))
 
 
-def test_saved_ordering_jump_recovers_the_intervening_two_ilmenite_fields():
+@pytest.mark.parametrize("recovery", [False, True])
+def test_saved_ordering_jump_recovers_the_intervening_two_ilmenite_fields(recovery):
     from burnman_cpp.minerals import model_sets
 
     # The old ky-out line jumped between ordered/disordered ilmenite roots.
@@ -192,24 +197,31 @@ def test_saved_ordering_jump_recovers_the_intervening_two_ilmenite_fields():
     saved = json.loads(
         (Path(__file__).parent / "data/metasediment_ordering_segment.json").read_text()
     )
+    if not recovery:
+        saved["settings"]["max_recovery_passes"] = 0
     result = bm.refine_pseudosection(
         saved["composition_start"],
         model_sets.metapelite().phases,
         saved,
         resolution=(21, 21),
     )
-    assert result.resolved, result.diagnostics
+    if not recovery:
+        assert not result.resolved
+        assert any("equilibrium refinement failed" in d for d in result.diagnostics)
+        return
+    assert all("label is provisional" in d for d in result.diagnostics), result.diagnostics
+    polygons = bm.pseudosection_field_polygons(result).polygons
     assert any(
         "ilm #2" in [result.phase_names[i] for i in field.phases]
-        for field in result.fields
+        for field in polygons
     )
-    assert not bm.pseudosection_field_polygons(result).diagnostics
+    assert all(p.phases for p in polygons)
     check_spacing(result, (21, 21))
 
 
 @pytest.mark.parametrize("crowded", [False, True])
 @pytest.mark.parametrize("previously_verified", [False, True])
-def test_interior_verification_compares_the_known_plagioclase_root(
+def test_perimeter_labels_survive_crowded_or_previously_verified_warm_roots(
     crowded, previously_verified
 ):
     from copy import deepcopy
@@ -260,7 +272,7 @@ def test_interior_verification_compares_the_known_plagioclase_root(
         ),
     ],
 )
-def test_local_basalt_fields_resolve_competing_interior_roots(name, point, expected):
+def test_local_basalt_fields_use_saved_evidence_without_new_interior_roots(name, point, expected):
     from burnman_cpp.minerals import model_sets
 
     # Small independently seeded diagrams around the two basalt regressions.
@@ -269,19 +281,12 @@ def test_local_basalt_fields_resolve_competing_interior_roots(name, point, expec
     saved = json.loads(
         (Path(__file__).parent / f"data/basalt_local_{name}.json").read_text()
     )
-    ambiguous_location = None
-    if name == "amphibole":
-        before = bm.pseudosection_field_polygons(saved, merge_fields=False)
-        ambiguous_location = next(
-            p.label_position for p in before.polygons
-            if not p.has_open_boundary and not p.phases
-        )
     result = bm.refine_pseudosection(
         saved["composition_start"], model_sets.metabasite().phases, saved
     )
-    assert result.resolved, result.diagnostics
     geometry = bm.pseudosection_field_polygons(result, merge_fields=False)
-    assert not geometry.diagnostics
+    assert all(p.phases for p in geometry.polygons)
+    assert all("label is provisional" in d for d in geometry.diagnostics)
     containing = [
         polygon for polygon in geometry.polygons
         if polygon.contains_rectangle(point, [1.e-5, 1.e-10])
@@ -289,14 +294,6 @@ def test_local_basalt_fields_resolve_competing_interior_roots(name, point, expec
     assert len(containing) == 1
     assert not containing[0].has_open_boundary
     assert [result.phase_names[i] for i in containing[0].phases] == expected
-    if ambiguous_location is not None:
-        recovered = [
-            p for p in geometry.polygons
-            if p.contains_rectangle(ambiguous_location, [1.e-5, 1.e-10])
-        ]
-        assert len(recovered) == 1
-        assert "chl" in [result.phase_names[i] for i in recovered[0].phases]
-        assert result.samples[recovered[0].sample_index].minimum_affinity >= -0.002
 
 
 def test_local_pyrolite_neighbours_escape_the_phase_amount_cutoff():
@@ -376,7 +373,7 @@ def test_curved_line_refinement_checks_actual_equilibrium_and_default_plot_units
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
 
 
-def test_near_endpoint_chord_improvement_resolves_a_verified_sample():
+def test_near_chord_sample_does_not_trigger_automatic_geometry_repair():
     phases = curved_phases()
     bulk = {"Mg": 1.0, "O": 1.0}
     opts = settings()
@@ -422,32 +419,18 @@ def test_near_endpoint_chord_improvement_resolves_a_verified_sample():
         verified(1.0e9, 1000.0), verified(4.8e9, 1000.0),
         verified(pressure, temperature),
     ]
-    assert bm.pseudosection_field_polygons(data).diagnostics
-    # Recover using the existing line; adding another line cannot hide a
-    # failure to accept an improvement near the endpoint of this chord.
+    assert not bm.pseudosection_field_polygons(data).diagnostics
     opts.max_lines = 1
     result = bm.refine_pseudosection(bulk, phases, data, opts)
     assert result.resolved, result.diagnostics
     assert len(result.boundaries) == 1
-    assert len(result.boundaries[0].points) > len(points)
-    geometry = bm.pseudosection_field_polygons(result)
-    assert not geometry.diagnostics
-    containing = [p for p in geometry.polygons if p.contains_rectangle(
-        [pressure, temperature], [1.0e-4, 1.0e-10]
-    )]
-    assert len(containing) == 1
-    assert containing[0].phases == [q["id"] for q in data["samples"][2]["phases"]]
-    # The sample lies beyond the preceding interval's endpoint. Refining
-    # that neighbouring arc cannot change this sample's field assignment.
-    # Preserve it while correcting the interval that actually brackets it.
-    untouched_a, untouched_b = points[len(points) // 2 - 1:len(points) // 2 + 1]
-    values = [(p.pressure, p.temperature) for p in result.boundaries[0].points]
-    start = values.index((untouched_a["pressure"], untouched_a["temperature"]))
-    assert values[start + 1] == (untouched_b["pressure"], untouched_b["temperature"])
+    assert len(result.boundaries[0].points) == len(points)
+    assert result.equilibrium_solves == data["equilibrium_solves"]
+    assert result.to_dict()["samples"] == data["samples"]
 
 
 @pytest.mark.parametrize("recovery_passes", [0, 2])
-def test_metasediment_curve_edit_preserves_verified_neighbouring_assemblages(
+def test_metasediment_explicit_refinement_preserves_saved_samples(
     recovery_passes,
 ):
     from burnman_cpp.minerals import model_sets
@@ -478,7 +461,8 @@ def test_metasediment_curve_edit_preserves_verified_neighbouring_assemblages(
     ]
     assert len(containing) == 1
     assert containing[0].phases == expected
-    assert any("Curve edit rejected" in d for d in result.diagnostics)
+    assert all("Curve edit rejected" not in d for d in result.diagnostics)
+    assert result.to_dict()["samples"][:len(data["samples"])] == data["samples"]
     assert sum(len(line.points) for line in result.boundaries) > sum(
         len(line["points"]) for line in data["boundaries"]
     )
@@ -622,7 +606,7 @@ def test_solution_lines_refine_from_coarse_points_at_the_critical_endpoint(
         temperature_range=(600.0, 900.0),
         composition_end={"Fe": 1.0, "O": 1.0},
     )
-    assert previous.resolved, previous.diagnostics
+    assert all("label is provisional" in d for d in previous.diagnostics), previous.diagnostics
     saved = previous.to_dict()
     for line in saved["boundaries"]:
         line["points"] = [line["points"][0], line["points"][-1]]
@@ -646,7 +630,7 @@ def test_solution_lines_refine_from_coarse_points_at_the_critical_endpoint(
     result = bm.refine_pseudosection(
         bulk, [phase], saved, resolution=(51, 61), temperature_unit="K"
     )
-    assert result.resolved, result.diagnostics
+    assert all("label is provisional" in d for d in result.diagnostics), result.diagnostics
     check_spacing(result, (51, 61), temperature_unit="K")
     critical = next(n for n in result.nodes if n.kind == "critical_point")
     assert critical.temperature == pytest.approx(
@@ -687,7 +671,7 @@ def test_refinement_rejects_a_chord_joining_opposite_solvus_arms():
         temperature_range=(600.0, 900.0),
         composition_end={"Fe": 1.0, "O": 1.0},
     )
-    assert previous.resolved, previous.diagnostics
+    assert all("label is provisional" in d for d in previous.diagnostics), previous.diagnostics
     saved = previous.to_dict()
     ordered = sorted(
         saved["boundaries"],

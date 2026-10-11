@@ -17,7 +17,6 @@
 #include <cmath>
 #include <iostream>
 #include <limits>
-#include <sstream>
 
 namespace burnman::pseudosections {
 namespace {
@@ -107,9 +106,8 @@ class Contours {
         state.solve.success = false;
         state.solve.message = "Equilibrium has negative Gibbs curvature.";
       }
-    } catch (const std::exception &error) {
+    } catch (const std::exception &) {
       state.solve.success = false;
-      state.solve.message = error.what();
     }
     return state;
   }
@@ -396,7 +394,6 @@ class Contours {
     return false;
   }
   void bracket_seed(SeedSample left, SeedSample right) {
-    std::string failure;
     for (int iteration = 0; iteration < 20; ++iteration) {
       V2 a = normalized(*left.state.a), b = normalized(*right.state.a);
       V2 direction = b - a;
@@ -408,38 +405,23 @@ class Contours {
                  : std::abs(right.residual) < 1.e-9
                      ? 1.
                      : left.residual / (left.residual - right.residual);
-      const bool prefer_left =
-          std::abs(left.residual) < std::abs(right.residual);
-      // A narrow, curved field can contain the crossing while its straight
-      // bracket chord leaves the physical assemblage. Try independent planes
-      // as well, accepting only nearby roots inside the saved field.
-      for (const V2 &plane_normal : {normal, V2(1., 0.), V2(0., 1.)})
-        for (bool use_left : {prefer_left, !prefer_left}) {
-          auto root = correct(*(use_left ? left.state.a : right.state.a),
-                              a + t * direction, plane_normal);
-          failure = root.solve.message;
-          if (root.solve.success && inside(normalized(*root.a))) {
-            double position = (normalized(*root.a) - a).dot(direction) /
-                              direction.squaredNorm();
-            if (position >= -1.e-7 && position <= 1. + 1.e-7 &&
-                (normalized(*root.a) - (a + t * direction)).norm() <=
-                    direction.norm()) {
-              trace(root);
-              return;
-            }
-          }
+      auto &initial = std::abs(left.residual) < std::abs(right.residual)
+                          ? left.state.a
+                          : right.state.a;
+      auto root = correct(*initial, a + t * direction, normal);
+      if (root.solve.success && inside(normalized(*root.a))) {
+        double position =
+            (normalized(*root.a) - a).dot(direction) / direction.squaredNorm();
+        if (position >= -1.e-7 && position <= 1. + 1.e-7) {
+          trace(root);
+          return;
         }
+      }
       // If correction leaves a thin field or cannot converge, tighten the
       // bracket with a fixed-coordinate solve on its known interior segment.
-      auto middle =
-          solve_at(*(prefer_left ? left.state.a : right.state.a), .5 * (a + b));
+      auto middle = solve_at(*initial, .5 * (a + b));
       if (!middle.solve.success)
-        middle = solve_at(*(prefer_left ? right.state.a : left.state.a),
-                          .5 * (a + b));
-      if (!middle.solve.success) {
-        failure = middle.solve.message;
         break;
-      }
       double f = residual(*middle.a);
       if (!std::isfinite(f))
         throw std::runtime_error(
@@ -449,14 +431,7 @@ class Contours {
       else
         left = {std::move(middle), f};
     }
-    std::ostringstream message;
-    message << "a bracketed contour seed could not be equilibrated between P="
-            << left.state.a->get_pressure()
-            << " Pa, T=" << left.state.a->get_temperature()
-            << " K and P=" << right.state.a->get_pressure()
-            << " Pa, T=" << right.state.a->get_temperature()
-            << " K: " << failure;
-    issue(message.str());
+    issue("a bracketed contour seed could not be equilibrated");
   }
   void connect_seeds(const SeedSample &a, const SeedSample &b, int axis) {
     if (a.residual * b.residual >= 0.)
@@ -551,13 +526,10 @@ class Contours {
                 normal[1 - axis] = 1.;
                 root = correct(*state.a, u, normal);
               }
-              if (root.solve.success && inside(normalized(*root.a)))
+              if (root.solve.success)
                 trace(root);
-              else if (previous.a && old_f * f < 0.)
-                bracket_seed({previous, old_f}, {state, f});
               else
-                issue("a contour seed could not be equilibrated: " +
-                      root.solve.message);
+                issue("a bracketed contour seed could not be equilibrated");
             }
             previous = std::move(state);
             old_f = f;
@@ -569,35 +541,6 @@ class Contours {
           for (const auto &b : centres)
             connect_seeds(a, b, axis);
         previous_centres = std::move(centres);
-      }
-    }
-    if (!successful_seeds && field.sample_index >= 0 &&
-        inside(normalized(*warm))) {
-      // A very thin field may miss every grid point even though its saved
-      // representative is a verified interior equilibrium. Try that state
-      // before declaring the field impossible to equilibrate.
-      auto saved = solve_at(*warm, normalized(*warm));
-      if (saved.solve.success) {
-        ++successful_seeds;
-        const double f = residual(*saved.a);
-        if (!std::isfinite(f))
-          throw std::runtime_error(
-              "Contour constraint returned a nonfinite residual.");
-        if (std::abs(f) < 1.e-9) {
-          bool corrected = false;
-          std::string failure;
-          for (const V2 &normal : {V2(1., 0.), V2(0., 1.)}) {
-            auto root = correct(*saved.a, normalized(*saved.a), normal);
-            failure = root.solve.message;
-            if (root.solve.success && inside(normalized(*root.a))) {
-              trace(root);
-              corrected = true;
-              break;
-            }
-          }
-          if (!corrected)
-            issue("a saved contour seed could not be equilibrated: " + failure);
-        }
       }
     }
     if (!successful_seeds)
@@ -625,9 +568,14 @@ class Contours {
         saved_x = saved.composition_coordinate;
       }
     };
-    // Polygon construction already selects a verified interior warm state.
+    // Prefer a saved interior representative, then other existing seed
+    // equilibria.
     if (field.sample_index >= 0)
       consider(source.samples.at(static_cast<std::size_t>(field.sample_index)));
+    if (!states)
+      for (const auto &saved : source.samples)
+        if (saved.success && !saved.outside_model_domain)
+          consider(saved);
     if (!states)
       for (const auto &line : source.boundaries)
         for (const auto &saved : line.points)

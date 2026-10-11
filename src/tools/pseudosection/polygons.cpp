@@ -35,38 +35,172 @@ using Phases = std::vector<int>;
 using detail::cross;
 using detail::segment_distance;
 
-struct Segment {
-  Point a, b;
-  Phases left, right;
-  bool solution_replacement = false;
-  std::vector<double> cuts{0., 1.};
-};
+using Assemblages = std::set<Phases>;
+// Copy numbers identify instances locally. Compare multiplicity, retaining
+// two coexisting solutions even when the vanishing copy is numbered first.
+Phases instance_ids(const Phases &phases, int copies) {
+  std::map<int, int> counts;
+  for (int id : phases)
+    ++counts[id / copies];
+  Phases result;
+  for (auto [base, count] : counts)
+    for (int copy = 0; copy < count; ++copy)
+      result.push_back(base * copies + copy);
+  return result;
+}
+
+Assemblages boundary_assemblages(const Boundary &line, const Result &result) {
+  Assemblages choices;
+  if (line.assemblage.empty() || line.zero_phase < 0)
+    return choices;
+  auto finite_area = [&](const Phases &ids) {
+    if (result.section.type == DiagramType::PT)
+      for (const auto &node : result.nodes)
+        if ((node.id == line.start_node || node.id == line.end_node) &&
+            !node.kind.empty() && !node.assemblage.empty() &&
+            node.gibbs_variance >= 0 &&
+            static_cast<int>(ids.size()) >
+                node.gibbs_variance + static_cast<int>(node.assemblage.size()) -
+                    2)
+          return false; // A univariant/invariant assemblage has no P-T field
+                        // area.
+    return !ids.empty();
+  };
+  auto insert = [&](const Phases &ids) {
+    if (!finite_area(ids))
+      return;
+    choices.insert(instance_ids(ids, result.settings.max_phase_instances));
+  };
+  // A composition edge or compound reaction can replace phases absent from
+  // the source assemblage. Its verified neighbours supply the alternatives.
+  const bool replacement =
+      has_composition_axis(result.section.type) ||
+      !finite_area(line.assemblage) ||
+      std::any_of(line.side_a.begin(), line.side_a.end(),
+                  [&](int id) {
+                    return std::find(line.assemblage.begin(),
+                                     line.assemblage.end(),
+                                     id) == line.assemblage.end();
+                  }) ||
+      std::any_of(line.side_b.begin(), line.side_b.end(), [&](int id) {
+        return std::find(line.assemblage.begin(), line.assemblage.end(), id) ==
+               line.assemblage.end();
+      });
+  if (replacement) {
+    insert(line.side_a);
+    insert(line.side_b);
+  } else {
+    insert(line.assemblage);
+    Phases absent = line.assemblage;
+    auto zero = std::find(absent.begin(), absent.end(), line.zero_phase);
+    if (zero != absent.end()) {
+      absent.erase(zero);
+      insert(absent);
+    }
+  }
+  return choices;
+}
+
+// Every physical arc constrains the same field. No edge gets extra authority
+// because it is longer or has more stored corrector points.
+void intersect_assemblages(Assemblages &common, const Assemblages &choices,
+                           bool &initialized) {
+  if (!initialized) {
+    common = choices;
+    initialized = true;
+  } else {
+    Assemblages intersection;
+    std::set_intersection(common.begin(), common.end(), choices.begin(),
+                          choices.end(),
+                          std::inserter(intersection, intersection.end()));
+    common = std::move(intersection);
+  }
+}
 
 struct Edge {
   // Store both directions consecutively; index ^ 1 reverses the direction.
   // Labels describe the region on the left when following the edge.
   Index from, to, next = no_index;
+  Ring path;
   std::set<Phases> labels{};
   bool solution_replacement = false;
+  bool phase_boundary = false;
+  bool latent_invariant = false;
+  bool frame_boundary = false;
+  const Boundary *source = nullptr;
 };
+
+// Infer one cyclic fan from stable side assemblages. Coarse endpoint chords
+// can reverse the apparent angular order of neighbouring branches.
+void link_junction(const std::vector<Index> &list, std::vector<Edge> &edges,
+                   bool frame) {
+  if (list.empty())
+    return;
+  std::vector<Index> order(list.size());
+  std::iota(order.begin(), order.end(), 0);
+  auto score = [&](const auto &fan) {
+    std::pair<int, Index> value{0, 0};
+    for (Index i = 0; i < fan.size(); ++i) {
+      Index reverse = fan[i], next = fan[(i + fan.size() - 1) % fan.size()];
+      const auto &a = edges[list[reverse] ^ 1].labels,
+                 &b = edges[list[next]].labels;
+      if (!a.empty() && !b.empty() &&
+          std::none_of(a.begin(), a.end(),
+                       [&](const auto &phases) { return b.count(phases); }))
+        ++value.first;
+      value.second += (reverse + fan.size() - next - 1) % fan.size();
+    }
+    return value;
+  };
+  auto best = order;
+  auto best_score = score(best);
+  std::set<Index> neighbours;
+  for (Index edge : list)
+    neighbours.insert(edges[edge].to);
+  // Old files may contain stale side labels. They cannot reorder stable arcs
+  // when they name phases outside the boundary's own equilibrium assemblage.
+  const bool reliable = std::all_of(list.begin(), list.end(), [&](Index index) {
+    const auto *line = edges[index].source;
+    if (!line)
+      return true;
+    for (Index direction : {index, index ^ 1})
+      for (const auto &phases : edges[direction].labels)
+        for (int phase : phases)
+          if (std::find(line->assemblage.begin(), line->assemblage.end(),
+                        phase) == line->assemblage.end())
+            return false;
+    return true;
+  });
+  // Preserve the frame exterior and the geometric order of parallel arcs
+  // bounding thin fields. Bound the search at unusually crowded junctions.
+  if (!frame && reliable && order.size() <= 8 &&
+      neighbours.size() == list.size())
+    while (std::next_permutation(order.begin() + 1, order.end())) {
+      auto candidate = score(order);
+      if (candidate < best_score) {
+        best = order;
+        best_score = candidate;
+      }
+    }
+  for (Index i = 0; i < best.size(); ++i)
+    edges[list[best[i]] ^ 1].next =
+        list[best[(i + best.size() - 1) % best.size()]];
+}
 
 struct Walk {
   std::vector<Ring> rings;
-  std::set<Phases> labels;
   bool dangling = false;
 };
 
 struct Face {
   Ring exterior;
   std::vector<Ring> holes;
-  std::set<Phases> labels;
   double area;
   bool dangling;
 };
 
 struct Hole {
   Ring ring;
-  std::set<Phases> labels;
   bool dangling;
 };
 
@@ -91,16 +225,20 @@ public:
       }
     return no_index;
   }
-  Index insert(const Point &p) {
-    Index existing = find(p);
-    if (existing != no_index)
-      return existing;
+  Index append(const Point &p) {
+    points.push_back(p);
+    return points.size() - 1;
+  }
+  Index endpoint(const Point &p) {
     long long x = static_cast<long long>(std::floor(p.x() / tolerance)),
               y = static_cast<long long>(std::floor(p.y() / tolerance));
-    Index index = points.size();
-    points.push_back(p);
+    Index index = append(p);
     bins[{x, y}].push_back(index);
     return index;
+  }
+  Index insert(const Point &p) {
+    Index existing = find(p);
+    return existing == no_index ? endpoint(p) : existing;
   }
 };
 
@@ -130,52 +268,6 @@ bool contains(const Face &face, const std::vector<Point> &points,
     if (contains(hole, points, p, tolerance) != -1)
       return false;
   return true;
-}
-
-void intersect(Segment &first, Segment &second, double tolerance) {
-  if ((first.a.cwiseMin(first.b).array() >
-       second.a.cwiseMax(second.b).array() + tolerance)
-          .any() ||
-      (second.a.cwiseMin(second.b).array() >
-       first.a.cwiseMax(first.b).array() + tolerance)
-          .any())
-    return;
-  Point a = first.b - first.a, b = second.b - second.a,
-        offset = second.a - first.a;
-  double denominator = cross(a, b);
-  auto split_overlap = [&]() {
-    // Collinear duplicate edges and domain-frame overlaps must be split
-    // before merging. Otherwise the half-edge graph contains false faces.
-    for (auto &p : {second.a, second.b}) {
-      double t = (p - first.a).dot(a) / a.squaredNorm();
-      if (t >= 0. && t <= 1.)
-        first.cuts.push_back(t);
-    }
-    for (auto &p : {first.a, first.b}) {
-      double u = (p - second.a).dot(b) / b.squaredNorm();
-      if (u >= 0. && u <= 1.)
-        second.cuts.push_back(u);
-    }
-  };
-  // Roundoff between duplicate straight segments can look like a crossing.
-  // Use floating-point precision here to preserve real thin fields.
-  double roundoff =
-      std::min(tolerance, 256. * std::numeric_limits<double>::epsilon());
-  if (std::abs(cross(a, offset)) <= roundoff * a.norm() &&
-      std::abs(cross(a, second.b - first.a)) <= roundoff * a.norm() &&
-      std::abs(cross(b, -offset)) <= roundoff * b.norm() &&
-      std::abs(cross(b, first.b - second.a)) <= roundoff * b.norm()) {
-    split_overlap();
-  } else if (std::abs(denominator) > 1.e-14 * a.norm() * b.norm()) {
-    double t = cross(offset, b) / denominator,
-           u = cross(offset, a) / denominator;
-    double t_tol = tolerance / a.norm(), u_tol = tolerance / b.norm();
-    if (t >= -t_tol && t <= 1. + t_tol && u >= -u_tol && u <= 1. + u_tol) {
-      first.cuts.push_back(std::clamp(t, 0., 1.));
-      second.cuts.push_back(std::clamp(u, 0., 1.));
-    }
-  } else if (std::abs(cross(a, offset)) <= tolerance * a.norm())
-    split_overlap();
 }
 
 std::vector<Ring> rings(const Ring &walk) {
@@ -297,68 +389,6 @@ std::pair<Point, double> label_point(const Face &face,
 }
 } // namespace
 
-std::vector<std::pair<std::size_t, std::size_t>>
-detail::field_conflicts(const Result &result, const FieldPolygons &geometry,
-                        bool all_samples) {
-  const auto ranges = result.coordinate_ranges();
-  Point scale(ranges[0][1] - ranges[0][0], ranges[1][1] - ranges[1][0]);
-  std::vector<std::pair<std::size_t, std::size_t>> conflicts;
-  for (std::size_t i = 0; i < geometry.polygons.size(); ++i) {
-    const auto &polygon = geometry.polygons[i];
-    if (polygon.sample_index < 0 || polygon.has_open_boundary ||
-        polygon.outside_model_domain || polygon.phases.empty())
-      continue;
-    const Point low = polygon.vertices.colwise().minCoeff().transpose();
-    const Point high = polygon.vertices.colwise().maxCoeff().transpose();
-    std::set<Phases> checked;
-    for (std::size_t j = 0; j < result.samples.size(); ++j) {
-      const auto &sample = result.samples[j];
-      if (!sample.success || sample.outside_model_domain)
-        continue;
-      const auto location = diagram_coordinates(sample, result.section.type);
-      if (location.allFinite() && ((location.array() < low.array()).any() ||
-                                   (location.array() > high.array()).any()))
-        continue;
-      Phases phases;
-      double total = 0.;
-      for (const auto &phase : sample.phases)
-        total += phase.amount;
-      for (const auto &phase : sample.phases)
-        if (phase.amount > result.settings.amount_tolerance * total)
-          phases.push_back(phase.id);
-      std::sort(phases.begin(), phases.end());
-      if (phases == polygon.phases || (!all_samples && checked.count(phases)))
-        continue;
-      // A verified equilibrium can retain an entering phase below the amount
-      // reporting cutoff. Its full equations already support this region's
-      // assemblage; the rounded count alone is not a missing-boundary witness.
-      // An actually omitted phase, or an extra active phase, still conflicts.
-      Phases supported;
-      for (const auto &phase : sample.phases)
-        if (phase.amount >= -result.settings.amount_tolerance * total)
-          supported.push_back(phase.id);
-      std::sort(supported.begin(), supported.end());
-      if (std::includes(polygon.phases.begin(), polygon.phases.end(),
-                        phases.begin(), phases.end()) &&
-          std::includes(supported.begin(), supported.end(),
-                        polygon.phases.begin(), polygon.phases.end()))
-        continue;
-      // Exclude coordinate roundoff and the amount precision of indirectly
-      // constrained axes. Curvature and competing roots need local checks,
-      // regardless of whether this assemblage exists elsewhere in the diagram.
-      const double band =
-          result.section.type == DiagramType::PT
-              ? 64. * std::numeric_limits<double>::epsilon()
-              : std::max(1.e-8, result.settings.amount_tolerance * 2.);
-      if (polygon.contains_rectangle(location, scale * band)) {
-        conflicts.emplace_back(j, i);
-        checked.insert(phases);
-      }
-    }
-  }
-  return conflicts;
-}
-
 bool FieldPolygon::contains_rectangle(const Point &centre,
                                       const Point &half_size) const {
   if (!centre.allFinite() || !half_size.allFinite() ||
@@ -454,229 +484,330 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     values.erase(std::unique(values.begin(), values.end()), values.end());
     return values;
   };
-  // An invariant has one physical P,T, even when its different phase amounts
-  // span a latent S/V interval. Independent correctors leave small P,T
-  // differences along overlapping copies of that interval. In PS and TV these
-  // differences must not enclose fictitious fields. Align only connected,
-  // zero-variance invariant traces that agree within Newton's P,T accuracy;
-  // retain the original equilibrium states and every S/V coordinate. In SV
-  // the same invariant can occupy a finite area, so no alignment is needed.
-  const bool latent_invariant = result.section.type == DiagramType::PS ||
-                                result.section.type == DiagramType::TV;
-  std::map<int, const Node *> invariant_nodes;
-  std::map<int, int> invariant_groups;
-  if (latent_invariant)
-    for (const auto &node : result.nodes)
-      if (node.kind == "junction" && node.gibbs_variance == 0 &&
-          node.pt_nullity == 0 &&
-          !node.assemblage.empty()) {
-        invariant_nodes.emplace(node.id, &node);
-        invariant_groups.emplace(node.id, node.id);
-      }
-  auto invariant_group = [&](int id) {
-    while (invariant_groups.at(id) != id)
-      id = invariant_groups.at(id);
-    return id;
-  };
-  auto same_invariant = [](const auto &a, const auto &b) {
-    return std::abs(a.pressure - b.pressure) <= .2 &&
-           std::abs(a.temperature - b.temperature) <= 1.e-6;
-  };
-  std::set<const Boundary *> invariant_lines;
-  for (const auto &line : result.boundaries)
-    if (!line.points.empty() && invariant_nodes.count(line.start_node) &&
-        invariant_nodes.count(line.end_node)) {
-      const auto &first = *invariant_nodes.at(line.start_node);
-      const auto &last = *invariant_nodes.at(line.end_node);
-      if (canonical(line.assemblage) != canonical(first.assemblage) ||
-          canonical(line.assemblage) != canonical(last.assemblage) ||
-          !same_invariant(first, last) ||
-          !std::all_of(line.points.begin(), line.points.end(),
-                       [&](const BoundaryPoint &point) {
-                         return same_invariant(first, point);
-                       }))
-        continue;
-      invariant_groups[invariant_group(last.id)] = invariant_group(first.id);
-      invariant_lines.insert(&line);
+  // Calculate saved labels once; polygon reconstruction never changes samples.
+  std::vector<Phases> sample_labels;
+  std::set<Phases> sampled_assemblages;
+  bool has_domain_sample = false;
+  for (const auto &state : result.samples) {
+    Phases phases;
+    if (state.success && !state.outside_model_domain) {
+      double total = 0.;
+      for (const auto &phase : state.phases)
+        total += phase.amount;
+      for (const auto &phase : state.phases)
+        if (phase.amount > total * result.settings.amount_tolerance)
+          phases.push_back(phase.id);
     }
-  std::map<int, Point> nodes;
-  for (auto &node : result.nodes) {
-    auto point = coordinate(node);
-    if (invariant_nodes.count(node.id))
-      point[0] = coordinate(*invariant_nodes.at(invariant_group(node.id)))[0];
-    nodes.emplace(node.id, point);
-  }
-  std::set<int> line_ends;
-  std::vector<Segment> segments;
-  for (auto &line : result.boundaries) {
-    std::vector<Point> points;
-    for (auto &point : line.points) {
-      auto value = coordinate(point);
-      if (invariant_lines.count(&line))
-        value[0] = nodes.at(line.start_node)[0];
-      points.push_back(value);
+    sample_labels.push_back(canonical(phases));
+    if (!phases.empty()) {
+      sampled_assemblages.insert(sample_labels.back());
+      const auto q = coordinate(state);
+      has_domain_sample = has_domain_sample ||
+                          ((q.array() >= 0.).all() && (q.array() <= 1.).all());
     }
-    if (points.size() < 2)
-      continue;
-    if (nodes.count(line.start_node))
-      points.front() = nodes.at(line.start_node);
-    if (nodes.count(line.end_node))
-      points.back() = nodes.at(line.end_node);
-    for (int id : {line.start_node, line.end_node})
-      if (nodes.count(id))
-        line_ends.insert(id);
-    for (auto &point : points) {
-      if ((point.array() < -tolerance * 10).any() ||
-          (point.array() > 1. + tolerance * 10).any())
-        throw std::invalid_argument(
-            "Phase-line coordinates lie outside the calculation domain.");
-      point = point.cwiseMax(Point::Zero()).cwiseMin(Point::Ones());
-    }
-    // In selected diagram-axis order, side_b is left and side_a is right.
-    for (std::size_t i = 1; i < points.size(); ++i)
-      if ((points[i] - points[i - 1]).norm() > tolerance)
-        segments.push_back({points[i - 1], points[i], canonical(line.side_b),
-                            canonical(line.side_a),
-                            line.is_solution_replacement});
   }
-  if (close_domain) {
-    std::array<Point, 5> corners{Point(0., 0.), Point(1., 0.), Point(1., 1.),
-                                 Point(0., 1.), Point(0., 0.)};
-    for (Index i = 1; i < corners.size(); ++i)
-      segments.push_back({corners[i - 1], corners[i], {}, {}});
-  }
-  std::vector<std::vector<Point>> excluded;
-  for (auto &region : result.excluded_regions) {
-    std::vector<Point> ring;
-    for (int i = 0; i < region.rows(); ++i)
-      ring.push_back(normalise(region(i, 0), region(i, 1)));
-    for (std::size_t i = 1; i < ring.size(); ++i)
-      if ((ring[i] - ring[i - 1]).norm() > tolerance)
-        segments.push_back({ring[i - 1], ring[i], {}, {}});
-    excluded.push_back(std::move(ring));
-  }
-  for (std::size_t i = 0; i < segments.size(); ++i)
-    for (std::size_t j = i + 1; j < segments.size(); ++j)
-      intersect(segments[i], segments[j], tolerance);
-
+  const bool uniform = has_domain_sample && sampled_assemblages.size() == 1;
+  // Only saved junctions and trace endpoints connect boundaries. Interior
+  // chords may cross without creating a thermodynamic vertex or another field.
   Vertices vertices(tolerance);
+  std::map<int, Index> nodes;
+  for (const auto &node : result.nodes)
+    nodes.emplace(node.id, vertices.insert(coordinate(node)));
   std::vector<Edge> edges;
   std::map<std::pair<Index, Index>, Index> edge_index;
-  for (auto &segment : segments) {
-    std::sort(segment.cuts.begin(), segment.cuts.end());
-    segment.cuts.erase(
-        std::unique(segment.cuts.begin(), segment.cuts.end(),
-                    [&](double a, double b) {
-                      return std::abs(a - b) * (segment.b - segment.a).norm() <=
-                             tolerance;
-                    }),
-        segment.cuts.end());
-    for (std::size_t i = 1; i < segment.cuts.size(); ++i) {
-      Index a = vertices.insert(segment.a +
-                                segment.cuts[i - 1] * (segment.b - segment.a));
-      Index b = vertices.insert(segment.a +
-                                segment.cuts[i] * (segment.b - segment.a));
-      if (a == b)
+  std::set<Index> endpoints, stable_endpoints;
+  auto add_edge = [&](Ring path, const Phases &left, const Phases &right,
+                      bool phase_boundary, bool replacement = false,
+                      bool latent_invariant = false,
+                      const Boundary *source = nullptr) {
+    if (path.size() < 2)
+      return;
+    double length = 0.;
+    for (Index i = 1; i < path.size(); ++i)
+      length +=
+          (vertices.points[path[i]] - vertices.points[path[i - 1]]).norm();
+    if (length <= tolerance)
+      return;
+    bool frame = false;
+    if (!phase_boundary)
+      for (int axis = 0; axis < 2; ++axis)
+        for (double value : {0., 1.})
+          frame =
+              frame || std::all_of(path.begin(), path.end(), [&](Index v) {
+                return std::abs(vertices.points[v][axis] - value) <= tolerance;
+              });
+    // Repeated records of the same complete arc are one graph edge. This
+    // does not dissolve fields or compare unrelated, crossing chords.
+    for (Index i = 0; i < edges.size(); i += 2) {
+      Index candidate =
+          edges[i].from == path.front() && edges[i].to == path.back() ? i
+                                                                      : i ^ 1;
+      auto &old = edges[candidate];
+      if (old.from != path.front() || old.to != path.back() ||
+          old.solution_replacement != replacement)
         continue;
-      auto key = std::minmax(a, b);
-      auto it = edge_index.find(key);
-      Index index;
-      if (it == edge_index.end()) {
-        index = edges.size();
-        edges.push_back({a, b});
-        edges.push_back({b, a});
-        edge_index.emplace(key, index);
-      } else {
-        index = it->second;
-        if (edges[index].from != a)
-          index ^= 1;
+      // Two records of the same reaction, stable endpoints and directed
+      // neighbours are one branch even when their coarse chords differ.
+      bool same_branch =
+          source && old.source && source->zero_phase >= 0 &&
+          source->zero_phase == old.source->zero_phase &&
+          canonical(source->assemblage) == canonical(old.source->assemblage) &&
+          old.labels == std::set<Phases>{left} &&
+          edges[candidate ^ 1].labels == std::set<Phases>{right};
+      auto follows = [&](const Ring &a, const Ring &b) {
+        for (Index vertex : a) {
+          double distance = std::numeric_limits<double>::infinity();
+          for (Index j = 1; j < b.size(); ++j)
+            distance =
+                std::min(distance, segment_distance(vertices.points[vertex],
+                                                    vertices.points[b[j - 1]],
+                                                    vertices.points[b[j]]));
+          if (distance > tolerance)
+            return false;
+        }
+        return true;
+      };
+      if (same_branch || (follows(path, old.path) && follows(old.path, path))) {
+        if (!left.empty())
+          old.labels.insert(left);
+        if (!right.empty())
+          edges[candidate ^ 1].labels.insert(right);
+        old.phase_boundary = edges[candidate ^ 1].phase_boundary =
+            old.phase_boundary || phase_boundary;
+        old.frame_boundary = edges[candidate ^ 1].frame_boundary =
+            old.frame_boundary || frame;
+        return;
       }
-      if (!segment.left.empty())
-        edges[index].labels.insert(segment.left);
-      if (!segment.right.empty())
-        edges[index ^ 1].labels.insert(segment.right);
-      if (segment.solution_replacement)
-        edges[index].solution_replacement =
-            edges[index ^ 1].solution_replacement = true;
+    }
+    Index index = edges.size();
+    Edge forward{path.front(), path.back(), no_index, path};
+    std::reverse(path.begin(), path.end());
+    Edge backward{path.front(), path.back(), no_index, std::move(path)};
+    if (!left.empty())
+      forward.labels.insert(left);
+    if (!right.empty())
+      backward.labels.insert(right);
+    forward.phase_boundary = backward.phase_boundary = phase_boundary;
+    forward.solution_replacement = backward.solution_replacement = replacement;
+    forward.latent_invariant = backward.latent_invariant = latent_invariant;
+    forward.source = backward.source = source;
+    forward.frame_boundary = backward.frame_boundary = frame;
+    endpoints.insert(forward.from);
+    endpoints.insert(forward.to);
+    edges.push_back(std::move(forward));
+    edges.push_back(std::move(backward));
+    for (Index j = 1; j < edges[index].path.size(); ++j) {
+      Index a = edges[index].path[j - 1], b = edges[index].path[j];
+      edge_index.emplace(std::make_pair(a, b), index);
+      edge_index.emplace(std::make_pair(b, a), index ^ 1);
+    }
+  };
+  for (const auto &line : result.boundaries) {
+    if (line.points.size() < 2)
+      continue;
+    std::vector<Point> points;
+    for (const auto &point : line.points) {
+      auto value = coordinate(point);
+      if ((value.array() < -tolerance * 10).any() ||
+          (value.array() > 1. + tolerance * 10).any())
+        throw std::invalid_argument(
+            "Phase-line coordinates lie outside the calculation domain.");
+      points.push_back(value.cwiseMax(Point::Zero()).cwiseMin(Point::Ones()));
+    }
+    auto endpoint = [&](int id, const Point &p) {
+      auto it = nodes.find(id);
+      Index vertex = it == nodes.end() ? vertices.insert(p) : it->second;
+      if (it != nodes.end())
+        stable_endpoints.insert(vertex);
+      return vertex;
+    };
+    Ring path{endpoint(line.start_node, points.front())};
+    for (Index i = 1; i + 1 < points.size(); ++i)
+      path.push_back(vertices.append(points[i]));
+    path.push_back(endpoint(line.end_node, points.back()));
+    auto invariant_node = [&](int id) -> const Node * {
+      for (const auto &node : result.nodes)
+        if (node.id == id && node.kind == "junction" &&
+            node.gibbs_variance == 0 && node.pt_nullity == 0)
+          return &node;
+      return nullptr;
+    };
+    const auto *start = invariant_node(line.start_node),
+               *end = invariant_node(line.end_node);
+    const bool latent =
+        (result.section.type == DiagramType::PS ||
+         result.section.type == DiagramType::TV) &&
+        start && end &&
+        canonical(start->assemblage) == canonical(end->assemblage) &&
+        std::abs(start->pressure - end->pressure) <= .2 &&
+        std::abs(start->temperature - end->temperature) <= 1.e-6;
+    // In native axis order, side_b is left and side_a is right.
+    // Some saved traces pass through another stable vertex without ending
+    // there (notably invariant lines in T-X). Split only at saved vertices,
+    // never at intersections discovered between arbitrary phase chords.
+    Ring arc{path.front()};
+    for (Index i = 1; i < path.size(); ++i) {
+      const Point a = vertices.points[path[i - 1]],
+                  b = vertices.points[path[i]];
+      const Point delta = b - a;
+      std::vector<std::pair<double, Index>> cuts;
+      if (delta.squaredNorm() > 0.)
+        for (const auto &node : result.nodes) {
+          Index vertex = nodes.at(node.id);
+          if (vertex == path.front() || vertex == path.back())
+            continue;
+          const auto event = canonical(node.assemblage);
+          const auto assemblage = canonical(line.assemblage);
+          if (!std::includes(event.begin(), event.end(), assemblage.begin(),
+                             assemblage.end()) ||
+              (line.zero_phase >= 0 &&
+               std::find(node.zero_phases.begin(), node.zero_phases.end(),
+                         line.zero_phase) == node.zero_phases.end()))
+            continue;
+          const Point p = vertices.points[vertex];
+          double along = (p - a).dot(delta) / delta.squaredNorm();
+          if (along > 0. && along <= 1. &&
+              segment_distance(p, a, b) <= tolerance)
+            cuts.emplace_back(along, vertex);
+        }
+      std::sort(cuts.begin(), cuts.end());
+      for (const auto &[along, vertex] : cuts) {
+        arc.push_back(vertex);
+        stable_endpoints.insert(vertex);
+        add_edge(arc, canonical(line.side_b), canonical(line.side_a), true,
+                 line.is_solution_replacement, latent, &line);
+        arc = {vertex};
+      }
+      // Repeated endpoint coordinates still need the saved vertex ID.
+      if (arc.back() != path[i])
+        arc.push_back(path[i]);
+    }
+    add_edge(std::move(arc), canonical(line.side_b), canonical(line.side_a),
+             true, line.is_solution_replacement, latent, &line);
+  }
+  std::vector<std::vector<Point>> excluded;
+  auto on_frame = [&](const Point &a, const Point &b) {
+    for (int k = 0; k < 2; ++k)
+      for (double value : {0., 1.})
+        if (std::abs(a[k] - value) <= tolerance &&
+            std::abs(b[k] - value) <= tolerance)
+          return true;
+    return false;
+  };
+  for (const auto &region : result.excluded_regions) {
+    std::vector<Point> points;
+    Ring path;
+    for (int i = 0; i < region.rows(); ++i) {
+      points.push_back(normalise(region(i, 0), region(i, 1)));
+      path.push_back(vertices.insert(points.back()));
+    }
+    for (Index i = 1; i < path.size(); ++i) {
+      endpoints.insert(path[i - 1]);
+      endpoints.insert(path[i]);
+      if (!close_domain || !on_frame(points[i - 1], points[i]))
+        add_edge({path[i - 1], path[i]}, {}, {}, false);
+    }
+    excluded.push_back(std::move(points));
+  }
+  if (close_domain) {
+    // Frame arcs close edge fields at their existing endpoints. They never
+    // cut a phase line or join an unfinished interior trace to the frame.
+    for (const Point &corner :
+         {Point(0., 0.), Point(1., 0.), Point(1., 1.), Point(0., 1.)})
+      endpoints.insert(vertices.insert(corner));
+    for (int side = 0; side < 4; ++side) {
+      const int fixed = side % 2 ? 0 : 1;
+      const double value = side == 1 || side == 2 ? 1. : 0.;
+      std::vector<Index> ordered;
+      for (Index vertex : endpoints)
+        if (std::abs(vertices.points[vertex][fixed] - value) <= tolerance)
+          ordered.push_back(vertex);
+      std::sort(ordered.begin(), ordered.end(), [&](Index a, Index b) {
+        return side < 2 ? vertices.points[a][1 - fixed] <
+                              vertices.points[b][1 - fixed]
+                        : vertices.points[a][1 - fixed] >
+                              vertices.points[b][1 - fixed];
+      });
+      for (Index i = 1; i < ordered.size(); ++i)
+        add_edge({ordered[i - 1], ordered[i]}, {}, {}, false);
     }
   }
   std::vector<std::vector<Index>> outgoing(vertices.points.size());
   for (std::size_t i = 0; i < edges.size(); ++i)
     outgoing[edges[i].from].push_back(i);
-  std::vector<Index> positions(edges.size());
   for (auto &list : outgoing) {
     std::sort(list.begin(), list.end(), [&](Index a, Index b) {
-      Point da = vertices.points[edges[a].to] - vertices.points[edges[a].from];
-      Point db = vertices.points[edges[b].to] - vertices.points[edges[b].from];
+      auto direction = [&](Index edge) -> Point {
+        const auto &path = edges[edge].path;
+        for (Index i = 1; i < path.size(); ++i) {
+          Point delta = vertices.points[path[i]] - vertices.points[path[0]];
+          if (delta.norm() > tolerance) {
+            // The exterior frame connects to itself. A phase arc tangent to
+            // it belongs to the interior fan, even when coarse chords overlap
+            // the frame. Only the ordering changes; saved points stay intact.
+            if (!edges[edge].frame_boundary)
+              for (int axis = 0; axis < 2; ++axis) {
+                if (std::abs(vertices.points[path[0]][axis]) <= tolerance)
+                  delta[axis] =
+                      std::max(std::abs(delta[axis]), delta.norm() * 1.e-12);
+                if (std::abs(vertices.points[path[0]][axis] - 1.) <= tolerance)
+                  delta[axis] =
+                      -std::max(std::abs(delta[axis]), delta.norm() * 1.e-12);
+              }
+            return delta;
+          }
+        }
+        return Point::Zero();
+      };
+      Point da = direction(a), db = direction(b);
       return std::atan2(da.y(), da.x()) < std::atan2(db.y(), db.x());
     });
-    for (std::size_t i = 0; i < list.size(); ++i)
-      positions[list[i]] = i;
+    if (!list.empty()) {
+      const auto p = vertices.points[edges[list.front()].from];
+      bool frame = (p.array().abs() <= tolerance).any() ||
+                   ((p.array() - 1.).abs() <= tolerance).any();
+      link_junction(list, edges, frame);
+    }
   }
-  for (std::size_t i = 0; i < edges.size(); ++i) {
-    auto &list = outgoing[edges[i].to];
-    // Turn clockwise from the reversed edge to keep the region on the left.
-    edges[i].next = list[(positions[i ^ 1] + list.size() - 1) % list.size()];
-  }
-  auto in_cycle = [&](Index edge) {
-    std::vector<bool> seen(outgoing.size(), false);
-    std::vector<Index> pending{edges[edge].from};
-    seen[pending.front()] = true;
-    for (Index i = 0; i < pending.size(); ++i)
-      for (Index candidate : outgoing[pending[i]]) {
-        if (candidate / 2 == edge / 2)
-          continue;
-        Index next = edges[candidate].to;
-        if (next == edges[edge].to)
-          return true;
-        if (!seen[next]) {
-          seen[next] = true;
-          pending.push_back(next);
-        }
-      }
-    return false;
-  };
   std::vector<Walk> walks;
   std::vector<bool> visited(edges.size(), false);
-  bool finer = false;
   for (std::size_t start = 0; start < edges.size(); ++start)
     if (!visited[start]) {
       Walk walk;
       Ring path;
-      std::set<Index> traversed;
       Index current = start;
       do {
         visited[current] = true;
-        if (traversed.count(current ^ 1)) {
-          walk.dangling = true;
-          finer = finer || in_cycle(current);
+        for (Index vertex : {edges[current].from, edges[current].to}) {
+          const auto p = vertices.points[vertex];
+          const bool frame = (p.array().abs() <= tolerance).any() ||
+                             ((p.array() - 1.).abs() <= tolerance).any();
+          walk.dangling =
+              walk.dangling || (outgoing[vertex].size() == 1 && !frame);
         }
-        traversed.insert(current);
-        path.push_back(edges[current].from);
-        walk.labels.insert(edges[current].labels.begin(),
-                           edges[current].labels.end());
+        const auto &arc = edges[current].path;
+        path.insert(path.end(), arc.begin(), arc.end() - 1);
         current = edges[current].next;
       } while (current != start);
       path.push_back(edges[start].from);
       walk.rings = rings(path);
       walks.push_back(std::move(walk));
     }
-  // A cycle edge cannot border the same face on both sides in a planar graph.
-  // Snapping has crossed thin fields; retry more precisely. True dangling
-  // branches have no alternate path and retain their unresolved diagnostics.
-  if (finer && tolerance > 1.e-12)
-    return field_polygons(result, std::max(1.e-12, tolerance * .1),
-                          close_domain, merge_fields);
   std::vector<Face> faces;
   std::vector<Hole> holes;
   const double area_tolerance = tolerance * tolerance * 4.;
   for (auto &walk : walks)
     for (auto &ring : walk.rings) {
+      bool latent = true;
+      for (Index i = 1; i < ring.size(); ++i)
+        latent = latent &&
+                 edges[edge_index.at({ring[i - 1], ring[i]})].latent_invariant;
+      // A zero-variance P-S/T-V invariant has no two-dimensional interior.
+      // Classify its loop without aligning or moving any saved curve.
+      if (latent)
+        continue;
       double value = area(ring, vertices.points);
-      // Splitting overlapping chords can leave a long ring whose width is
-      // only coordinate roundoff. Its area error scales with its perimeter,
-      // rather than the square of the vertex snapping tolerance. Do not turn
-      // those zero-width excursions into unidentified phase fields.
+      // Ignore zero-area excursions using roundoff scaled by ring length.
       double perimeter = 0.;
       for (std::size_t i = 1; i < ring.size(); ++i)
         perimeter +=
@@ -689,9 +820,9 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
           std::max(area_tolerance,
                    64. * std::numeric_limits<double>::epsilon() * perimeter);
       if (value > allowance)
-        faces.push_back({ring, {}, walk.labels, value, walk.dangling});
+        faces.push_back({ring, {}, value, walk.dangling});
       else if (value < -allowance)
-        holes.push_back({ring, walk.labels, walk.dangling});
+        holes.push_back({ring, walk.dangling});
     }
   // Clockwise cycles belong to the smallest containing exterior, excluding
   // their own equal-area counterpart. This handles islands and nested holes.
@@ -712,7 +843,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     }
     return interior;
   };
-  for (auto &[ring, labels, dangling] : holes) {
+  for (auto &[ring, dangling] : holes) {
     double hole_area = -area(ring, vertices.points);
     Index parent = no_index;
     for (std::size_t i = 0; i < faces.size(); ++i)
@@ -722,10 +853,14 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
         parent = i;
     if (parent != no_index) {
       faces[parent].holes.push_back(ring);
-      faces[parent].labels.insert(labels.begin(), labels.end());
       faces[parent].dangling = faces[parent].dangling || dangling;
     }
   }
+  auto ring_edges = [&](const Ring &ring, auto action) {
+    for (std::size_t j = 1; j < ring.size(); ++j) {
+      action(edge_index.at({ring[j - 1], ring[j]}), ring[j - 1], ring[j]);
+    }
+  };
   std::map<Phases, int> field_ids;
   for (auto &field : result.fields)
     field_ids.emplace(canonical(field.phases), field.id);
@@ -786,13 +921,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
       if (!contains(face, vertices.points, location, sample_tolerance)) {
         continue;
       }
-      Phases phases;
-      double total = 0.;
-      for (auto &phase : state.phases)
-        total += phase.amount;
-      for (auto &phase : state.phases)
-        if (phase.amount > total * result.settings.amount_tolerance)
-          phases.push_back(phase.id);
+      const auto &phases = sample_labels[index];
       if (phases.empty())
         continue;
       double margin = std::numeric_limits<double>::infinity();
@@ -811,33 +940,90 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
         polygon.sample_index = burnman::utils::checked_int(index);
       }
     }
-    // Use the verified state furthest from the polygon boundary. Close to a
-    // curved trace, straight chords can put an adjacent-field sample inside
-    // the polygon. A dangling physical boundary always leaves the face open.
-    auto labels =
-        sample_phases.empty() ? face.labels : std::set<Phases>{sample_phases};
-    std::set<int> counts;
-    for (auto &phases : labels)
-      counts.insert(burnman::utils::checked_int(phases.size()));
-    if (!face.dangling && counts.size() == 1) {
-      polygon.n_phases = *counts.begin();
-      if (labels.size() == 1) {
-        polygon.phases = *labels.begin();
-        auto it = field_ids.find(polygon.phases);
-        if (it != field_ids.end())
-          polygon.field_id = it->second;
-      } else {
-        output.diagnostics.push_back(
-            "Closed region " + std::to_string(output.polygons.size()) +
-            " has a known phase count but conflicting assemblage labels.");
+    // The exterior loop is the primary evidence. Internal holes and spurs
+    // can expose unfinished topology without suppressing its surrounding label.
+    Assemblages exterior_labels, perimeter, common;
+    bool constrained = false;
+    std::set<const Boundary *> sources;
+    bool physical_perimeter = false, unknown_side = false;
+    auto evidence = [&](const Ring &ring, bool exterior) {
+      ring_edges(ring, [&](Index edge, Index from, Index to) {
+        physical_perimeter = physical_perimeter || edges[edge].phase_boundary;
+        unknown_side = unknown_side || (edges[edge].phase_boundary &&
+                                        edges[edge].labels.empty());
+        (void)from;
+        (void)to;
+        if (edges[edge].source && sources.insert(edges[edge].source).second)
+          intersect_assemblages(
+              common, boundary_assemblages(*edges[edge].source, result),
+              constrained);
+        for (const auto &phases : edges[edge].labels) {
+          if (phases.empty())
+            continue;
+          perimeter.insert(phases);
+          if (exterior)
+            exterior_labels.insert(phases);
+        }
+      });
+    };
+    evidence(face.exterior, true);
+    for (const auto &hole : face.holes)
+      evidence(hole, false);
+    for (const auto *source : sources)
+      if (source->id >= 0)
+        polygon.boundary_ids.push_back(source->id);
+    std::sort(polygon.boundary_ids.begin(), polygon.boundary_ids.end());
+    bool loop_identified = false;
+    if (exterior_labels.size() == 1)
+      polygon.phases = *exterior_labels.begin();
+    else if (exterior_labels.empty() && perimeter.size() == 1)
+      polygon.phases = *perimeter.begin();
+    else if (!face.dangling && constrained && common.size() == 1) {
+      polygon.phases = *common.begin();
+      loop_identified = true;
+    } else if (!sample_phases.empty())
+      polygon.phases = sample_phases;
+    else if (perimeter.empty()) {
+      // No usable loop or interior sample: retain a provisional label from
+      // the closest successful saved minimization. This performs no solves.
+      const auto pole = label_point(face, vertices.points).first;
+      double distance = std::numeric_limits<double>::infinity();
+      for (std::size_t i = 0; i < result.samples.size(); ++i) {
+        if (sample_labels[i].empty())
+          continue;
+        const double next =
+            (coordinate(result.samples[i]) - pole).squaredNorm();
+        if (next < distance) {
+          polygon.phases = sample_labels[i];
+          distance = next;
+        }
       }
-    } else {
-      output.diagnostics.push_back(
-          "Closed region " + std::to_string(output.polygons.size()) +
-          (face.dangling    ? " contains an unfinished boundary."
-           : counts.empty() ? " has no assemblage label."
-                            : " has conflicting boundary phase counts."));
     }
+    if (sample_phases != polygon.phases)
+      polygon.sample_index = -1;
+    polygon.n_phases = burnman::utils::checked_int(polygon.phases.size());
+    const auto identified = field_ids.find(polygon.phases);
+    if (identified != field_ids.end())
+      polygon.field_id = identified->second;
+    polygon.is_provisional =
+        face.dangling ||
+        (!loop_identified && (unknown_side || perimeter.size() > 1)) ||
+        (perimeter.empty() && (physical_perimeter || !uniform));
+    if (polygon.is_provisional || polygon.phases.empty())
+      output.diagnostics.push_back(
+          "Region " + std::to_string(output.polygons.size()) +
+          (polygon.phases.empty() && perimeter.size() > 1
+               ? " has conflicting perimeter assemblages; no consistent label "
+                 "was found."
+           : polygon.phases.empty() ? " has no assemblage evidence."
+           : face.dangling
+               ? " contains an unfinished boundary; its label is provisional."
+           : unknown_side
+               ? " has an unlabelled perimeter side; its label is provisional."
+           : perimeter.empty() ? " has no labelled perimeter; its saved-sample "
+                                 "label is provisional."
+                               : " has conflicting perimeter assemblages; its "
+                                 "label is provisional."));
     Point sample;
     if (polygon.sample_index >= 0) {
       auto &state =
@@ -850,216 +1036,47 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     polygon.label_clearance = label.second;
     output.polygons.push_back(std::move(polygon));
   }
-  // Assign each directed edge to its face on the left. Hole rings have the
-  // reverse winding and belong to the surrounding face. Zero-area dangling
-  // excursions intentionally remain unassigned and cannot be dissolved.
+  // Assign actual rings; dangling excursions remain unassigned.
   std::vector<Index> edge_faces(edges.size(), no_index);
-  auto ring_edges = [&](const Ring &ring, auto action) {
-    for (std::size_t j = 1; j < ring.size(); ++j) {
-      Index edge = edge_index.at(std::minmax(ring[j - 1], ring[j]));
-      if (edges[edge].from != ring[j - 1])
-        edge ^= 1;
-      action(edge);
-    }
-  };
   for (std::size_t i = 0; i < faces.size(); ++i) {
-    auto assign = [&](Index edge) { edge_faces[edge] = i; };
+    auto assign = [&](Index edge, Index, Index) { edge_faces[edge] = i; };
     ring_edges(faces[i].exterior, assign);
     for (auto &hole : faces[i].holes)
       ring_edges(hole, assign);
   }
-  std::vector<Index> parent(faces.size());
+  // Closed loops are the fields. Do not dissolve them into a planar union.
+  (void)merge_fields; // Retained for source/API compatibility.
   std::vector<Phases> face_phases;
   for (const auto &polygon : output.polygons)
-    face_phases.push_back(polygon.phases);
-  std::iota(parent.begin(), parent.end(), Index{0});
-  auto root = [&](Index i) {
-    while (parent[i] != i) {
-      parent[i] = parent[parent[i]];
-      i = parent[i];
-    }
-    return i;
-  };
-  for (auto [sample, polygon] : detail::field_conflicts(result, output))
-    output.diagnostics.push_back(
-        "Closed region " + std::to_string(polygon) +
-        " contains a conflicting equilibrium assemblage at sample " +
-        std::to_string(sample) + "; a phase boundary may be missing.");
-  if (merge_fields)
-    for (std::size_t i = 0; i < edges.size(); i += 2) {
-      // Coexisting compositions can switch while the phase names stay the
-      // same. Preserve this physical boundary between the two fields.
-      if (edges[i].solution_replacement)
-        continue;
-      Index a = edge_faces[i], b = edge_faces[i ^ 1];
-      if (a == no_index || b == no_index || a == b)
-        continue;
-      auto &first = output.polygons[a];
-      auto &second = output.polygons[b];
-      // Matching phase counts or text abbreviations alone are insufficient.
-      // Use identified, closed assemblages, including solution-instance IDs.
-      if (first.has_open_boundary || second.has_open_boundary ||
-          first.phases.empty() || first.phases != second.phases)
-        continue;
-      a = root(a);
-      b = root(b);
-      parent[std::max(a, b)] = std::min(a, b);
-    }
-  std::map<Index, std::vector<Index>> groups;
-  for (std::size_t i = 0; i < faces.size(); ++i)
-    groups[root(i)].push_back(i);
+    face_phases.push_back(polygon.is_provisional ? Phases{} : polygon.phases);
   std::vector<bool> removed(edges.size(), false);
-  std::vector<FieldPolygon> polygons;
-  for (auto &[group, members] : groups) {
-    if (members.size() == 1) {
-      polygons.push_back(std::move(output.polygons[members[0]]));
-      continue;
-    }
-    std::vector<bool> boundary(edges.size(), false), seen(edges.size(), false);
-    for (std::size_t i = 0; i < edges.size(); ++i)
-      boundary[i] =
-          edge_faces[i] != no_index && root(edge_faces[i]) == group &&
-          (edge_faces[i ^ 1] == no_index || root(edge_faces[i ^ 1]) != group);
-    std::vector<Ring> exteriors, interiors;
-    bool valid = true;
-    for (std::size_t start = 0; start < edges.size() && valid; ++start)
-      if (boundary[start] && !seen[start]) {
-        Ring path;
-        Index current = start;
-        do {
-          if (seen[current]) {
-            valid = false;
-            break;
-          }
-          seen[current] = true;
-          path.push_back(edges[current].from);
-          // Rotate clockwise from the twin, skipping internal edges. This
-          // follows the exterior of the union even at multi-line crossings.
-          auto &list = outgoing[edges[current].to];
-          Index next = no_index;
-          for (std::size_t turn = 1; turn <= list.size(); ++turn) {
-            Index candidate =
-                list[(positions[current ^ 1] + list.size() - turn) %
-                     list.size()];
-            if (boundary[candidate]) {
-              next = candidate;
-              break;
-            }
-          }
-          if (next == no_index) {
-            valid = false;
-            break;
-          }
-          current = next;
-        } while (current != start);
-        if (!valid)
-          break;
-        path.push_back(edges[start].from);
-        for (auto &ring : rings(path)) {
-          double value = area(ring, vertices.points);
-          if (value > area_tolerance)
-            exteriors.push_back(std::move(ring));
-          else if (value < -area_tolerance)
-            interiors.push_back(std::move(ring));
-        }
-      }
-    // Sharing an edge makes the union's interior connected. Refuse to erase
-    // boundaries if numerical topology or area checks contradict that.
-    valid = valid && exteriors.size() == 1;
-    double expected = 0.;
-    for (Index i : members)
-      expected += output.polygons[i].area;
-    Face combined;
-    double combined_area = 0.;
-    if (valid) {
-      combined = {exteriors[0],
-                  interiors,
-                  {},
-                  area(exteriors[0], vertices.points),
-                  false};
-      combined_area = combined.area;
-      for (auto &hole : interiors) {
-        combined_area += area(hole, vertices.points);
-        if (!encloses(combined.exterior, hole))
-          valid = false;
-      }
-      if (std::abs(combined_area - expected) > 1.e-12 * std::max(1., expected))
-        valid = false;
-    }
-    if (!valid) {
-      output.diagnostics.push_back(
-          "Could not merge regions adjoining source region " +
-          std::to_string(members[0]) +
-          ": inconsistent union topology or area (" +
-          std::to_string(exteriors.size()) +
-          " exterior rings; area difference " +
-          std::to_string(combined_area - expected) + ").");
-      for (Index i : members)
-        polygons.push_back(std::move(output.polygons[i]));
-      continue;
-    }
-    FieldPolygon polygon = output.polygons[members[0]];
-    polygon.source_regions.clear();
-    for (Index member : members)
-      polygon.source_regions.push_back(utils::checked_int(member));
-    polygon.area = combined_area;
-    polygon.vertices =
-        coordinates(combined.exterior, vertices.points, origin, scale);
-    polygon.holes.clear();
-    for (auto &hole : combined.holes)
-      polygon.holes.push_back(
-          coordinates(hole, vertices.points, origin, scale));
-    Index seed = members[0];
-    for (Index i : members)
-      if (output.polygons[i].label_clearance >
-          output.polygons[seed].label_clearance)
-        seed = i;
-    Point location =
-        (output.polygons[seed].label_position - origin).cwiseQuotient(scale);
-    auto label = label_point(combined, vertices.points, &location);
-    polygon.label_position = origin + label.first.cwiseProduct(scale);
-    polygon.label_clearance = label.second;
-    polygon.sample_index = output.polygons[seed].sample_index;
-    polygons.push_back(std::move(polygon));
-    for (std::size_t i = 0; i < edges.size(); i += 2)
-      if (!edges[i].solution_replacement && edge_faces[i] != no_index &&
-          edge_faces[i ^ 1] != no_index && root(edge_faces[i]) == group &&
-          root(edge_faces[i ^ 1]) == group)
-        removed[i] = removed[i ^ 1] = true;
-  }
-  output.polygons = std::move(polygons);
   std::vector<int> degree(vertices.points.size(), 0);
-  for (std::size_t i = 0; i < edges.size(); i += 2)
-    if (!removed[i]) {
-      bool masked = false;
-      Point middle =
-          .5 * (vertices.points[edges[i].from] + vertices.points[edges[i].to]);
-      for (auto &region : excluded) {
-        Ring ring;
-        for (std::size_t j = 0; j < region.size(); ++j)
-          ring.push_back(j);
-        if (contains(ring, region, middle, tolerance) == 1)
-          masked = true;
-      }
-      if (masked) {
-        removed[i] = removed[i ^ 1] = true;
-        continue;
-      }
-      output.boundary_segments.push_back(coordinates(
-          {edges[i].from, edges[i].to}, vertices.points, origin, scale));
-      ++degree[edges[i].from];
-      ++degree[edges[i].to];
+  for (Index i = 0; i < edges.size(); i += 2) {
+    const auto &path = edges[i].path;
+    bool masked = false;
+    Point middle = .5 * (vertices.points[path[0]] + vertices.points[path[1]]);
+    for (const auto &region : excluded) {
+      Ring ring;
+      for (Index j = 0; j < region.size(); ++j)
+        ring.push_back(j);
+      masked = masked || contains(ring, region, middle, tolerance) == 1;
     }
-  std::vector<bool> endpoint(vertices.points.size(), false);
-  for (auto &[id, point] : nodes) {
-    Index vertex = vertices.find(point);
-    if (vertex != no_index) {
-      if (line_ends.count(id))
-        endpoint[vertex] = true;
-      if (degree[vertex] >= 3)
-        output.boundary_nodes.push_back(id);
+    if (masked) {
+      removed[i] = removed[i ^ 1] = true;
+      continue;
     }
+    for (Index j = 1; j < path.size(); ++j)
+      output.boundary_segments.push_back(
+          coordinates({path[j - 1], path[j]}, vertices.points, origin, scale));
+    ++degree[edges[i].from];
+    ++degree[edges[i].to];
   }
+  std::vector<bool> endpoint(vertices.points.size(), false);
+  for (Index vertex : stable_endpoints)
+    endpoint[vertex] = true;
+  for (const auto &[id, vertex] : nodes)
+    if (degree[vertex] >= 3)
+      output.boundary_nodes.push_back(id);
   // Keep each continuous boundary as one stroke, with its original vertices.
   // Verified fields identify the neighbours; otherwise use unambiguous edge
   // labels. Unknown sides and junctions cannot establish a continuation.
@@ -1092,7 +1109,8 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     Ring path{edges[edge].from};
     while (edge != no_index && !seen[edge]) {
       seen[edge] = seen[edge ^ 1] = true;
-      path.push_back(edges[edge].to);
+      const auto &arc = edges[edge].path;
+      path.insert(path.end(), arc.begin() + 1, arc.end());
       edge = continuation(edge);
     }
     output.boundary_lines.push_back(
