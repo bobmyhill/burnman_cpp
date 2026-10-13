@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: Copyright (C) 2026 by the BurnMan Team.
 #include "critical.hpp"
+#include <algorithm>
+#include <cmath>
 #include <iostream>
+#include <limits>
 #include <set>
 
 namespace burnman::pseudosections {
@@ -171,9 +174,35 @@ std::vector<std::string> field_diagnostics(const Result &result,
   for (const auto &p : geometry.polygons)
     if (!p.has_open_boundary && !p.outside_model_domain && !p.phases.empty())
       bordered.insert(p.phases);
+  // A field sampled only at nodes is a limiting assemblage of a junction
+  // cluster, not an areal region.
+  const double dp = std::max(result.pressure_range[1] - result.pressure_range[0],
+                             std::numeric_limits<double>::min());
+  const double dt =
+      std::max(result.temperature_range[1] - result.temperature_range[0],
+               std::numeric_limits<double>::min());
+  auto only_at_nodes = [&](const Field &field) {
+    if (result.section.type != DiagramType::PT || field.sample_indices.empty())
+      return false;
+    for (int index : field.sample_indices) {
+      const auto &sample = result.samples.at(static_cast<std::size_t>(index));
+      bool near = false;
+      for (const auto &node : result.nodes)
+        if (std::abs(sample.pressure - node.pressure) / dp <=
+                result.settings.node_tolerance &&
+            std::abs(sample.temperature - node.temperature) / dt <=
+                result.settings.node_tolerance) {
+          near = true;
+          break;
+        }
+      if (!near)
+        return false;
+    }
+    return true;
+  };
   if (result.fields.size() > 1)
     for (const auto &field : result.fields)
-      if (!bordered.count(field.phases)) {
+      if (!bordered.count(field.phases) && !only_at_nodes(field)) {
         if (!engine.free_vectors.empty()) {
           Eigen::MatrixXd span(0, engine.bulk_direction.size());
           for (int id : field.phases) {
