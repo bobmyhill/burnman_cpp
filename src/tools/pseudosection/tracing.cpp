@@ -2749,6 +2749,8 @@ class Tracer {
                     })
               : std::vector<std::string>{};
     }
+    if (detail::remove_metastable_parallel_lines(result, engine))
+      index_boundaries();
     for (auto &n : result.nodes)
       n.incident_lines.clear();
     for (auto &line : result.boundaries) {

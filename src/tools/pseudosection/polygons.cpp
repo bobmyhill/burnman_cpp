@@ -1024,7 +1024,45 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
         break;
       }
     bool loop_identified = false;
-    if (exterior_labels.size() == 1)
+    // Two records of one univariant curve bound a field of zero width. Its
+    // perimeter labels conflict, so label it with every phase present along
+    // the curve. Genuine thin fields have consistent labels and skip this.
+    Phases univariant;
+    if (exterior_labels.size() != 1 && sources.size() == 2) {
+      const auto &p = **sources.begin(), &q = **sources.rbegin();
+      if (p.start_node >= 0 && p.end_node >= 0 && p.start_node != p.end_node &&
+          p.assemblage != q.assemblage &&
+          ((p.start_node == q.start_node && p.end_node == q.end_node) ||
+           (p.start_node == q.end_node && p.end_node == q.start_node))) {
+        // Both records must trace the same curve, not just join the same
+        // nodes; otherwise this is a genuine field between distinct curves.
+        auto lies_on = [&](const Boundary &one, const Boundary &two) {
+          if (one.points.empty() || two.points.size() < 2)
+            return false;
+          for (const auto &point : one.points) {
+            double distance = std::numeric_limits<double>::infinity();
+            for (std::size_t k = 1; k < two.points.size(); ++k)
+              distance = std::min(
+                  distance, segment_distance(coordinate(point),
+                                             coordinate(two.points[k - 1]),
+                                             coordinate(two.points[k])));
+            if (distance > result.settings.node_tolerance * 2.)
+              return false;
+          }
+          return true;
+        };
+        if (lies_on(p, q) && lies_on(q, p)) {
+          univariant = p.assemblage;
+          univariant.insert(univariant.end(), q.assemblage.begin(),
+                            q.assemblage.end());
+          univariant = canonical(std::move(univariant));
+        }
+      }
+    }
+    if (!univariant.empty()) {
+      polygon.phases = std::move(univariant);
+      loop_identified = true;
+    } else if (exterior_labels.size() == 1)
       polygon.phases = *exterior_labels.begin();
     else if (exterior_labels.empty() && perimeter.size() == 1)
       polygon.phases = *perimeter.begin();

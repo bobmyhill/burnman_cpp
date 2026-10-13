@@ -229,7 +229,7 @@ def test_pyrolite_reaction_extents_do_not_enclose_artificial_fields(name, transf
     geometry = bm.pseudosection_field_polygons(result, close_domain=False)
     assert all(p.phases and not p.is_provisional for p in geometry.polygons)
     assert len(result.boundaries) < len(data["boundaries"])
-    assert result.equilibrium_solves < 100
+    assert result.equilibrium_solves < 200
     for line in result.boundaries:
         for point in line.points:
             assert point.mass_balance_error <= result.settings.mass_balance_tolerance
@@ -370,10 +370,11 @@ def test_crossed_pyrolite_chords_require_verified_connections():
         region=(data["temperature_range"], data["pressure_range"]),
         temperature_unit="K", pressure_unit="Pa")
     # Correcting equivalent junctions resolves the six-phase loop. The other
-    # crossing still lacks a verified connection and must remain unlabelled.
+    # crossing is a metastable chord whose interior fails the stable-equilibrium
+    # probe, so it is dropped and no unlabelled polygon remains.
     geometry = bm.pseudosection_field_polygons(result, close_domain=False)
     assert len(result.nodes) == len(data["nodes"])
-    assert sum(not p.phases for p in geometry.polygons) == 1
+    assert all(p.phases and not p.is_provisional for p in geometry.polygons)
     assert any(p.phases == [6, 12, 18, 19, 39, 60] and not p.is_provisional
                for p in geometry.polygons)
     # Include the corrector and side-label recovery for that previously

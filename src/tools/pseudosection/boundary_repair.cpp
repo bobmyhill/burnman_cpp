@@ -471,4 +471,94 @@ void repair_field_boundaries(
           std::cerr << "Field-label recovery: " << error.what() << '\n';
       }
 }
+// A trace can converge on a chord whose assemblage is metastable in its
+// interior: the endpoints are stable nodes, so an endpoint test cannot reject
+// it, but a lower-energy phase (typically a second solvus copy) appears in
+// between. Probe interior points of lines that share both nodes with another
+// line, and drop those that fail while a parallel line passes.
+std::size_t remove_metastable_parallel_lines(Result &result, Engine &engine) {
+  const auto ranges = result.coordinate_ranges();
+  const Eigen::Vector2d origin(ranges[0][0], ranges[1][0]),
+      range(ranges[0][1] - origin[0], ranges[1][1] - origin[1]);
+  auto q = [&](const auto &p) -> Eigen::Vector2d {
+    return (diagram_coordinates(p, result.section.type) - origin)
+        .cwiseQuotient(range);
+  };
+  auto stable_interior = [&](const Boundary &line) {
+    if (line.points.size() < 2)
+      return true;
+    std::vector<double> lengths{0.};
+    for (std::size_t k = 1; k < line.points.size(); ++k)
+      lengths.push_back(lengths.back() +
+                        (q(line.points[k]) - q(line.points[k - 1])).norm());
+    if (lengths.back() <= 0.)
+      return true;
+    for (double fraction : {.25, .5, .75}) {
+      const double s = fraction * lengths.back();
+      std::size_t k = 1;
+      while (k + 1 < lengths.size() && lengths[k] < s)
+        ++k;
+      const double span = lengths[k] - lengths[k - 1];
+      const double t = span > 0. ? (s - lengths[k - 1]) / span : 0.;
+      const Eigen::Vector2d a = q(line.points[k - 1]), b = q(line.points[k]);
+      const Eigen::Vector2d tangent = b - a;
+      if (tangent.norm() < 1.e-12)
+        continue;
+      const Eigen::Vector2d target = origin + (a + t * tangent).cwiseProduct(range);
+      try {
+        if (!boundary_point_at(engine, line, line.points[k - 1].phases, target,
+                               tangent.normalized().cwiseQuotient(range),
+                               range * lengths.back()))
+          return false;
+      } catch (const std::exception &) {
+        return false;
+      }
+    }
+    return true;
+  };
+  std::vector<char> failed(result.boundaries.size(), 0), probed(failed);
+  auto status = [&](std::size_t i) {
+    if (!probed[i]) {
+      probed[i] = 1;
+      failed[i] = !stable_interior(result.boundaries[i]);
+    }
+    return !failed[i];
+  };
+  std::set<std::size_t> drop;
+  for (std::size_t i = 0; i < result.boundaries.size(); ++i) {
+    const auto &line = result.boundaries[i];
+    if (line.start_node < 0 || line.end_node < 0 ||
+        line.start_node == line.end_node)
+      continue;
+    std::vector<std::size_t> peers;
+    for (std::size_t j = 0; j < result.boundaries.size(); ++j) {
+      const auto &other = result.boundaries[j];
+      if (j != i && other.assemblage != line.assemblage &&
+          ((other.start_node == line.start_node &&
+            other.end_node == line.end_node) ||
+           (other.start_node == line.end_node &&
+            other.end_node == line.start_node)))
+        peers.push_back(j);
+    }
+    if (peers.empty() || status(i))
+      continue;
+    if (std::any_of(peers.begin(), peers.end(),
+                    [&](std::size_t j) { return status(j); }))
+      drop.insert(i);
+  }
+  if (drop.empty())
+    return 0;
+  std::vector<Boundary> kept;
+  for (std::size_t i = 0; i < result.boundaries.size(); ++i) {
+    if (drop.count(i)) {
+      if (engine.settings.verbose)
+        std::cerr << "Dropping metastable parallel boundary "
+                  << result.boundaries[i].id << '\n';
+      continue;
+    }
+    kept.push_back(std::move(result.boundaries[i]));
+  }
+  result.boundaries = std::move(kept);
+  return drop.size();
+}
 } // namespace burnman::pseudosections::detail

@@ -241,6 +241,9 @@ junction_point_at(Engine &, const Node &, std::vector<PhaseState> warm,
 bool same_boundary_curve(Engine &, const Result &, const Boundary &,
                          const Boundary &, bool partial = false,
                          bool require_equilibrium = false);
+// Drop lines whose interior is metastable when a parallel line joins the same
+// nodes. Returns the number removed.
+std::size_t remove_metastable_parallel_lines(Result &, Engine &);
 // Split verified arcs at stable nodes, then recover side labels.
 void repair_field_boundaries(
     Result &, Engine &, const std::function<void(Boundary &)> &,
