@@ -456,12 +456,15 @@ def test_nested_and_disconnected_fields():
     )
     first = [(p * 0.25, t * 0.25) for p, t in square()]
     second = [(p * 0.25 + 0.7, t * 0.25 + 0.7) for p, t in square()]
-    result = bm.pseudosection_field_polygons(
-        diagram([line(first, [0, 1], [0]), line(second, [0, 1], [0])])
-    )
+    data = diagram([line(first, [0, 1], [0]), line(second, [0, 1], [0])])
+    data["fields"] = [dict(id=37, phases=[0, 1]), dict(id=4, phases=[0])]
+    result = bm.pseudosection_field_polygons(data)
     assert sorted(p.n_phases for p in result.polygons) == [1, 2, 2]
     assert sum(p.area for p in result.polygons) == pytest.approx(1.0)
     assert len(next(p for p in result.polygons if p.n_phases == 1).holes) == 2
+    disconnected = [p for p in result.polygons if p.field_id == 37]
+    assert len(disconnected) == 2
+    assert len({p.field_number for p in disconnected}) == 2
 
 
 def test_crossing_curves_between_stable_vertices_form_one_field_loop():
@@ -784,6 +787,10 @@ def test_unfinished_branch_marks_its_field_provisional_and_keeps_both_labels(tip
     assert provisional[0].n_phases == open_count
     assert provisional[0].has_open_boundary
     assert len(result.diagnostics) == 1
+    assert result.diagnostics[0] == (
+        f"Field {provisional[0].field_number} contains an unfinished boundary; "
+        "its label is provisional."
+    )
 
 
 def test_domain_edges_close_fields_and_count_solution_instances():
@@ -819,6 +826,7 @@ def test_conflicting_perimeter_without_samples_remains_unidentified():
     assert inner.is_provisional
     assert len(result.diagnostics) == 1
     assert "conflicting perimeter assemblages" in result.diagnostics[0]
+    assert result.diagnostics[0].startswith(f"Field {inner.field_number} ")
 
 
 def test_native_equilibrium_result_and_saved_json_range_names():
@@ -1014,6 +1022,11 @@ def test_uniform_font_and_numbered_assemblage_document(tmp_path):
     )
     assert {text.get_fontsize() for text in ax.texts} == {11.0}
     assert ax.pseudosection_label_key
+    polygons = ax.pseudosection_geometry.polygons
+    assert [p.field_number for p in polygons] == list(range(1, len(polygons) + 1))
+    assert set(ax.pseudosection_label_key) == {
+        p.field_number for p in polygons if p.n_phases == 12
+    }
     assert " ".join(data["phase_names"][:12]) in ax.pseudosection_label_key.values()
     assert all(
         str(number) in {text.get_text() for text in ax.texts}

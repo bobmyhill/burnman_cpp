@@ -192,6 +192,7 @@ struct Node {
 };
 
 struct Field {
+  // Internal sampled-assemblage ID, distinct from a closed-loop field_number.
   int id = -1;
   // Sorted IDs of phases present in the samples. The same assemblage may
   // occupy several disconnected regions of the diagram.
@@ -242,7 +243,10 @@ struct Result {
 };
 
 struct FieldPolygon {
+  // One-based closed-loop number, shared by plots, keys and diagnostics.
+  int field_number = 0;
   // field_id refers to Field::id; sample_index indexes Result::samples.
+  // These are internal sampled-assemblage/state IDs, not display numbers.
   // Either can be -1 when identification is unavailable.
   int field_id = -1, n_phases = 0, sample_index = -1;
   // Source reaction arcs forming the exterior and holes; useful for targeted
@@ -254,7 +258,7 @@ struct FieldPolygon {
   bool is_provisional = false;
   bool outside_model_domain = false;
   std::vector<int> phases;
-  // Zero-based closed-loop index, also used by diagnostics.
+  // Zero-based closed-loop indices; use field_number for display.
   std::vector<int> source_regions;
   // Closed rings in the selected diagram coordinates (SI units). Holes
   // have opposite winding. Area is a fraction of the diagram domain.
@@ -376,6 +380,9 @@ struct ContourSettings {
 };
 
 struct ContourLine {
+  // Same one-based number as the source FieldPolygon.
+  int field_number = 0;
+  // Internal sampled-assemblage ID, retained for compatibility.
   int field_id = -1;
   std::vector<int> phases;
   std::vector<BoundaryPoint> points;

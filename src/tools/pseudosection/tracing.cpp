@@ -1969,9 +1969,18 @@ class Tracer {
     return same_boundary_curve(engine, result, first, second, partial,
                                require_equilibrium);
   }
-  // Equivalent traces can sample the same curve differently. Retain accepted
-  // states when dissolving duplicates, provided their zero phase is the same.
-  void merge_curve(Boundary &kept, const Boundary &other) {
+  // P-T duplicates keep one coherent sampling; interleaving independently
+  // corrected points creates zigzags. Composition-section resumption also
+  // preserves the user's accepted saved points when completing an arc.
+  void retain_curve(Boundary &kept, Boundary &other) {
+    if (result.section.type == DiagramType::PT) {
+      if (other.points.size() > kept.points.size()) {
+        const int id = kept.id;
+        kept = std::move(other);
+        kept.id = id;
+      }
+      return;
+    }
     if (kept.zero_phase != other.zero_phase || kept.points.size() < 2)
       return;
     std::vector<std::pair<double, BoundaryPoint>> ordered;
@@ -2117,6 +2126,7 @@ class Tracer {
       if (forward_status == "closed loop")
         line.points.push_back(line.points.front());
       line.termination = backward_status + "; " + forward_status;
+      trim_boundary_endpoints(line, engine, range);
       if (line.points.size() < 2)
         return;
       double length = 0.;
@@ -2139,7 +2149,7 @@ class Tracer {
                            old.end_node == line.start_node));
         if (same_sides && same_ends && old.assemblage == line.assemblage &&
             same_curve(old, line)) {
-          merge_curve(old, line);
+          retain_curve(old, line);
           return;
         }
       }
@@ -2560,12 +2570,7 @@ class Tracer {
               bad.is_solution_replacement = good.is_solution_replacement;
             }
             duplicate = true;
-            if (line.points.size() > old.points.size()) {
-              auto previous = std::move(old);
-              old = std::move(line);
-              merge_curve(old, previous);
-            } else
-              merge_curve(old, line);
+            retain_curve(old, line);
             break;
           }
         }

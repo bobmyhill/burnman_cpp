@@ -22,6 +22,10 @@ def save_pseudosection(result, path, *, metadata=None):
 
     data = dict(result) if isinstance(result, Mapping) else result.to_dict()
     data = dict(metadata or {}) | data
+    if "diagnostics" in data:
+        data["diagnostics"] = _core._normalize_pseudosection_diagnostics(
+            data["diagnostics"]
+        )
     text = json.dumps(data, indent=2, allow_nan=False, ensure_ascii=False) + "\n"
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -34,7 +38,9 @@ def load_pseudosection(path):
 
     Return a dictionary usable for plotting, contours and refinement, with
     coordinates in native SI units. Candidate models are supplied separately
-    when calculating new points. Legacy files retain their original entries.
+    when calculating new points. Legacy Region indices in diagnostics are
+    translated to the same one-based Field numbers used by plots and keys;
+    other entries are preserved.
     Use ``PseudosectionResult.from_dict(data)`` if a native object is needed.
     """
     import json
@@ -44,6 +50,10 @@ def load_pseudosection(path):
         data = json.load(source)
     if not isinstance(data, dict):
         raise ValueError("A saved pseudosection must be a JSON object.")
+    if "diagnostics" in data:
+        data["diagnostics"] = _core._normalize_pseudosection_diagnostics(
+            data["diagnostics"]
+        )
     return data
 
 
@@ -318,7 +328,9 @@ def plot_pseudosection(
     instances appear as ``2hb``. C++ selects interior label positions, avoiding
     holes. Every assemblage and numeric label uses ``label_fontsize`` (points).
     Labels that cannot fit, including their background, become unique field
-    numbers. Numbers that also cannot fit use leader lines. ``label_key_path``
+    numbers. These one-based ``polygon.field_number`` values also identify
+    fields in diagnostics and contours. Numbers that also cannot fit use
+    leader lines. ``label_key_path``
     writes a separate Markdown assemblage key; pass ``None`` to suppress the
     file and read the same mapping from ``axes.pseudosection_label_key``.
     Set ``label_assemblages=False`` to suppress labels and the key.
@@ -608,7 +620,8 @@ def plot_pseudosection(
             half = np.abs(corners[1] - corners[0]) * 0.5
             return polygon.contains_rectangle(centre, half)
 
-        for number, polygon in enumerate(geometry.polygons, 1):
+        for polygon in geometry.polygons:
+            number = polygon.field_number
             if polygon.n_phases <= 0 or not polygon.phases:
                 continue
             name = assemblage_text(polygon.phases)

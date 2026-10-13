@@ -14,9 +14,32 @@
 #include "burnman/tools/pseudosection.hpp"
 #include "bindings.hpp"
 #include "burnman/minerals/water.hpp"
+#include <charconv>
 #include <set>
 namespace burnman::python {
 namespace {
+std::vector<std::string>
+normalize_field_diagnostics(std::vector<std::string> messages) {
+  const std::string region = "Region ";
+  const std::string sampled = "No closed region resolved for sampled field ";
+  for (auto &message : messages) {
+    if (message.compare(0, region.size(), region) == 0) {
+      const auto end = message.find(' ', region.size());
+      if (end == std::string::npos)
+        continue;
+      int index = -1;
+      auto parsed = std::from_chars(message.data() + region.size(),
+                                    message.data() + end, index);
+      if (parsed.ec == std::errc{} && parsed.ptr == message.data() + end &&
+          index >= 0 && index < std::numeric_limits<int>::max())
+        message = "Field " + std::to_string(index + 1) + message.substr(end);
+    } else if (message.compare(0, sampled.size(), sampled) == 0)
+      message.replace(0, sampled.size(),
+                      "No closed region resolved for sampled assemblage ");
+  }
+  return messages;
+}
+
 std::string coordinate_name(pseudosections::Coordinate axis) {
   return std::string(1, std::string("PTSVX")[static_cast<std::size_t>(axis)]);
 }
@@ -299,7 +322,8 @@ pseudosections::Result saved_result(const py::dict &data, bool full = false) {
   if (data.contains("resolved"))
     result.resolved = data["resolved"].cast<bool>();
   if (data.contains("diagnostics"))
-    result.diagnostics = data["diagnostics"].cast<std::vector<std::string>>();
+    result.diagnostics = normalize_field_diagnostics(
+        data["diagnostics"].cast<std::vector<std::string>>());
   result.pressure_range =
       data.contains("pressure_range")
           ? data["pressure_range"].cast<std::array<double, 2>>()
@@ -460,6 +484,7 @@ pseudosections::Result saved_result(const py::dict &data, bool full = false) {
 }
 } // namespace
 void bind_pseudosection(py::module_ &m) {
+  m.def("_normalize_pseudosection_diagnostics", &normalize_field_diagnostics);
   using namespace pseudosections;
   py::class_<Settings>(m, "PseudosectionSettings")
       .def(py::init<>())
@@ -566,6 +591,7 @@ void bind_pseudosection(py::module_ &m) {
 #undef PROPERTY
       ;
   py::class_<FieldPolygon>(m, "PhaseFieldPolygon")
+      .def_readonly("field_number", &FieldPolygon::field_number)
       .def_readonly("field_id", &FieldPolygon::field_id)
       .def_readonly("n_phases", &FieldPolygon::n_phases)
       .def_readonly("sample_index", &FieldPolygon::sample_index)
@@ -600,6 +626,7 @@ void bind_pseudosection(py::module_ &m) {
       .def_readwrite("min_step", &ContourSettings::min_step)
       .def_readwrite("max_trace_steps", &ContourSettings::max_trace_steps);
   py::class_<ContourLine>(m, "PseudosectionContourLine")
+      .def_readonly("field_number", &ContourLine::field_number)
       .def_readonly("field_id", &ContourLine::field_id)
       .def_readonly("phases", &ContourLine::phases)
       .def_readonly("points", &ContourLine::points)
@@ -623,6 +650,7 @@ void bind_pseudosection(py::module_ &m) {
         py::list lines;
         for (const auto &line : r.lines) {
           py::dict record;
+          record["field_number"] = line.field_number;
           record["field_id"] = line.field_id;
           record["phases"] = line.phases;
           record["closed"] = line.closed;

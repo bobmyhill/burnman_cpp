@@ -19,6 +19,7 @@
 #include "burnman/tools/pseudosection.hpp"
 #include <algorithm>
 #include <functional>
+#include <limits>
 #include <map>
 #include <set>
 
@@ -212,7 +213,10 @@ int field_variance(const Assemblage &, std::size_t n_phases);
 int boundary_variance(const Boundary &, const Result &);
 std::set<int> active_boundary_nodes(const Result &);
 bool seed_phase_compositions(std::vector<PhaseState> &,
-                             const std::vector<PhaseState> &);
+                             const std::vector<PhaseState> &,
+                             double tolerance = std::numeric_limits<double>::infinity(),
+                             double amount_tolerance = 0.);
+bool trim_boundary_endpoints(Boundary &, Engine &, const Eigen::Vector2d &range);
 bool same_phase_compositions(const std::vector<PhaseState> &,
                              const std::vector<PhaseState> &, double tolerance,
                              double amount_tolerance);

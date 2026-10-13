@@ -395,6 +395,11 @@ void repair_field_boundaries(
     Result &result, Engine &engine,
     const std::function<void(Boundary &)> &label,
     const std::function<bool(Boundary &, std::size_t)> &refine) {
+  const auto ranges = result.coordinate_ranges();
+  for (auto &line : result.boundaries)
+    trim_boundary_endpoints(line, engine,
+                            {ranges[0][1] - ranges[0][0],
+                             ranges[1][1] - ranges[1][0]});
   join_duplicate_junctions(result, engine);
   auto selected = split_at_stable_nodes(result, engine);
   retain_thin_loops(result, engine);
