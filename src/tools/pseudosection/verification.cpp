@@ -221,7 +221,7 @@ std::vector<std::string> field_diagnostics(const Result &result,
               1.e-10 * engine.bulk_direction.norm())
             continue;
         }
-        messages.push_back("No closed region resolved for sampled field " +
+        messages.push_back("No closed region resolved for sampled assemblage " +
                            std::to_string(field.id) +
                            "; increase seed density or inspect failed solves.");
       }

@@ -828,8 +828,8 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
   FieldPolygons output;
   for (auto &face : faces) {
     FieldPolygon polygon;
-    polygon.source_regions.push_back(
-        burnman::utils::checked_int(output.polygons.size()));
+    polygon.field_number = burnman::utils::checked_int(output.polygons.size() + 1);
+    polygon.source_regions.push_back(polygon.field_number - 1);
     polygon.has_open_boundary = face.dangling;
     polygon.area = face.area;
     polygon.vertices =
@@ -1039,7 +1039,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
         (perimeter.empty() && (physical_perimeter || !uniform));
     if (polygon.is_provisional || polygon.phases.empty())
       output.diagnostics.push_back(
-          "Region " + std::to_string(output.polygons.size()) +
+          "Field " + std::to_string(polygon.field_number) +
           (polygon.phases.empty() && perimeter.size() > 1
                ? " has conflicting perimeter assemblages; no consistent label "
                  "was found."

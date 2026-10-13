@@ -82,6 +82,25 @@ TEST_CASE("Intensive branch matching preserves distinct coexisting copies",
         std::vector<int>{4, 5});
 }
 
+TEST_CASE("Reaction-extent seeds preserve present phase compositions",
+          "[pseudosection]") {
+  namespace ps = pseudosections;
+  ps::PhaseState phase, anchor;
+  phase.id = phase.candidate_index = 1;
+  anchor.id = anchor.candidate_index = 2;
+  phase.amount = anchor.amount = 1.;
+  phase.composition = Eigen::Vector2d(.8, .2);
+  anchor.composition = Eigen::VectorXd::Ones(1);
+  std::vector<ps::PhaseState> warm{phase, anchor}, seed = warm;
+  seed[0].composition = Eigen::Vector2d(.2, .8);
+  CHECK_FALSE(ps::detail::seed_phase_compositions(warm, seed, 1.e-5, 1.e-7));
+  CHECK(warm[0].composition == phase.composition);
+  warm[0].amount = 0.;
+  CHECK(ps::detail::seed_phase_compositions(warm, seed, 1.e-5, 1.e-7));
+  CHECK(warm[0].composition == seed[0].composition);
+  CHECK(warm[0].amount == 0.);
+}
+
 TEST_CASE("Reaction entropy and volume orient singular P-T boundaries",
           "[pseudosection]") {
   namespace ps = pseudosections;

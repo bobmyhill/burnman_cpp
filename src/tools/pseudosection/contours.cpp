@@ -179,7 +179,7 @@ class Contours {
   void issue(const std::string &message) {
     result.resolved = false;
     auto diagnostic =
-        "Field " + std::to_string(field.field_id) + ": " + message;
+        "Field " + std::to_string(field.field_number) + ": " + message;
     if (std::find(result.diagnostics.begin(), result.diagnostics.end(),
                   diagnostic) == result.diagnostics.end())
       result.diagnostics.push_back(std::move(diagnostic));
@@ -320,6 +320,7 @@ class Contours {
       return;
     }
     ContourLine line;
+    line.field_number = field.field_number;
     line.field_id = field.field_id;
     line.phases = ids;
     std::string forward, backward;
@@ -661,7 +662,7 @@ public:
       if (prepare())
         seeds();
       if (source.settings.verbose)
-        std::cerr << "Contour field " << field.field_id << ": "
+        std::cerr << "Contour Field " << field.field_number << ": "
                   << result.lines.size() - first_line << " lines\n";
     }
     result.equilibrium_solves = engine.equilibrium_solves;

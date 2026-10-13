@@ -325,11 +325,27 @@ phase_matches(const std::vector<PhaseState> &a,
 } // namespace
 
 bool seed_phase_compositions(std::vector<PhaseState> &warm,
-                             const std::vector<PhaseState> &seed) {
+                             const std::vector<PhaseState> &seed,
+                             double tolerance, double amount_tolerance) {
   const auto matches =
       phase_matches(warm, seed, std::numeric_limits<double>::infinity());
   if (!matches)
     return false;
+  double warm_total = 0., seed_total = 0.;
+  for (const auto &phase : warm)
+    warm_total += phase.amount;
+  for (const auto &phase : seed)
+    seed_total += phase.amount;
+  // Preserve the compositions of phases present in both reaction extents.
+  // A zero-amount phase can start on a different active face; its composition
+  // must be verified after correcting its own zero-amount constraint.
+  for (std::size_t i = 0; i < warm.size(); ++i) {
+    const auto &other = seed[(*matches)[i]];
+    if (warm[i].amount > amount_tolerance * warm_total &&
+        other.amount > amount_tolerance * seed_total &&
+        (warm[i].composition - other.composition).norm() > tolerance)
+      return false;
+  }
   for (std::size_t i = 0; i < warm.size(); ++i)
     warm[i].composition = seed[(*matches)[i]].composition;
   return true;
@@ -462,6 +478,75 @@ std::optional<BoundaryPoint> junction_point_at(
                          allowance);
 }
 
+// An event found behind a point accepted within the affinity tolerance must
+// replace the overshot tail. Verify the event on the earlier branch before
+// trimming; coordinate order alone is insufficient for curved traces.
+bool trim_boundary_endpoints(Boundary &line, Engine &engine,
+                              const Eigen::Vector2d &range) {
+  if (engine.section.type != DiagramType::PT ||
+      line.points.size() < 3 || line.zero_phase < 0 ||
+      (line.start_node >= 0 && line.start_node == line.end_node))
+    return false;
+  bool changed = false;
+  const auto statuses = boundary_statuses(line);
+  for (bool front : {false, true}) {
+    const auto &status = front ? statuses.first : statuses.second;
+    if (unfinished_boundary(status) || status == "closed loop")
+      continue;
+    if (front)
+      std::reverse(line.points.begin(), line.points.end());
+    const auto endpoint = line.points.back();
+    const auto target = diagram_coordinates(endpoint, engine.section.type);
+    auto q = [&](const auto &p) -> Eigen::Vector2d {
+      return (diagram_coordinates(p, engine.section.type) - target)
+          .cwiseQuotient(range);
+    };
+    std::size_t tail = line.points.size() - 2;
+    const auto accuracy = equilibrium_pt_tolerance();
+    while (tail > 0 &&
+           ((diagram_coordinates(line.points[tail], engine.section.type) - target)
+                .cwiseAbs().array() <= accuracy.array()).all())
+      --tail;
+    // Ordinary forward arrivals and repeated endpoint records need no solve.
+    // Search the earlier branch only when attaching the event turns back.
+    const bool turns_back = tail > 0 &&
+        -q(line.points[tail]).dot(q(line.points[tail]) -
+                                  q(line.points[tail - 1])) < 0.;
+    for (std::size_t k = tail; turns_back && k > 0; --k) {
+      const auto a = q(line.points[k - 1]), b = q(line.points[k]);
+      const Eigen::Vector2d delta = b - a;
+      if (delta.squaredNorm() == 0.)
+        continue;
+      const double along = -a.dot(delta) / delta.squaredNorm();
+      if (along < 0. || along > 1. ||
+          (a.cwiseProduct(range).cwiseAbs().array() <= accuracy.array()).all() ||
+          (b.cwiseProduct(range).cwiseAbs().array() <= accuracy.array()).all() ||
+          segment_distance(Eigen::Vector2d::Zero(), a, b) >
+              std::max(engine.settings.node_tolerance, .5 * delta.norm()))
+        continue;
+      try {
+        auto point = boundary_point_at(
+            engine, line, line.points[k - 1].phases, target,
+            delta.normalized().cwiseQuotient(range), equilibrium_pt_tolerance());
+        if (!point ||
+            !same_phase_compositions(point->phases, endpoint.phases,
+                                     engine.settings.composition_tolerance,
+                                     engine.settings.amount_tolerance))
+          continue;
+        line.points.resize(k);
+        line.points.push_back(endpoint);
+        changed = true;
+        break;
+      } catch (const std::exception &) {
+        // Keep a trace whose earlier branch cannot be verified at the event.
+      }
+    }
+    if (front)
+      std::reverse(line.points.begin(), line.points.end());
+  }
+  return changed;
+}
+
 // Chords are a quick comparison only when both traces already have matching
 // neighbours. Otherwise compare corrected equilibria, including solution
 // copies.
@@ -487,7 +572,10 @@ bool same_boundary_curve(Engine &engine, const Result &result,
     }
     return true;
   };
-  if (!partial && !require_equilibrium && near(first, second) &&
+  const bool univariant = result.section.type == DiagramType::PT &&
+                          boundary_variance(first, result) == 1 &&
+                          boundary_variance(second, result) == 1;
+  if (!univariant && !partial && !require_equilibrium && near(first, second) &&
       near(second, first))
     return true;
   auto verified = [&](const Boundary &one, const Boundary &two) {
@@ -535,6 +623,49 @@ bool same_boundary_curve(Engine &engine, const Result &result,
       if (tangent.norm() < 1.e-12)
         continue;
       try {
+        if (univariant) {
+          const auto weights = tangent.normalized().cwiseQuotient(range).eval();
+          auto left = boundary_point_at(
+              engine, one, target.phases,
+              diagram_coordinates(target, result.section.type), weights,
+              range * engine.settings.node_tolerance);
+          if (!left)
+            return false;
+          auto warm = closest->phases;
+          warm.erase(std::remove_if(warm.begin(), warm.end(), [&](const auto &p) {
+                       return std::find(two.assemblage.begin(), two.assemblage.end(),
+                                        p.id) == two.assemblage.end();
+                     }), warm.end());
+          auto right = boundary_point_at(
+              engine, two, warm, diagram_coordinates(*left, result.section.type),
+              weights, range * engine.settings.node_tolerance);
+          // Match the independently corrected compositions before sharing a
+          // seed. Otherwise a different intensive branch could be forced to
+          // the reference root merely by copying its starting compositions.
+          const bool same = right && same_phase_compositions(
+              left->phases, right->phases, engine.settings.composition_tolerance,
+              engine.settings.amount_tolerance);
+          if (!same || ((diagram_coordinates(*right, result.section.type) -
+                diagram_coordinates(*left, result.section.type))
+                   .cwiseAbs().array() > equilibrium_pt_tolerance().array()).any()) {
+            if (same)
+              warm = right->phases;
+            if (!seed_phase_compositions(
+                    warm, left->phases, engine.settings.composition_tolerance,
+                    engine.settings.amount_tolerance))
+              return false;
+            right = boundary_point_at(
+                engine, two, warm, diagram_coordinates(*left, result.section.type),
+                weights, equilibrium_pt_tolerance());
+            if (!right || !same_phase_compositions(
+                              left->phases, right->phases,
+                              engine.settings.composition_tolerance,
+                              engine.settings.amount_tolerance))
+              return false;
+          }
+          ++checked;
+          continue;
+        }
         auto point =
             boundary_point_at(engine, two, closest->phases,
                               diagram_coordinates(target, result.section.type),

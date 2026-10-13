@@ -582,6 +582,41 @@ def test_invalid_metadata_does_not_overwrite_an_existing_diagram(
     assert bm.load_pseudosection(path) == saved
 
 
+def test_legacy_region_diagnostics_use_plot_numbers_on_load_save_and_native_import(tmp_path):
+    old = [
+        "Region 0 has no assemblage evidence.",
+        "Region 219 has conflicting perimeter assemblages; its label is provisional.",
+        "No closed region resolved for sampled field 37; increase seed density or inspect failed solves.",
+    ]
+    unchanged = [
+        "Field 220 has no assemblage evidence.",
+        "Boundary 8: neighbouring fields could not be distinguished within tolerances.",
+        "Region 2x is not an index.", "Region -1 is not an index.",
+        "Region 999999999999999999999 is not an index.", "Region 219",
+    ]
+    expected = [
+        "Field 1 has no assemblage evidence.",
+        "Field 220 has conflicting perimeter assemblages; its label is provisional.",
+        "No closed region resolved for sampled assemblage 37; increase seed density or inspect failed solves.",
+    ] + unchanged
+    saved = dict(pressure_range=[0., 1.], temperature_range=[0., 1.],
+                 fields=[], samples=[], nodes=[], boundaries=[],
+                 diagnostics=old + unchanged, metadata={"keep": "unchanged"})
+    path = tmp_path / "legacy.json"
+    original = json.dumps(saved)
+    path.write_text(original)
+    loaded = bm.load_pseudosection(path)
+    assert loaded == saved | dict(diagnostics=expected)
+    assert path.read_text() == original
+    native = bm.PseudosectionResult.from_dict(saved)
+    assert native.diagnostics == expected
+    assert native.to_dict()["diagnostics"] == expected
+    destination = bm.save_pseudosection(saved, tmp_path / "updated.json")
+    assert json.loads(destination.read_text()) == loaded
+    assert bm.load_pseudosection(destination) == loaded  # Conversion is idempotent.
+    assert saved["diagnostics"] == old + unchanged  # Do not mutate the caller.
+
+
 def test_settings_dictionary_rejects_unknown_options():
     with pytest.raises(ValueError, match="Unknown pseudosection setting"):
         bm.PseudosectionSettings.from_dict({"minimum_step": 1.0e-7})
