@@ -20,6 +20,68 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 using namespace burnman;
 
+TEST_CASE("Drawn interior boundaries are candidates without inventing nodes",
+          "[pseudosection]") {
+  namespace ps = pseudosections;
+  ps::Result result;
+  result.pressure_range = result.temperature_range = {0., 1.};
+  ps::FieldPolygon polygon;
+  polygon.vertices.resize(5, 2);
+  polygon.vertices << .2, .2, .8, .2, .8, .8, .2, .8, .2, .2;
+  ps::Boundary boundary;
+  boundary.id = boundary.zero_phase = 0;
+  ps::BoundaryPoint a, b;
+  a.pressure = 0.; b.pressure = 1.;
+  a.temperature = b.temperature = .5;
+  boundary.points = {a, b};
+  result.boundaries = {boundary};
+  CHECK(ps::detail::interior_boundaries(result, polygon) == std::vector<int>{0});
+  CHECK(result.nodes.empty());
+  CHECK(result.boundaries[0].points.size() == 2);
+  polygon.boundary_ids = {0};
+  CHECK(ps::detail::interior_boundaries(result, polygon).empty());
+  polygon.boundary_ids.clear();
+  result.boundaries[0].points[0].temperature = .2;
+  result.boundaries[0].points[1].temperature = .2;
+  CHECK(ps::detail::interior_boundaries(result, polygon).empty());
+  polygon.holes.push_back(polygon.vertices);
+  result.boundaries[0] = boundary;
+  CHECK(ps::detail::interior_boundaries(result, polygon).empty());
+}
+
+TEST_CASE("Intensive branch matching preserves distinct coexisting copies",
+          "[pseudosection]") {
+  namespace ps = pseudosections;
+  ps::PhaseState rich, poor, extra;
+  rich.id = 3; poor.id = 4; extra.id = 5;
+  rich.candidate_index = poor.candidate_index = extra.candidate_index = 1;
+  rich.amount = poor.amount = 1.;
+  rich.composition = Eigen::Vector2d(.9, .1);
+  poor.composition = Eigen::Vector2d(.1, .9);
+  extra.composition = Eigen::Vector2d(.5, .5);
+  auto exchanged = std::vector<ps::PhaseState>{poor, rich, extra};
+  exchanged[0].id = 3; exchanged[1].id = 4;
+  CHECK(ps::detail::same_phase_compositions({rich, poor}, exchanged, 1.e-5, 1.e-7));
+  CHECK(ps::detail::same_phase_compositions(exchanged, {rich, poor}, 1.e-5, 1.e-7));
+  exchanged[2].amount = .01;
+  CHECK_FALSE(ps::detail::same_phase_compositions({rich, poor}, exchanged, 1.e-5, 1.e-7));
+  CHECK_FALSE(ps::detail::same_phase_compositions({rich, poor}, {rich, rich}, 1.e-5, 1.e-7));
+  exchanged[2].amount = 0.;
+  CHECK(ps::detail::same_boundary_compositions(
+      {rich, poor}, 3, exchanged, 4, 1.e-5, 1.e-7));
+  CHECK_FALSE(ps::detail::same_boundary_compositions(
+      {rich, poor}, 3, exchanged, 3, 1.e-5, 1.e-7));
+  CHECK_FALSE(ps::detail::same_boundary_compositions(
+      {rich, poor}, 5, exchanged, 4, 1.e-5, 1.e-7));
+  CHECK_FALSE(ps::detail::same_boundary_compositions(
+      {rich, extra}, 3, exchanged, 4, 1.e-5, 1.e-7));
+  ps::Node node;
+  node.zero_phases = {3, 4};
+  exchanged[1].amount = 0.;
+  CHECK(ps::detail::zero_phases_at(node, exchanged, 3) ==
+        std::vector<int>{4, 5});
+}
+
 TEST_CASE("Reaction entropy and volume orient singular P-T boundaries",
           "[pseudosection]") {
   namespace ps = pseudosections;

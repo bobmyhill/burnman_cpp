@@ -36,56 +36,40 @@ using detail::cross;
 using detail::segment_distance;
 
 using Assemblages = std::set<Phases>;
-// Copy numbers identify instances locally. Compare multiplicity, retaining
-// two coexisting solutions even when the vanishing copy is numbered first.
-Phases instance_ids(const Phases &phases, int copies) {
-  std::map<int, int> counts;
-  for (int id : phases)
-    ++counts[id / copies];
-  Phases result;
-  for (auto [base, count] : counts)
-    for (int copy = 0; copy < count; ++copy)
-      result.push_back(base * copies + copy);
-  return result;
-}
+using detail::canonical_phase_ids;
 
-Assemblages boundary_assemblages(const Boundary &line, const Result &result) {
+Assemblages boundary_assemblages(const Boundary &line, const Result &result,
+                                 bool limiting = false) {
   Assemblages choices;
   if (line.assemblage.empty() || line.zero_phase < 0)
     return choices;
+  const int variance = detail::boundary_variance(line, result);
   auto finite_area = [&](const Phases &ids) {
-    if (result.section.type == DiagramType::PT)
-      for (const auto &node : result.nodes)
-        if ((node.id == line.start_node || node.id == line.end_node) &&
-            !node.kind.empty() && !node.assemblage.empty() &&
-            node.gibbs_variance >= 0 &&
-            static_cast<int>(ids.size()) >
-                node.gibbs_variance + static_cast<int>(node.assemblage.size()) -
-                    2)
-          return false; // A univariant/invariant assemblage has no P-T field
-                        // area.
-    return !ids.empty();
+    return !ids.empty() &&
+           (result.section.type != DiagramType::PT || variance < 0 ||
+            static_cast<int>(ids.size()) <=
+                static_cast<int>(line.assemblage.size()) + variance - 2);
   };
   auto insert = [&](const Phases &ids) {
     if (!finite_area(ids))
       return;
-    choices.insert(instance_ids(ids, result.settings.max_phase_instances));
+    choices.insert(
+        canonical_phase_ids(ids, result.settings.max_phase_instances));
   };
   // A composition edge or compound reaction can replace phases absent from
   // the source assemblage. Its verified neighbours supply the alternatives.
+  const auto source =
+      canonical_phase_ids(line.assemblage, result.settings.max_phase_instances);
+  auto outside_source = [&](const Phases &ids) {
+    const auto phases =
+        canonical_phase_ids(ids, result.settings.max_phase_instances);
+    return !std::includes(source.begin(), source.end(), phases.begin(),
+                          phases.end());
+  };
   const bool replacement =
-      has_composition_axis(result.section.type) ||
-      !finite_area(line.assemblage) ||
-      std::any_of(line.side_a.begin(), line.side_a.end(),
-                  [&](int id) {
-                    return std::find(line.assemblage.begin(),
-                                     line.assemblage.end(),
-                                     id) == line.assemblage.end();
-                  }) ||
-      std::any_of(line.side_b.begin(), line.side_b.end(), [&](int id) {
-        return std::find(line.assemblage.begin(), line.assemblage.end(), id) ==
-               line.assemblage.end();
-      });
+      limiting || has_composition_axis(result.section.type) ||
+      !finite_area(line.assemblage) || outside_source(line.side_a) ||
+      outside_source(line.side_b);
   if (replacement) {
     insert(line.side_a);
     insert(line.side_b);
@@ -105,6 +89,9 @@ Assemblages boundary_assemblages(const Boundary &line, const Result &result) {
 // because it is longer or has more stored corrector points.
 void intersect_assemblages(Assemblages &common, const Assemblages &choices,
                            bool &initialized) {
+  // A reaction spur with no finite limiting assemblage adds no field evidence.
+  if (choices.empty())
+    return;
   if (!initialized) {
     common = choices;
     initialized = true;
@@ -154,9 +141,6 @@ void link_junction(const std::vector<Index> &list, std::vector<Edge> &edges,
   };
   auto best = order;
   auto best_score = score(best);
-  std::set<Index> neighbours;
-  for (Index edge : list)
-    neighbours.insert(edges[edge].to);
   // Old files may contain stale side labels. They cannot reorder stable arcs
   // when they name phases outside the boundary's own equilibrium assemblage.
   const bool reliable = std::all_of(list.begin(), list.end(), [&](Index index) {
@@ -171,10 +155,9 @@ void link_junction(const std::vector<Index> &list, std::vector<Edge> &edges,
             return false;
     return true;
   });
-  // Preserve the frame exterior and the geometric order of parallel arcs
-  // bounding thin fields. Bound the search at unusually crowded junctions.
-  if (!frame && reliable && order.size() <= 8 &&
-      neighbours.size() == list.size())
+  // Parallel arcs can bound distinct thin fields. Their side assemblages,
+  // rather than coarse endpoint chords, constrain the same cyclic fan.
+  if (!frame && reliable && order.size() <= 8)
     while (std::next_permutation(order.begin() + 1, order.end())) {
       auto candidate = score(order);
       if (candidate < best_score) {
@@ -182,6 +165,13 @@ void link_junction(const std::vector<Index> &list, std::vector<Edge> &edges,
         best_score = candidate;
       }
     }
+  // A latent S/V edge can change limiting assemblage at its endpoints. Other
+  // conflicting side evidence cannot justify a new cyclic ordering.
+  const bool latent = std::any_of(list.begin(), list.end(), [&](Index edge) {
+    return edges[edge].latent_invariant;
+  });
+  if (best_score.first != 0 && !latent)
+    std::iota(best.begin(), best.end(), 0);
   for (Index i = 0; i < best.size(); ++i)
     edges[list[best[i]] ^ 1].next =
         list[best[(i + best.size() - 1) % best.size()]];
@@ -511,8 +501,16 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
   // chords may cross without creating a thermodynamic vertex or another field.
   Vertices vertices(tolerance);
   std::map<int, Index> nodes;
+  std::set<Index> complete_critical;
+  const auto active = detail::active_boundary_nodes(result);
   for (const auto &node : result.nodes)
-    nodes.emplace(node.id, vertices.insert(coordinate(node)));
+    if (active.count(node.id)) {
+      Index vertex = vertices.insert(coordinate(node));
+      nodes.emplace(node.id, vertex);
+      if (node.is_verified_critical_endpoint && node.kind == "critical_point" &&
+          result.section.type == DiagramType::PT && node.gibbs_variance == 1)
+        complete_critical.insert(vertex);
+    }
   std::vector<Edge> edges;
   std::map<std::pair<Index, Index>, Index> edge_index;
   std::set<Index> endpoints, stable_endpoints;
@@ -548,13 +546,20 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
         continue;
       // Two records of the same reaction, stable endpoints and directed
       // neighbours are one branch even when their coarse chords differ.
+      const bool same_reaction =
+          source && old.source &&
+          canonical(source->assemblage) == canonical(old.source->assemblage);
+      const bool univariant =
+          result.section.type == DiagramType::PT && same_reaction &&
+          detail::boundary_variance(*source, result) == 1 &&
+          detail::boundary_variance(*old.source, result) == 1;
       bool same_branch =
-          source && old.source && source->zero_phase >= 0 &&
-          source->zero_phase == old.source->zero_phase &&
-          canonical(source->assemblage) == canonical(old.source->assemblage) &&
-          old.labels == std::set<Phases>{left} &&
-          edges[candidate ^ 1].labels == std::set<Phases>{right};
-      auto follows = [&](const Ring &a, const Ring &b) {
+          same_reaction &&
+          (source->zero_phase >= 0 &&
+           source->zero_phase == old.source->zero_phase &&
+           old.labels == std::set<Phases>{left} &&
+           edges[candidate ^ 1].labels == std::set<Phases>{right});
+      auto follows = [&](const Ring &a, const Ring &b, double allowance) {
         for (Index vertex : a) {
           double distance = std::numeric_limits<double>::infinity();
           for (Index j = 1; j < b.size(); ++j)
@@ -562,12 +567,17 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
                 std::min(distance, segment_distance(vertices.points[vertex],
                                                     vertices.points[b[j - 1]],
                                                     vertices.points[b[j]]));
-          if (distance > tolerance)
+          if (distance > allowance)
             return false;
         }
         return true;
       };
-      if (same_branch || (follows(path, old.path) && follows(old.path, path))) {
+      if (same_branch ||
+          (univariant &&
+           follows(path, old.path, result.settings.node_tolerance) &&
+           follows(old.path, path, result.settings.node_tolerance)) ||
+          (follows(path, old.path, tolerance) &&
+           follows(old.path, path, tolerance))) {
         if (!left.empty())
           old.labels.insert(left);
         if (!right.empty())
@@ -653,16 +663,26 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
       std::vector<std::pair<double, Index>> cuts;
       if (delta.squaredNorm() > 0.)
         for (const auto &node : result.nodes) {
+          if (!active.count(node.id))
+            continue;
           Index vertex = nodes.at(node.id);
           if (vertex == path.front() || vertex == path.back())
             continue;
           const auto event = canonical(node.assemblage);
           const auto assemblage = canonical(line.assemblage);
+          // Solution-copy IDs can be exchanged between accepted states on a
+          // univariant reaction. Match their physical phase at a saved node.
+          const bool zero_at_node = std::any_of(
+              node.zero_phases.begin(), node.zero_phases.end(), [&](int zero) {
+                return zero == line.zero_phase ||
+                       (node.gibbs_variance == 1 && node.pt_nullity == 0 &&
+                        event == assemblage &&
+                        zero / result.settings.max_phase_instances ==
+                            line.zero_phase / result.settings.max_phase_instances);
+              });
           if (!std::includes(event.begin(), event.end(), assemblage.begin(),
                              assemblage.end()) ||
-              (line.zero_phase >= 0 &&
-               std::find(node.zero_phases.begin(), node.zero_phases.end(),
-                         line.zero_phase) == node.zero_phases.end()))
+              (line.zero_phase >= 0 && !zero_at_node))
             continue;
           const Point p = vertices.points[vertex];
           double along = (p - a).dot(delta) / delta.squaredNorm();
@@ -783,7 +803,8 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
           const bool frame = (p.array().abs() <= tolerance).any() ||
                              ((p.array() - 1.).abs() <= tolerance).any();
           walk.dangling =
-              walk.dangling || (outgoing[vertex].size() == 1 && !frame);
+              walk.dangling || (outgoing[vertex].size() == 1 && !frame &&
+                                !complete_critical.count(vertex));
         }
         const auto &arc = edges[current].path;
         path.insert(path.end(), arc.begin(), arc.end() - 1);
@@ -942,21 +963,40 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     }
     // The exterior loop is the primary evidence. Internal holes and spurs
     // can expose unfinished topology without suppressing its surrounding label.
-    Assemblages exterior_labels, perimeter, common;
-    bool constrained = false;
+    Assemblages exterior_labels, perimeter;
+    std::array<Assemblages, 3> candidates;
+    std::array<bool, 3> constrained{};
     std::set<const Boundary *> sources;
+    std::set<Index> perimeter_edges;
+    auto collect = [&](Index edge, Index, Index) {
+      perimeter_edges.insert(edge);
+    };
+    ring_edges(face.exterior, collect);
+    for (const auto &hole : face.holes)
+      ring_edges(hole, collect);
     bool physical_perimeter = false, unknown_side = false;
     auto evidence = [&](const Ring &ring, bool exterior) {
       ring_edges(ring, [&](Index edge, Index from, Index to) {
+        // Traversing both directions is a spur, not a separating perimeter.
+        if (perimeter_edges.count(edge ^ 1))
+          return;
         physical_perimeter = physical_perimeter || edges[edge].phase_boundary;
         unknown_side = unknown_side || (edges[edge].phase_boundary &&
                                         edges[edge].labels.empty());
         (void)from;
         (void)to;
-        if (edges[edge].source && sources.insert(edges[edge].source).second)
-          intersect_assemblages(
-              common, boundary_assemblages(*edges[edge].source, result),
-              constrained);
+        if (edges[edge].source && sources.insert(edges[edge].source).second) {
+          const auto &source = *edges[edge].source;
+          intersect_assemblages(candidates[0],
+                                boundary_assemblages(source, result),
+                                constrained[0]);
+          if (result.section.type == DiagramType::PT) {
+            const auto limiting = boundary_assemblages(source, result, true);
+            intersect_assemblages(candidates[1], limiting, constrained[1]);
+            if (detail::boundary_variance(source, result) != 1)
+              intersect_assemblages(candidates[2], limiting, constrained[2]);
+          }
+        }
         for (const auto &phases : edges[edge].labels) {
           if (phases.empty())
             continue;
@@ -973,13 +1013,23 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
       if (source->id >= 0)
         polygon.boundary_ids.push_back(source->id);
     std::sort(polygon.boundary_ids.begin(), polygon.boundary_ids.end());
+    // Finite probes may skip thin fields, so first use the phase-out choices.
+    // A compound reaction can instead replace a different limiting zero phase;
+    // require agreement around the entire loop before accepting that
+    // alternative.
+    Phases common;
+    for (const auto &choices : candidates)
+      if (choices.size() == 1) {
+        common = *choices.begin();
+        break;
+      }
     bool loop_identified = false;
     if (exterior_labels.size() == 1)
       polygon.phases = *exterior_labels.begin();
     else if (exterior_labels.empty() && perimeter.size() == 1)
       polygon.phases = *perimeter.begin();
-    else if (!face.dangling && constrained && common.size() == 1) {
-      polygon.phases = *common.begin();
+    else if (!face.dangling && !common.empty()) {
+      polygon.phases = std::move(common);
       loop_identified = true;
     } else if (!sample_phases.empty())
       polygon.phases = sample_phases;

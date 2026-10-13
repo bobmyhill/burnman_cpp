@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <functional>
 #include <map>
+#include <set>
 
 namespace burnman::pseudosections::detail {
 using namespace equilibration;
@@ -52,6 +53,8 @@ int ring_location(std::size_t n, Vertex vertex, const Eigen::Vector2d &p,
   return inside ? 1 : -1;
 }
 std::shared_ptr<Material> clone(const std::shared_ptr<Material> &);
+// Instance numbers are local; compare candidate multiplicity across solves.
+std::vector<int> canonical_phase_ids(const std::vector<int> &, int copies);
 struct Phase {
   std::shared_ptr<Material> material;
   std::shared_ptr<Solution> solution;
@@ -74,6 +77,8 @@ struct WorkState {
   // Instance IDs in assemblage order.
   std::vector<int> ids;
 };
+// Native P,T parameter accuracy, shared by solves and junction comparisons.
+inline Eigen::Vector2d equilibrium_pt_tolerance() { return {.2, 1.e-6}; }
 // Keep the solved X parameter exactly, rather than recovering it from mass
 // residuals. Otherwise finite balance tolerance can leave frame endpoints open.
 struct SectionAssemblage : Assemblage {
@@ -203,12 +208,58 @@ excluded_model_regions(Engine &, const Eigen::Vector2d &origin,
 void join_model_limits(Result &);
 void join_frame_limits(Result &, Engine &);
 int field_variance(const Assemblage &, std::size_t n_phases);
+// Infer Gibbs variance from saved endpoint metadata; -1 means unavailable.
+int boundary_variance(const Boundary &, const Result &);
+std::set<int> active_boundary_nodes(const Result &);
+bool seed_phase_compositions(std::vector<PhaseState> &,
+                             const std::vector<PhaseState> &);
+bool same_phase_compositions(const std::vector<PhaseState> &,
+                             const std::vector<PhaseState> &, double tolerance,
+                             double amount_tolerance);
+// Compare intensive branches while retaining the identity of the zero phase.
+bool same_boundary_compositions(const std::vector<PhaseState> &, int,
+                                const std::vector<PhaseState> &, int, double,
+                                double);
+// Node instance numbers may differ from those in an incident equilibrium.
+std::vector<int> zero_phases_at(const Node &, const std::vector<PhaseState> &,
+                                int copies);
+std::optional<BoundaryPoint>
+corrected_point(Engine &, Assemblage &, const std::vector<int> &,
+                ConstraintList &, const Eigen::Vector2d &target,
+                const Eigen::Vector2d &allowance);
+void verify_critical_endpoints(Result &, Engine &);
+std::vector<std::string> field_diagnostics(const Result &, Engine &);
+std::optional<BoundaryPoint>
+boundary_point_at(Engine &, const Boundary &,
+                  const std::vector<PhaseState> &warm,
+                  const Eigen::Vector2d &target, const Eigen::Vector2d &weights,
+                  const Eigen::Vector2d &allowance);
+std::optional<BoundaryPoint>
+junction_point_at(Engine &, const Node &, std::vector<PhaseState> warm,
+                  const std::vector<PhaseState> &seed,
+                  const Eigen::Vector2d &allowance);
+bool same_boundary_curve(Engine &, const Result &, const Boundary &,
+                         const Boundary &, bool partial = false,
+                         bool require_equilibrium = false);
+// Split verified arcs at stable nodes, then recover side labels.
+void repair_field_boundaries(
+    Result &, Engine &, const std::function<void(Boundary &)> &,
+    const std::function<bool(Boundary &, std::size_t)> &);
 double solution_separation(const std::vector<PhaseState> &);
 // Insert verified corrector points until each selected axis meets its spacing.
 // Failed segments remain explicit diagnostics; the caller owns branch recovery.
 std::vector<std::string> refine_line_spacing(
     Result &, Engine &, const LineResolution &,
     const std::function<bool(Boundary &, std::size_t)> &refine_segment);
+void validate_line_resolution(const Result &, const LineResolution &);
+Settings refinement_settings(const Result &, const LineResolution &,
+                             const Settings &);
+double refinement_step(const Result &, const LineResolution &,
+                       const Eigen::Vector2d &, const Eigen::Vector2d &,
+                       const Settings &);
+std::vector<int> regional_retrace_lines(const Result &, const LineResolution &);
+// Chord intersections are search candidates, never new thermodynamic nodes.
+std::vector<int> interior_boundaries(const Result &, const FieldPolygon &);
 // Find changes in the equilibrium variables that move along a line in the
 // diagram. The returned direction moves one unit in the rescaled diagram.
 // coordinate_rank counts independent ways to move in the diagram; return an

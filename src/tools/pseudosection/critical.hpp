@@ -48,9 +48,13 @@ class CriticalConstraint : public EqualityConstraint {
       mode = -mode;
     return {eig.eigenvalues()[0], mode};
   }
-  double third_derivative(double P, double T, const Eigen::VectorXd &p,
-                          const Eigen::VectorXd &mode) const {
-    double value = 0.;
+  // Gradient of directional curvature (the mixed third derivative), and
+  // fourth derivative along mode. Shared by the corrector and certificate.
+  std::pair<Eigen::VectorXd, double>
+  higher_derivatives(double P, double T, const Eigen::VectorXd &p,
+                     const Eigen::VectorXd &mode) const {
+    Eigen::VectorXd gradient = Eigen::VectorXd::Zero(p.size());
+    double fourth = 0.;
     for (auto entry :
          {std::pair{model->get_endmember_n_occupancies().matrix().eval(), -1.},
           std::pair{model->get_site_multiplicities().matrix().eval(), 1.}}) {
@@ -58,11 +62,14 @@ class CriticalConstraint : public EqualityConstraint {
            direction = (entry.first.transpose() * mode).eval();
       for (int i = 0; i < sites.size(); ++i) {
         double site = std::max(constants::precision::logish_eps, sites[i]);
-        value += entry.second * direction[i] * direction[i] * direction[i] /
-                 (site * site);
+        gradient += entry.second * entry.first.col(i) *
+                    std::pow(direction[i] / site, 2);
+        fourth -=
+            2. * entry.second * std::pow(direction[i], 4) / std::pow(site, 3);
       }
     }
-    value *= constants::physics::gas_constant * T;
+    gradient *= constants::physics::gas_constant * T;
+    fourth *= constants::physics::gas_constant * T;
     if (auto regular =
             dynamic_cast<const solution_models::AsymmetricRegularSolution *>(
                 model.get())) {
@@ -71,14 +78,21 @@ class CriticalConstraint : public EqualityConstraint {
       Eigen::MatrixXd W = regular->get_energy_interactions() -
                           T * regular->get_entropy_interactions() +
                           P * regular->get_volume_interactions();
-      Eigen::VectorXd y = (regular->get_alphas() * p.array()).matrix(),
-                      v = (regular->get_alphas() * mode.array()).matrix();
-      double S = y.sum(), dS = v.sum(), A = y.dot(W * y),
-             dA = v.dot((W + W.transpose()) * y), ddA = 2. * v.dot(W * v);
-      value += -6. * A * std::pow(dS, 3) / std::pow(S, 4) +
-               6. * dA * dS * dS / std::pow(S, 3) - 3. * ddA * dS / (S * S);
+      Eigen::VectorXd alpha = regular->get_alphas().matrix();
+      Eigen::MatrixXd quadratic =
+          alpha.asDiagonal() * (W + W.transpose()) * alpha.asDiagonal();
+      Eigen::VectorXd dA = quadratic * p, mixed = quadratic * mode;
+      double S = alpha.dot(p), dS = alpha.dot(mode), A = p.dot(dA) * .5,
+             along = mode.dot(dA), ddA = mode.dot(mixed);
+      gradient +=
+          -(ddA * alpha + 2. * mixed * dS) / (S * S) +
+          (4. * along * dS * alpha + 2. * dA * dS * dS) / std::pow(S, 3) -
+          6. * A * dS * dS * alpha / std::pow(S, 4);
+      fourth += 12. * ddA * dS * dS / std::pow(S, 3) -
+                24. * along * std::pow(dS, 3) / std::pow(S, 4) +
+                24. * A * std::pow(dS, 4) / std::pow(S, 5);
     }
-    return value;
+    return {gradient, fourth};
   }
 
 public:
@@ -119,7 +133,9 @@ public:
   double evaluate(const Eigen::VectorXd &x, const Assemblage &) const override {
     auto p = fractions(x);
     auto [eigenvalue, mode] = curvature(x[0], x[1], p);
-    return (third ? third_derivative(x[0], x[1], p, mode) : eigenvalue) / 1.e4;
+    return (third ? mode.dot(higher_derivatives(x[0], x[1], p, mode).first)
+                  : eigenvalue) /
+           1.e4;
   }
   // Use small changes to calculate derivatives of the critical-point
   // conditions. The merging direction also changes with P,T and composition;
@@ -149,6 +165,40 @@ public:
                          ->get_molar_fractions()
                          .matrix())
         .second;
+  }
+  // Call only after both critical constraints have converged. Require one
+  // soft mode, stable transverse modes, and positive quartic curvature after
+  // relaxing those modes: D4 - 3 T(v,v,.) H_stable^-1 T(v,v,.).
+  bool stable(const Assemblage &a, int phase) const {
+    if (typeid(*model) != typeid(solution_models::IdealSolution) &&
+        !dynamic_cast<const solution_models::AsymmetricRegularSolution *>(
+            model.get()))
+      return false; // Higher derivatives of other nonideal models are unknown.
+    auto p = a.get_phase<Solution>(static_cast<std::size_t>(phase))
+                 ->get_molar_fractions()
+                 .matrix()
+                 .eval();
+    Eigen::MatrixXd h = basis.transpose() *
+                        model->compute_gibbs_hessian(
+                            a.get_pressure(), a.get_temperature(), p.array()) *
+                        basis;
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eig((h + h.transpose()) *
+                                                       .5);
+    if (eig.info() != Eigen::Success || !eig.eigenvalues().allFinite())
+      return false;
+    const double roundoff = 64. * std::numeric_limits<double>::epsilon();
+    const auto hard = eig.eigenvalues().tail(h.rows() - 1).eval();
+    if ((hard.array() <= roundoff * h.norm()).any())
+      return false;
+    auto [gradient, fourth] =
+        higher_derivatives(a.get_pressure(), a.get_temperature(), p,
+                           basis * eig.eigenvectors().col(0));
+    Eigen::VectorXd coupling =
+        eig.eigenvectors().rightCols(h.rows() - 1).transpose() *
+        basis.transpose() * gradient;
+    double relaxation = 3. * (coupling.array().square() / hard.array()).sum();
+    return std::isfinite(fourth) && std::isfinite(relaxation) &&
+           fourth - relaxation > roundoff * (std::abs(fourth) + relaxation);
   }
 };
 } // namespace burnman::pseudosections::detail

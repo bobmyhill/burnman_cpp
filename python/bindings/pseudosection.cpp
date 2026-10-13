@@ -185,6 +185,7 @@ py::dict result_dict(const pseudosections::Result &result) {
     SAVE(gibbs_variance)
     SAVE(pt_nullity)
     SAVE(incident_lines)
+    SAVE(is_verified_critical_endpoint)
 #undef SAVE
     record["critical_mode"] = vector_list(node.critical_mode);
     nodes.append(record);
@@ -348,6 +349,9 @@ pseudosections::Result saved_result(const py::dict &data, bool full = false) {
       node.volume = extensive(value, "volume", Coordinate::V);
       if (value.contains("incident_lines"))
         node.incident_lines = value["incident_lines"].cast<std::vector<int>>();
+      if (value.contains("is_verified_critical_endpoint"))
+        node.is_verified_critical_endpoint =
+            value["is_verified_critical_endpoint"].cast<bool>();
       // Polygon construction also needs invariant metadata when plotting a
       // saved dictionary, without requiring all resumable equilibrium data.
       if (full || value.contains("kind"))
@@ -508,6 +512,7 @@ void bind_pseudosection(py::module_ &m) {
               PROPERTY(temperature) PROPERTY(entropy) PROPERTY(volume)
                   PROPERTY(zero_phases) PROPERTY(assemblage)
                       PROPERTY(incident_lines) PROPERTY(critical_mode)
+                          PROPERTY(is_verified_critical_endpoint)
 #undef PROPERTY
                           ;
   py::class_<Field>(m, "PhaseField")
@@ -714,6 +719,17 @@ void bind_pseudosection(py::module_ &m) {
       "Incidental chord crossings do not create vertices. merge_fields is "
       "retained for compatibility and has no effect. Accept a native result "
       "or saved JSON dictionary.");
+  m.def("verify_pseudosection_critical_endpoints",
+      [](py::object object, const std::vector<std::shared_ptr<Material>> &phases) {
+        auto result = py::isinstance<Result>(object)
+                          ? object.cast<Result>()
+                          : saved_result(object.cast<py::dict>(), true);
+        py::gil_scoped_release release;
+        return verify_critical_endpoints(result, phases);
+      }, py::arg("result"), py::arg("phases"),
+      "Verify terminal univariant critical reactions using the original models. "
+      "Preserve traces and samples, retain unrelated diagnostics, and save "
+      "the certificates for plotting without further solves.");
   m.def("stable_equilibrium", &stable_equilibrium, py::arg("composition"),
         py::arg("phases"), py::arg("pressure"), py::arg("temperature"),
         py::arg("settings") = Settings{},
@@ -809,7 +825,8 @@ void bind_pseudosection(py::module_ &m) {
          const std::vector<std::shared_ptr<Material>> &phases,
          py::object previous, py::object settings,
          const std::optional<std::array<int, 2>> &resolution,
-         bool reciprocal_volume) {
+         bool reciprocal_volume,
+         const std::optional<std::array<std::array<double, 2>, 2>> &region) {
         Result saved;
         if (py::isinstance<Result>(previous))
           saved = previous.cast<Result>();
@@ -821,20 +838,24 @@ void bind_pseudosection(py::module_ &m) {
         auto opts =
             settings.is_none() ? saved.settings : settings.cast<Settings>();
         std::optional<LineResolution> line_resolution;
+        if (region && !resolution)
+          throw py::value_error("A refinement region requires resolution.");
         if (resolution)
-          line_resolution = LineResolution{*resolution, reciprocal_volume};
+          line_resolution = LineResolution{*resolution, reciprocal_volume, region};
         py::gil_scoped_release release;
         return refine_pseudosection(bulk, phases, saved, opts, line_resolution);
       },
       py::arg("composition"), py::arg("phases"), py::arg("previous"),
       py::arg("settings") = py::none(), py::kw_only(),
       py::arg("resolution") = py::none(), py::arg("reciprocal_volume") = false,
+      py::arg("region") = py::none(),
       "Resume unfinished phase lines from saved accepted states, using the "
       "same bulk and candidate models. Omitted settings reuse the saved "
       "calculation settings, including its EOS policy. All continuation runs "
       "in C++. Optional resolution gives axis point counts in native axis "
       "order: "
-      "101 means 100 divisions. reciprocal_volume divides density uniformly.");
+      "101 means 100 divisions. reciprocal_volume divides density uniformly. "
+      "region supplies a refinement window in native diagram-axis units.");
   m.def("water_fluid", py::overload_cast<>(&minerals::water_fluid));
 }
 } // namespace burnman::python

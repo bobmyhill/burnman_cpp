@@ -186,6 +186,9 @@ struct Node {
   double entropy = 0., volume = 0.;
   std::vector<int> zero_phases, assemblage, incident_lines;
   Eigen::VectorXd critical_mode; // normalised endmember direction, if verified
+  // Stable critical coalescence and both limiting states of a P-T univariant
+  // replacement have been re-solved; this endpoint needs no second graph arm.
+  bool is_verified_critical_endpoint = false;
 };
 
 struct Field {
@@ -321,6 +324,9 @@ struct LineResolution {
   std::array<int, 2> axis_points;
   // Divide the density axis uniformly instead of the volume axis.
   bool reciprocal_volume = false;
+  // Optional window in native diagram-axis units. Refine intersecting segments
+  // to subdivisions of this window, retaining the complete diagram graph.
+  std::optional<std::array<std::array<double, 2>, 2>> region = std::nullopt;
 };
 
 /// Resume unfinished boundaries from their last verified compositions and
@@ -329,6 +335,9 @@ struct LineResolution {
 /// may refine straight segments, trim tails or merge duplicate lines.
 /// resolution also subdivides every boundary using verified equilibrium solves,
 /// limiting point spacing to the axis span divided by (axis_points - 1).
+/// With resolution.region, use the window span and refine only segments that
+/// intersect it. Retrace unstable arcs and arcs around provisional loops once,
+/// using smaller steps within the window when max_recovery_passes is nonzero.
 /// Spacing that cannot be reached is reported in the returned diagnostics.
 /// Added points per line are limited by
 /// max_trace_steps*max_refinement_iterations.
@@ -344,6 +353,13 @@ Result refine_pseudosection(
     const std::vector<std::shared_ptr<Material>> &candidates,
     const Result &previous,
     const std::optional<LineResolution> &resolution = std::nullopt);
+
+/// Recheck terminal critical reactions without changing traces or samples.
+/// Supply the original candidate models in their original order. Old results
+/// have no certificates until checked; unrelated diagnostics are preserved.
+Result verify_critical_endpoints(
+    const Result &previous,
+    const std::vector<std::shared_ptr<Material>> &candidates);
 
 /// Same native stability search at a single P,T, useful for checking diagrams.
 State stable_equilibrium(

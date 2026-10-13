@@ -102,11 +102,386 @@ def test_axis_counts_are_independent_of_linear_display_units(crossing):
     assert default.to_dict() == changed_units.to_dict()
 
 
+@pytest.mark.parametrize("name,finite", [("univariant_segments", False),
+                                        ("thin_finite_field", True)])
+def test_metasediment_reaction_segments_preserve_the_thin_finite_field(name, finite):
+    from burnman_cpp.minerals import model_sets
+
+    # Accepted full-diagram arcs, including different zero-amount constraints
+    # on the same reaction. No synthetic equilibrium states or label votes.
+    data = json.loads((Path(__file__).parent / "data" /
+                       f"metasediment_{name}.json").read_text())
+    before = bm.pseudosection_field_polygons(data, close_domain=False)
+    assert len(before.polygons) == 1
+    if not finite:
+        assert not before.polygons[0].phases
+    result = bm.refine_pseudosection(
+        data["composition_start"], model_sets.metapelite().phases, data,
+        resolution=(2, 2), region=((573.15, 1173.15), (1.e5, 2.e9)),
+        temperature_unit="K", pressure_unit="Pa")
+    geometry = bm.pseudosection_field_polygons(result, close_domain=False)
+    assert result.settings.affinity_tolerance == data["settings"]["affinity_tolerance"]
+    assert result.pressure_range == data["pressure_range"]
+    assert result.temperature_range == data["temperature_range"]
+    if finite:
+        assert len(geometry.polygons) == 1
+        field = geometry.polygons[0]
+        assert field.phases == [0, 3, 6, 21, 33, 36, 39, 45, 48, 63]
+        assert field.n_phases == 10 and not field.is_provisional
+        assert field.area == pytest.approx(before.polygons[0].area, rel=1.e-6)
+    else:
+        assert not geometry.polygons
+        assert len(result.boundaries) == 3
+        assert {frozenset((b.start_node, b.end_node)) for b in result.boundaries} == {
+            frozenset((0, 3)), frozenset((3, 1)), frozenset((1, 2))}
+    for line in result.boundaries:
+        for point in line.points:
+            assert point.mass_balance_error <= result.settings.mass_balance_tolerance
+            assert point.minimum_affinity >= -result.settings.affinity_tolerance
+
+
+@pytest.mark.parametrize("name", ["parallel_fields", "curved_node_connections"])
+def test_metasediment_curved_loops_keep_finite_fields_and_stable_connections(name):
+    from burnman_cpp.minerals import model_sets
+
+    path = Path(__file__).parent / "data" / f"metasediment_{name}.json"
+    data = json.loads(path.read_text())
+    result = bm.refine_pseudosection(
+        data["composition_start"], model_sets.metapelite().phases, data,
+        resolution=(2, 2), region=((573.15, 1173.15), (1.e5, 2.e9)),
+        temperature_unit="K", pressure_unit="Pa",
+    )
+    geometry = bm.pseudosection_field_polygons(result, close_domain=False)
+    assert all(not p.is_provisional for p in geometry.polygons)
+    if name == "parallel_fields":
+        # The original chords gave the intervening eight-phase field negative
+        # area. Its saved minimization must belong only to that finite strip.
+        expected = [0, 3, 6, 21, 36, 45, 48, 63]
+        target = [1.0881852213541665e8, 773.15]
+        assert len(geometry.polygons) == 3
+        matches = [p for p in geometry.polygons
+                   if p.contains_rectangle(target, [1., 1.e-8])]
+        assert len(matches) == 1 and matches[0].phases == expected
+        assert matches[0].area > 0.
+        # Its neighbours retain distinct seven- and nine-phase fields.
+        assert {p.n_phases for p in geometry.polygons} == {7, 8, 9}
+    else:
+        assert {tuple(p.phases) for p in geometry.polygons} == {
+            (0, 1, 3, 18, 21, 36, 45, 60),
+            (0, 1, 3, 18, 21, 36, 37, 45, 60),
+        }
+        nodes = data["fixture_original_nodes"]
+        assert not any(b.zero_phase == 51 and
+                       {b.start_node, b.end_node} ==
+                       {nodes.index(172), nodes.index(173)}
+                       for b in result.boundaries)
+        full = bm.pseudosection_field_polygons(result)
+        matches = [p for p in full.polygons if p.contains_rectangle(
+            [1.5683486180088599e9, 689.1695969015594], [1., 1.e-8])]
+        assert len(matches) == 1 and not matches[0].is_provisional
+        assert matches[0].phases == [0, 1, 3, 18, 21, 36, 45, 51, 60]
+    assert result.equilibrium_solves < 60
+    assert result.settings.affinity_tolerance == data["settings"]["affinity_tolerance"]
+    assert result.pressure_range == data["pressure_range"]
+    assert result.temperature_range == data["temperature_range"]
+    for boundary in result.boundaries:
+        for point in boundary.points:
+            assert point.mass_balance_error <= result.settings.mass_balance_tolerance
+            assert point.minimum_affinity >= -result.settings.affinity_tolerance
+
+
+def transform_saved_traces(data, transform):
+    if transform == "reverse":
+        for line in data["boundaries"]:
+            line["start_node"], line["end_node"] = line["end_node"], line["start_node"]
+            line["side_a"], line["side_b"] = line["side_b"], line["side_a"]
+            line["points"].reverse()
+            line["termination"] = "; ".join(reversed(line["termination"].split("; ")))
+    elif transform == "renumber":
+        copies = data["settings"]["max_phase_instances"]
+        def remap(i):
+            return i if i < 0 else i // copies * copies + copies - 1 - i % copies
+        for node in data["nodes"]:
+            for key in ["assemblage", "zero_phases"]:
+                node[key] = sorted(map(remap, node[key]))
+        for line in data["boundaries"]:
+            line["zero_phase"] = remap(line["zero_phase"])
+            for key in ["assemblage", "side_a", "side_b"]:
+                line[key] = sorted(map(remap, line[key]))
+            for point in line["points"]:
+                for phase in point["phases"]:
+                    phase["id"] = remap(phase["id"])
+                point["phases"].sort(key=lambda p: p["id"])
+
+
+@pytest.mark.parametrize("transform", ["original", "reverse"])
+@pytest.mark.parametrize("name", ["duplicate_invariant", "reaction_extents"])
+def test_pyrolite_reaction_extents_do_not_enclose_artificial_fields(name, transform):
+    path = Path(__file__).parent / "data" / f"pyrolite_{name}.json"
+    data = json.loads(path.read_text())
+    transform_saved_traces(data, transform)
+    factory = runpy.run_path(str(Path(__file__).parents[2] / "examples" /
+                                "example_pyrolite_pseudosection.py"))["candidate_phases"]
+    result = bm.refine_pseudosection(
+        data["composition_start"], factory(), data, resolution=(2, 2),
+        region=(data["temperature_range"], data["pressure_range"]),
+        temperature_unit="K", pressure_unit="Pa")
+    geometry = bm.pseudosection_field_polygons(result, close_domain=False)
+    assert all(p.phases and not p.is_provisional for p in geometry.polygons)
+    assert len(result.boundaries) < len(data["boundaries"])
+    assert result.equilibrium_solves < 100
+    for line in result.boundaries:
+        for point in line.points:
+            assert point.mass_balance_error <= result.settings.mass_balance_tolerance
+            assert point.minimum_affinity >= -result.settings.affinity_tolerance
+
+
+def refine_pyrolite_fixture(data):
+    factory = runpy.run_path(str(Path(__file__).parents[2] / "examples" /
+                                "example_pyrolite_pseudosection.py"))["candidate_phases"]
+    return bm.refine_pseudosection(
+        data["composition_start"], factory(), data, resolution=(2, 2),
+        region=(data["temperature_range"], data["pressure_range"]),
+        temperature_unit="K", pressure_unit="Pa")
+
+
+@pytest.mark.parametrize("transform", ["original", "reverse", "renumber"])
+def test_equivalent_junctions_use_the_actual_zero_amount_solution_copies(transform):
+    data = json.loads((Path(__file__).parent / "data" /
+                       "pyrolite_exchanged_junction_zeros.json").read_text())
+    transform_saved_traces(data, transform)
+    original = json.dumps(data)
+    result = refine_pyrolite_fixture(data)
+    assert json.dumps(data) == original
+    for a, b in data["fixture_duplicate_nodes"]:
+        assert result.nodes[a].incident_lines
+        assert not result.nodes[b].incident_lines
+    for representation in [result, result.to_dict()]:
+        geometry = bm.pseudosection_field_polygons(representation, close_domain=False)
+        assert not [p for p in geometry.polygons if not p.outside_model_domain]
+    assert result.settings.composition_tolerance == data["settings"]["composition_tolerance"]
+
+
+@pytest.mark.parametrize("name,phases", [
+    ("small40", [3, 12, 18, 19, 20, 39, 60, 72]),
+    ("large69", None),
+    ("large92", [3, 6, 12, 15, 18, 19, 39]),
+    ("large94", None),
+])
+def test_localized_univariant_junctions_preserve_finite_pyrolite_fields(name, phases):
+    path = Path(__file__).parent / "data/pyrolite_duplicate_junctions.json"
+    data = json.loads(path.read_text())[name]
+    for pair in data["fixture_duplicate_nodes"]:
+        assert all(data["nodes"][n]["gibbs_variance"] == 1 and
+                   data["nodes"][n]["pt_nullity"] == 0 for n in pair)
+    before = bm.pseudosection_field_polygons(data, close_domain=False)
+    assert any(not p.phases and not p.outside_model_domain for p in before.polygons)
+    result = refine_pyrolite_fixture(data)
+    geometry = bm.pseudosection_field_polygons(result, close_domain=False)
+    fields = [p for p in geometry.polygons if not p.outside_model_domain]
+    if phases is None:
+        assert not fields
+    else:
+        assert len(fields) == 1
+        field = fields[0]
+        assert field.phases == phases
+        assert field.area > 0. and not field.is_provisional and not field.has_open_boundary
+        if name == "small40":
+            assert field.contains_rectangle([10.84e9, 45.], [1., 1.e-8])
+            assert field.area == pytest.approx(max(p.area for p in before.polygons
+                if not p.outside_model_domain), rel=1.e-6)
+    for pair in data["fixture_duplicate_nodes"]:
+        assert result.nodes[min(pair)].incident_lines
+        assert not result.nodes[max(pair)].incident_lines
+    assert len(result.boundaries) < len(data["boundaries"])
+    assert result.equilibrium_solves < 100
+    for line in result.boundaries:
+        for point in line.points:
+            assert point.mass_balance_error <= result.settings.mass_balance_tolerance
+            assert point.minimum_affinity >= -result.settings.affinity_tolerance
+
+
+@pytest.mark.parametrize("transform", ["reverse", "renumber"])
+@pytest.mark.parametrize("name", ["small40", "large69", "large92", "large94"])
+def test_duplicate_junction_identity_ignores_direction_and_instance_numbers(name, transform):
+    data = json.loads((Path(__file__).parent /
+                       "data/pyrolite_duplicate_junctions.json").read_text())[name]
+    transform_saved_traces(data, transform)
+    result = refine_pyrolite_fixture(data)
+    # Junction identity is independent of the later curve/side-label repair.
+    for pair in data["fixture_duplicate_nodes"]:
+        assert result.nodes[min(pair)].incident_lines
+        assert not result.nodes[max(pair)].incident_lines
+
+
+@pytest.mark.parametrize("transform", ["original", "reverse", "renumber"])
+def test_nearby_bivariant_junctions_keep_the_finite_basalt_field(transform):
+    from burnman_cpp.minerals import model_sets
+
+    path = Path(__file__).parent / "data/basalt_nearby_bivariant_junctions.json"
+    data = json.loads(path.read_text())
+    transform_saved_traces(data, transform)
+    for pair in data["fixture_nearby_nodes"]:
+        assert all(data["nodes"][n]["gibbs_variance"] == 2 and
+                   data["nodes"][n]["pt_nullity"] == 0 for n in pair)
+    result = bm.refine_pseudosection(
+        data["composition_start"], model_sets.metabasite().phases, data,
+        resolution=(2, 2), region=(data["temperature_range"], data["pressure_range"]),
+        temperature_unit="K", pressure_unit="Pa")
+    geometry = bm.pseudosection_field_polygons(result, close_domain=False)
+    fields = [p for p in geometry.polygons if p.contains_rectangle(
+        [945.e6, 740.], [1., 1.e-8])]
+    assert len(fields) == 1
+    assert fields[0].phases == [0, 1, 2, 15, 18, 21, 24, 33, 42]
+    assert not fields[0].is_provisional and not fields[0].has_open_boundary
+    for pair in data["fixture_nearby_nodes"]:
+        assert all(result.nodes[n].incident_lines for n in pair)
+
+
+@pytest.mark.parametrize("transform", ["original", "reverse", "renumber"])
+def test_nearby_univariant_junctions_keep_distinct_solution_compositions(transform):
+    path = Path(__file__).parent / "data/pyrolite_nearby_univariant_junctions.json"
+    data = json.loads(path.read_text())
+    transform_saved_traces(data, transform)
+    before = bm.pseudosection_field_polygons(data, close_domain=False)
+    target = [203896066.0346335, 545.4829281751656]
+    factory = runpy.run_path(str(Path(__file__).parents[2] / "examples" /
+                                "example_pyrolite_pseudosection.py"))["candidate_phases"]
+    result = bm.refine_pseudosection(
+        data["composition_start"], factory(), data, resolution=(2, 2),
+        region=(data["temperature_range"], data["pressure_range"]),
+        temperature_unit="K", pressure_unit="Pa")
+    geometry = bm.pseudosection_field_polygons(result, close_domain=False)
+    fields = [p for p in geometry.polygons if p.contains_rectangle(target, [1., 1.e-8])]
+    original = [p for p in before.polygons if p.contains_rectangle(target, [1., 1.e-8])]
+    assert len(fields) == len(original) == 1
+    assert fields[0].phases == [0, 9, 12, 21, 22, 24, 51, 54]
+    assert not fields[0].is_provisional and not fields[0].has_open_boundary
+    assert fields[0].area == pytest.approx(original[0].area, rel=1.e-5)
+
+
+def test_crossed_pyrolite_chords_require_verified_connections():
+    path = Path(__file__).parent / "data/pyrolite_crossed_loops.json"
+    data = json.loads(path.read_text())
+    factory = runpy.run_path(str(Path(__file__).parents[2] / "examples" /
+                                "example_pyrolite_pseudosection.py"))["candidate_phases"]
+    result = bm.refine_pseudosection(
+        data["composition_start"], factory(), data, resolution=(2, 2),
+        region=(data["temperature_range"], data["pressure_range"]),
+        temperature_unit="K", pressure_unit="Pa")
+    # Correcting equivalent junctions resolves the six-phase loop. The other
+    # crossing still lacks a verified connection and must remain unlabelled.
+    geometry = bm.pseudosection_field_polygons(result, close_domain=False)
+    assert len(result.nodes) == len(data["nodes"])
+    assert sum(not p.phases for p in geometry.polygons) == 1
+    assert any(p.phases == [6, 12, 18, 19, 39, 60] and not p.is_provisional
+               for p in geometry.polygons)
+    # Include the corrector and side-label recovery for that previously
+    # unresolved perimeter in this local-repair budget.
+    assert result.equilibrium_solves < 500
+    for line in result.boundaries:
+        for point in line.points:
+            assert point.mass_balance_error <= result.settings.mass_balance_tolerance
+            assert point.minimum_affinity >= -result.settings.affinity_tolerance
+
+
+def test_regional_retrace_recovers_missing_metasediment_connection():
+    from burnman_cpp.minerals import model_sets
+
+    # Counterexample assembled from accepted local states and the actual coarse
+    # melt-out arc that skipped the second-ilmenite junction in the full diagram.
+    path = Path(__file__).parent / "data/metasediment_missing_melt_connection.json"
+    saved = json.loads(path.read_text())
+    before = bm.pseudosection_field_polygons(saved)
+    target = [1.107e9, 950.5]
+    assert any(p.is_provisional and p.contains_rectangle(target, [1., 1.e-8])
+               for p in before.polygons)
+    assert not any(b["zero_phase"] == 42 and
+                   {b["start_node"], b["end_node"]} == {6, 11}
+                   for b in saved["boundaries"])
+    result = bm.refine_pseudosection(
+        saved["composition_start"], model_sets.metapelite().phases, saved,
+        resolution=(21, 21), region=((944., 955.), (1.09, 1.12)),
+        pressure_unit="GPa", temperature_unit="K",
+    )
+    assert result.pressure_range == saved["pressure_range"]
+    assert result.temperature_range == saved["temperature_range"]
+    assert any(b.zero_phase == 42 and {b.start_node, b.end_node} == {6, 11}
+               for b in result.boundaries)
+    after = bm.pseudosection_field_polygons(result)
+    fields = [p for p in after.polygons
+              if p.contains_rectangle(target, [1., 1.e-8])]
+    assert len(fields) == 1 and not fields[0].is_provisional
+    assert list(fields[0].phases) == [0, 3, 18, 21, 36, 45, 51, 60, 63]
+    check_spacing(result, (21, 21), pressure_unit="GPa", temperature_unit="K")
+
+
 def test_single_axis_division_is_valid(crossing):
     bulk, saved = crossing
     result = bm.refine_pseudosection(bulk, crossing_phases(), saved, resolution=(2, 2))
     assert result.resolved, result.diagnostics
     check_spacing(result, (2, 2))
+
+
+@pytest.mark.parametrize("swap_axes", [False, True])
+def test_regional_refinement_preserves_unrelated_lines_and_plot_units(
+    crossing, swap_axes
+):
+    bulk, saved = crossing
+    region = ((800., 900.), (.5, 1.5))
+    resolution = (11, 21)
+    if swap_axes:
+        region, resolution = region[::-1], resolution[::-1]
+    result = bm.refine_pseudosection(
+        bulk, crossing_phases(), saved, resolution=resolution, region=region,
+        temperature_unit="K", pressure_unit="GPa", swap_axes=swap_axes,
+    )
+    assert result.resolved, result.diagnostics
+    assert result.pressure_range == saved["pressure_range"]
+    assert result.temperature_range == saved["temperature_range"]
+    refined = result.to_dict()
+    changed = []
+    for old, new in zip(saved["boundaries"], refined["boundaries"]):
+        if all(p["temperature"] == 1000. for p in old["points"]):
+            assert new == old  # Horizontal arcs never intersect the window.
+        elif new != old:
+            changed.append(new)
+            points = new["points"]
+            for a, b in zip(points[:-1], points[1:]):
+                lo, hi = sorted([a["temperature"], b["temperature"]])
+                if lo <= 900. and hi >= 800.:
+                    assert hi - lo <= 10. * (1. + 1.e-10)
+    assert len(changed) == 1
+    # The same physical window expressed in Celsius and kbar is identical.
+    alternate = ((526.85, 626.85), (5., 15.))
+    if swap_axes:
+        alternate = alternate[::-1]
+    equivalent = bm.refine_pseudosection(
+        bulk, crossing_phases(), saved, resolution=resolution,
+        region=alternate, swap_axes=swap_axes,
+    )
+    assert equivalent.to_dict() == refined
+    repeated = bm.refine_pseudosection(
+        bulk, crossing_phases(), result, resolution=resolution, region=region,
+        temperature_unit="K", pressure_unit="GPa", swap_axes=swap_axes,
+    )
+    assert repeated.to_dict() == refined
+
+
+@pytest.mark.parametrize("region", [
+    ((800., 900.), (-.1, 1.5)),
+    ((900., 800.), (.5, 1.5)),
+    ((800., float("nan")), (.5, 1.5)),
+])
+def test_regional_refinement_rejects_invalid_windows(crossing, region):
+    bulk, saved = crossing
+    with pytest.raises(ValueError, match="region"):
+        bm.refine_pseudosection(
+            bulk, crossing_phases(), saved, resolution=(11, 21), region=region,
+            temperature_unit="K", pressure_unit="GPa",
+        )
+    with pytest.raises(ValueError, match="requires resolution"):
+        bm.refine_pseudosection(bulk, crossing_phases(), saved, region=region)
 
 
 def test_completed_refinement_skips_junction_search_and_repeated_solves(

@@ -161,6 +161,7 @@ def refine_pseudosection(
     settings=None,
     *,
     resolution=None,
+    region=None,
     pressure_unit="kbar",
     temperature_unit="C",
     entropy_unit="J/K",
@@ -185,6 +186,12 @@ def refine_pseudosection(
     Set ``settings.verbose = True`` to report refinement and checking progress.
     Save the returned result with ``save_pseudosection``. Omitted resolution
     retains ordinary boundary recovery and the saved settings by default.
+    ``region=((xmin, xmax), (ymin, ymax))`` limits spacing refinement to
+    segments intersecting that window, in the selected plot units and axis
+    order. Counts then subdivide the window rather than the whole diagram.
+    Unstable arcs and arcs around provisional loops are retraced, using smaller
+    steps within the window. The full graph and its original frame are retained.
+    Regional refinement requires ``resolution`` and honours ``max_recovery_passes``.
     """
     from os import PathLike
     import numpy as np
@@ -192,6 +199,8 @@ def refine_pseudosection(
     if isinstance(previous, (str, PathLike)):
         previous = load_pseudosection(previous)
     if resolution is None:
+        if region is not None:
+            raise ValueError("A refinement region requires resolution.")
         return _core.refine_pseudosection(composition, phases, previous, settings)
     counts = np.asarray(resolution, dtype=float)
     if (
@@ -203,9 +212,16 @@ def refine_pseudosection(
         raise ValueError(
             "resolution must contain two integer axis point counts (nx, ny), each at least 2."
         )
-    _, _, order, density, _, _, _ = _coordinate_transforms(
+    _, _, order, density, _, _, native_coordinates = _coordinate_transforms(
         previous, pressure_unit, temperature_unit, entropy_unit, volume_unit, swap_axes
     )
+    native_region = None
+    if region is not None:
+        bounds = np.asarray(region, dtype=float)
+        if (bounds.shape != (2, 2) or not np.isfinite(bounds).all()
+                or (bounds[:, 0] >= bounds[:, 1]).any()):
+            raise ValueError("region must contain finite increasing x and y bounds.")
+        native_region = np.sort(native_coordinates(bounds.T), axis=0).T.tolist()
     return _core.refine_pseudosection(
         composition,
         phases,
@@ -213,6 +229,7 @@ def refine_pseudosection(
         settings,
         resolution=tuple(int(count) for count in counts[order]),
         reciprocal_volume=density,
+        region=native_region,
     )
 
 
