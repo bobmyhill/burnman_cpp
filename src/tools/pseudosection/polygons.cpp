@@ -13,6 +13,7 @@
 
 #include "burnman/tools/pseudosection.hpp"
 #include "burnman/utils/index_utils.hpp"
+#include "burnman/utils/polygon_utils.hpp"
 #include "internal.hpp"
 #include <algorithm>
 #include <cmath>
@@ -295,87 +296,26 @@ Eigen::MatrixXd coordinates(const Ring &ring, const std::vector<Point> &points,
   return output;
 }
 
-// Find an interior label point far from the edges by repeatedly subdividing
-// promising squares. A centroid can lie outside a concave region or in a hole.
+// Find an interior label point far from the edges. A centroid can lie outside
+// a concave region or in a hole, so use the pole of inaccessibility.
 std::pair<Point, double> label_point(const Face &face,
                                      const std::vector<Point> &points,
                                      const Point *sample = nullptr) {
-  auto signed_distance = [&](const Point &p) {
-    double d = std::numeric_limits<double>::infinity();
-    auto measure = [&](const Ring &ring) {
-      for (std::size_t i = 1; i < ring.size(); ++i)
-        d = std::min(d,
-                     segment_distance(p, points[ring[i - 1]], points[ring[i]]));
-    };
-    measure(face.exterior);
-    for (auto &ring : face.holes)
-      measure(ring);
-    return contains(face, points, p, 0.) ? d : -d;
+  auto matrix = [&](const Ring &ring) {
+    // Rings repeat their first index; the utility closes them itself.
+    Eigen::MatrixXd output(static_cast<Eigen::Index>(ring.size()) - 1, 2);
+    for (std::size_t i = 0; i + 1 < ring.size(); ++i)
+      output.row(static_cast<Eigen::Index>(i)) = points[ring[i]].transpose();
+    return output;
   };
-  Point low = points[face.exterior[0]], high = low;
-  for (Index i : face.exterior) {
-    low = low.cwiseMin(points[i]);
-    high = high.cwiseMax(points[i]);
-  }
-  struct Cell {
-    Point centre;
-    double half, d, maximum;
-    bool operator<(const Cell &other) const { return maximum < other.maximum; }
-  };
-  auto cell = [&](Point p, double half) {
-    double d = signed_distance(p);
-    return Cell{p, half, d, d + half * std::sqrt(2.)};
-  };
-  auto best = cell(points[face.exterior[0]], 0.);
-  Point centroid = Point::Zero();
-  double weight = 0.;
-  for (std::size_t i = 1; i < face.exterior.size(); ++i) {
-    auto &a = points[face.exterior[i - 1]];
-    auto &b = points[face.exterior[i]];
-    double w = cross(a, b);
-    centroid += (a + b) * w;
-    weight += w;
-  }
-  if (std::abs(weight) > 1.e-20) {
-    auto candidate = cell(centroid / (3. * weight), 0.);
-    if (candidate.d > best.d)
-      best = candidate;
-  }
-  if (sample) {
-    auto candidate = cell(*sample, 0.);
-    if (candidate.d > best.d)
-      best = candidate;
-  }
-  // Thin chord slivers can lose centroid accuracy through cancellation of
-  // signed area. Convex-corner triangle centres provide stable interior seeds.
-  for (std::size_t i = 1; i + 1 < face.exterior.size(); ++i) {
-    auto candidate =
-        cell((points[face.exterior[i - 1]] + points[face.exterior[i]] +
-              points[face.exterior[i + 1]]) /
-                 3.,
-             0.);
-    if (candidate.d > best.d)
-      best = candidate;
-  }
-  auto root = cell(.5 * (low + high), .5 * (high - low).maxCoeff());
-  if (root.d > best.d)
-    best = root;
-  std::priority_queue<Cell> queue;
-  queue.push(root);
-  double precision = std::max(1.e-7, (high - low).minCoeff() * .002);
-  for (int iteration = 0; !queue.empty() && iteration < 20000; ++iteration) {
-    auto current = queue.top();
-    queue.pop();
-    if (current.d > best.d)
-      best = current;
-    if (current.maximum - best.d <= precision)
-      continue;
-    double h = current.half * .5;
-    for (double x : {-h, h})
-      for (double y : {-h, h})
-        queue.push(cell(current.centre + Point(x, y), h));
-  }
-  return {best.centre, std::max(0., best.d)};
+  std::vector<Eigen::MatrixXd> rings{matrix(face.exterior)};
+  for (const auto &hole : face.holes)
+    rings.push_back(matrix(hole));
+  std::vector<Point> seeds;
+  if (sample)
+    seeds.push_back(*sample);
+  const auto centre = utils::visual_center_of_polygon(rings, 0., seeds);
+  return {centre.point, centre.distance};
 }
 } // namespace
 

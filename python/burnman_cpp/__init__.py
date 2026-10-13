@@ -48,6 +48,8 @@ from ._core import (
     set_composition_and_state_from_parameters,
     composite_polytope_at_constrained_composition,
     solution_polytope_from_endmember_occupancies,
+    visual_center_of_polygon,
+    signed_distance_to_polygon,
     simplify_composite_with_composition,
     transform_solution_to_new_basis,
 )
@@ -179,6 +181,8 @@ __all__ = [
     "MaterialPolytope",
     "composite_polytope_at_constrained_composition",
     "solution_polytope_from_endmember_occupancies",
+    "visual_center_of_polygon",
+    "signed_distance_to_polygon",
     "simplify_composite_with_composition",
     "transform_solution_to_new_basis",
     "AsymmetricRegularSolution",

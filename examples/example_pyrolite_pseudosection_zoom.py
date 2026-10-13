@@ -36,10 +36,10 @@ from burnman_cpp.minerals import SLB24
 PAPER_URL = "https://academic.oup.com/gji/article/237/3/1699/7640845"
 INITIAL_FERRIC_FRACTION = 0.03
 
-P_Pa_low = 23.0e9
-P_Pa_high = 25.0e9
-T_K_low = 500.0
-T_K_high = 1500.0
+P_Pa_low = 3.932e9
+P_Pa_high = 3.935e9
+T_K_low = 96.
+T_K_high = 98.
 
 
 def pyrolite_composition(ferric_fraction=INITIAL_FERRIC_FRACTION):
