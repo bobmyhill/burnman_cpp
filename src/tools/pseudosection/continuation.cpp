@@ -146,7 +146,8 @@ boundary_sides(Engine &engine, Assemblage &a, const std::vector<int> &ids,
   auto absent = ids;
   absent.erase(absent.begin() + (entry - ids.begin()));
   int full_side = 0;
-  int sign = phase_entry_side(engine, a, ids, zero, s, range, normal, full_side);
+  int sign =
+      phase_entry_side(engine, a, ids, zero, s, range, normal, full_side);
   if (sign)
     return {engine.canonical_ids(sign > 0 ? absent : ids),
             engine.canonical_ids(sign > 0 ? ids : absent)};
@@ -297,5 +298,263 @@ Eigen::VectorXd continuation_tangent(const Engine &engine,
   auto physical = (scales.asDiagonal() * d).eval();
   return physical /
          engine.project_direction(physical, a).cwiseQuotient(range).norm();
+}
+namespace {
+std::optional<std::vector<std::size_t>>
+phase_matches(const std::vector<PhaseState> &a,
+              const std::vector<PhaseState> &b, double tolerance) {
+  std::vector<std::size_t> matches;
+  std::vector<bool> used(b.size(), false);
+  for (const auto &phase : a) {
+    std::size_t match = b.size();
+    double distance = tolerance;
+    for (std::size_t j = 0; j < b.size(); ++j)
+      if (!used[j] && phase.candidate_index == b[j].candidate_index &&
+          phase.composition.size() == b[j].composition.size() &&
+          (phase.composition - b[j].composition).norm() < distance) {
+        match = j;
+        distance = (phase.composition - b[j].composition).norm();
+      }
+    if (match == b.size())
+      return std::nullopt;
+    used[match] = true;
+    matches.push_back(match);
+  }
+  return matches;
+}
+} // namespace
+
+bool seed_phase_compositions(std::vector<PhaseState> &warm,
+                             const std::vector<PhaseState> &seed) {
+  const auto matches =
+      phase_matches(warm, seed, std::numeric_limits<double>::infinity());
+  if (!matches)
+    return false;
+  for (std::size_t i = 0; i < warm.size(); ++i)
+    warm[i].composition = seed[(*matches)[i]].composition;
+  return true;
+}
+
+bool same_phase_compositions(const std::vector<PhaseState> &a,
+                             const std::vector<PhaseState> &b, double tolerance,
+                             double amount_tolerance) {
+  if (a.size() > b.size())
+    return same_phase_compositions(b, a, tolerance, amount_tolerance);
+  const auto matches = phase_matches(a, b, tolerance);
+  if (!matches)
+    return false;
+  double total = 0.;
+  for (const auto &phase : b)
+    total += phase.amount;
+  for (std::size_t j = 0; j < b.size(); ++j)
+    if (std::find(matches->begin(), matches->end(), j) == matches->end() &&
+        b[j].amount > amount_tolerance * total)
+      return false;
+  return true;
+}
+
+bool same_boundary_compositions(const std::vector<PhaseState> &a, int zero_a,
+                                const std::vector<PhaseState> &b, int zero_b,
+                                double tolerance, double amount_tolerance) {
+  auto zero = [](const auto &states, int id) {
+    return std::find_if(states.begin(), states.end(),
+                        [&](const auto &phase) { return phase.id == id; });
+  };
+  const auto x = zero(a, zero_a), y = zero(b, zero_b);
+  return x != a.end() && y != b.end() &&
+         x->candidate_index == y->candidate_index &&
+         x->composition.size() == y->composition.size() &&
+         (x->composition - y->composition).norm() < tolerance &&
+         same_phase_compositions(a, b, tolerance, amount_tolerance);
+}
+
+std::vector<int> zero_phases_at(const Node &node,
+                                const std::vector<PhaseState> &states,
+                                int copies) {
+  std::vector<int> zeros;
+  for (int zero : node.zero_phases) {
+    const PhaseState *best = nullptr;
+    for (const auto &phase : states)
+      if (phase.candidate_index == zero / copies &&
+          std::find(zeros.begin(), zeros.end(), phase.id) == zeros.end() &&
+          (!best || std::abs(phase.amount) < std::abs(best->amount)))
+        best = &phase;
+    if (best)
+      zeros.push_back(best->id);
+  }
+  return zeros;
+}
+
+std::optional<BoundaryPoint> corrected_point(Engine &engine, Assemblage &a,
+                                             const std::vector<int> &ids,
+                                             ConstraintList &c,
+                                             const Eigen::Vector2d &target,
+                                             const Eigen::Vector2d &allowance) {
+  auto solved = engine.solve(a, c);
+  if (!solved.success || !solved.x.allFinite() ||
+      engine.mass_error(a) > engine.settings.mass_balance_tolerance ||
+      !engine.distinct(a, ids) ||
+      ((engine.coordinates(a) - target).cwiseAbs().array() > allowance.array())
+          .any())
+    return std::nullopt;
+  const double affinity = engine.stability(a);
+  if (affinity < -engine.settings.affinity_tolerance)
+    return std::nullopt;
+  BoundaryPoint point;
+  engine.record_coordinates(point, a);
+  point.phases = engine.snapshot(a, ids);
+  point.mass_balance_error = engine.mass_error(a);
+  point.minimum_affinity = affinity;
+  point.residual = solved.F.tail(solved.F.size() - 2).norm();
+  return point;
+}
+
+// Correct an existing branch without starting a new bulk phase search.
+std::optional<BoundaryPoint>
+boundary_point_at(Engine &engine, const Boundary &line,
+                  const std::vector<PhaseState> &warm,
+                  const Eigen::Vector2d &target, const Eigen::Vector2d &weights,
+                  const Eigen::Vector2d &allowance) {
+  auto assembly = engine.make_at(line.assemblage, warm, target);
+  const auto prm = engine.parameters(*assembly);
+  const auto zero = std::find(line.assemblage.begin(), line.assemblage.end(),
+                              line.zero_phase);
+  if (zero == line.assemblage.end())
+    return std::nullopt;
+  auto c = constraints(
+      std::make_unique<PhaseFractionConstraint>(zero - line.assemblage.begin(),
+                                                0., prm),
+      continuation_plane(engine, *assembly, prm.n_parameters, target, weights));
+  return corrected_point(engine, *assembly, line.assemblage, c, target,
+                         allowance);
+}
+
+// Use the same intensive seed (and active solution faces) for both events,
+// while preserving each event's solution-copy identities and zero constraints.
+std::optional<BoundaryPoint> junction_point_at(
+    Engine &engine, const Node &node, std::vector<PhaseState> warm,
+    const std::vector<PhaseState> &seed, const Eigen::Vector2d &allowance) {
+  if (node.zero_phases.size() != 2)
+    return std::nullopt;
+  const auto zeros = zero_phases_at(node, warm, engine.settings.max_phase_instances);
+  if (zeros.size() != 2)
+    return std::nullopt;
+  if (!seed_phase_compositions(warm, seed))
+    return std::nullopt;
+  for (auto &phase : warm) {
+    if (std::find(zeros.begin(), zeros.end(), phase.id) != zeros.end())
+      phase.amount = 0.;
+  }
+  const auto target = diagram_coordinates(node, engine.section.type);
+  auto assembly = engine.make_at(node.assemblage, warm, target);
+  const auto prm = engine.parameters(*assembly);
+  auto zero = [&](int id) -> std::unique_ptr<EqualityConstraint> {
+    const auto entry =
+        std::find(node.assemblage.begin(), node.assemblage.end(), id);
+    if (entry == node.assemblage.end())
+      throw std::invalid_argument(
+          "Junction zero phase is absent from its assemblage.");
+    return std::make_unique<PhaseFractionConstraint>(
+        entry - node.assemblage.begin(), 0., prm);
+  };
+  auto c = constraints(zero(zeros[0]), zero(zeros[1]));
+  return corrected_point(engine, *assembly, node.assemblage, c, target,
+                         allowance);
+}
+
+// Chords are a quick comparison only when both traces already have matching
+// neighbours. Otherwise compare corrected equilibria, including solution
+// copies.
+bool same_boundary_curve(Engine &engine, const Result &result,
+                         const Boundary &first, const Boundary &second,
+                         bool partial, bool require_equilibrium) {
+  const auto ranges = result.coordinate_ranges();
+  const Eigen::Vector2d origin(ranges[0][0], ranges[1][0]),
+      range(ranges[0][1] - origin[0], ranges[1][1] - origin[1]);
+  auto q = [&](const auto &p) -> Eigen::Vector2d {
+    return (diagram_coordinates(p, result.section.type) - origin)
+        .cwiseQuotient(range);
+  };
+  auto near = [&](const Boundary &one, const Boundary &two) {
+    for (const auto &p : one.points) {
+      double distance = std::numeric_limits<double>::infinity();
+      for (std::size_t k = 1; k < two.points.size(); ++k)
+        distance =
+            std::min(distance, segment_distance(q(p), q(two.points[k - 1]),
+                                                q(two.points[k])));
+      if (distance > engine.settings.node_tolerance * 2.)
+        return false;
+    }
+    return true;
+  };
+  if (!partial && !require_equilibrium && near(first, second) &&
+      near(second, first))
+    return true;
+  auto verified = [&](const Boundary &one, const Boundary &two) {
+    if (one.points.size() < 2 || two.points.empty())
+      return false;
+    double reach = engine.settings.step * 3.;
+    for (std::size_t k = 1; k < two.points.size(); ++k)
+      reach = std::max(reach, (q(two.points[k]) - q(two.points[k - 1])).norm());
+    std::vector<BoundaryPoint> inserted;
+    if (one.points.size() == 2)
+      try {
+        Eigen::Vector2d tangent = q(one.points.back()) - q(one.points.front());
+        if (tangent.norm() == 0.)
+          return false;
+        const Eigen::Vector2d target =
+            origin + .5 * (q(one.points.front()) + q(one.points.back()))
+                              .cwiseProduct(range);
+        auto midpoint = boundary_point_at(
+            engine, one, one.points.front().phases, target,
+            tangent.normalized().cwiseQuotient(range), range * tangent.norm());
+        if (!midpoint)
+          return false;
+        inserted = {one.points.front(), std::move(*midpoint),
+                    one.points.back()};
+      } catch (const std::exception &) {
+        return false;
+      }
+    int checked = 0;
+    const auto &samples = inserted.empty() ? one.points : inserted;
+    for (std::size_t i = 1; i + 1 < samples.size(); ++i) {
+      const auto &target = samples[i];
+      if (solution_separation(target.phases) < .002 || two.points.empty())
+        continue;
+      const auto closest =
+          std::min_element(two.points.begin(), two.points.end(),
+                           [&](const auto &a, const auto &b) {
+                             return (q(a) - q(target)).squaredNorm() <
+                                    (q(b) - q(target)).squaredNorm();
+                           });
+      if ((q(*closest) - q(target)).norm() > reach)
+        return false;
+      Eigen::Vector2d tangent = q(samples[i + 1]) - q(samples[i - 1]);
+      if (tangent.norm() < 1.e-12 && partial)
+        tangent = q(target) - q(samples[i - 1]);
+      if (tangent.norm() < 1.e-12)
+        continue;
+      try {
+        auto point =
+            boundary_point_at(engine, two, closest->phases,
+                              diagram_coordinates(target, result.section.type),
+                              tangent.normalized().cwiseQuotient(range),
+                              range * engine.settings.node_tolerance);
+        if (!point ||
+            (q(*point) - q(target)).norm() > engine.settings.node_tolerance)
+          return false;
+        if (!same_phase_compositions(point->phases, target.phases,
+                                     engine.settings.composition_tolerance *
+                                         100.,
+                                     engine.settings.amount_tolerance))
+          return false;
+        ++checked;
+      } catch (const std::exception &) {
+        return false;
+      }
+    }
+    return checked > 0;
+  };
+  return verified(first, second) && (partial || verified(second, first));
 }
 } // namespace burnman::pseudosections::detail

@@ -1001,8 +1001,7 @@ optim::roots::DampedNewtonResult Engine::solve(Assemblage &a, ConstraintList &c,
   Eigen::VectorXd tol = Eigen::VectorXd::Constant(prm.n_parameters, 1.e-12);
   for (int k = 0; k < prm.phase_amount_indices.size(); ++k)
     tol[prm.phase_amount_indices[k]] = 1.e-9;
-  tol[0] = .2;
-  tol[1] = 1.e-6;
+  tol.head<2>() = equilibrium_pt_tolerance();
   Eigen::VectorXd scales = Eigen::VectorXd::Ones(prm.n_parameters);
   scales[0] = 1.e9;
   scales[1] = 1000.;
@@ -1526,24 +1525,23 @@ std::vector<int> Engine::active_phases(const State &s) const {
   double total = 0.;
   for (auto &ph : s.phases)
     total += ph.amount;
-  std::map<int, int> count;
+  std::vector<int> ids;
   for (auto &ph : s.phases)
     if (ph.amount > settings.amount_tolerance * total)
-      ++count[ph.candidate_index];
-  std::vector<int> ids;
-  for (auto [base, n] : count)
-    for (int j = 0; j < n; ++j)
-      ids.push_back(base * settings.max_phase_instances + j);
-  return ids;
+      ids.push_back(ph.candidate_index * settings.max_phase_instances);
+  return canonical_ids(ids);
 }
 std::vector<int> Engine::canonical_ids(const std::vector<int> &ids) const {
+  return canonical_phase_ids(ids, settings.max_phase_instances);
+}
+std::vector<int> canonical_phase_ids(const std::vector<int> &ids, int copies) {
   std::map<int, int> counts;
   for (int id : ids)
-    ++counts[id / settings.max_phase_instances];
+    ++counts[id / copies];
   std::vector<int> canonical;
   for (auto [base, count] : counts)
     for (int copy = 0; copy < count; ++copy)
-      canonical.push_back(base * settings.max_phase_instances + copy);
+      canonical.push_back(base * copies + copy);
   return canonical;
 }
 double solution_separation(const std::vector<PhaseState> &states) {

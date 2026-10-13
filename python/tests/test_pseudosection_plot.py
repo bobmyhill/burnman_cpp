@@ -54,6 +54,111 @@ def check_joined_edges(geometry):
     assert actual == expected
 
 
+def test_univariant_loop_connections_ignore_exchanged_solution_copy_ids():
+    # The repaired metasediment reaction and its perimeter. At node 266 the
+    # full trace used ilm ID 36 where the local trace used ID 37.
+    path = Path(__file__).parent / "data/metasediment_univariant_loop.json"
+    data = json.loads(path.read_text())
+    exchanged = bm.pseudosection_field_polygons(data)
+    expected = [0, 3, 18, 21, 36, 37, 45, 51, 60, 63]
+    assert any(list(p.phases) == expected and not p.is_provisional
+               for p in exchanged.polygons)
+    next(n for n in data["nodes"] if n["id"] == 266)["zero_phases"] = [42, 37]
+    original = bm.pseudosection_field_polygons(data)
+    assert len(exchanged.polygons) == len(original.polygons)
+    for a, b in zip(exchanged.polygons, original.polygons):
+        assert a.phases == b.phases
+        np.testing.assert_allclose(a.vertices, b.vertices)
+        assert a.area == pytest.approx(b.area)
+
+
+def test_retired_junction_does_not_reconnect_crossing_saved_arcs():
+    phases = [0, 3, 6]
+    data = diagram([])
+    endpoints = [(.2, 0.), (.8, 1.), (.8, 0.), (.2, 1.)]
+    data['nodes'] = [dict(id=i, pressure=p, temperature=t)
+                     for i, (p, t) in enumerate(endpoints)]
+    data['boundaries'] = [dict(
+        id=i, start_node=2*i, end_node=2*i+1, zero_phase=0,
+        assemblage=phases, **line(endpoints[2*i:2*i+2], [3, 6], phases))
+        for i in range(2)]
+    expected = bm.pseudosection_field_polygons(data)
+    # Duplicate-junction repair preserves old node records and rewrites the
+    # surviving endpoints. An unreferenced record must not cut both arcs.
+    data['nodes'].append(dict(id=4, pressure=.5, temperature=.5,
+                              kind='junction', assemblage=phases,
+                              zero_phases=[0, 3], gibbs_variance=1,
+                              pt_nullity=0))
+    actual = bm.pseudosection_field_polygons(data)
+    assert len(actual.polygons) == len(expected.polygons)
+    for a, b in zip(actual.polygons, expected.polygons):
+        np.testing.assert_array_equal(a.vertices, b.vertices)
+        assert a.phases == b.phases
+    np.testing.assert_array_equal(actual.boundary_segments,
+                                  expected.boundary_segments)
+
+
+@pytest.mark.parametrize('reverse', [False, True])
+def test_retired_pyrolite_invariant_does_not_recreate_a_closed_loop(reverse):
+    data = json.loads((Path(__file__).parent / 'data' /
+                       'pyrolite_retired_junction_geometry.json').read_text())
+    if reverse:
+        for b in data['boundaries']:
+            b['points'].reverse()
+            b['start_node'], b['end_node'] = b['end_node'], b['start_node']
+            b['side_a'], b['side_b'] = b['side_b'], b['side_a']
+    for representation in [data, bm.PseudosectionResult.from_dict(data)]:
+        geometry = bm.pseudosection_field_polygons(representation, close_domain=False)
+        assert not geometry.polygons
+        check_joined_edges(geometry)
+
+
+@pytest.mark.parametrize("variance,width,count", [(1, 1.e-5, 2), (2, 1.e-5, 3),
+                                                   (1, .1, 3)])
+def test_univariant_duplicates_do_not_erase_finite_or_distinct_branches(
+    variance, width, count
+):
+    phases = [0, 3, 6]
+    data = diagram([])
+    data["nodes"] = [dict(id=i, pressure=.5, temperature=float(i),
+                          kind="junction", assemblage=phases,
+                          gibbs_variance=variance, pt_nullity=0)
+                     for i in range(2)]
+    data["boundaries"] = [dict(
+        id=i, zero_phase=zero, start_node=0, end_node=1, assemblage=phases,
+        **line([(.5, 0.), (.5 + sign * width, .5), (.5, 1.)], [0, 3], [3, 6]))
+        for i, (zero, sign) in enumerate([(0, -1), (6, 1)])]
+    geometry = bm.pseudosection_field_polygons(data)
+    assert len(geometry.polygons) == count
+    assert sum(p.area for p in geometry.polygons) == pytest.approx(1.)
+    check_joined_edges(geometry)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("native", [False, True])
+def test_parallel_curved_arcs_follow_their_neighbouring_assemblages(reverse, native):
+    # Real metasediment loops 27/28 share endpoints across chl-out/mt-out
+    # branches. Their first chords suggest the opposite cyclic ordering.
+    path = Path(__file__).parent / "data/metasediment_parallel_fields.json"
+    data = json.loads(path.read_text())
+    if reverse:
+        for boundary in data["boundaries"]:
+            boundary["points"].reverse()
+            boundary["side_a"], boundary["side_b"] = boundary["side_b"], boundary["side_a"]
+            boundary["start_node"], boundary["end_node"] = boundary["end_node"], boundary["start_node"]
+    geometry = bm.pseudosection_field_polygons(
+        bm.PseudosectionResult.from_dict(data) if native else data,
+        close_domain=False,
+    )
+    assert len(geometry.polygons) == 2
+    assert {tuple(p.phases) for p in geometry.polygons} == {
+        (0, 3, 21, 36, 45, 48, 63),
+        (0, 3, 6, 21, 36, 39, 45, 48, 63),
+    }
+    assert all(not p.is_provisional for p in geometry.polygons)
+    check_joined_edges(geometry)
+
+
 @pytest.mark.parametrize("endpoint", [False, True])
 def test_plot_joins_matching_segments_only_between_endpoint_vertices(endpoint):
     import matplotlib.pyplot as plt
@@ -628,6 +733,26 @@ def test_closed_thin_field_survives_without_intersection_snapping():
     assert field.area == pytest.approx(0.3 * width, rel=1.e-6)
     assert not field.has_open_boundary
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("native", [False, True])
+def test_pyrolite_loop_uses_common_limiting_neighbours(reverse, native):
+    data = json.loads((Path(__file__).parent / "data" /
+                       "pyrolite_limiting_neighbours.json").read_text())
+    if reverse:
+        for b in data["boundaries"]:
+            b["points"].reverse()
+            b["side_a"], b["side_b"] = b["side_b"], b["side_a"]
+            b["start_node"], b["end_node"] = b["end_node"], b["start_node"]
+    geometry = bm.pseudosection_field_polygons(
+        bm.PseudosectionResult.from_dict(data) if native else data)
+    matches = [p for p in geometry.polygons if p.contains_rectangle(
+        [9698567487.547056, 19.524751201924275], [1.e-5, 1.e-12])]
+    assert len(matches) == 1
+    assert matches[0].phases == [3, 12, 15, 18, 19, 39, 72]
+    assert not matches[0].is_provisional and not matches[0].has_open_boundary
+    assert not data["samples"]  # The perimeter supplies the evidence without a solve.
 
 
 def test_saved_pyrolite_fragments_296_to_298_belong_to_one_vertex_loop():

@@ -242,6 +242,7 @@ from ._core import (
     PhaseField,
     PhaseState,
     pseudosection_field_polygons,
+    verify_pseudosection_critical_endpoints,
     PhaseFieldPolygon,
     PseudosectionPolygons,
 )
@@ -276,6 +277,7 @@ __all__ += [
     "PhaseField",
     "PhaseState",
     "pseudosection_field_polygons",
+    "verify_pseudosection_critical_endpoints",
     "PhaseFieldPolygon",
     "PseudosectionPolygons",
     "plot_pseudosection",
