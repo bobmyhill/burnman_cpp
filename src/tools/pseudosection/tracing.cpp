@@ -2782,6 +2782,24 @@ class Tracer {
     if (engine.settings.verbose && line_resolution)
       std::cerr
           << "Checking phase field consistency from saved boundary labels.\n";
+    // Solve once at the visual centre of every region that lacks a trusted
+    // label; the extra sample is interior evidence for the labeller.
+    if (line_resolution) {
+      std::vector<Eigen::Vector2d> centres;
+      for (const auto &polygon :
+           field_polygons(result, 1.e-8, true, false).polygons)
+        if ((polygon.is_provisional || polygon.phases.empty()) &&
+            !polygon.outside_model_domain && !polygon.has_open_boundary &&
+            polygon.label_clearance > 0.)
+          centres.push_back(polygon.label_position);
+      for (const auto &centre : centres) {
+        auto state = field_state(centre);
+        if (!state.success)
+          continue;
+        state.is_field_verification = true;
+        add_sample(state);
+      }
+    }
     // Certification changes endpoint diagnostics, never field geometry.
     detail::verify_critical_endpoints(result, engine);
     auto messages = detail::field_diagnostics(result, engine);

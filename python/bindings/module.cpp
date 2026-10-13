@@ -38,5 +38,6 @@ PYBIND11_MODULE(_core, m) {
   burnman::python::bind_model_sets(m);
   burnman::python::bind_equilibration(m);
   burnman::python::bind_polytope(m);
+  burnman::python::bind_utils(m);
   burnman::python::bind_pseudosection(m);
 }

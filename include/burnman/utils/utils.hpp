@@ -18,6 +18,7 @@
 #include "burnman/utils/chemistry_utils.hpp"
 #include "burnman/utils/math_utils.hpp"
 #include "burnman/utils/matrix_utils.hpp"
+#include "burnman/utils/polygon_utils.hpp"
 #include "burnman/utils/string_utils.hpp"
 #include "burnman/utils/vector_utils.hpp"
 
