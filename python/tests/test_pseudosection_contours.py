@@ -47,7 +47,10 @@ def test_scalar_constraints_trace_saved_json_and_retain_source(simple_diagram, k
     assert contours.resolved, contours.diagnostics
     assert len(contours.lines) == 1
     line = contours.lines[0]
-    assert line.field_number == bm.pseudosection_field_polygons(saved).polygons[0].field_number
+    assert (
+        line.field_number
+        == bm.pseudosection_field_polygons(saved).polygons[0].field_number
+    )
     assert len(line.points) > 10
     assert line.termination == "field boundary; field boundary"
     for p in line.points:
@@ -72,16 +75,20 @@ def test_scalar_constraints_trace_saved_json_and_retain_source(simple_diagram, k
     assert serialized["lines"][0]["points"][0]["phases"][0]["candidate_index"] == 0
 
 
-def test_contour_diagnostics_identify_the_closed_loop_not_a_sampled_assemblage(simple_diagram):
+def test_contour_diagnostics_identify_the_closed_loop_not_a_sampled_assemblage(
+    simple_diagram,
+):
     source, phase = simple_diagram
     saved = source.to_dict()
     saved["fields"][0]["id"] = 37
-    contours = bm.pseudosection_contours(saved, [phase], bm.PressureConstraint(4.e9))
+    contours = bm.pseudosection_contours(saved, [phase], bm.PressureConstraint(4.0e9))
     assert contours.lines[0].field_number == 1
     assert contours.lines[0].field_id == 37  # Preserve internal IDs for callers.
     saved["fields"] = saved["samples"] = []
-    contours = bm.pseudosection_contours(saved, [phase], bm.PressureConstraint(4.e9))
-    assert contours.diagnostics == ["Field 1: unidentified assemblage; contours were skipped"]
+    contours = bm.pseudosection_contours(saved, [phase], bm.PressureConstraint(4.0e9))
+    assert contours.diagnostics == [
+        "Field 1: unidentified assemblage; contours were skipped"
+    ]
 
 
 def test_ellipse_finds_and_closes_an_interior_loop(simple_diagram):

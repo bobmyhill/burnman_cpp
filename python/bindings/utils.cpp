@@ -20,7 +20,8 @@ void bind_utils(py::module_ &m) {
       "visual_center_of_polygon",
       [](const std::vector<Eigen::MatrixXd> &rings, double precision,
          const std::vector<Eigen::Vector2d> &seeds) {
-        const auto centre = utils::visual_center_of_polygon(rings, precision, seeds);
+        const auto centre =
+            utils::visual_center_of_polygon(rings, precision, seeds);
         return py::make_tuple(centre.point, centre.distance);
       },
       py::arg("rings"), py::arg("precision") = 0.,

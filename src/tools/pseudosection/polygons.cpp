@@ -685,7 +685,8 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
                        (node.gibbs_variance == 1 && node.pt_nullity == 0 &&
                         event == assemblage &&
                         zero / result.settings.max_phase_instances ==
-                            line.zero_phase / result.settings.max_phase_instances);
+                            line.zero_phase /
+                                result.settings.max_phase_instances);
               });
           if (!std::includes(event.begin(), event.end(), assemblage.begin(),
                              assemblage.end()) ||
@@ -895,7 +896,8 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
   FieldPolygons output;
   for (auto &face : faces) {
     FieldPolygon polygon;
-    polygon.field_number = burnman::utils::checked_int(output.polygons.size() + 1);
+    polygon.field_number =
+        burnman::utils::checked_int(output.polygons.size() + 1);
     polygon.source_regions.push_back(polygon.field_number - 1);
     polygon.has_open_boundary = face.dangling;
     polygon.area = face.area;

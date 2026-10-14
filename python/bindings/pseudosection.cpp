@@ -539,7 +539,7 @@ void bind_pseudosection(py::module_ &m) {
                       PROPERTY(incident_lines) PROPERTY(critical_mode)
                           PROPERTY(is_verified_critical_endpoint)
 #undef PROPERTY
-                          ;
+                              ;
   py::class_<Field>(m, "PhaseField")
       .def_readonly("id", &Field::id)
       .def_readonly("phases", &Field::phases)
@@ -748,15 +748,19 @@ void bind_pseudosection(py::module_ &m) {
       "Incidental chord crossings do not create vertices. merge_fields is "
       "retained for compatibility and has no effect. Accept a native result "
       "or saved JSON dictionary.");
-  m.def("verify_pseudosection_critical_endpoints",
-      [](py::object object, const std::vector<std::shared_ptr<Material>> &phases) {
+  m.def(
+      "verify_pseudosection_critical_endpoints",
+      [](py::object object,
+         const std::vector<std::shared_ptr<Material>> &phases) {
         auto result = py::isinstance<Result>(object)
                           ? object.cast<Result>()
                           : saved_result(object.cast<py::dict>(), true);
         py::gil_scoped_release release;
         return verify_critical_endpoints(result, phases);
-      }, py::arg("result"), py::arg("phases"),
-      "Verify terminal univariant critical reactions using the original models. "
+      },
+      py::arg("result"), py::arg("phases"),
+      "Verify terminal univariant critical reactions using the original "
+      "models. "
       "Preserve traces and samples, retain unrelated diagnostics, and save "
       "the certificates for plotting without further solves.");
   m.def("stable_equilibrium", &stable_equilibrium, py::arg("composition"),
@@ -870,7 +874,8 @@ void bind_pseudosection(py::module_ &m) {
         if (region && !resolution)
           throw py::value_error("A refinement region requires resolution.");
         if (resolution)
-          line_resolution = LineResolution{*resolution, reciprocal_volume, region};
+          line_resolution =
+              LineResolution{*resolution, reciprocal_volume, region};
         py::gil_scoped_release release;
         return refine_pseudosection(bulk, phases, saved, opts, line_resolution);
       },

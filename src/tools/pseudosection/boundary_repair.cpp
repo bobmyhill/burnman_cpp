@@ -8,9 +8,9 @@
 
 namespace burnman::pseudosections::detail {
 namespace {
-std::vector<PhaseState> junction_states(
-    const std::vector<Boundary> &lines, const Node &event,
-    std::vector<PhaseState> phases = {}) {
+std::vector<PhaseState> junction_states(const std::vector<Boundary> &lines,
+                                        const Node &event,
+                                        std::vector<PhaseState> phases = {}) {
   for (const auto &peer : lines)
     if (!peer.points.empty() && peer.assemblage == event.assemblage &&
         (peer.start_node == event.id || peer.end_node == event.id)) {
@@ -22,10 +22,9 @@ std::vector<PhaseState> junction_states(
   for (const auto &peer : lines)
     if (!peer.points.empty() &&
         (peer.start_node == event.id || peer.end_node == event.id))
-      for (const auto &p :
-           (peer.start_node == event.id ? peer.points.front()
-                                        : peer.points.back())
-               .phases)
+      for (const auto &p : (peer.start_node == event.id ? peer.points.front()
+                                                        : peer.points.back())
+                               .phases)
         if (std::none_of(phases.begin(), phases.end(),
                          [&](const auto &q) { return p.id == q.id; }))
           phases.push_back(p);
@@ -75,7 +74,8 @@ void join_duplicate_junctions(Result &result, Engine &engine) {
     if (node(a.id) == node(z.id))
       continue;
     try {
-      auto first = junction_states(result.boundaries, a, b.points.front().phases),
+      auto first =
+               junction_states(result.boundaries, a, b.points.front().phases),
            last = junction_states(result.boundaries, z, b.points.back().phases);
       if (first.size() != a.assemblage.size() ||
           last.size() != z.assemblage.size())
@@ -165,9 +165,9 @@ std::set<int> split_at_stable_nodes(Result &result, Engine &engine) {
       std::vector<std::pair<double, const Node *>> cuts;
       for (const auto &node : result.nodes) {
         if (!active.count(node.id) || node.id == arc.start_node ||
-            node.id == line.start_node ||
-            node.id == line.end_node || node.kind != "junction" ||
-            node.pt_nullity != 0 || delta.squaredNorm() == 0.)
+            node.id == line.start_node || node.id == line.end_node ||
+            node.kind != "junction" || node.pt_nullity != 0 ||
+            delta.squaredNorm() == 0.)
           continue;
         const auto event = engine.canonical_ids(node.assemblage);
         const bool same_reaction =
@@ -197,9 +197,9 @@ std::set<int> split_at_stable_nodes(Result &result, Engine &engine) {
           auto [entry, inserted] = equilibria.try_emplace(node->id);
           if (inserted) {
             auto states = junction_states(original, *node);
-            entry->second = junction_point_at(
-                engine, *node, states, states,
-                range * engine.settings.node_tolerance);
+            entry->second =
+                junction_point_at(engine, *node, states, states,
+                                  range * engine.settings.node_tolerance);
           }
           if (!entry->second)
             continue;
@@ -207,12 +207,14 @@ std::set<int> split_at_stable_nodes(Result &result, Engine &engine) {
           std::optional<BoundaryPoint> point;
           for (const auto *warm : {&line.points[k - 1], &line.points[k]}) {
             auto states = warm->phases;
-            states.erase(std::remove_if(states.begin(), states.end(),
-                                         [&](const auto &p) {
-                                           return std::find(line.assemblage.begin(),
-                                                            line.assemblage.end(), p.id) ==
-                                                  line.assemblage.end();
-                                         }), states.end());
+            states.erase(std::remove_if(
+                             states.begin(), states.end(),
+                             [&](const auto &p) {
+                               return std::find(line.assemblage.begin(),
+                                                line.assemblage.end(),
+                                                p.id) == line.assemblage.end();
+                             }),
+                         states.end());
             // Compare independent zero constraints on the same intensive
             // seed, including active solution faces. Preserve each trace's
             // instance IDs and amounts so reaction extents remain distinct.
@@ -223,10 +225,10 @@ std::set<int> split_at_stable_nodes(Result &result, Engine &engine) {
                 diagram_coordinates(junction, result.section.type),
                 delta.normalized().cwiseQuotient(range),
                 equilibrium_pt_tolerance());
-            if (point && same_phase_compositions(
-                             point->phases, junction.phases,
-                             engine.settings.composition_tolerance,
-                             engine.settings.amount_tolerance))
+            if (point &&
+                same_phase_compositions(point->phases, junction.phases,
+                                        engine.settings.composition_tolerance,
+                                        engine.settings.amount_tolerance))
               break;
             point.reset();
           }
@@ -397,9 +399,9 @@ void repair_field_boundaries(
     const std::function<bool(Boundary &, std::size_t)> &refine) {
   const auto ranges = result.coordinate_ranges();
   for (auto &line : result.boundaries)
-    trim_boundary_endpoints(line, engine,
-                            {ranges[0][1] - ranges[0][0],
-                             ranges[1][1] - ranges[1][0]});
+    trim_boundary_endpoints(
+        line, engine,
+        {ranges[0][1] - ranges[0][0], ranges[1][1] - ranges[1][0]});
   join_duplicate_junctions(result, engine);
   auto selected = split_at_stable_nodes(result, engine);
   retain_thin_loops(result, engine);
@@ -407,9 +409,9 @@ void repair_field_boundaries(
   // validation; intersections themselves never create graph connections.
   std::set<int> curved;
   for (const auto &polygon : field_polygons(result).polygons) {
-    if (result.section.type != DiagramType::PT ||
-        !polygon.is_provisional || !polygon.phases.empty() ||
-        polygon.has_open_boundary || polygon.outside_model_domain)
+    if (result.section.type != DiagramType::PT || !polygon.is_provisional ||
+        !polygon.phases.empty() || polygon.has_open_boundary ||
+        polygon.outside_model_domain)
       continue;
     if (polygon.boundary_ids.size() == 2) {
       const auto &a = result.boundaries.at(
@@ -509,7 +511,8 @@ std::size_t remove_metastable_parallel_lines(Result &result, Engine &engine) {
       const Eigen::Vector2d tangent = b - a;
       if (tangent.norm() < 1.e-12)
         continue;
-      const Eigen::Vector2d target = origin + (a + t * tangent).cwiseProduct(range);
+      const Eigen::Vector2d target =
+          origin + (a + t * tangent).cwiseProduct(range);
       try {
         if (!boundary_point_at(engine, line, line.points[k - 1].phases, target,
                                tangent.normalized().cwiseQuotient(range),

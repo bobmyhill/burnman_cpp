@@ -56,14 +56,24 @@ def check_joined_edges(geometry):
     assert actual == expected
 
 
-@pytest.mark.parametrize("fixture", [
-    "basalt_field_verification", "basalt_local_amphibole",
-    "metasediment_univariant_loop", "pyrolite_duplicate_invariant",
-    "pyrolite_limiting_neighbours", "pyrolite_missing_solution_branch",
-    "pyrolite_frame_order", "pyrolite_reaction_extents", "pyrolite_zoom_reaction_limits",
-])
+@pytest.mark.parametrize(
+    "fixture",
+    [
+        "basalt_field_verification",
+        "basalt_local_amphibole",
+        "metasediment_univariant_loop",
+        "pyrolite_duplicate_invariant",
+        "pyrolite_limiting_neighbours",
+        "pyrolite_missing_solution_branch",
+        "pyrolite_frame_order",
+        "pyrolite_reaction_extents",
+        "pyrolite_zoom_reaction_limits",
+    ],
+)
 def test_boundary_permutations_and_ids_preserve_polygon_results(fixture):
-    data = json.loads((Path(__file__).parent / "data" / (fixture + ".json")).read_text())
+    data = json.loads(
+        (Path(__file__).parent / "data" / (fixture + ".json")).read_text()
+    )
     expected = bm.pseudosection_field_polygons(data)
     for seed in range(5):
         shuffled = deepcopy(data)
@@ -72,49 +82,73 @@ def test_boundary_permutations_and_ids_preserve_polygon_results(fixture):
         for b in shuffled["boundaries"]:
             b["id"] = ids[b["id"]]
         for node in shuffled.get("nodes", []):
-            node["incident_lines"] = [ids.get(i, i) for i in node.get("incident_lines", [])]
+            node["incident_lines"] = [
+                ids.get(i, i) for i in node.get("incident_lines", [])
+            ]
         actual = bm.pseudosection_field_polygons(shuffled)
         assert actual.diagnostics == expected.diagnostics
-        assert actual.boundary_sides == {ids[i]: sides for i, sides in expected.boundary_sides.items()}
+        assert actual.boundary_sides == {
+            ids[i]: sides for i, sides in expected.boundary_sides.items()
+        }
         assert len(actual.polygons) == len(expected.polygons)
         for a, b in zip(actual.polygons, expected.polygons):
-            assert (a.field_number, a.phases, a.is_provisional, a.has_open_boundary) == (
-                b.field_number, b.phases, b.is_provisional, b.has_open_boundary
-            )
+            assert (
+                a.field_number,
+                a.phases,
+                a.is_provisional,
+                a.has_open_boundary,
+            ) == (b.field_number, b.phases, b.is_provisional, b.has_open_boundary)
             assert sorted(a.boundary_ids) == sorted(ids[i] for i in b.boundary_ids)
             np.testing.assert_array_equal(a.vertices, b.vertices)
             assert len(a.holes) == len(b.holes)
             for ah, bh in zip(a.holes, b.holes):
                 np.testing.assert_array_equal(ah, bh)
             np.testing.assert_array_equal(a.label_position, b.label_position)
-        np.testing.assert_array_equal(actual.boundary_segments, expected.boundary_segments)
+        np.testing.assert_array_equal(
+            actual.boundary_segments, expected.boundary_segments
+        )
 
 
 @pytest.mark.parametrize("reverse", [False, True])
 def test_duplicate_geometry_keeps_detail_and_all_boundary_evidence(reverse):
-    data = diagram([
-        dict(id=3, zero_phase=0, assemblage=[0, 3],
-             **line([(0.5, 0), (0.5, 0.5), (0.5, 1)], [0], [3])),
-        dict(id=9, zero_phase=0, assemblage=[0, 3],
-             **line([(0.5, 0), (0.5, 0.25), (0.5, 0.5), (0.5, 1)], [0], [3])),
-    ])
+    data = diagram(
+        [
+            dict(
+                id=3,
+                zero_phase=0,
+                assemblage=[0, 3],
+                **line([(0.5, 0), (0.5, 0.5), (0.5, 1)], [0], [3]),
+            ),
+            dict(
+                id=9,
+                zero_phase=0,
+                assemblage=[0, 3],
+                **line([(0.5, 0), (0.5, 0.25), (0.5, 0.5), (0.5, 1)], [0], [3]),
+            ),
+        ]
+    )
     if reverse:
         data["boundaries"].reverse()
     geometry = bm.pseudosection_field_polygons(data)
     assert not geometry.diagnostics
     assert len(geometry.polygons) == 2
     assert all(set(p.boundary_ids) == {3, 9} for p in geometry.polygons)
-    assert any(np.array_equal(p, [0.5, 0.25])
-               for segment in geometry.boundary_segments for p in segment)
+    assert any(
+        np.array_equal(p, [0.5, 0.25])
+        for segment in geometry.boundary_segments
+        for p in segment
+    )
 
 
 @pytest.mark.parametrize("reverse", [False, True])
 def test_identical_opposed_duplicates_have_stable_field_numbers(reverse):
     points = [(0.5, 0), (0.5, 0.5), (0.5, 1)]
-    data = diagram([
-        dict(id=3, zero_phase=0, assemblage=[0, 3], **line(points, [0], [3])),
-        dict(id=9, zero_phase=0, assemblage=[0, 3], **line(points[::-1], [3], [0])),
-    ])
+    data = diagram(
+        [
+            dict(id=3, zero_phase=0, assemblage=[0, 3], **line(points, [0], [3])),
+            dict(id=9, zero_phase=0, assemblage=[0, 3], **line(points[::-1], [3], [0])),
+        ]
+    )
     if reverse:
         data["boundaries"].reverse()
     geometry = bm.pseudosection_field_polygons(data)
@@ -130,8 +164,9 @@ def test_univariant_loop_connections_ignore_exchanged_solution_copy_ids():
     data = json.loads(path.read_text())
     exchanged = bm.pseudosection_field_polygons(data)
     expected = [0, 3, 18, 21, 36, 37, 45, 51, 60, 63]
-    assert any(list(p.phases) == expected and not p.is_provisional
-               for p in exchanged.polygons)
+    assert any(
+        list(p.phases) == expected and not p.is_provisional for p in exchanged.polygons
+    )
     next(n for n in data["nodes"] if n["id"] == 266)["zero_phases"] = [42, 37]
     original = bm.pseudosection_field_polygons(data)
     assert len(exchanged.polygons) == len(original.polygons)
@@ -144,62 +179,96 @@ def test_univariant_loop_connections_ignore_exchanged_solution_copy_ids():
 def test_retired_junction_does_not_reconnect_crossing_saved_arcs():
     phases = [0, 3, 6]
     data = diagram([])
-    endpoints = [(.2, 0.), (.8, 1.), (.8, 0.), (.2, 1.)]
-    data['nodes'] = [dict(id=i, pressure=p, temperature=t)
-                     for i, (p, t) in enumerate(endpoints)]
-    data['boundaries'] = [dict(
-        id=i, start_node=2*i, end_node=2*i+1, zero_phase=0,
-        assemblage=phases, **line(endpoints[2*i:2*i+2], [3, 6], phases))
-        for i in range(2)]
+    endpoints = [(0.2, 0.0), (0.8, 1.0), (0.8, 0.0), (0.2, 1.0)]
+    data["nodes"] = [
+        dict(id=i, pressure=p, temperature=t) for i, (p, t) in enumerate(endpoints)
+    ]
+    data["boundaries"] = [
+        dict(
+            id=i,
+            start_node=2 * i,
+            end_node=2 * i + 1,
+            zero_phase=0,
+            assemblage=phases,
+            **line(endpoints[2 * i : 2 * i + 2], [3, 6], phases),
+        )
+        for i in range(2)
+    ]
     expected = bm.pseudosection_field_polygons(data)
     # Duplicate-junction repair preserves old node records and rewrites the
     # surviving endpoints. An unreferenced record must not cut both arcs.
-    data['nodes'].append(dict(id=4, pressure=.5, temperature=.5,
-                              kind='junction', assemblage=phases,
-                              zero_phases=[0, 3], gibbs_variance=1,
-                              pt_nullity=0))
+    data["nodes"].append(
+        dict(
+            id=4,
+            pressure=0.5,
+            temperature=0.5,
+            kind="junction",
+            assemblage=phases,
+            zero_phases=[0, 3],
+            gibbs_variance=1,
+            pt_nullity=0,
+        )
+    )
     actual = bm.pseudosection_field_polygons(data)
     assert len(actual.polygons) == len(expected.polygons)
     for a, b in zip(actual.polygons, expected.polygons):
         np.testing.assert_array_equal(a.vertices, b.vertices)
         assert a.phases == b.phases
-    np.testing.assert_array_equal(actual.boundary_segments,
-                                  expected.boundary_segments)
+    np.testing.assert_array_equal(actual.boundary_segments, expected.boundary_segments)
 
 
-@pytest.mark.parametrize('reverse', [False, True])
+@pytest.mark.parametrize("reverse", [False, True])
 def test_retired_pyrolite_invariant_does_not_recreate_a_closed_loop(reverse):
-    data = json.loads((Path(__file__).parent / 'data' /
-                       'pyrolite_retired_junction_geometry.json').read_text())
+    data = json.loads(
+        (
+            Path(__file__).parent / "data" / "pyrolite_retired_junction_geometry.json"
+        ).read_text()
+    )
     if reverse:
-        for b in data['boundaries']:
-            b['points'].reverse()
-            b['start_node'], b['end_node'] = b['end_node'], b['start_node']
-            b['side_a'], b['side_b'] = b['side_b'], b['side_a']
+        for b in data["boundaries"]:
+            b["points"].reverse()
+            b["start_node"], b["end_node"] = b["end_node"], b["start_node"]
+            b["side_a"], b["side_b"] = b["side_b"], b["side_a"]
     for representation in [data, bm.PseudosectionResult.from_dict(data)]:
         geometry = bm.pseudosection_field_polygons(representation, close_domain=False)
         assert not geometry.polygons
         check_joined_edges(geometry)
 
 
-@pytest.mark.parametrize("variance,width,count", [(1, 1.e-5, 2), (2, 1.e-5, 3),
-                                                   (1, .1, 3)])
+@pytest.mark.parametrize(
+    "variance,width,count", [(1, 1.0e-5, 2), (2, 1.0e-5, 3), (1, 0.1, 3)]
+)
 def test_univariant_duplicates_do_not_erase_finite_or_distinct_branches(
     variance, width, count
 ):
     phases = [0, 3, 6]
     data = diagram([])
-    data["nodes"] = [dict(id=i, pressure=.5, temperature=float(i),
-                          kind="junction", assemblage=phases,
-                          gibbs_variance=variance, pt_nullity=0)
-                     for i in range(2)]
-    data["boundaries"] = [dict(
-        id=i, zero_phase=zero, start_node=0, end_node=1, assemblage=phases,
-        **line([(.5, 0.), (.5 + sign * width, .5), (.5, 1.)], [0, 3], [3, 6]))
-        for i, (zero, sign) in enumerate([(0, -1), (6, 1)])]
+    data["nodes"] = [
+        dict(
+            id=i,
+            pressure=0.5,
+            temperature=float(i),
+            kind="junction",
+            assemblage=phases,
+            gibbs_variance=variance,
+            pt_nullity=0,
+        )
+        for i in range(2)
+    ]
+    data["boundaries"] = [
+        dict(
+            id=i,
+            zero_phase=zero,
+            start_node=0,
+            end_node=1,
+            assemblage=phases,
+            **line([(0.5, 0.0), (0.5 + sign * width, 0.5), (0.5, 1.0)], [0, 3], [3, 6]),
+        )
+        for i, (zero, sign) in enumerate([(0, -1), (6, 1)])
+    ]
     geometry = bm.pseudosection_field_polygons(data)
     assert len(geometry.polygons) == count
-    assert sum(p.area for p in geometry.polygons) == pytest.approx(1.)
+    assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
     check_joined_edges(geometry)
 
 
@@ -213,8 +282,14 @@ def test_parallel_curved_arcs_follow_their_neighbouring_assemblages(reverse, nat
     if reverse:
         for boundary in data["boundaries"]:
             boundary["points"].reverse()
-            boundary["side_a"], boundary["side_b"] = boundary["side_b"], boundary["side_a"]
-            boundary["start_node"], boundary["end_node"] = boundary["end_node"], boundary["start_node"]
+            boundary["side_a"], boundary["side_b"] = (
+                boundary["side_b"],
+                boundary["side_a"],
+            )
+            boundary["start_node"], boundary["end_node"] = (
+                boundary["end_node"],
+                boundary["start_node"],
+            )
     geometry = bm.pseudosection_field_polygons(
         bm.PseudosectionResult.from_dict(data) if native else data,
         close_domain=False,
@@ -232,9 +307,13 @@ def test_parallel_curved_arcs_follow_their_neighbouring_assemblages(reverse, nat
 @pytest.mark.parametrize("reverse", [False, True])
 @pytest.mark.parametrize("native", [False, True])
 def test_frame_fan_preserves_thin_pyrolite_loop(rotation, reverse, native):
-    data = json.loads((Path(__file__).parent / "data/pyrolite_frame_order.json").read_text())
+    data = json.loads(
+        (Path(__file__).parent / "data/pyrolite_frame_order.json").read_text()
+    )
     origin = np.array([data["pressure_range"][0], data["temperature_range"][0]])
-    scale = np.array([np.ptp(data["pressure_range"]), np.ptp(data["temperature_range"])])
+    scale = np.array(
+        [np.ptp(data["pressure_range"]), np.ptp(data["temperature_range"])]
+    )
     # Exercise every frame edge, including fans whose first angular entry is
     # a phase arc. Rotations preserve the directed side assemblages.
     for records in [data["nodes"], *(b["points"] for b in data["boundaries"])]:
@@ -257,11 +336,13 @@ def test_frame_fan_preserves_thin_pyrolite_loop(rotation, reverse, native):
     assert not geometry.diagnostics
     assert len(geometry.polygons) == 9
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1)
-    assert all(p.phases and not p.is_provisional and not p.has_open_boundary
-               for p in geometry.polygons)
+    assert all(
+        p.phases and not p.is_provisional and not p.has_open_boundary
+        for p in geometry.polygons
+    )
     thin = next(p for p in geometry.polygons if set(p.boundary_ids) == {1, 2, 10})
     assert list(thin.phases) == [0, 12, 13, 21, 22, 24, 51, 54]
-    assert 0 < thin.area < 1.e-6
+    assert 0 < thin.area < 1.0e-6
     check_joined_edges(geometry)
 
 
@@ -420,7 +501,8 @@ def test_closed_loops_preserve_boundaries_with_identical_phase_names(closed):
         assert not geometry.diagnostics
         assert len(geometry.polygons) == 2
         assert sorted(p.area for p in geometry.polygons) == pytest.approx(
-            [0.36, 0.64] if closed else [0.5, 0.5])
+            [0.36, 0.64] if closed else [0.5, 0.5]
+        )
         assert all(p.phases == [0, 1] for p in geometry.polygons)
         check_joined_edges(geometry)
 
@@ -506,8 +588,9 @@ def test_verified_interior_can_identify_face_thinner_than_snap_tolerance():
 def test_latent_invariant_loops_have_no_area_but_univariant_strips_remain(
     axes, variance, expected_count
 ):
-    ranges = dict(P=(23.2e9, 23.9e9), T=(1400.0, 1700.0),
-                  S=(300.0, 340.0), V=(3.3e-5, 3.7e-5))
+    ranges = dict(
+        P=(23.2e9, 23.9e9), T=(1400.0, 1700.0), S=(300.0, 340.0), V=(3.3e-5, 3.7e-5)
+    )
     names = dict(P="pressure", T="temperature", S="entropy", V="volume")
 
     def point(x, y):
@@ -520,35 +603,55 @@ def test_latent_invariant_loops_have_no_area_but_univariant_strips_remain(
     phases = [0, 1, 2, 3]
     data = dict(
         diagram_type=axes,
-        pressure_range=ranges["P"], temperature_range=ranges["T"],
-        entropy_range=ranges["S"], volume_range=ranges["V"],
+        pressure_range=ranges["P"],
+        temperature_range=ranges["T"],
+        entropy_range=ranges["S"],
+        volume_range=ranges["V"],
         fields=[],
-        nodes=[dict(id=i, kind="junction", gibbs_variance=variance,
-                    pt_nullity=0, assemblage=phases, **point(0.5, y))
-               for i, y in enumerate((0.0, 1.0))],
-        boundaries=[dict(
-            id=-1, start_node=0, end_node=1, assemblage=phases,
-            side_b=[0, 1, 2], side_a=[0, 1, 3],
-            points=[point(0.5, 0.0), point(0.5 + delta, 0.5), point(0.5, 1.0)],
-        ) for delta in (-1.e-12, 1.e-12)],
-        samples=[dict(success=True, **point(x, 0.5),
-                      phases=[dict(id=i, amount=1.0) for i in ids])
-                 for x, ids in [(0.25, [0, 1, 2]), (0.75, [0, 1, 3])]],
+        nodes=[
+            dict(
+                id=i,
+                kind="junction",
+                gibbs_variance=variance,
+                pt_nullity=0,
+                assemblage=phases,
+                **point(0.5, y),
+            )
+            for i, y in enumerate((0.0, 1.0))
+        ],
+        boundaries=[
+            dict(
+                id=-1,
+                start_node=0,
+                end_node=1,
+                assemblage=phases,
+                side_b=[0, 1, 2],
+                side_a=[0, 1, 3],
+                points=[point(0.5, 0.0), point(0.5 + delta, 0.5), point(0.5, 1.0)],
+            )
+            for delta in (-1.0e-12, 1.0e-12)
+        ],
+        samples=[
+            dict(
+                success=True,
+                **point(x, 0.5),
+                phases=[dict(id=i, amount=1.0) for i in ids],
+            )
+            for x, ids in [(0.25, [0, 1, 2]), (0.75, [0, 1, 3])]
+        ],
     )
     before = json.dumps(data, sort_keys=True)
     geometry = bm.pseudosection_field_polygons(
-        data, tolerance=1.e-12, merge_fields=False
+        data, tolerance=1.0e-12, merge_fields=False
     )
     assert json.dumps(data, sort_keys=True) == before
     assert len(geometry.polygons) == expected_count
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
     if variance == 0:
         assert not geometry.diagnostics
-        assert {tuple(p.phases) for p in geometry.polygons} == {
-            (0, 1, 2), (0, 1, 3)
-        }
+        assert {tuple(p.phases) for p in geometry.polygons} == {(0, 1, 2), (0, 1, 3)}
     else:
-        assert any(0.0 < p.area < 1.e-11 for p in geometry.polygons)
+        assert any(0.0 < p.area < 1.0e-11 for p in geometry.polygons)
 
 
 def test_nested_and_disconnected_fields():
@@ -577,12 +680,16 @@ def test_crossing_curves_between_stable_vertices_form_one_field_loop():
     # Crossing coarse chords used to introduce several artificial sliver fields.
     first = [(0.2, 0.2), (0.7, 0.3), (0.3, 0.6), (0.8, 0.8)]
     second = [(0.8, 0.8), (0.2, 0.7), (0.7, 0.4), (0.2, 0.2)]
-    data = diagram([
-        line(first, [0, 1], [0]) | dict(start_node=0, end_node=1),
-        line(second, [0, 1], [0]) | dict(start_node=1, end_node=0),
-    ])
-    data["nodes"] = [dict(id=i, pressure=p, temperature=t)
-                     for i, (p, t) in enumerate([first[0], first[-1]])]
+    data = diagram(
+        [
+            line(first, [0, 1], [0]) | dict(start_node=0, end_node=1),
+            line(second, [0, 1], [0]) | dict(start_node=1, end_node=0),
+        ]
+    )
+    data["nodes"] = [
+        dict(id=i, pressure=p, temperature=t)
+        for i, (p, t) in enumerate([first[0], first[-1]])
+    ]
     before = json.dumps(data, sort_keys=True)
     geometry = bm.pseudosection_field_polygons(data)
     assert json.dumps(data, sort_keys=True) == before
@@ -599,18 +706,23 @@ def test_crossing_curves_between_stable_vertices_form_one_field_loop():
 
 
 def test_explicit_junctions_close_adjacent_fields_without_polygon_union():
-    data = diagram([
-        line(square(), [0, 1], [0]),
-        line([(0.5, 0.0), (0.5, 0.2)], [0], [0]) | dict(end_node=0),
-        line([(0.5, 0.8), (0.5, 1.0)], [0], [0]) | dict(start_node=1),
-    ])
-    data["nodes"] = [dict(id=i, pressure=0.5, temperature=t)
-                     for i, t in enumerate([0.2, 0.8])]
+    data = diagram(
+        [
+            line(square(), [0, 1], [0]),
+            line([(0.5, 0.0), (0.5, 0.2)], [0], [0]) | dict(end_node=0),
+            line([(0.5, 0.8), (0.5, 1.0)], [0], [0]) | dict(start_node=1),
+        ]
+    )
+    data["nodes"] = [
+        dict(id=i, pressure=0.5, temperature=t) for i, t in enumerate([0.2, 0.8])
+    ]
     for merge in (False, True):
         geometry = bm.pseudosection_field_polygons(data, merge_fields=merge)
         assert not geometry.diagnostics
         assert len(geometry.polygons) == 3
-        assert sorted(p.area for p in geometry.polygons) == pytest.approx([0.32, 0.32, 0.36])
+        assert sorted(p.area for p in geometry.polygons) == pytest.approx(
+            [0.32, 0.32, 0.36]
+        )
         assert all(len(p.source_regions) == 1 for p in geometry.polygons)
         assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
 
@@ -620,7 +732,9 @@ def test_nested_closed_loops_are_retained_even_with_identical_labels():
     geometry = bm.pseudosection_field_polygons(data)
     assert not geometry.diagnostics
     assert len(geometry.polygons) == 3
-    assert sorted(p.area for p in geometry.polygons) == pytest.approx([0.04, 0.32, 0.64])
+    assert sorted(p.area for p in geometry.polygons) == pytest.approx(
+        [0.04, 0.32, 0.64]
+    )
     assert sorted(len(p.holes) for p in geometry.polygons) == [0, 1, 1]
     assert all(len(p.source_regions) == 1 for p in geometry.polygons)
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
@@ -629,13 +743,16 @@ def test_nested_closed_loops_are_retained_even_with_identical_labels():
 def test_same_assemblage_loops_touching_at_a_stable_vertex_remain_separate():
     first = [(0.5, 0.5), (0.2, 0.5), (0.2, 0.2), (0.5, 0.2), (0.5, 0.5)]
     second = [(0.5, 0.5), (0.8, 0.5), (0.8, 0.8), (0.5, 0.8), (0.5, 0.5)]
-    data = diagram([line(p, [0, 1], [0]) | dict(start_node=0, end_node=0)
-                    for p in (first, second)])
+    data = diagram(
+        [line(p, [0, 1], [0]) | dict(start_node=0, end_node=0) for p in (first, second)]
+    )
     data["nodes"] = [dict(id=0, pressure=0.5, temperature=0.5)]
     geometry = bm.pseudosection_field_polygons(data)
     assert not geometry.diagnostics
     assert sorted(p.n_phases for p in geometry.polygons) == [1, 2, 2]
-    assert sorted(p.area for p in geometry.polygons) == pytest.approx([0.09, 0.09, 0.82])
+    assert sorted(p.area for p in geometry.polygons) == pytest.approx(
+        [0.09, 0.09, 0.82]
+    )
     assert all(len(p.source_regions) == 1 for p in geometry.polygons)
 
 
@@ -796,11 +913,11 @@ def test_consistent_perimeter_takes_priority_over_a_near_chord_sample():
 
 
 @pytest.mark.parametrize("retains_equations", [False, True])
-@pytest.mark.parametrize("trace_fraction", [-5.e-7, -5.e-10, 0.0, 5.e-8])
+@pytest.mark.parametrize("trace_fraction", [-5.0e-7, -5.0e-10, 0.0, 5.0e-8])
 def test_subcutoff_samples_do_not_override_consistent_perimeter(
     retains_equations, trace_fraction
 ):
-    interior = sample(0.5 + 5.e-9, 0.5, [0])
+    interior = sample(0.5 + 5.0e-9, 0.5, [0])
     if retains_equations:
         interior["phases"].append(dict(id=1, amount=trace_fraction))
     data = diagram(
@@ -828,18 +945,21 @@ def test_near_edge_sample_does_not_change_perimeter_labels():
     geometry = bm.pseudosection_field_polygons(data, merge_fields=False)
     assert not geometry.diagnostics
     assert len(geometry.polygons) == 3
-    assert [p.phases for p in sorted(geometry.polygons, key=lambda p: p.label_position[0])] == [[1], [0], [1]]
+    assert [
+        p.phases for p in sorted(geometry.polygons, key=lambda p: p.label_position[0])
+    ] == [[1], [0], [1]]
 
 
 def test_closed_thin_field_survives_without_intersection_snapping():
-    width = 2.e-9
+    width = 2.0e-9
     points = [(0.2, 0.2), (0.8 + width, 0.8), (0.8, 0.8), (0.2, 0.2)]
     geometry = bm.pseudosection_field_polygons(
-        diagram([line(points, [0, 1], [0])]), tolerance=1.e-12)
+        diagram([line(points, [0, 1], [0])]), tolerance=1.0e-12
+    )
     assert not geometry.diagnostics
     assert len(geometry.polygons) == 2
     field = next(p for p in geometry.polygons if p.n_phases == 2)
-    assert field.area == pytest.approx(0.3 * width, rel=1.e-6)
+    assert field.area == pytest.approx(0.3 * width, rel=1.0e-6)
     assert not field.has_open_boundary
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
 
@@ -847,17 +967,26 @@ def test_closed_thin_field_survives_without_intersection_snapping():
 @pytest.mark.parametrize("reverse", [False, True])
 @pytest.mark.parametrize("native", [False, True])
 def test_pyrolite_loop_uses_common_limiting_neighbours(reverse, native):
-    data = json.loads((Path(__file__).parent / "data" /
-                       "pyrolite_limiting_neighbours.json").read_text())
+    data = json.loads(
+        (
+            Path(__file__).parent / "data" / "pyrolite_limiting_neighbours.json"
+        ).read_text()
+    )
     if reverse:
         for b in data["boundaries"]:
             b["points"].reverse()
             b["side_a"], b["side_b"] = b["side_b"], b["side_a"]
             b["start_node"], b["end_node"] = b["end_node"], b["start_node"]
     geometry = bm.pseudosection_field_polygons(
-        bm.PseudosectionResult.from_dict(data) if native else data)
-    matches = [p for p in geometry.polygons if p.contains_rectangle(
-        [9698567487.547056, 19.524751201924275], [1.e-5, 1.e-12])]
+        bm.PseudosectionResult.from_dict(data) if native else data
+    )
+    matches = [
+        p
+        for p in geometry.polygons
+        if p.contains_rectangle(
+            [9698567487.547056, 19.524751201924275], [1.0e-5, 1.0e-12]
+        )
+    ]
     assert len(matches) == 1
     assert matches[0].phases == [3, 12, 15, 18, 19, 39, 72]
     assert not matches[0].is_provisional and not matches[0].has_open_boundary
@@ -865,14 +994,20 @@ def test_pyrolite_loop_uses_common_limiting_neighbours(reverse, native):
 
 
 def test_saved_pyrolite_fragments_296_to_298_belong_to_one_vertex_loop():
-    data = json.loads((Path(__file__).parent / "data" /
-                       "pyrolite_stable_vertex_loop.json").read_text())
+    data = json.loads(
+        (
+            Path(__file__).parent / "data" / "pyrolite_stable_vertex_loop.json"
+        ).read_text()
+    )
     geometry = bm.pseudosection_field_polygons(data)
     target = [27, 30, 33, 39, 42, 45, 60, 78]
     matches = []
     for point in data["fragment_label_positions"]:
-        containing = [i for i, polygon in enumerate(geometry.polygons)
-                      if polygon.contains_rectangle(point, [1.e-6, 1.e-12])]
+        containing = [
+            i
+            for i, polygon in enumerate(geometry.polygons)
+            if polygon.contains_rectangle(point, [1.0e-6, 1.0e-12])
+        ]
         assert len(containing) == 1
         matches.extend(containing)
     assert len(set(matches)) == 1
@@ -883,8 +1018,15 @@ def test_saved_pyrolite_fragments_296_to_298_belong_to_one_vertex_loop():
 
 
 @pytest.mark.parametrize("tip,open_count", [((0.1, 0.5), 1), ((0.3, 0.5), 2)])
-def test_unfinished_branch_marks_its_field_provisional_and_keeps_both_labels(tip, open_count):
-    data = diagram([line(square(), [0, 1], [0]), line([(0.2, 0.5), tip], [0], [0, 1]) | dict(start_node=0)])
+def test_unfinished_branch_marks_its_field_provisional_and_keeps_both_labels(
+    tip, open_count
+):
+    data = diagram(
+        [
+            line(square(), [0, 1], [0]),
+            line([(0.2, 0.5), tip], [0], [0, 1]) | dict(start_node=0),
+        ]
+    )
     data["nodes"] = [dict(id=0, pressure=0.2, temperature=0.5)]
     result = bm.pseudosection_field_polygons(data)
     assert sorted(p.n_phases for p in result.polygons) == [1, 2]
@@ -1046,14 +1188,18 @@ def test_plot_labels_assemblages_and_solution_multiplicity():
 def test_plot_marks_only_unverified_critical_endpoints(verified):
     import matplotlib.pyplot as plt
 
-    data = diagram(
-        [line([(0, 0.5), (0.5, 0.5)], [0], [0])], [sample(0.25, 0.25, [0])]
-    )
+    data = diagram([line([(0, 0.5), (0.5, 0.5)], [0], [0])], [sample(0.25, 0.25, [0])])
     data["boundaries"][0].update(id=0, start_node=0, end_node=1)
     data["nodes"] = [
         dict(id=0, pressure=0, temperature=0.5, kind="domain_edge", incident_lines=[0]),
-        dict(id=1, pressure=0.5, temperature=0.5, kind="critical_point",
-             incident_lines=[0], gibbs_variance=1),
+        dict(
+            id=1,
+            pressure=0.5,
+            temperature=0.5,
+            kind="critical_point",
+            incident_lines=[0],
+            gibbs_variance=1,
+        ),
     ]
     if verified is not None:
         data["nodes"][1]["is_verified_critical_endpoint"] = verified
@@ -1061,8 +1207,9 @@ def test_plot_marks_only_unverified_critical_endpoints(verified):
         data, pressure_unit="Pa", temperature_unit="K", label_assemblages=False
     )
     try:
-        markers = [c for c in ax.collections
-                   if c.get_label() == "Unresolved boundary endpoint"]
+        markers = [
+            c for c in ax.collections if c.get_label() == "Unresolved boundary endpoint"
+        ]
         assert len(markers) == (0 if verified else 1)
         if markers:
             np.testing.assert_allclose(markers[0].get_offsets(), [[0.5, 0.5]])
@@ -1234,10 +1381,12 @@ def test_mixed_perimeter_uses_saved_interior_evidence_and_keeps_internal_edges()
 def test_conflicting_perimeter_is_not_decided_by_length_or_point_count():
     # Neither a longer arc nor more stored points establishes the assemblage.
     short = [(0.2, y) for y in np.linspace(0.8, 0.2, 101)]
-    data = diagram([
-        line(square()[:4], [0, 1], [3]),
-        line(short, [0, 2], [3]),
-    ])
+    data = diagram(
+        [
+            line(square()[:4], [0, 1], [3]),
+            line(short, [0, 2], [3]),
+        ]
+    )
     geometry = bm.pseudosection_field_polygons(data)
     inner = next(p for p in geometry.polygons if p.area == pytest.approx(0.36))
     assert not inner.phases and inner.n_phases == 0
@@ -1257,12 +1406,22 @@ def test_loop_constraints_recover_coexisting_solution_instances(case, reverse, n
     if reverse:
         for boundary in data["boundaries"]:
             boundary["points"].reverse()
-            boundary["side_a"], boundary["side_b"] = boundary["side_b"], boundary["side_a"]
-            boundary["start_node"], boundary["end_node"] = boundary["end_node"], boundary["start_node"]
+            boundary["side_a"], boundary["side_b"] = (
+                boundary["side_b"],
+                boundary["side_a"],
+            )
+            boundary["start_node"], boundary["end_node"] = (
+                boundary["end_node"],
+                boundary["start_node"],
+            )
     geometry = bm.pseudosection_field_polygons(
-        bm.PseudosectionResult.from_dict(data) if native else data)
-    matches = [p for p in geometry.polygons if p.contains_rectangle(
-        fixture["position"], [1.0e-4, 1.0e-8])]
+        bm.PseudosectionResult.from_dict(data) if native else data
+    )
+    matches = [
+        p
+        for p in geometry.polygons
+        if p.contains_rectangle(fixture["position"], [1.0e-4, 1.0e-8])
+    ]
     assert len(matches) == 1
     field = matches[0]
     assert field.phases == fixture["expected"]
@@ -1271,10 +1430,13 @@ def test_loop_constraints_recover_coexisting_solution_instances(case, reverse, n
 
 
 def test_conflicting_hole_does_not_override_agreed_exterior():
-    data = diagram([
-        line(square(), [0, 1], [0]),
-        line(square(0.4, 0.6), [2], [0, 2]),
-    ], [sample(0.3, 0.3, [0, 1])])
+    data = diagram(
+        [
+            line(square(), [0, 1], [0]),
+            line(square(0.4, 0.6), [2], [0, 2]),
+        ],
+        [sample(0.3, 0.3, [0, 1])],
+    )
     geometry = bm.pseudosection_field_polygons(data, merge_fields=False)
     surrounding = next(p for p in geometry.polygons if p.holes and p.area < 0.5)
     assert surrounding.phases == [0, 1]

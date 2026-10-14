@@ -192,8 +192,9 @@ std::vector<std::string> field_diagnostics(const Result &result,
       bordered.insert(p.phases);
   // A field sampled only at nodes is a limiting assemblage of a junction
   // cluster, not an areal region.
-  const double dp = std::max(result.pressure_range[1] - result.pressure_range[0],
-                             std::numeric_limits<double>::min());
+  const double dp =
+      std::max(result.pressure_range[1] - result.pressure_range[0],
+               std::numeric_limits<double>::min());
   const double dt =
       std::max(result.temperature_range[1] - result.temperature_range[0],
                std::numeric_limits<double>::min());
