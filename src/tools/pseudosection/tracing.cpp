@@ -1969,10 +1969,23 @@ class Tracer {
     return same_boundary_curve(engine, result, first, second, partial,
                                require_equilibrium);
   }
+  bool complete_boundary(const Boundary &line) const {
+    const auto [back, forward] = boundary_statuses(line);
+    return line.start_node >= 0 && line.end_node >= 0 &&
+           !unfinished_boundary(back) && !unfinished_boundary(forward);
+  }
   // P-T duplicates keep one coherent sampling; interleaving independently
   // corrected points creates zigzags. Composition-section resumption also
   // preserves the user's accepted saved points when completing an arc.
   void retain_curve(Boundary &kept, Boundary &other) {
+    if (complete_boundary(kept) != complete_boundary(other)) {
+      if (complete_boundary(other)) {
+        const int id = kept.id;
+        kept = std::move(other);
+        kept.id = id;
+      }
+      return;
+    }
     if (result.section.type == DiagramType::PT) {
       if (other.points.size() > kept.points.size()) {
         const int id = kept.id;
@@ -2538,42 +2551,62 @@ class Tracer {
     std::vector<Boundary> unique;
     for (auto &line : result.boundaries) {
       bool duplicate = false;
-      if (line.start_node >= 0 && line.end_node >= 0)
-        for (auto &old : unique) {
-          // The early pass only merges pairs whose unresolved labels can be
-          // inherited. Other duplicates retain ordinary label recovery.
-          if (transfer_labels_only && ambiguous(line) == ambiguous(old))
+      for (auto &old : unique) {
+        // The early pass only merges pairs whose unresolved labels can be
+        // inherited. Other duplicates retain ordinary label recovery.
+        if (transfer_labels_only && ambiguous(line) == ambiguous(old))
+          continue;
+        bool same_sides =
+            (old.side_a == line.side_a && old.side_b == line.side_b) ||
+            (old.side_a == line.side_b && old.side_b == line.side_a);
+        bool same_ends = (old.start_node == line.start_node &&
+                          old.end_node == line.end_node) ||
+                         (old.start_node == line.end_node &&
+                          old.end_node == line.start_node);
+        const bool partial = complete_boundary(line) != complete_boundary(old);
+        auto &part = complete_boundary(line) ? old : line;
+        auto &whole = complete_boundary(line) ? line : old;
+        if (partial) {
+          // An unfinished retrace is removable only when an anchored,
+          // completed record covers its entire equilibrium branch.
+          auto shares = [&](int node) {
+            return node >= 0 &&
+                   (node == whole.start_node || node == whole.end_node);
+          };
+          same_ends = (shares(part.start_node) || shares(part.end_node)) &&
+                      (part.start_node < 0 || shares(part.start_node)) &&
+                      (part.end_node < 0 || shares(part.end_node));
+          if (line.zero_phase != old.zero_phase ||
+              line.is_solution_replacement != old.is_solution_replacement)
             continue;
-          bool same_sides =
-              (old.side_a == line.side_a && old.side_b == line.side_b) ||
-              (old.side_a == line.side_b && old.side_b == line.side_a);
-          bool same_ends = (old.start_node == line.start_node &&
-                            old.end_node == line.end_node) ||
-                           (old.start_node == line.end_node &&
-                            old.end_node == line.start_node);
-          bool uncertain = ambiguous(line) || ambiguous(old);
-          if ((!same_sides && !uncertain) || !same_ends ||
-              old.assemblage != line.assemblage)
-            continue;
-          const bool verify = uncertain || line.zero_phase != old.zero_phase ||
-                              boundary_variance(line, result) == 1;
-          if (same_curve(line, old, false, verify)) {
-            // An equivalent retrace can have unreliable probes near a tiny
-            // field. Transfer labels only after verifying both curves and
-            // their phase compositions, not merely their chord geometry.
-            auto &bad = ambiguous(line) ? line : old;
-            const auto &good = ambiguous(line) ? old : line;
-            if (uncertain && !ambiguous(good)) {
-              bool aligned = bad.start_node == good.start_node;
-              bad.side_a = aligned ? good.side_a : good.side_b;
-              bad.side_b = aligned ? good.side_b : good.side_a;
-              bad.is_solution_replacement = good.is_solution_replacement;
-            }
-            duplicate = true;
-            retain_curve(old, line);
-            break;
+        } else if (line.start_node < 0 || line.end_node < 0)
+          continue;
+        bool uncertain = ambiguous(line) || ambiguous(old);
+        if ((!same_sides && !uncertain) || !same_ends ||
+            old.assemblage != line.assemblage)
+          continue;
+        const bool verify = uncertain || line.zero_phase != old.zero_phase ||
+                            boundary_variance(line, result) == 1;
+        if (same_curve(partial ? part : line, partial ? whole : old, partial,
+                       verify || partial)) {
+          // An equivalent retrace can have unreliable probes near a tiny
+          // field. Transfer labels only after verifying both curves and
+          // their phase compositions, not merely their chord geometry.
+          auto &bad = ambiguous(line) ? line : old;
+          const auto &good = ambiguous(line) ? old : line;
+          if (uncertain && !ambiguous(good)) {
+            bool aligned = bad.start_node >= 0 && good.start_node >= 0
+                               ? bad.start_node == good.start_node
+                               : bad.end_node == good.end_node;
+            bad.side_a = aligned ? good.side_a : good.side_b;
+            bad.side_b = aligned ? good.side_b : good.side_a;
+            bad.is_solution_replacement = good.is_solution_replacement;
           }
+          duplicate = true;
+          retain_curve(old, line);
+          break;
         }
+      }
       if (!duplicate)
         unique.push_back(std::move(line));
     }
@@ -2767,11 +2800,6 @@ class Tracer {
       if (unfinished_boundary(back) || unfinished_boundary(forward))
         result.diagnostics.push_back("Boundary " + std::to_string(line.id) +
                                      ": " + line.termination);
-      if (line.side_a.empty() || line.side_b.empty() ||
-          (line.side_a == line.side_b && !line.is_solution_replacement))
-        result.diagnostics.push_back("Boundary " + std::to_string(line.id) +
-                                     ": neighbouring fields could not be "
-                                     "distinguished within tolerances.");
       for (int n : {line.start_node, line.end_node})
         if (n >= 0) {
           auto &incident =
@@ -2807,6 +2835,7 @@ class Tracer {
     }
     // Certification changes endpoint diagnostics, never field geometry.
     detail::verify_critical_endpoints(result, engine);
+    detail::recover_boundary_labels(result);
     auto messages = detail::field_diagnostics(result, engine);
     result.diagnostics.insert(result.diagnostics.end(), messages.begin(), messages.end());
     if (!queue.empty())

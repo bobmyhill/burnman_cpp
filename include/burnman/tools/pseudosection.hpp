@@ -18,6 +18,7 @@
 #include <Eigen/Dense>
 #include <array>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -278,6 +279,9 @@ struct FieldPolygon {
 struct FieldPolygons {
   std::vector<FieldPolygon> polygons;
   std::vector<std::string> diagnostics;
+  // Unique closed, non-provisional neighbours compatible with the reaction.
+  // Boundary ID -> {right, left}, following that record's native direction.
+  std::map<int, std::array<std::vector<int>, 2>> boundary_sides;
   // Saved curve segments in diagram units. Incidental chord crossings do
   // not split edges or create junctions. Unfinished edges remain visible.
   std::vector<Eigen::MatrixXd> boundary_segments;

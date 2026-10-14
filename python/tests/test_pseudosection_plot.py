@@ -2,7 +2,9 @@
 
 import json
 from collections import Counter
+from copy import deepcopy
 from pathlib import Path
+import random
 
 import numpy as np
 import pytest
@@ -52,6 +54,73 @@ def check_joined_edges(geometry):
         for a, b in zip(path[:-1], path[1:])
     )
     assert actual == expected
+
+
+@pytest.mark.parametrize("fixture", [
+    "basalt_field_verification", "basalt_local_amphibole",
+    "metasediment_univariant_loop", "pyrolite_duplicate_invariant",
+    "pyrolite_limiting_neighbours", "pyrolite_missing_solution_branch",
+    "pyrolite_frame_order", "pyrolite_reaction_extents", "pyrolite_zoom_reaction_limits",
+])
+def test_boundary_permutations_and_ids_preserve_polygon_results(fixture):
+    data = json.loads((Path(__file__).parent / "data" / (fixture + ".json")).read_text())
+    expected = bm.pseudosection_field_polygons(data)
+    for seed in range(5):
+        shuffled = deepcopy(data)
+        random.Random(seed).shuffle(shuffled["boundaries"])
+        ids = {b["id"]: 1000 + i for i, b in enumerate(shuffled["boundaries"])}
+        for b in shuffled["boundaries"]:
+            b["id"] = ids[b["id"]]
+        for node in shuffled.get("nodes", []):
+            node["incident_lines"] = [ids.get(i, i) for i in node.get("incident_lines", [])]
+        actual = bm.pseudosection_field_polygons(shuffled)
+        assert actual.diagnostics == expected.diagnostics
+        assert actual.boundary_sides == {ids[i]: sides for i, sides in expected.boundary_sides.items()}
+        assert len(actual.polygons) == len(expected.polygons)
+        for a, b in zip(actual.polygons, expected.polygons):
+            assert (a.field_number, a.phases, a.is_provisional, a.has_open_boundary) == (
+                b.field_number, b.phases, b.is_provisional, b.has_open_boundary
+            )
+            assert sorted(a.boundary_ids) == sorted(ids[i] for i in b.boundary_ids)
+            np.testing.assert_array_equal(a.vertices, b.vertices)
+            assert len(a.holes) == len(b.holes)
+            for ah, bh in zip(a.holes, b.holes):
+                np.testing.assert_array_equal(ah, bh)
+            np.testing.assert_array_equal(a.label_position, b.label_position)
+        np.testing.assert_array_equal(actual.boundary_segments, expected.boundary_segments)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_duplicate_geometry_keeps_detail_and_all_boundary_evidence(reverse):
+    data = diagram([
+        dict(id=3, zero_phase=0, assemblage=[0, 3],
+             **line([(0.5, 0), (0.5, 0.5), (0.5, 1)], [0], [3])),
+        dict(id=9, zero_phase=0, assemblage=[0, 3],
+             **line([(0.5, 0), (0.5, 0.25), (0.5, 0.5), (0.5, 1)], [0], [3])),
+    ])
+    if reverse:
+        data["boundaries"].reverse()
+    geometry = bm.pseudosection_field_polygons(data)
+    assert not geometry.diagnostics
+    assert len(geometry.polygons) == 2
+    assert all(set(p.boundary_ids) == {3, 9} for p in geometry.polygons)
+    assert any(np.array_equal(p, [0.5, 0.25])
+               for segment in geometry.boundary_segments for p in segment)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_identical_opposed_duplicates_have_stable_field_numbers(reverse):
+    points = [(0.5, 0), (0.5, 0.5), (0.5, 1)]
+    data = diagram([
+        dict(id=3, zero_phase=0, assemblage=[0, 3], **line(points, [0], [3])),
+        dict(id=9, zero_phase=0, assemblage=[0, 3], **line(points[::-1], [3], [0])),
+    ])
+    if reverse:
+        data["boundaries"].reverse()
+    geometry = bm.pseudosection_field_polygons(data)
+    assert not geometry.diagnostics
+    assert [list(p.phases) for p in geometry.polygons] == [[0], [3]]
+    assert all(set(p.boundary_ids) == {3, 9} for p in geometry.polygons)
 
 
 def test_univariant_loop_connections_ignore_exchanged_solution_copy_ids():
@@ -156,6 +225,43 @@ def test_parallel_curved_arcs_follow_their_neighbouring_assemblages(reverse, nat
         (0, 3, 6, 21, 36, 39, 45, 48, 63),
     }
     assert all(not p.is_provisional for p in geometry.polygons)
+    check_joined_edges(geometry)
+
+
+@pytest.mark.parametrize("rotation", range(4))
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("native", [False, True])
+def test_frame_fan_preserves_thin_pyrolite_loop(rotation, reverse, native):
+    data = json.loads((Path(__file__).parent / "data/pyrolite_frame_order.json").read_text())
+    origin = np.array([data["pressure_range"][0], data["temperature_range"][0]])
+    scale = np.array([np.ptp(data["pressure_range"]), np.ptp(data["temperature_range"])])
+    # Exercise every frame edge, including fans whose first angular entry is
+    # a phase arc. Rotations preserve the directed side assemblages.
+    for records in [data["nodes"], *(b["points"] for b in data["boundaries"])]:
+        for p in records:
+            x, y = (np.array([p["pressure"], p["temperature"]]) - origin) / scale
+            for _ in range(rotation):
+                x, y = y, 1 - x
+            p["pressure"], p["temperature"] = origin + scale * [x, y]
+    if reverse:
+        data["boundaries"].reverse()
+        for b in data["boundaries"]:
+            b["points"].reverse()
+            b["start_node"], b["end_node"] = b["end_node"], b["start_node"]
+            b["side_a"], b["side_b"] = b["side_b"], b["side_a"]
+    before = json.dumps(data)
+    geometry = bm.pseudosection_field_polygons(
+        bm.PseudosectionResult.from_dict(data) if native else data
+    )
+    assert json.dumps(data) == before
+    assert not geometry.diagnostics
+    assert len(geometry.polygons) == 9
+    assert sum(p.area for p in geometry.polygons) == pytest.approx(1)
+    assert all(p.phases and not p.is_provisional and not p.has_open_boundary
+               for p in geometry.polygons)
+    thin = next(p for p in geometry.polygons if set(p.boundary_ids) == {1, 2, 10})
+    assert list(thin.phases) == [0, 12, 13, 21, 22, 24, 51, 54]
+    assert 0 < thin.area < 1.e-6
     check_joined_edges(geometry)
 
 
@@ -934,6 +1040,34 @@ def test_plot_labels_assemblages_and_solution_multiplicity():
     )
     assert not ax.texts
     plt.close(fig)
+
+
+@pytest.mark.parametrize("verified", [None, False, True])
+def test_plot_marks_only_unverified_critical_endpoints(verified):
+    import matplotlib.pyplot as plt
+
+    data = diagram(
+        [line([(0, 0.5), (0.5, 0.5)], [0], [0])], [sample(0.25, 0.25, [0])]
+    )
+    data["boundaries"][0].update(id=0, start_node=0, end_node=1)
+    data["nodes"] = [
+        dict(id=0, pressure=0, temperature=0.5, kind="domain_edge", incident_lines=[0]),
+        dict(id=1, pressure=0.5, temperature=0.5, kind="critical_point",
+             incident_lines=[0], gibbs_variance=1),
+    ]
+    if verified is not None:
+        data["nodes"][1]["is_verified_critical_endpoint"] = verified
+    fig, ax = bm.plot_pseudosection(
+        data, pressure_unit="Pa", temperature_unit="K", label_assemblages=False
+    )
+    try:
+        markers = [c for c in ax.collections
+                   if c.get_label() == "Unresolved boundary endpoint"]
+        assert len(markers) == (0 if verified else 1)
+        if markers:
+            np.testing.assert_allclose(markers[0].get_offsets(), [[0.5, 0.5]])
+    finally:
+        plt.close(fig)
 
 
 @pytest.mark.parametrize("merge_fields", [True, False])
