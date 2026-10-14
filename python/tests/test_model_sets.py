@@ -100,7 +100,7 @@ def test_igneous_olivine_retains_its_original_ordered_endmember(pressure, temper
 @pytest.mark.parametrize("temperature", [1173.15, 1673.15])
 def test_igneous_equilibrium_handles_chromium_free_bulk(temperature):
     example = runpy.run_path(
-        str(Path(__file__).parents[2] / "examples/example_basalt_pseudosection.py")
+        str(Path(__file__).parents[2] / "examples/example_basalt_phase_diagram.py")
     )
     bulk = example["BASALT_COMPOSITION"].atomic_composition
     assert bulk.get("Cr", 0.0) == 0.0

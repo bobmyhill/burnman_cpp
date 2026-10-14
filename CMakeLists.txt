@@ -71,7 +71,7 @@ if(BURNMAN_BUILD_PYTHON)
     python/bindings/utils.cpp
     python/bindings/model_sets.cpp
     python/bindings/polytope.cpp
-    python/bindings/pseudosection.cpp
+    python/bindings/phase_diagram.cpp
     python/bindings/equilibration.cpp)
   target_link_libraries(_core PRIVATE burnman_core)
   target_compile_definitions(_core PRIVATE BURNMAN_VERSION="${PROJECT_VERSION}")

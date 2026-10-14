@@ -16,7 +16,7 @@
 
 The candidate set comprises olivine, wadsleyite and ringwoodite from SLB11.
 X is the molar fayalite fraction Fe/(Mg+Fe). All stability searches and phase-
-boundary continuation run in C++; plotting uses the standard pseudosection API.
+boundary continuation run in C++; plotting uses the standard phase diagram API.
 
 Run: python examples/example_olivine_px.py
 Use --quick for fewer seeds, or --no-plots to save only the resumable JSON.
@@ -51,13 +51,13 @@ def calculate(quick=False, verbose=False, *, diagram="PX"):
     }
     if diagram not in domains:
         raise ValueError("The olivine example supports PX, TX or VX diagrams.")
-    settings = bm.PseudosectionSettings()
+    settings = bm.PhaseDiagramSettings()
     settings.pressure_seeds = settings.temperature_seeds = 5 if quick else 9
     settings.volume_seeds = settings.pressure_seeds
     settings.composition_seeds = 5 if quick else 17
     settings.max_phase_instances = 1
     settings.verbose = verbose
-    return bm.pseudosection(
+    return bm.phase_diagram(
         FORSTERITE.atomic_composition,
         candidate_phases(),
         diagram=diagram,
@@ -85,9 +85,9 @@ def main(diagram="PX"):
     args = parser.parse_args()
     result = calculate(args.quick, args.verbose, diagram=diagram)
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    bm.save_pseudosection(result, args.output_dir / f"{stem}.json")
+    bm.save_phase_diagram(result, args.output_dir / f"{stem}.json")
     if not args.no_plots:
-        fig, ax = bm.plot_pseudosection(
+        fig, ax = bm.plot_phase_diagram(
             result,
             pressure_unit="GPa",
             temperature_unit="K",

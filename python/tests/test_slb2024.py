@@ -48,7 +48,7 @@ def example():
     return runpy.run_path(
         str(
             Path(__file__).resolve().parents[2]
-            / "examples/example_pyrolite_pseudosection.py"
+            / "examples/example_pyrolite_phase_diagram.py"
         )
     )
 
@@ -93,7 +93,7 @@ def test_pyrolite_example_resume_accepts_roundoff_but_rejects_changed_bulk(
         assert phases and opts.verbose
         return sentinel
 
-    monkeypatch.setattr(bm, "refine_pseudosection", continue_saved)
+    monkeypatch.setattr(bm, "refine_phase_diagram", continue_saved)
     assert example["refine"](source, verbose=True) is sentinel
     oxides["FeO"] *= 1.01
     source.write_text(json.dumps(previous))
@@ -156,7 +156,7 @@ def test_pyrolite_example_passes_pressure_in_pascals(example, monkeypatch):
         assert pressure_range == (0.0, example["P_Pa"])
         assert temperature_range == (0.0, example["T_K"])
 
-    monkeypatch.setattr(bm, "pseudosection", calculate)
+    monkeypatch.setattr(bm, "phase_diagram", calculate)
     example["calculate"](quick=True)
 
 
@@ -168,7 +168,7 @@ def test_pyrolite_example_passes_pressure_in_pascals(example, monkeypatch):
 def test_cold_pyrolite_boundaries_reach_zero_kelvin(
     example, pressure_range, max_temperature, bulk_scale
 ):
-    result = bm.pseudosection(
+    result = bm.phase_diagram(
         {
             element: amount * bulk_scale
             for element, amount in example[
@@ -187,7 +187,7 @@ def test_cold_pyrolite_boundaries_reach_zero_kelvin(
     assert min(p.temperature for p in line.points) == pytest.approx(0.0, abs=1.0e-9)
     assert all(p.mass_balance_error < 1.0e-8 for p in line.points)
     assert all(p.minimum_affinity >= -0.2 for p in line.points)
-    polygons = bm.pseudosection_field_polygons(result)
+    polygons = bm.phase_diagram_field_polygons(result)
     assert not polygons.diagnostics
     assert len(polygons.polygons) == 2
 
@@ -213,7 +213,7 @@ def test_distinct_solution_branches_can_have_the_same_phase_counts(example):
             Path(__file__).parent / "data" / "pyrolite_solution_replacement.json"
         ).read_text()
     )
-    result = bm.refine_pseudosection(
+    result = bm.refine_phase_diagram(
         example["PYROLITE_COMPOSITION"].atomic_composition,
         example["candidate_phases"](),
         previous,
@@ -224,7 +224,7 @@ def test_distinct_solution_branches_can_have_the_same_phase_counts(example):
     states = [s for s in result.samples if not s.is_field_verification][-2:]
     cf = [next(p for p in s.phases if p.candidate_index == 13) for s in states]
     assert np.linalg.norm(cf[0].composition - cf[1].composition) > 0.01
-    restored = bm.PseudosectionResult.from_dict(result.to_dict())
+    restored = bm.PhaseDiagramResult.from_dict(result.to_dict())
     assert restored.boundaries[0].is_solution_replacement
 
 
@@ -234,7 +234,7 @@ def test_nearby_curve_does_not_hide_a_different_junctions_branches(example):
             Path(__file__).parent / "data" / "pyrolite_neighbouring_branches.json"
         ).read_text()
     )
-    result = bm.refine_pseudosection(
+    result = bm.refine_phase_diagram(
         example["PYROLITE_COMPOSITION"].atomic_composition,
         example["candidate_phases"](),
         case["previous"],
@@ -305,10 +305,10 @@ def test_trace_spin_activation_continues_without_adding_an_identical_phase(
     )["cases"]
     case = cases[case_index]
     previous = case["previous"]
-    opts = bm.PseudosectionSettings()
+    opts = bm.PhaseDiagramSettings()
     opts.max_lines = 1
     opts.max_recovery_passes = 1
-    result = bm.refine_pseudosection(
+    result = bm.refine_phase_diagram(
         example["PYROLITE_COMPOSITION"].atomic_composition,
         example["candidate_phases"](),
         previous,
@@ -355,11 +355,11 @@ def test_cold_frame_critical_and_close_redox_endpoints(
     cases = json.loads(
         (Path(__file__).parent / "data" / "pyrolite_cold_endpoints.json").read_text()
     )["cases"]
-    opts = bm.PseudosectionSettings()
+    opts = bm.PhaseDiagramSettings()
     opts.max_lines = 1
     opts.max_recovery_passes = 1
     previous = cases[case_index]["previous"]
-    result = bm.refine_pseudosection(
+    result = bm.refine_phase_diagram(
         example["PYROLITE_COMPOSITION"].atomic_composition,
         example["candidate_phases"](),
         previous,
@@ -399,7 +399,7 @@ def test_resumed_model_limit_remains_attached_to_recomputed_eos_envelope(example
     opts = example["settings"]()
     opts.max_lines = 1
     opts.max_recovery_passes = 0
-    result = bm.refine_pseudosection(
+    result = bm.refine_phase_diagram(
         example["PYROLITE_COMPOSITION"].atomic_composition,
         example["candidate_phases"](),
         previous,
@@ -419,9 +419,9 @@ def test_resumed_model_limit_remains_attached_to_recomputed_eos_envelope(example
     # The common serializer keeps the envelope, original compositions and
     # required-model policy; resuming JSON needs no example-specific settings.
     saved = json.loads(json.dumps(result.to_dict(), allow_nan=False))
-    restored = bm.PseudosectionResult.from_dict(saved)
+    restored = bm.PhaseDiagramResult.from_dict(saved)
     assert restored.to_dict() == saved
-    resumed = bm.refine_pseudosection(
+    resumed = bm.refine_phase_diagram(
         example["PYROLITE_COMPOSITION"].atomic_composition,
         example["candidate_phases"](),
         saved,
@@ -466,7 +466,7 @@ def test_legacy_pyrolite_json_retains_eos_policy_and_failure_reasons(example):
             phases=[],
         )
     ]
-    restored = bm.PseudosectionResult.from_dict(saved)
+    restored = bm.PhaseDiagramResult.from_dict(saved)
     assert restored.settings.required_eos_phases == ["opx"]
     assert not restored.resolved and restored.diagnostics == ["saved diagnostic"]
     assert restored.samples[0].outside_model_domain
@@ -481,7 +481,7 @@ def test_nearby_redox_junctions_keep_distinct_phase_rules_on_resume(example):
     opts = example["settings"]()
     opts.max_lines = 4
     opts.max_recovery_passes = 0
-    result = bm.refine_pseudosection(
+    result = bm.refine_phase_diagram(
         example["PYROLITE_COMPOSITION"].atomic_composition,
         example["candidate_phases"](),
         previous,

@@ -18,7 +18,7 @@ Recreate the phase boundaries and contours in Bob Myhill's illustration:
 https://blogs.egu.eu/divisions/gd/2021/01/27/thermodynamics-and-geodynamics-the-perfect-couple/
 
 Use the SLB2011 periclase, bridgmanite, akimotoite and ringwoodite models.
-Each panel is calculated independently by the native pseudosection routine;
+Each panel is calculated independently by the native phase diagram routine;
 native constraint contours reuse these completed sections. The shared plotters
 display volume as density and entropy in kB per atom by default.
 TV and SV are the canonical names of the V-T and V-S section types.
@@ -88,7 +88,7 @@ def calculate(quick=False, verbose=False):
             temperature_range=(500.0, 3000.0),
         ),
     }
-    settings = bm.PseudosectionSettings()
+    settings = bm.PhaseDiagramSettings()
     settings.pressure_seeds = settings.temperature_seeds = settings.entropy_seeds = (
         settings.volume_seeds
     ) = (5 if quick else 9)
@@ -96,7 +96,7 @@ def calculate(quick=False, verbose=False):
     settings.verbose = verbose
     results = {}
     for diagram, domain in domains.items():
-        results[diagram] = bm.pseudosection(
+        results[diagram] = bm.phase_diagram(
             BULK.atomic_composition,
             candidate_phases(),
             diagram=diagram,
@@ -111,7 +111,7 @@ def calculate_contours(results, verbose=False):
     contours = {}
     for diagram, result in results.items():
         contours[diagram] = {
-            name: bm.pseudosection_contour_levels(
+            name: bm.phase_diagram_contour_levels(
                 result, candidate_phases(), levels, constraint, verbose=verbose
             )
             for name, (constraint, levels, _) in CONTOURS.items()
@@ -143,7 +143,7 @@ def plot(
         ("rw",): "#e5e5e5",
     }
     for ax, (diagram, result) in zip(axes.flat, results.items()):
-        bm.plot_pseudosection(
+        bm.plot_phase_diagram(
             result,
             ax=ax,
             colorbar=False,
@@ -161,7 +161,7 @@ def plot(
         for name, records in (contours or {}).get(diagram, {}).items():
             colour = CONTOURS[name][2]
             for i, record in enumerate(records):
-                bm.plot_pseudosection_contours(
+                bm.plot_phase_diagram_contours(
                     result,
                     record["contours"],
                     ax,
@@ -207,7 +207,7 @@ def main():
     args.output_dir.mkdir(parents=True, exist_ok=True)
     results = calculate(args.quick, args.verbose)
     for diagram, result in results.items():
-        bm.save_pseudosection(
+        bm.save_phase_diagram(
             result, args.output_dir / f"forsterite_{diagram.lower()}.json"
         )
         print(

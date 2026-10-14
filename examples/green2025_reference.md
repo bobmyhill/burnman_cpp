@@ -1,7 +1,7 @@
 The six `example_green2025_*.py` scripts reproduce Figures S3-1–S3-6 of
 [Green et al. (2025), corrigendum, Supplement 3](https://doi.org/10.1093/petrology/egae079).
-They share `green2025.py`, which calls the standard native `pseudosection`,
-`refine_pseudosection` and `plot_pseudosection` routines.
+They share `green2025.py`, which calls the standard native `phase_diagram`,
+`refine_phase_diagram` and `plot_phase_diagram` routines.
 
 | Figure | Example | Rock | Temperature (°C) | Pressure (kbar) |
 | --- | --- | --- | --- | --- |

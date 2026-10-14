@@ -48,12 +48,12 @@ def candidate_phases():
 
 def calculate(quick=False, verbose=False):
     domain = dict(temperature_range=(300.0, 1500.0), pressure=1.0e5)
-    settings = bm.PseudosectionSettings()
+    settings = bm.PhaseDiagramSettings()
     settings.pressure_seeds = settings.temperature_seeds = 5 if quick else 9
     settings.composition_seeds = 5 if quick else 17
     settings.max_phase_instances = 1
     settings.verbose = verbose
-    return bm.pseudosection(
+    return bm.phase_diagram(
         IRON.atomic_composition,
         candidate_phases(),
         diagram="TX",
@@ -81,9 +81,9 @@ def main():
     args = parser.parse_args()
     result = calculate(args.quick, args.verbose)
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    bm.save_pseudosection(result, args.output_dir / f"{stem}.json")
+    bm.save_phase_diagram(result, args.output_dir / f"{stem}.json")
     if not args.no_plots:
-        fig, ax = bm.plot_pseudosection(
+        fig, ax = bm.plot_phase_diagram(
             result,
             temperature_unit="K",
             composition_label="Molar hematite fraction in Fe–Fe$_2$O$_3$ bulk",

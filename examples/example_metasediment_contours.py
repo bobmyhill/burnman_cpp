@@ -14,9 +14,9 @@
 
 """Density and garnet Mg/(Mg + Fe2+) contours on a saved metasediment diagram.
 
-First run example_metasediment_pseudosection.py, then:
+First run example_metasediment_phase_diagram.py, then:
 
-    python examples/example_metasediment_contours.py path/to/metasediment_pseudosection.json
+    python examples/example_metasediment_contours.py path/to/metasediment_phase_diagram.json
 
 The saved phase lines, closed fields and equilibrium states are reused.
 Native VolumeConstraint sets total volume to bulk mass / density.
@@ -30,7 +30,7 @@ import json
 from pathlib import Path
 
 import burnman_cpp as bm
-from example_metasediment_pseudosection import (
+from example_metasediment_phase_diagram import (
     METASEDIMENT_COMPOSITION,
     candidate_phases,
 )
@@ -38,7 +38,7 @@ from example_metasediment_pseudosection import (
 
 def calculate(diagram, density_levels, garnet_levels, seed_grid=5, step=0.02):
     phases = candidate_phases()
-    settings = bm.PseudosectionContourSettings()
+    settings = bm.PhaseDiagramContourSettings()
     settings.seed_grid = seed_grid
     settings.step = step
     composition = diagram.get(
@@ -57,7 +57,7 @@ def calculate(diagram, density_levels, garnet_levels, seed_grid=5, step=0.02):
         ),
     }
     return {
-        name: bm.pseudosection_contour_levels(
+        name: bm.phase_diagram_contour_levels(
             diagram,
             phases,
             levels,
@@ -75,7 +75,7 @@ def plot(diagram, contours, output_dir, label_fontsize=7.0):
 
     fig, axes = plt.subplots(1, 2, figsize=(19, 9), layout="constrained")
     for ax, name in zip(axes, ["density", "garnet"]):
-        bm.plot_pseudosection(
+        bm.plot_phase_diagram(
             diagram,
             ax=ax,
             phase_aliases={"g": "gt"},
@@ -84,7 +84,7 @@ def plot(diagram, contours, output_dir, label_fontsize=7.0):
             label_key_path=output_dir / f"{name}_assemblages.md",
         )
         for record in contours[name]:
-            bm.plot_pseudosection_contours(
+            bm.plot_phase_diagram_contours(
                 diagram,
                 record["contours"],
                 ax,
@@ -106,7 +106,7 @@ def plot(diagram, contours, output_dir, label_fontsize=7.0):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("pseudosection_json", type=Path)
+    parser.add_argument("phase_diagram_json", type=Path)
     parser.add_argument(
         "--density", type=float, nargs="+", default=[2600.0, 2800.0, 3000.0, 3200.0]
     )
@@ -127,7 +127,7 @@ def main():
         parser.error("Density levels must be positive.")
     if any(v <= 0.0 or v >= 1.0 for v in args.garnet):
         parser.error("Garnet Mg/(Mg+Fe2+) levels must be between zero and one.")
-    diagram = bm.load_pseudosection(args.pseudosection_json)
+    diagram = bm.load_phase_diagram(args.phase_diagram_json)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     contours = (
         json.loads(args.plot_json.read_text())
