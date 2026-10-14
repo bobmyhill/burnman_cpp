@@ -1542,7 +1542,8 @@ State stable_equilibrium_at(
     const std::array<double, 2> &temperature_range) {
   const auto axes = diagram_axes(type);
   if (axes[1] == Coordinate::X)
-    throw std::invalid_argument("Select two of P, T, S and V for a fixed bulk.");
+    throw std::invalid_argument(
+        "Select two of P, T, S and V for a fixed bulk.");
   for (int i = 0; i < 2; ++i) {
     const auto axis = axes[static_cast<std::size_t>(i)];
     const double value = coordinates[i];

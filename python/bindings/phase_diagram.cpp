@@ -822,8 +822,7 @@ plotting without additional solves.
          const std::vector<std::shared_ptr<Material>> &phases,
          std::optional<double> pressure, std::optional<double> temperature,
          std::optional<double> entropy, std::optional<double> volume,
-         const Settings &settings,
-         const std::array<double, 2> &pressure_range,
+         const Settings &settings, const std::array<double, 2> &pressure_range,
          const std::array<double, 2> &temperature_range) {
         std::string axes;
         Eigen::Vector2d position;
