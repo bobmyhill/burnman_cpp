@@ -11,11 +11,14 @@
 //
 // ------------------------------------------------------
 
+#include "burnman/tools/pseudosection/stability.hpp"
 #include "burnman/eos/slb.hpp"
+#include "burnman/tools/equilibration/equality_constraint_variants.hpp"
 #include "burnman/tools/polytope.hpp"
+#include "burnman/tools/pseudosection/continuation.hpp"
+#include "burnman/tools/pseudosection/domain.hpp"
 #include "burnman/utils/constants.hpp"
 #include "burnman/utils/index_utils.hpp"
-#include "internal.hpp"
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -408,9 +411,7 @@ WorkState Engine::stable_at(const Eigen::Vector2d &q) {
                      const Eigen::Vector2d &guess) {
     auto states = first.state.phases;
     for (auto phase : second.state.phases) {
-      auto old =
-          std::find_if(states.begin(), states.end(),
-                       [&](const PhaseState &v) { return v.id == phase.id; });
+      auto old = find_phase(states, phase.id);
       if (old == states.end())
         states.push_back(phase);
       else {
@@ -422,9 +423,7 @@ WorkState Engine::stable_at(const Eigen::Vector2d &q) {
         old->amount = amount;
       }
     }
-    std::vector<int> ids;
-    for (auto &state : states)
-      ids.push_back(state.id);
+    auto ids = phase_ids(states);
     if (!ids.empty())
       best = equilibrate_phase_set(ids, states, guess[0], guess[1], q);
     if (best.state.success)
@@ -505,7 +504,7 @@ WorkState Engine::stable_at(const Eigen::Vector2d &q) {
 }
 
 WorkState Engine::fixed_at(const std::vector<int> &ids,
-                           const std::vector<PhaseState> &states,
+                           const PhaseStates &states,
                            const Eigen::Vector2d &q) {
   if (!free_vectors.empty())
     set_bulk(q[1]);
@@ -526,10 +525,9 @@ bool Engine::eos_bulk_feasible_at(const Eigen::Vector2d &q) {
   const auto physical = physical_coordinates(q);
   return eos_bulk_feasible(physical[0], physical[1]);
 }
-std::shared_ptr<Assemblage>
-Engine::make_at(const std::vector<int> &ids,
-                const std::vector<PhaseState> &states,
-                const Eigen::Vector2d &q) {
+std::shared_ptr<Assemblage> Engine::make_at(const std::vector<int> &ids,
+                                            const PhaseStates &states,
+                                            const Eigen::Vector2d &q) {
   const auto physical = physical_coordinates(q);
   auto initial = states;
   if (!free_vectors.empty() && settings.active_solution_faces) {
@@ -877,10 +875,10 @@ std::vector<Minimum> Engine::minima(int index, const Eigen::VectorXd &mu,
   });
   return out;
 }
-std::shared_ptr<Assemblage>
-Engine::make_assemblage(const std::vector<int> &ids,
-                        const std::vector<PhaseState> &states, double p,
-                        double t, double face_tolerance) {
+std::shared_ptr<Assemblage> Engine::make_assemblage(const std::vector<int> &ids,
+                                                    const PhaseStates &states,
+                                                    double p, double t,
+                                                    double face_tolerance) {
   std::shared_ptr<Assemblage> a = free_vectors.empty()
                                       ? std::make_shared<Assemblage>()
                                       : std::make_shared<SectionAssemblage>();
@@ -972,8 +970,8 @@ Engine::copy_assemblage(const Assemblage &input) const {
     set_coordinate(*out, composition_coordinate(input));
   return out;
 }
-optim::roots::DampedNewtonResult Engine::solve(Assemblage &a, ConstraintList &c,
-                                               bool vary_composition) {
+EquilibriumSolve Engine::solve(Assemblage &a, ConstraintList &c,
+                               bool vary_composition) {
   const bool varying = vary_composition && !free_vectors.empty();
   const double base_x = composition_coordinate(a);
   const auto composition =
@@ -1006,16 +1004,14 @@ optim::roots::DampedNewtonResult Engine::solve(Assemblage &a, ConstraintList &c,
   scales[1] = 1000.;
   for (int k = 0; k < prm.phase_amount_indices.size(); ++k)
     scales[prm.phase_amount_indices[k]] = std::max(1.e-3, a.get_n_moles());
-  auto verify = [&](optim::roots::DampedNewtonResult &s) {
+  auto verify = [&](EquilibriumSolve &s) {
     if (s.x.allFinite()) {
       set_composition_and_state_from_parameters(a, s.x);
       if (!free_vectors.empty())
         set_coordinate(a, varying ? base_x + s.x[s.x.size() - 1]
                                   : bulk_direction.dot(full_bulk - full_start) /
                                         bulk_direction.squaredNorm());
-      double reactions = a.get_n_reactions()
-                             ? a.get_reaction_affinities().cwiseAbs().maxCoeff()
-                             : 0.;
+      double reactions = reaction_residual(a);
       bool verified = reactions <= settings.affinity_tolerance * .1 &&
                       mass_error(a, varying) <= settings.mass_balance_tolerance;
       auto inequalities = calculate_constraints(a, varying ? 1 : 0);
@@ -1122,9 +1118,9 @@ double Engine::mass_error(const Assemblage &a, bool vary_composition) const {
           : full_bulk;
   return (amount - target).norm() / target.norm();
 }
-std::vector<PhaseState> Engine::snapshot(const Assemblage &a,
-                                         const std::vector<int> &ids) const {
-  std::vector<PhaseState> out;
+PhaseStates Engine::snapshot(const Assemblage &a,
+                             const std::vector<int> &ids) const {
+  PhaseStates out;
   for (std::size_t k = 0; k < ids.size(); ++k) {
     PhaseState state;
     state.id = ids[k];
@@ -1153,9 +1149,10 @@ Eigen::MatrixXd Engine::composition_basis(const Material &m, int index) const {
       phases[static_cast<std::size_t>(index)].vertices.cols(),
       phases[static_cast<std::size_t>(index)].vertices.cols());
 }
-WorkState Engine::equilibrate_phase_set(
-    const std::vector<int> &ids, const std::vector<PhaseState> &states,
-    double p, double t, std::optional<Eigen::Vector2d> requested) {
+WorkState
+Engine::equilibrate_phase_set(const std::vector<int> &ids,
+                              const PhaseStates &states, double p, double t,
+                              std::optional<Eigen::Vector2d> requested) {
   const double fixed_pressure = p, fixed_temperature = t;
   WorkState out;
   out.ids = ids;
@@ -1163,7 +1160,7 @@ WorkState Engine::equilibrate_phase_set(
   out.state.temperature = t;
   try {
     out.assemblage = make_assemblage(ids, states, p, t);
-    optim::roots::DampedNewtonResult sol;
+    EquilibriumSolve sol;
     for (std::size_t pass = 0; pass < ids.size(); ++pass) {
       auto c =
           requested
@@ -1220,10 +1217,7 @@ WorkState Engine::equilibrate_phase_set(
           out.state.excluded_phases.push_back(ph.domain_error);
       out.state.gibbs =
           out.assemblage->get_molar_gibbs() * out.assemblage->get_n_moles();
-      out.state.equilibrium_error =
-          out.assemblage->get_n_reactions()
-              ? out.assemblage->get_reaction_affinities().cwiseAbs().maxCoeff()
-              : 0.;
+      out.state.equilibrium_error = reaction_residual(*out.assemblage);
       out.state.success =
           sol.success &&
           out.state.equilibrium_error <= settings.affinity_tolerance * .1 &&
@@ -1249,13 +1243,8 @@ WorkState Engine::equilibrate_phase_set(
       // chemical equations and retry from the last compositions of the
       // surviving phases. This applies to fixed-P,T fields, never zero-amount
       // phase lines.
-      std::vector<int> surviving;
-      double total = 0.;
-      for (auto &ph : out.state.phases)
-        total += ph.amount;
-      for (auto &ph : out.state.phases)
-        if (ph.amount > settings.amount_tolerance * total)
-          surviving.push_back(ph.id);
+      auto surviving =
+          present_phase_ids(out.state.phases, settings.amount_tolerance);
       if (surviving.empty() || surviving.size() == out.ids.size())
         break;
       out.ids = std::move(surviving);
@@ -1327,10 +1316,10 @@ WorkState Engine::stable(double p, double t) {
     }
     polytope::GibbsLPResult lp;
     auto equilibrate_lp = [&](double amount_tolerance) {
-      std::vector<PhaseState> seeds;
+      PhaseStates seeds;
       std::vector<int> ids;
       for (std::size_t i = 0; i < phases.size(); ++i) {
-        std::vector<PhaseState> clusters;
+        PhaseStates clusters;
         for (int j = 0; j < lp.amounts.size(); ++j)
           if (compounds[static_cast<std::size_t>(j)].phase ==
                   static_cast<int>(i) &&
@@ -1505,9 +1494,8 @@ WorkState Engine::stable(double p, double t) {
       out.state.excluded_phases.push_back(ph.domain_error);
   return out;
 }
-Eigen::MatrixXd
-Engine::phase_formulae(const std::vector<int> &ids,
-                       const std::vector<PhaseState> &states) const {
+Eigen::MatrixXd Engine::phase_formulae(const std::vector<int> &ids,
+                                       const PhaseStates &states) const {
   Eigen::MatrixXd formulae =
       Eigen::MatrixXd::Zero(static_cast<Eigen::Index>(ids.size()),
                             static_cast<Eigen::Index>(elements.size()));
@@ -1521,36 +1509,10 @@ Engine::phase_formulae(const std::vector<int> &ids,
   return formulae;
 }
 std::vector<int> Engine::active_phases(const State &s) const {
-  double total = 0.;
-  for (auto &ph : s.phases)
-    total += ph.amount;
-  std::vector<int> ids;
-  for (auto &ph : s.phases)
-    if (ph.amount > settings.amount_tolerance * total)
-      ids.push_back(ph.candidate_index * settings.max_phase_instances);
-  return canonical_ids(ids);
+  return canonical_ids(present_phase_ids(s.phases, settings.amount_tolerance));
 }
 std::vector<int> Engine::canonical_ids(const std::vector<int> &ids) const {
   return canonical_phase_ids(ids, settings.max_phase_instances);
-}
-std::vector<int> canonical_phase_ids(const std::vector<int> &ids, int copies) {
-  std::map<int, int> counts;
-  for (int id : ids)
-    ++counts[id / copies];
-  std::vector<int> canonical;
-  for (auto [base, count] : counts)
-    for (int copy = 0; copy < count; ++copy)
-      canonical.push_back(base * copies + copy);
-  return canonical;
-}
-double solution_separation(const std::vector<PhaseState> &states) {
-  double minimum = std::numeric_limits<double>::infinity();
-  for (std::size_t i = 0; i < states.size(); ++i)
-    for (std::size_t j = i + 1; j < states.size(); ++j)
-      if (states[i].candidate_index == states[j].candidate_index)
-        minimum = std::min(
-            minimum, (states[i].composition - states[j].composition).norm());
-  return minimum;
 }
 bool Engine::distinct(const Assemblage &a, const std::vector<int> &ids) const {
   return solution_separation(snapshot(a, ids)) >

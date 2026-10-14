@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: Copyright (C) 2026 by the BurnMan Team.
-#include "critical.hpp"
+#include "burnman/tools/pseudosection/verification.hpp"
+#include "burnman/tools/pseudosection/continuation.hpp"
+#include "burnman/tools/pseudosection/critical.hpp"
+#include "burnman/tools/pseudosection/domain.hpp"
+#include "burnman/tools/pseudosection/polygons.hpp"
+#include "burnman/tools/pseudosection/stability.hpp"
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -24,16 +29,12 @@ bool terminal_critical(Engine &engine, const Node &node, const Boundary &line) {
           .any())
     return false;
   auto states = endpoint.phases;
-  auto zero = std::find_if(states.begin(), states.end(), [&](const auto &p) {
-    return p.id == line.zero_phase;
-  });
+  auto zero = find_phase(states, line.zero_phase);
   if (zero == states.end() ||
       node.critical_mode.size() != zero->composition.size() ||
       !node.critical_mode.allFinite() || node.critical_mode.norm() == 0.)
     return false;
-  double total = 0.;
-  for (const auto &p : states)
-    total += p.amount;
+  const double total = total_amount(states);
   if (total <= 0. || zero->amount > total * engine.settings.amount_tolerance)
     return false;
   auto survivor =
@@ -93,11 +94,8 @@ bool terminal_critical(Engine &engine, const Node &node, const Boundary &line) {
       auto opposite = line;
       opposite.zero_phase = other;
       auto warm = seed.phases;
-      auto first = std::find_if(warm.begin(), warm.end(), [&](const auto &p) {
-        return p.id == line.zero_phase;
-      });
-      auto second = std::find_if(warm.begin(), warm.end(),
-                                 [&](const auto &p) { return p.id == other; });
+      auto first = find_phase(warm, line.zero_phase);
+      auto second = find_phase(warm, other);
       if (first == warm.end() || second == warm.end())
         continue;
       std::swap(first->amount, second->amount);
@@ -171,8 +169,7 @@ std::vector<std::string> field_diagnostics(const Result &result,
   auto geometry = field_polygons(result, 1.e-8, true, false);
   auto messages = geometry.diagnostics;
   for (const auto &line : result.boundaries)
-    if (line.side_a.empty() || line.side_b.empty() ||
-        (line.side_a == line.side_b && !line.is_solution_replacement))
+    if (ambiguous_boundary(line))
       messages.push_back("Boundary " + std::to_string(line.id) +
                          ": neighbouring fields could not be distinguished "
                          "within tolerances.");
@@ -257,13 +254,9 @@ Result verify_critical_endpoints(
   // Regenerate the same derived diagnostics used after tracing. Preserve
   // every unrelated message, without matching hard-coded warning prefixes.
   const auto old = detail::field_diagnostics(result, engine);
-  result.diagnostics.erase(
-      std::remove_if(result.diagnostics.begin(), result.diagnostics.end(),
-                     [&](const auto &message) {
-                       return std::find(old.begin(), old.end(), message) !=
-                              old.end();
-                     }),
-      result.diagnostics.end());
+  detail::erase_if(result.diagnostics, [&](const auto &message) {
+    return std::find(old.begin(), old.end(), message) != old.end();
+  });
   detail::verify_critical_endpoints(result, engine);
   detail::recover_boundary_labels(result);
   auto messages = detail::field_diagnostics(result, engine);

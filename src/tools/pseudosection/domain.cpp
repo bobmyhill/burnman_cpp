@@ -11,8 +11,9 @@
 //
 // ------------------------------------------------------
 
+#include "burnman/tools/pseudosection/domain.hpp"
+#include "burnman/tools/pseudosection/stability.hpp"
 #include "burnman/utils/index_utils.hpp"
-#include "internal.hpp"
 
 namespace burnman::pseudosections::detail {
 bool unfinished_boundary(const std::string &status) {
