@@ -1534,6 +1534,42 @@ bool Engine::distinct(const Assemblage &a, const std::vector<int> &ids) const {
 }
 } // namespace burnman::phase_diagrams::detail
 namespace burnman::phase_diagrams {
+State stable_equilibrium_at(
+    const types::FormulaMap &bulk,
+    const std::vector<std::shared_ptr<Material>> &candidates,
+    const Eigen::Vector2d &coordinates, DiagramType type,
+    const Settings &settings, const std::array<double, 2> &pressure_range,
+    const std::array<double, 2> &temperature_range) {
+  const auto axes = diagram_axes(type);
+  if (axes[1] == Coordinate::X)
+    throw std::invalid_argument("Select two of P, T, S and V for a fixed bulk.");
+  for (int i = 0; i < 2; ++i) {
+    const auto axis = axes[static_cast<std::size_t>(i)];
+    const double value = coordinates[i];
+    if (!std::isfinite(value) ||
+        ((axis == Coordinate::P || axis == Coordinate::T) && value < 0.) ||
+        (axis == Coordinate::T && value == 0. &&
+         !settings.active_solution_faces) ||
+        (axis == Coordinate::V && value <= 0.))
+      throw std::invalid_argument(
+          "Equilibrium coordinates must be finite: P,T >= 0 and V > 0; "
+          "T=0 requires active_solution_faces.");
+  }
+  for (const auto &bounds : {pressure_range, temperature_range})
+    if (!std::isfinite(bounds[0]) || !std::isfinite(bounds[1]) ||
+        bounds[0] < 0. || bounds[1] < bounds[0])
+      throw std::invalid_argument("P/T search ranges must be finite, "
+                                  "nonnegative and ordered.");
+  CompositionSection section;
+  section.type = type;
+  detail::Engine engine(bulk, candidates, settings, section);
+  engine.pressure_bounds = pressure_range;
+  engine.temperature_bounds = temperature_range;
+  engine.physical_seed << .5 * (pressure_range[0] + pressure_range[1]),
+      .5 * (temperature_range[0] + temperature_range[1]);
+  return engine.stable_at(coordinates).state;
+}
+
 State stable_equilibrium(
     const types::FormulaMap &bulk,
     const std::vector<std::shared_ptr<Material>> &candidates, double p,
