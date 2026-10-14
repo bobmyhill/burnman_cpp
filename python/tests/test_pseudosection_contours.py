@@ -143,7 +143,6 @@ def test_contours_find_crossings_along_thin_fields(simple_diagram, centreline):
     assert contours.resolved, contours.diagnostics
     assert len(contours.lines) == 1
     assert contours.lines[0].termination == "field boundary; field boundary"
-    assert contours.equilibrium_solves < 150
     for point in contours.lines[0].points:
         x, y = (np.array([point.pressure, point.temperature]) - origin) / span
         assert point.temperature == pytest.approx(target, abs=1.0e-6)

@@ -124,7 +124,7 @@ struct Edge {
 // Infer one cyclic fan from stable side assemblages. Coarse endpoint chords
 // can reverse the apparent angular order of neighbouring branches.
 void link_junction(const std::vector<Index> &list, std::vector<Edge> &edges,
-                   bool frame) {
+                   bool frame, int copies) {
   if (list.empty())
     return;
   std::vector<Index> order(list.size());
@@ -151,12 +151,12 @@ void link_junction(const std::vector<Index> &list, std::vector<Edge> &edges,
     const auto *line = edges[index].source;
     if (!line)
       return true;
+    const auto source = canonical_phase_ids(line->assemblage, copies);
     for (Index direction : {index, index ^ 1})
       for (const auto &phases : edges[direction].labels)
-        for (int phase : phases)
-          if (std::find(line->assemblage.begin(), line->assemblage.end(),
-                        phase) == line->assemblage.end())
-            return false;
+        if (!std::includes(source.begin(), source.end(), phases.begin(),
+                           phases.end()))
+          return false;
     return true;
   });
   // Parallel arcs can bound distinct thin fields. Their side assemblages,
@@ -426,6 +426,10 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     values.erase(std::unique(values.begin(), values.end()), values.end());
     return values;
   };
+  // Reaction identity depends on phase multiplicity, not local instance IDs.
+  auto canonical_assemblage = [&](const Phases &values) {
+    return canonical_phase_ids(values, result.settings.max_phase_instances);
+  };
   // Calculate saved labels once; polygon reconstruction never changes samples.
   std::vector<Phases> sample_labels;
   std::set<Phases> sampled_assemblages;
@@ -444,8 +448,10 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     if (!phases.empty()) {
       sampled_assemblages.insert(sample_labels.back());
       const auto q = coordinate(state);
-      has_domain_sample = has_domain_sample ||
-                          ((q.array() >= 0.).all() && (q.array() <= 1.).all());
+      // Inverse S/V solves can place frame seeds just outside by roundoff.
+      has_domain_sample =
+          has_domain_sample || ((q.array() >= -tolerance).all() &&
+                                (q.array() <= 1. + tolerance).all());
     }
   }
   const bool uniform = has_domain_sample && sampled_assemblages.size() == 1;
@@ -505,7 +511,8 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
       // neighbours are one branch even when their coarse chords differ.
       const bool same_reaction =
           source && old.source &&
-          canonical(source->assemblage) == canonical(old.source->assemblage);
+          canonical_assemblage(source->assemblage) ==
+              canonical_assemblage(old.source->assemblage);
       const bool univariant =
           result.section.type == DiagramType::PT && same_reaction &&
           detail::boundary_variance(*source, result) == 1 &&
@@ -602,7 +609,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
       std::swap(left, right);
     }
     return std::tuple{std::move(path),
-                      canonical(line->assemblage),
+                      canonical_assemblage(line->assemblage),
                       line->zero_phase,
                       std::move(left),
                       std::move(right),
@@ -655,7 +662,8 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
         (result.section.type == DiagramType::PS ||
          result.section.type == DiagramType::TV) &&
         start && end &&
-        canonical(start->assemblage) == canonical(end->assemblage) &&
+        canonical_assemblage(start->assemblage) ==
+            canonical_assemblage(end->assemblage) &&
         std::abs(start->pressure - end->pressure) <= .2 &&
         std::abs(start->temperature - end->temperature) <= 1.e-6;
     // In native axis order, side_b is left and side_a is right.
@@ -675,8 +683,8 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
           Index vertex = nodes.at(node.id);
           if (vertex == path.front() || vertex == path.back())
             continue;
-          const auto event = canonical(node.assemblage);
-          const auto assemblage = canonical(line.assemblage);
+          const auto event = canonical_assemblage(node.assemblage);
+          const auto assemblage = canonical_assemblage(line.assemblage);
           // Solution-copy IDs can be exchanged between accepted states on a
           // univariant reaction. Match their physical phase at a saved node.
           const bool zero_at_node = std::any_of(
@@ -794,7 +802,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
       const auto p = vertices.points[edges[list.front()].from];
       bool frame = (p.array().abs() <= tolerance).any() ||
                    ((p.array() - 1.).abs() <= tolerance).any();
-      link_junction(list, edges, frame);
+      link_junction(list, edges, frame, result.settings.max_phase_instances);
     }
   }
   std::vector<Walk> walks;
@@ -1049,8 +1057,10 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     Phases univariant;
     if (exterior_labels.size() != 1 && sources.size() == 2) {
       const auto &p = **sources.begin(), &q = **sources.rbegin();
+      const auto p_phases = canonical_assemblage(p.assemblage),
+                 q_phases = canonical_assemblage(q.assemblage);
       if (p.start_node >= 0 && p.end_node >= 0 && p.start_node != p.end_node &&
-          p.assemblage != q.assemblage &&
+          p_phases != q_phases &&
           ((p.start_node == q.start_node && p.end_node == q.end_node) ||
            (p.start_node == q.end_node && p.end_node == q.start_node))) {
         // Both records must trace the same curve, not just join the same
@@ -1071,9 +1081,8 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
           return true;
         };
         if (lies_on(p, q) && lies_on(q, p)) {
-          univariant = p.assemblage;
-          univariant.insert(univariant.end(), q.assemblage.begin(),
-                            q.assemblage.end());
+          univariant = p_phases;
+          univariant.insert(univariant.end(), q_phases.begin(), q_phases.end());
           univariant = canonical(std::move(univariant));
         }
       }

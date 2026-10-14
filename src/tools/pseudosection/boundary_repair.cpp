@@ -379,12 +379,17 @@ std::set<int> active_boundary_nodes(const Result &result) {
 
 int boundary_variance(const Boundary &line, const Result &result) {
   int variance = -1;
+  const auto assemblage =
+      canonical_phase_ids(line.assemblage, result.settings.max_phase_instances);
   for (const auto &node : result.nodes)
     if ((node.id == line.start_node || node.id == line.end_node) &&
         !node.kind.empty() && !node.assemblage.empty() &&
-        node.gibbs_variance >= 0 &&
-        std::includes(node.assemblage.begin(), node.assemblage.end(),
-                      line.assemblage.begin(), line.assemblage.end())) {
+        node.gibbs_variance >= 0) {
+      const auto phases = canonical_phase_ids(
+          node.assemblage, result.settings.max_phase_instances);
+      if (!std::includes(phases.begin(), phases.end(), assemblage.begin(),
+                         assemblage.end()))
+        continue;
       const int next = node.gibbs_variance +
                        burnman::utils::checked_int(node.assemblage.size()) -
                        burnman::utils::checked_int(line.assemblage.size());
