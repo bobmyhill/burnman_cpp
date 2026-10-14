@@ -156,10 +156,26 @@ void verify_critical_endpoints(Result &result, Engine &engine) {
   }
 }
 
+void recover_boundary_labels(Result &result) {
+  const auto geometry = field_polygons(result);
+  for (auto &line : result.boundaries)
+    if (const auto it = geometry.boundary_sides.find(line.id);
+        it != geometry.boundary_sides.end()) {
+      line.side_a = it->second[0];
+      line.side_b = it->second[1];
+    }
+}
+
 std::vector<std::string> field_diagnostics(const Result &result,
                                            Engine &engine) {
   auto geometry = field_polygons(result, 1.e-8, true, false);
   auto messages = geometry.diagnostics;
+  for (const auto &line : result.boundaries)
+    if (line.side_a.empty() || line.side_b.empty() ||
+        (line.side_a == line.side_b && !line.is_solution_replacement))
+      messages.push_back("Boundary " + std::to_string(line.id) +
+                         ": neighbouring fields could not be distinguished "
+                         "within tolerances.");
   for (const auto &node : result.nodes) {
     if (node.kind == "critical_point" && node.incident_lines.size() == 1 &&
         !node.is_verified_critical_endpoint)
@@ -248,6 +264,7 @@ Result verify_critical_endpoints(
                      }),
       result.diagnostics.end());
   detail::verify_critical_endpoints(result, engine);
+  detail::recover_boundary_labels(result);
   auto messages = detail::field_diagnostics(result, engine);
   result.diagnostics.insert(result.diagnostics.end(), messages.begin(),
                             messages.end());

@@ -232,6 +232,7 @@ corrected_point(Engine &, Assemblage &, const std::vector<int> &,
                 ConstraintList &, const Eigen::Vector2d &target,
                 const Eigen::Vector2d &allowance);
 void verify_critical_endpoints(Result &, Engine &);
+void recover_boundary_labels(Result &);
 std::vector<std::string> field_diagnostics(const Result &, Engine &);
 std::optional<BoundaryPoint>
 boundary_point_at(Engine &, const Boundary &,

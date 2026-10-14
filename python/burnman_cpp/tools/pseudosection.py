@@ -1,6 +1,7 @@
-"""Pseudosection figures and refinement; calculations use the C++ library."""
+"""Pseudosection figures, refinement and local patches using native calculations."""
 
 from collections.abc import Mapping
+from copy import deepcopy
 import warnings
 
 from .. import _core, constants
@@ -63,6 +64,617 @@ def _value(record, name, default=None):
         if isinstance(record, Mapping)
         else getattr(record, name, default)
     )
+
+
+def _pseudosection_data(result):
+    from os import PathLike
+
+    if isinstance(result, (str, PathLike)):
+        return load_pseudosection(result)
+    return result if isinstance(result, Mapping) else result.to_dict()
+
+
+def _section_axes(result):
+    diagram, names, *_ = _coordinate_transforms(result)
+    names["X"] = "composition"
+    return diagram, [names[axis] for axis in diagram]
+
+
+def _section_window(result, region, display):
+    import numpy as np
+
+    data = _pseudosection_data(result)
+    _, axes = _section_axes(data)
+    bounds = np.asarray(region, dtype=float)
+    if (
+        bounds.shape != (2, 2)
+        or not np.isfinite(bounds).all()
+        or (bounds[:, 0] >= bounds[:, 1]).any()
+    ):
+        raise ValueError("region must contain finite increasing x and y bounds.")
+    *_, to_native = _coordinate_transforms(data, **display)
+    window = np.sort(to_native(bounds.T), axis=0).T
+    domain = np.asarray([data[axis + "_range"] for axis in axes])
+    if (window[:, 0] < domain[:, 0]).any() or (window[:, 1] > domain[:, 1]).any():
+        raise ValueError("The patch region must be contained in the original domain.")
+    return data, axes, window
+
+
+def _boundary_coordinates(boundary, nodes, names):
+    records = list(boundary["points"]) + [
+        nodes[n] for n in (boundary["start_node"], boundary["end_node"]) if n in nodes
+    ]
+    return [[r[name] for name in names] for r in records]
+
+
+def _padded_section_region(data, points, padding, display):
+    import numpy as np
+
+    _, axes = _section_axes(data)
+    domain = np.asarray([data[a + "_range"] for a in axes], dtype=float)
+    points = np.clip(np.asarray(points), domain[:, 0], domain[:, 1])
+    low, high = points.min(axis=0), points.max(axis=0)
+    width = high - low
+    minimum = (domain[:, 1] - domain[:, 0]) * data.get("settings", {}).get(
+        "step", 0.025
+    )
+    pad = np.where(width > 0, width * padding, minimum / 2)
+    low, high = np.maximum(domain[:, 0], low - pad), np.minimum(
+        domain[:, 1], high + pad
+    )
+    *_, coordinates, _ = _coordinate_transforms(data, **display)
+    shown = np.sort(coordinates(np.array([low, high])), axis=0).T
+    return tuple(tuple(v) for v in shown)
+
+
+def pseudosection_field_regions(result, field_numbers=None, *, padding=0.05, **display):
+    """Return ``{Field number: ((xmin, xmax), (ymin, ymax))}`` for local patches.
+
+    Select provisional, unlabelled and open fields by default, or supply the
+    one-based Field numbers used in plots. Include their complete boundaries
+    and endpoint nodes. Pad each side by ``padding`` times that axis span and
+    clip to the original domain. A zero-width field uses the tracing step as
+    its minimum window width. Regions use the plot units and axis order;
+    ``**display`` accepts the same unit options as ``plot_pseudosection``.
+    No equilibrium solves are performed.
+    """
+    import numpy as np
+
+    if not np.isfinite(padding) or padding < 0:
+        raise ValueError("padding must be finite and nonnegative.")
+    data = _pseudosection_data(result)
+    _, axes = _section_axes(data)
+    names = ["composition_coordinate" if a == "composition" else a for a in axes]
+    polygons = _core.pseudosection_field_polygons(data).polygons
+    selected = None if field_numbers is None else set(field_numbers)
+    boundaries = {b["id"]: b for b in data["boundaries"]}
+    nodes = {n["id"]: n for n in data["nodes"]}
+    regions = {}
+    for p in polygons:
+        if (
+            p.field_number not in selected
+            if selected is not None
+            else not (
+                p.is_provisional
+                or p.has_open_boundary
+                or (not p.phases and not p.outside_model_domain)
+            )
+        ):
+            continue
+        points = [list(v) for v in p.vertices]
+        for bid in p.boundary_ids:
+            points.extend(_boundary_coordinates(boundaries[bid], nodes, names))
+        regions[p.field_number] = _padded_section_region(data, points, padding, display)
+    if selected is not None and selected - regions.keys():
+        raise ValueError(f"Unknown Field numbers: {sorted(selected - regions.keys())}.")
+    return regions
+
+
+def pseudosection_problem_regions(result, *, padding=0.05, **display):
+    """Return patch windows labelled ``'Field N'`` or ``'Boundary N'``.
+
+    Include provisional, unlabelled and open fields, plus boundaries named in
+    saved ``Boundary N`` diagnostics. Each boundary is included once, using
+    its native ID without adding one. Field numbers remain one-based.
+    Windows include all saved boundary points and endpoint nodes, with the
+    same padding, domain clipping, units and zero-width handling as
+    ``pseudosection_field_regions``. No equilibrium solves are performed.
+    """
+    import re
+
+    data = _pseudosection_data(result)
+    regions = {
+        f"Field {n}": region
+        for n, region in pseudosection_field_regions(
+            data, padding=padding, **display
+        ).items()
+    }
+    flagged = {
+        int(match[1])
+        for message in data.get("diagnostics", [])
+        if (match := re.match(r"Boundary\s+(\d+)\b", message))
+    }
+    _, axes = _section_axes(data)
+    names = ["composition_coordinate" if a == "composition" else a for a in axes]
+    nodes = {n["id"]: n for n in data["nodes"]}
+    for boundary in data["boundaries"]:
+        if boundary["id"] in flagged:
+            points = _boundary_coordinates(boundary, nodes, names)
+            if points:
+                regions[f"Boundary {boundary['id']}"] = _padded_section_region(
+                    data, points, padding, display
+                )
+    return regions
+
+
+def calculate_pseudosection_patch(
+    previous, phases, region, settings=None, *, resolution=None, **display
+):
+    """Calculate an independent, locally detailed diagram inside ``previous``.
+
+    ``previous`` is a native result, dictionary or JSON path; its bulk, diagram
+    axes, composition endpoints and fixed coordinate are reused. ``region``
+    is ``((xmin, xmax), (ymin, ymax))`` in plot units, as in regional refinement.
+    Supply the original candidate models and settings with increased axis seed
+    counts and/or smaller tracing steps. Defaults reuse the saved settings.
+    Optional ``resolution=(nx, ny)`` also refines the new patch's line spacing.
+    This calculation starts afresh in the small window. It does not change the
+    original graph; use ``merge_pseudosections`` to insert the returned result.
+    """
+    data, axes, window = _section_window(previous, region, display)
+    options = {
+        a + "_range": data[a + "_range"]
+        for a in ("pressure", "temperature", "entropy", "volume", "composition")
+        if a + "_range" in data
+    }
+    options.update({a + "_range": tuple(bounds) for a, bounds in zip(axes, window)})
+    fixed = data.get("fixed_coordinate")
+    if fixed:
+        name = dict(P="pressure", T="temperature", S="entropy", V="volume")[fixed]
+        options.pop(name + "_range", None)
+        options[name] = data["fixed_value"]
+    if settings is None:
+        settings = _core.PseudosectionSettings.from_dict(data.get("settings", {}))
+    result = _core.pseudosection(
+        data["composition_start"],
+        phases,
+        settings=settings,
+        diagram=data.get("diagram_type", "PT"),
+        composition_end=data.get("composition_end", {}),
+        **options,
+    )
+    if resolution is not None:
+        result = refine_pseudosection(
+            data["composition_start"],
+            phases,
+            result,
+            settings,
+            resolution=resolution,
+            **display,
+        )
+    return result
+
+
+def _box_intersection(a, b, box):
+    """Parameter interval of a segment inside an axis-aligned rectangle."""
+    lo, hi = 0.0, 1.0
+    for x, y, (low, high) in zip(a, b, box):
+        if x == y:
+            if not low <= x <= high:
+                return None
+        else:
+            enter, leave = sorted(((low - x) / (y - x), (high - x) / (y - x)))
+            lo, hi = max(lo, enter), min(hi, leave)
+    return (lo, hi) if lo < hi else None
+
+
+class _PatchSegment:
+    def __init__(self, line, points, start, end, statuses, *, base):
+        self.line, self.points = deepcopy(line), list(points)
+        self.nodes, self.tokens, self.statuses = (
+            [start, end],
+            [None, None],
+            list(statuses),
+        )
+        self.base = base
+        self.origins = {(0 if base else 1, line["id"])}
+
+    def reverse(self):
+        self.points.reverse()
+        self.nodes.reverse()
+        self.tokens.reverse()
+        self.statuses.reverse()
+        self.line["side_a"], self.line["side_b"] = self.line.get(
+            "side_b", []
+        ), self.line.get("side_a", [])
+
+
+def merge_pseudosections(base, patch, *, join_tolerance=None, phases=None):
+    """Replace the part of ``base`` inside ``patch``; return ``(dict, report)``.
+
+    Inputs accept native results, dictionaries or JSON paths and are not
+    modified. They must use the same bulk, candidate ordering, phase-instance
+    policy, diagram axes and fixed coordinate. Repeated calls support multiple
+    and overlapping rectangles: the last patch wins. Original samples inside
+    the rectangle are replaced, and graph/sample indices are rebuilt.
+
+    Match cut ends to patch-frame ports with the same reaction (zero phase,
+    assemblage and replacement flag), nearest first, one-to-one. Distances
+    are measured to the cut chord in units of the patch's axis spans. Optional
+    ``join_tolerance`` limits this distance. Unmatched internal ends stay open
+    and diagnostic. Points retain their solved thermodynamic states; seam
+    joins add chords, not interpolated equilibrium states. Thus a geometric
+    merge does not itself certify the thermodynamics of the seam.
+
+    Rebuild polygon diagnostics and retain unrelated source warnings. Supplying
+    the original ``phases`` additionally runs the native endpoint and sampled
+    assemblage checks, without resuming tracing. The returned report describes
+    joins; outstanding problems are in ``dict['diagnostics']``.
+    """
+    import math
+    import re
+    import numpy as np
+
+    base, patch = _pseudosection_data(base), _pseudosection_data(patch)
+    if join_tolerance is not None and (
+        not math.isfinite(join_tolerance) or join_tolerance < 0
+    ):
+        raise ValueError("join_tolerance must be finite and nonnegative.")
+    for key in (
+        "diagram_type",
+        "composition_start",
+        "composition_end",
+        "phase_names",
+        "fixed_coordinate",
+        "fixed_value",
+    ):
+        if base.get(key) != patch.get(key):
+            raise ValueError(f"Incompatible pseudosections: {key} differs.")
+    if (
+        "model_set" in base
+        and "model_set" in patch
+        and base["model_set"] != patch["model_set"]
+    ):
+        raise ValueError("Incompatible pseudosections: model_set differs.")
+    defaults = _core.PseudosectionSettings().to_dict()
+    for key in (
+        "max_phase_instances",
+        "exclude_invalid_eos",
+        "active_solution_faces",
+        "required_eos_phases",
+    ):
+        if base.get("settings", {}).get(key, defaults[key]) != patch.get(
+            "settings", {}
+        ).get(key, defaults[key]):
+            raise ValueError(f"Incompatible pseudosections: setting {key} differs.")
+    _, axes = _section_axes(base)
+    names = ["composition_coordinate" if a == "composition" else a for a in axes]
+    box = np.asarray([patch[a + "_range"] for a in axes], dtype=float)
+    domain = np.asarray([base[a + "_range"] for a in axes], dtype=float)
+    if (
+        not np.isfinite(box).all()
+        or (box[:, 0] >= box[:, 1]).any()
+        or (box[:, 0] < domain[:, 0]).any()
+        or (box[:, 1] > domain[:, 1]).any()
+    ):
+        raise ValueError(
+            "The patch must have increasing ranges contained in the base domain."
+        )
+    scale = box[:, 1] - box[:, 0]
+
+    def point(record):
+        return np.array([record[name] for name in names])
+
+    def inside(record):
+        q = point(record)
+        return bool(((q >= box[:, 0]) & (q <= box[:, 1])).all())
+
+    def frame(q, bounds):
+        return bool((np.abs((q[:, None] - bounds) / scale[:, None]) <= 1.0e-8).any())
+
+    def signature(line):
+        return (
+            line["zero_phase"],
+            tuple(sorted(line["assemblage"])),
+            line.get("is_solution_replacement", False),
+        )
+
+    def statuses(line):
+        values = line.get(
+            "termination", "unresolved endpoint; unresolved endpoint"
+        ).split(";")
+        return [s.strip() for s in values] if len(values) == 2 else values * 2
+
+    nodes = {
+        (source, n["id"]): deepcopy(n)
+        for source, data in enumerate((base, patch))
+        for n in data["nodes"]
+    }
+    segments, cuts, ports = [], {}, {}
+
+    def cut(segment, end, a, b):
+        token = len(cuts)
+        segment.tokens[end] = ("cut", token)
+        segment.nodes[end] = None
+        segment.statuses[end] = "unresolved patch seam"
+        cuts[segment.tokens[end]] = (point(a), point(b), signature(segment.line))
+
+    for line in base["boundaries"]:
+        pts = line["points"]
+        if not pts:
+            continue
+        ends = [(0, line.get(key, -1)) for key in ("start_node", "end_node")]
+        current = (
+            None
+            if inside(pts[0])
+            else _PatchSegment(line, [pts[0]], *ends, statuses(line), base=True)
+        )
+        for a, b in zip(pts, pts[1:]):
+            interval = _box_intersection(point(a), point(b), box)
+            if interval is None:
+                if inside(b):
+                    if current is not None:
+                        cut(current, 1, a, b)
+                        segments.append(current)
+                        current = None
+                elif current is not None:
+                    current.points.append(b)
+                else:
+                    current = _PatchSegment(line, [b], *ends, statuses(line), base=True)
+                    cut(current, 0, a, b)
+                continue
+            _, leave = interval
+            if current is not None:
+                cut(current, 1, a, b)
+                segments.append(current)
+                current = None
+            if leave < 1:
+                current = _PatchSegment(line, [b], *ends, statuses(line), base=True)
+                cut(current, 0, a, b)
+        if current is not None:
+            segments.append(current)
+
+    for line in patch["boundaries"]:
+        if not line["points"]:
+            continue
+        segment = _PatchSegment(
+            line,
+            line["points"],
+            (1, line.get("start_node", -1)),
+            (1, line.get("end_node", -1)),
+            statuses(line),
+            base=False,
+        )
+        for end in (0, 1):
+            node = nodes.get(segment.nodes[end])
+            if node and node["kind"] == "domain_edge":
+                token = ("port", len(ports))
+                segment.tokens[end] = token
+                ports[token] = (point(node), signature(line), segment.nodes[end])
+        segments.append(segment)
+
+    def distance(q, a, b):
+        delta, offset = (b - a) / scale, (q - a) / scale
+        u = np.clip(offset @ delta / (delta @ delta), 0, 1) if delta @ delta else 0
+        return float(np.linalg.norm(offset - u * delta))
+
+    pairs = sorted(
+        (distance(q, a, b), ct, pt)
+        for ct, (a, b, reaction) in cuts.items()
+        for pt, (q, other, _) in ports.items()
+        if reaction == other
+    )
+    owners = {token: s for s in segments for token in s.tokens if token is not None}
+    used, gaps = set(), []
+    for gap, ct, pt in pairs:
+        if (
+            ct in used
+            or pt in used
+            or (join_tolerance is not None and gap > join_tolerance)
+        ):
+            continue
+        x, y = owners[ct], owners[pt]
+        used.update((ct, pt))
+        gaps.append(gap)
+        if x is y:
+            x.points.append(x.points[0])
+            x.nodes, x.tokens, x.statuses = (
+                [None, None],
+                [None, None],
+                ["closed loop"] * 2,
+            )
+            continue
+        if x.tokens[1] != ct:
+            x.reverse()
+        if y.tokens[0] != pt:
+            y.reverse()
+        # Patch side labels take precedence, in the joined direction.
+        joined = _PatchSegment(
+            x.line if not x.base else y.line,
+            x.points + y.points,
+            x.nodes[0],
+            y.nodes[1],
+            [x.statuses[0], y.statuses[1]],
+            base=x.base and y.base,
+        )
+        joined.tokens = [x.tokens[0], y.tokens[1]]
+        joined.origins = x.origins | y.origins
+        slot = min(segments.index(x), segments.index(y))
+        segments.remove(x)
+        segments.remove(y)
+        segments.insert(slot, joined)
+        for token in joined.tokens:
+            if token is not None:
+                owners[token] = joined
+
+    messages = []
+    for s in segments:
+        for end, token in enumerate(s.tokens):
+            if token in ports and token not in used:
+                key = ports[token][2]
+                if not frame(point(nodes[key]), domain):
+                    nodes[key]["kind"] = "patch_seam"
+                    s.statuses[end] = "unresolved patch seam"
+            if s.nodes[end] not in nodes:
+                s.nodes[end] = None
+    active = {n for s in segments for n in s.nodes if n is not None}
+    node_map = {key: i for i, key in enumerate(sorted(active))}
+    new_nodes = [
+        dict(nodes[key], id=i, incident_lines=[]) for key, i in node_map.items()
+    ]
+    lines = []
+    for i, s in enumerate(segments):
+        line = dict(
+            s.line,
+            id=i,
+            points=deepcopy(s.points),
+            start_node=node_map.get(s.nodes[0], -1),
+            end_node=node_map.get(s.nodes[1], -1),
+            termination="; ".join(s.statuses),
+        )
+        lines.append(line)
+        for key in set(s.nodes) - {None}:
+            new_nodes[node_map[key]]["incident_lines"].append(i)
+        if any(
+            "unresolved" in status or "failed" in status or status == "trace step limit"
+            for status in s.statuses
+        ):
+            messages.append(f"Boundary {i}: {line['termination']}")
+        if not line.get("side_a") or not line.get("side_b"):
+            messages.append(
+                f"Boundary {i}: neighbouring fields could not be distinguished within tolerances."
+            )
+
+    samples, fields, by_phases = [], [], {}
+    for source, data in enumerate((base, patch)):
+        index_map = {}
+        for i, sample in enumerate(data["samples"]):
+            if source == 0 and inside(sample):
+                continue
+            index_map[i] = len(samples)
+            samples.append(deepcopy(sample))
+        for field in data["fields"]:
+            indices = [index_map[i] for i in field["sample_indices"] if i in index_map]
+            if not indices:
+                continue
+            key = tuple(sorted(field["phases"]))
+            if key not in by_phases:
+                by_phases[key] = dict(
+                    id=len(fields), phases=list(key), sample_indices=[]
+                )
+                fields.append(by_phases[key])
+            by_phases[key]["sample_indices"].extend(indices)
+
+    merged = deepcopy(base)
+    merged.update(nodes=new_nodes, boundaries=lines, samples=samples, fields=fields)
+
+    # Partition each old excluded ring into the four strips outside the patch.
+    # Only coordinates are clipped here; accepted equilibrium states above
+    # are deliberately never interpolated.
+    def clip_ring(ring, axis, bound, less):
+        out = []
+        for a, b in zip(ring, ring[1:] + ring[:1]):
+            a, b = np.asarray(a), np.asarray(b)
+            a_in, b_in = (
+                (a[axis] <= bound, b[axis] <= bound)
+                if less
+                else (a[axis] >= bound, b[axis] >= bound)
+            )
+            if a_in:
+                out.append(a.tolist())
+            if a_in != b_in:
+                out.append(
+                    (a + (b - a) * ((bound - a[axis]) / (b[axis] - a[axis]))).tolist()
+                )
+        return out
+
+    excluded = []
+    for ring in base.get("excluded_regions", []):
+        rest = deepcopy(ring)
+        for axis, edge, less in (
+            (0, 0, True),
+            (0, 1, False),
+            (1, 0, True),
+            (1, 1, False),
+        ):
+            outside = clip_ring(rest, axis, box[axis, edge], less)
+            if len(outside) >= 3:
+                excluded.append(outside)
+            rest = clip_ring(rest, axis, box[axis, edge], not less)
+    merged["excluded_regions"] = excluded + deepcopy(patch.get("excluded_regions", []))
+    for key in ("equilibrium_solves", "minimization_calls"):
+        merged[key] = base.get(key, 0) + patch.get(key, 0)
+    # These messages refer to the old graph. Regenerate them below rather than
+    # retaining obsolete Field/Boundary/Node numbers after clipping.
+    graph_message = re.compile(r"^(Field |Region |Unpaired |No closed region )")
+    for source, data in enumerate((base, patch)):
+        if source == 0 and np.array_equal(box, domain):
+            continue
+        for d in data.get("diagnostics", []):
+            boundary = re.match(r"Boundary (\d+): (.*)", d)
+            if boundary:
+                old_line = next(
+                    (b for b in data["boundaries"] if b["id"] == int(boundary[1])), None
+                )
+                if old_line and boundary[2] not in (
+                    old_line.get("termination"),
+                    "neighbouring fields could not be distinguished within tolerances.",
+                ):
+                    messages.extend(
+                        f"Boundary {i}: {boundary[2]}"
+                        for i, s in enumerate(segments)
+                        if (source, int(boundary[1])) in s.origins
+                    )
+            elif not graph_message.match(d):
+                messages.append(d)
+    geometry = _core.pseudosection_field_polygons(merged)
+    messages.extend(geometry.diagnostics)
+    merged["diagnostics"] = list(dict.fromkeys(messages))
+    merged["resolved"] = not merged["diagnostics"]
+    if phases is not None:
+        checked = _core.verify_pseudosection_critical_endpoints(merged, phases)
+        merged.update(checked.to_dict())
+    else:
+        # Preserve unmatched-sample warnings unless their assemblage was
+        # removed by clipping or now has a resolved perimeter.
+        bordered = {
+            tuple(p.phases) for p in geometry.polygons if not p.has_open_boundary
+        }
+        for data in (base, patch):
+            old_fields = {f["id"]: f for f in data["fields"]}
+            for d in data.get("diagnostics", []):
+                match = re.match(
+                    r"No closed region resolved for sampled (?:field|assemblage) (\d+)",
+                    d,
+                )
+                if match and int(match[1]) in old_fields:
+                    key = tuple(sorted(old_fields[int(match[1])]["phases"]))
+                    if key in by_phases and key not in bordered:
+                        merged["diagnostics"].append(
+                            "No closed region resolved for sampled assemblage "
+                            f"{by_phases[key]['id']}; increase seed density or inspect failed solves."
+                        )
+        for node in new_nodes:
+            if node["kind"] == "junction" and len(node["incident_lines"]) == 1:
+                merged["diagnostics"].append(
+                    f"Unpaired internal junction at node {node['id']}."
+                )
+            if (
+                node["kind"] == "critical_point"
+                and len(node["incident_lines"]) == 1
+                and not node.get("is_verified_critical_endpoint", False)
+            ):
+                merged["diagnostics"].append(
+                    f"Unpaired solution critical endpoint at node {node['id']}; "
+                    "its adjoining field remains unresolved."
+                )
+        merged["diagnostics"] = list(dict.fromkeys(merged["diagnostics"]))
+        merged["resolved"] = not merged["diagnostics"]
+    report = [
+        f"Joined {len(gaps)} line ends; largest join gap {max(gaps, default=0):.3g} patch widths; "
+        f"{len(cuts.keys() - used)} base line ends left open."
+    ]
+    return merged, report
 
 
 def _coordinate_units(result, quantities, options):
@@ -518,6 +1130,7 @@ def plot_pseudosection(
             if (
                 _value(node, "kind") == "critical_point"
                 and len(_value(node, "incident_lines", [])) == 1
+                and not _value(node, "is_verified_critical_endpoint", False)
             ):
                 incomplete.append(node)
         if incomplete:

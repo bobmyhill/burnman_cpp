@@ -23,6 +23,7 @@
 #include <queue>
 #include <set>
 #include <stdexcept>
+#include <tuple>
 #include <utility>
 
 namespace burnman::pseudosections {
@@ -115,7 +116,9 @@ struct Edge {
   bool phase_boundary = false;
   bool latent_invariant = false;
   bool frame_boundary = false;
+  // One retained polyline, with all reaction records merged into it.
   const Boundary *source = nullptr;
+  std::map<const Boundary *, bool> observations{}; // follows record direction
 };
 
 // Infer one cyclic fan from stable side assemblages. Coarse endpoint chords
@@ -157,9 +160,18 @@ void link_junction(const std::vector<Index> &list, std::vector<Edge> &edges,
     return true;
   });
   // Parallel arcs can bound distinct thin fields. Their side assemblages,
-  // rather than coarse endpoint chords, constrain the same cyclic fan.
-  if (!frame && reliable && order.size() <= 8)
-    while (std::next_permutation(order.begin() + 1, order.end())) {
+  // rather than coarse endpoint chords, constrain the same cyclic fan. Pin
+  // frame arcs so the exterior stays connected; elsewhere pin one arc to
+  // avoid checking cyclic rotations of the same ordering.
+  std::vector<Index> slots;
+  for (Index i = 0; i < order.size(); ++i)
+    if (frame ? !edges[list[i]].frame_boundary : i != 0)
+      slots.push_back(i);
+  auto choices = slots;
+  if (reliable && order.size() <= 8)
+    while (std::next_permutation(choices.begin(), choices.end())) {
+      for (Index i = 0; i < slots.size(); ++i)
+        order[slots[i]] = choices[i];
       auto candidate = score(order);
       if (candidate < best_score) {
         best = order;
@@ -480,6 +492,11 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
       Index candidate =
           edges[i].from == path.front() && edges[i].to == path.back() ? i
                                                                       : i ^ 1;
+      if (path.front() == path.back() &&
+          area(path, vertices.points) *
+                  area(edges[candidate].path, vertices.points) <
+              0.)
+        candidate ^= 1;
       auto &old = edges[candidate];
       if (old.from != path.front() || old.to != path.back() ||
           old.solution_replacement != replacement)
@@ -526,6 +543,10 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
             old.phase_boundary || phase_boundary;
         old.frame_boundary = edges[candidate ^ 1].frame_boundary =
             old.frame_boundary || frame;
+        if (source) {
+          old.observations[source] = true;
+          edges[candidate ^ 1].observations[source] = false;
+        }
         return;
       }
     }
@@ -541,6 +562,10 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     forward.solution_replacement = backward.solution_replacement = replacement;
     forward.latent_invariant = backward.latent_invariant = latent_invariant;
     forward.source = backward.source = source;
+    if (source) {
+      forward.observations[source] = true;
+      backward.observations[source] = false;
+    }
     forward.frame_boundary = backward.frame_boundary = frame;
     endpoints.insert(forward.from);
     endpoints.insert(forward.to);
@@ -552,7 +577,49 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
       edge_index.emplace(std::make_pair(b, a), index ^ 1);
     }
   };
-  for (const auto &line : result.boundaries) {
+  // Sampling detail chooses duplicate geometry only; every record still
+  // contributes perimeter evidence. Canonical geometry/reaction order also
+  // fixes endpoint snapping, tied fans and face numbering without using IDs.
+  auto line_key = [&](const Boundary *line) {
+    std::vector<std::array<double, 2>> path;
+    for (const auto &point : line->points) {
+      const auto p = coordinate(point);
+      path.push_back({p.x(), p.y()});
+    }
+    for (int end : {0, 1}) {
+      const auto it = nodes.find(end ? line->end_node : line->start_node);
+      if (it != nodes.end() && !path.empty()) {
+        const auto &p = vertices.points[it->second];
+        path[end ? path.size() - 1 : 0] = {p.x(), p.y()};
+      }
+    }
+    auto reverse = path;
+    std::reverse(reverse.begin(), reverse.end());
+    auto left = canonical(line->side_b), right = canonical(line->side_a);
+    const bool reversed = reverse < path;
+    if (reversed) {
+      path = std::move(reverse);
+      std::swap(left, right);
+    }
+    return std::tuple{std::move(path),
+                      canonical(line->assemblage),
+                      line->zero_phase,
+                      std::move(left),
+                      std::move(right),
+                      line->is_solution_replacement,
+                      detail::boundary_variance(*line, result),
+                      reversed};
+  };
+  std::vector<const Boundary *> lines;
+  for (const auto &line : result.boundaries)
+    lines.push_back(&line);
+  std::sort(lines.begin(), lines.end(), [&](auto a, auto b) {
+    return a->points.size() != b->points.size()
+               ? a->points.size() > b->points.size()
+               : line_key(a) < line_key(b);
+  });
+  for (const auto *record : lines) {
+    const auto &line = *record;
     if (line.points.size() < 2)
       continue;
     std::vector<Point> points;
@@ -906,7 +973,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     Assemblages exterior_labels, perimeter;
     std::array<Assemblages, 3> candidates;
     std::array<bool, 3> constrained{};
-    std::set<const Boundary *> sources;
+    std::set<const Boundary *> sources, observations;
     std::set<Index> perimeter_edges;
     auto collect = [&](Index edge, Index, Index) {
       perimeter_edges.insert(edge);
@@ -925,8 +992,12 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
                                         edges[edge].labels.empty());
         (void)from;
         (void)to;
-        if (edges[edge].source && sources.insert(edges[edge].source).second) {
-          const auto &source = *edges[edge].source;
+        if (edges[edge].source)
+          sources.insert(edges[edge].source);
+        for (const auto &[record, follows] : edges[edge].observations) {
+          if (!observations.insert(record).second)
+            continue;
+          const auto &source = *record;
           intersect_assemblages(candidates[0],
                                 boundary_assemblages(source, result),
                                 constrained[0]);
@@ -949,7 +1020,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     evidence(face.exterior, true);
     for (const auto &hole : face.holes)
       evidence(hole, false);
-    for (const auto *source : sources)
+    for (const auto *source : observations)
       if (source->id >= 0)
         polygon.boundary_ids.push_back(source->id);
     std::sort(polygon.boundary_ids.begin(), polygon.boundary_ids.end());
@@ -1098,6 +1169,33 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
           coordinates({path[j - 1], path[j]}, vertices.points, origin, scale));
     ++degree[edges[i].from];
     ++degree[edges[i].to];
+  }
+  // Reuse graph adjacency rather than probing across an entire thin field.
+  // Every arc of a record must have the same trusted neighbour on each side.
+  std::map<int, std::array<Assemblages, 2>> adjacent;
+  std::set<int> incomplete;
+  for (Index i = 0; i < edges.size(); ++i)
+    for (const auto &[record, follows] : edges[i].observations) {
+      const Index face = edge_faces[i];
+      if (removed[i] || face == no_index || face_phases[face].empty())
+        incomplete.insert(record->id);
+      else
+        adjacent[record->id][follows ? 1 : 0].insert(face_phases[face]);
+    }
+  for (const auto &line : result.boundaries) {
+    const auto it = adjacent.find(line.id);
+    if (line.id < 0 || line.is_solution_replacement ||
+        incomplete.count(line.id) || it == adjacent.end() ||
+        it->second[0].size() != 1 || it->second[1].size() != 1)
+      continue;
+    const auto right = canonical_phase_ids(*it->second[0].begin(),
+                                           result.settings.max_phase_instances),
+               left = canonical_phase_ids(*it->second[1].begin(),
+                                          result.settings.max_phase_instances);
+    const auto choices = boundary_assemblages(line, result);
+    if (right != left && choices.count(right) && choices.count(left))
+      output.boundary_sides.emplace(line.id,
+                                    std::array<Phases, 2>{right, left});
   }
   std::vector<bool> endpoint(vertices.points.size(), false);
   for (Index vertex : stable_endpoints)

@@ -553,6 +553,8 @@ bool trim_boundary_endpoints(Boundary &line, Engine &engine,
 bool same_boundary_curve(Engine &engine, const Result &result,
                          const Boundary &first, const Boundary &second,
                          bool partial, bool require_equilibrium) {
+  if (first.points.size() < 2 || second.points.size() < 2)
+    return false;
   const auto ranges = result.coordinate_ranges();
   const Eigen::Vector2d origin(ranges[0][0], ranges[1][0]),
       range(ranges[0][1] - origin[0], ranges[1][1] - origin[1]);
@@ -575,6 +577,31 @@ bool same_boundary_curve(Engine &engine, const Result &result,
   const bool univariant = result.section.type == DiagramType::PT &&
                           boundary_variance(first, result) == 1 &&
                           boundary_variance(second, result) == 1;
+  if (partial && (first.start_node < 0 || first.end_node < 0)) {
+    if (!near(first, second))
+      return false;
+    // A corrector can extend the same reaction beyond a completed record.
+    // That does not prove the accepted tail is covered by the saved curve.
+    for (bool start : {true, false}) {
+      if ((start ? first.start_node : first.end_node) >= 0)
+        continue;
+      const auto p = q(start ? first.points.front() : first.points.back());
+      bool covered = false;
+      for (std::size_t k = 1; k < second.points.size(); ++k) {
+        const auto a = q(second.points[k - 1]), b = q(second.points[k]);
+        const Eigen::Vector2d delta = b - a;
+        if (delta.squaredNorm() == 0.)
+          continue;
+        const double along = (p - a).dot(delta) / delta.squaredNorm();
+        const double roundoff = 64. * std::numeric_limits<double>::epsilon();
+        covered = covered || (along >= -roundoff && along <= 1. + roundoff &&
+                              segment_distance(p, a, b) <=
+                                  engine.settings.node_tolerance * 2.);
+      }
+      if (!covered)
+        return false;
+    }
+  }
   if (!univariant && !partial && !require_equilibrium && near(first, second) &&
       near(second, first))
     return true;
@@ -605,7 +632,8 @@ bool same_boundary_curve(Engine &engine, const Result &result,
       }
     int checked = 0;
     const auto &samples = inserted.empty() ? one.points : inserted;
-    for (std::size_t i = 1; i + 1 < samples.size(); ++i) {
+    for (std::size_t i = partial ? 0 : 1;
+         i < samples.size() - (partial ? 0 : 1); ++i) {
       const auto &target = samples[i];
       if (solution_separation(target.phases) < .002 || two.points.empty())
         continue;
@@ -617,9 +645,11 @@ bool same_boundary_curve(Engine &engine, const Result &result,
                            });
       if ((q(*closest) - q(target)).norm() > reach)
         return false;
-      Eigen::Vector2d tangent = q(samples[i + 1]) - q(samples[i - 1]);
+      Eigen::Vector2d tangent =
+          q(samples[std::min(i + 1, samples.size() - 1)]) -
+          q(samples[i ? i - 1 : 0]);
       if (tangent.norm() < 1.e-12 && partial)
-        tangent = q(target) - q(samples[i - 1]);
+        tangent = q(target) - q(samples[i ? i - 1 : 0]);
       if (tangent.norm() < 1.e-12)
         continue;
       try {
@@ -632,35 +662,44 @@ bool same_boundary_curve(Engine &engine, const Result &result,
           if (!left)
             return false;
           auto warm = closest->phases;
-          warm.erase(std::remove_if(warm.begin(), warm.end(), [&](const auto &p) {
-                       return std::find(two.assemblage.begin(), two.assemblage.end(),
-                                        p.id) == two.assemblage.end();
-                     }), warm.end());
+          warm.erase(std::remove_if(warm.begin(), warm.end(),
+                                    [&](const auto &p) {
+                                      return std::find(two.assemblage.begin(),
+                                                       two.assemblage.end(),
+                                                       p.id) ==
+                                             two.assemblage.end();
+                                    }),
+                     warm.end());
           auto right = boundary_point_at(
-              engine, two, warm, diagram_coordinates(*left, result.section.type),
-              weights, range * engine.settings.node_tolerance);
+              engine, two, warm,
+              diagram_coordinates(*left, result.section.type), weights,
+              range * engine.settings.node_tolerance);
           // Match the independently corrected compositions before sharing a
           // seed. Otherwise a different intensive branch could be forced to
           // the reference root merely by copying its starting compositions.
           const bool same = right && same_phase_compositions(
-              left->phases, right->phases, engine.settings.composition_tolerance,
-              engine.settings.amount_tolerance);
+                                         left->phases, right->phases,
+                                         engine.settings.composition_tolerance,
+                                         engine.settings.amount_tolerance);
           if (!same || ((diagram_coordinates(*right, result.section.type) -
-                diagram_coordinates(*left, result.section.type))
-                   .cwiseAbs().array() > equilibrium_pt_tolerance().array()).any()) {
+                         diagram_coordinates(*left, result.section.type))
+                            .cwiseAbs()
+                            .array() > equilibrium_pt_tolerance().array())
+                           .any()) {
             if (same)
               warm = right->phases;
-            if (!seed_phase_compositions(
-                    warm, left->phases, engine.settings.composition_tolerance,
-                    engine.settings.amount_tolerance))
+            if (!seed_phase_compositions(warm, left->phases,
+                                         engine.settings.composition_tolerance,
+                                         engine.settings.amount_tolerance))
               return false;
             right = boundary_point_at(
-                engine, two, warm, diagram_coordinates(*left, result.section.type),
-                weights, equilibrium_pt_tolerance());
-            if (!right || !same_phase_compositions(
-                              left->phases, right->phases,
-                              engine.settings.composition_tolerance,
-                              engine.settings.amount_tolerance))
+                engine, two, warm,
+                diagram_coordinates(*left, result.section.type), weights,
+                equilibrium_pt_tolerance());
+            if (!right ||
+                !same_phase_compositions(left->phases, right->phases,
+                                         engine.settings.composition_tolerance,
+                                         engine.settings.amount_tolerance))
               return false;
           }
           ++checked;
@@ -674,10 +713,16 @@ bool same_boundary_curve(Engine &engine, const Result &result,
         if (!point ||
             (q(*point) - q(target)).norm() > engine.settings.node_tolerance)
           return false;
-        if (!same_phase_compositions(point->phases, target.phases,
-                                     engine.settings.composition_tolerance *
-                                         100.,
-                                     engine.settings.amount_tolerance))
+        const bool same =
+            partial ? same_boundary_compositions(
+                          point->phases, two.zero_phase, target.phases,
+                          one.zero_phase, engine.settings.composition_tolerance,
+                          engine.settings.amount_tolerance)
+                    : same_phase_compositions(
+                          point->phases, target.phases,
+                          engine.settings.composition_tolerance * 100.,
+                          engine.settings.amount_tolerance);
+        if (!same)
           return false;
         ++checked;
       } catch (const std::exception &) {
