@@ -1,0 +1,463 @@
+{
+  "pressure_range": [
+    0.0,
+    140000000000.0
+  ],
+  "temperature_range": [
+    0.0,
+    4000.0
+  ],
+  "diagram_type": "PT",
+  "boundaries": [
+    {
+      "id": 389,
+      "zero_phase": 33,
+      "assemblage": [
+        27,
+        30,
+        33,
+        39,
+        42,
+        45,
+        60,
+        78
+      ],
+      "side_a": [
+        27,
+        30,
+        33,
+        39,
+        42,
+        45,
+        60,
+        78
+      ],
+      "side_b": [
+        27,
+        30,
+        39,
+        42,
+        45,
+        60,
+        78
+      ],
+      "is_solution_replacement": false,
+      "start_node": 331,
+      "end_node": 329,
+      "termination": "junction; junction",
+      "points": [
+        {
+          "pressure": 35836003700.845215,
+          "temperature": 163.55881121261643
+        },
+        {
+          "pressure": 35827148881.04958,
+          "temperature": 167.0410442041913
+        },
+        {
+          "pressure": 35716112444.6113,
+          "temperature": 200.51215079934659
+        },
+        {
+          "pressure": 35473122266.896545,
+          "temperature": 248.0489305380016
+        },
+        {
+          "pressure": 35240488473.32276,
+          "temperature": 281.7056964003731
+        },
+        {
+          "pressure": 34829679127.669464,
+          "temperature": 329.2963113892057
+        },
+        {
+          "pressure": 34484560530.25995,
+          "temperature": 362.8840607060274
+        },
+        {
+          "pressure": 33923281519.37885,
+          "temperature": 410.2564102564102
+        },
+        {
+          "pressure": 33416405864.166405,
+          "temperature": 447.95098817625336
+        }
+      ]
+    },
+    {
+      "id": 390,
+      "zero_phase": 60,
+      "assemblage": [
+        27,
+        30,
+        33,
+        39,
+        42,
+        45,
+        60,
+        78
+      ],
+      "side_a": [
+        27,
+        30,
+        33,
+        39,
+        42,
+        45,
+        78
+      ],
+      "side_b": [
+        27,
+        30,
+        33,
+        39,
+        42,
+        45,
+        60,
+        78
+      ],
+      "is_solution_replacement": false,
+      "start_node": 336,
+      "end_node": 332,
+      "termination": "junction; junction",
+      "points": [
+        {
+          "pressure": 35836002185.58862,
+          "temperature": 163.55942379152867
+        },
+        {
+          "pressure": 35827154303.64412,
+          "temperature": 167.03896860164272
+        },
+        {
+          "pressure": 35716120810.53155,
+          "temperature": 200.5100831077142
+        },
+        {
+          "pressure": 35473135028.619156,
+          "temperature": 248.04688103780992
+        },
+        {
+          "pressure": 35240505054.88465,
+          "temperature": 281.7036678087824
+        },
+        {
+          "pressure": 34829710826.60083,
+          "temperature": 329.2943778555938
+        },
+        {
+          "pressure": 34484630104.737236,
+          "temperature": 362.88243245342596
+        },
+        {
+          "pressure": 33923529057.714188,
+          "temperature": 410.2564102564102
+        },
+        {
+          "pressure": 33624955154.982677,
+          "temperature": 432.9424462371903
+        }
+      ]
+    },
+    {
+      "id": 394,
+      "zero_phase": 34,
+      "assemblage": [
+        27,
+        30,
+        33,
+        34,
+        39,
+        42,
+        45,
+        60,
+        78
+      ],
+      "side_a": [
+        27,
+        30,
+        33,
+        39,
+        42,
+        45,
+        60,
+        78
+      ],
+      "side_b": [
+        27,
+        30,
+        33,
+        34,
+        39,
+        42,
+        45,
+        78
+      ],
+      "is_solution_replacement": false,
+      "start_node": 331,
+      "end_node": 340,
+      "termination": "junction; domain edge",
+      "points": [
+        {
+          "pressure": 35836012031.076675,
+          "temperature": 163.55872822235486
+        },
+        {
+          "pressure": 35910021925.8426,
+          "temperature": 119.99838839726654
+        },
+        {
+          "pressure": 35939674264.65427,
+          "temperature": 50.0
+        },
+        {
+          "pressure": 35940584755.75532,
+          "temperature": 0.0
+        },
+        {
+          "pressure": 35940584755.754814,
+          "temperature": 0.0
+        }
+      ]
+    },
+    {
+      "id": 395,
+      "zero_phase": 60,
+      "assemblage": [
+        27,
+        30,
+        33,
+        34,
+        39,
+        42,
+        45,
+        60,
+        78
+      ],
+      "side_a": [
+        27,
+        30,
+        33,
+        34,
+        39,
+        42,
+        45,
+        78
+      ],
+      "side_b": [
+        27,
+        30,
+        33,
+        39,
+        42,
+        45,
+        60,
+        78
+      ],
+      "is_solution_replacement": false,
+      "start_node": 340,
+      "end_node": 336,
+      "termination": "domain edge; junction",
+      "points": [
+        {
+          "pressure": 35940584755.7556,
+          "temperature": 0.0
+        },
+        {
+          "pressure": 35940584755.75497,
+          "temperature": 0.0
+        },
+        {
+          "pressure": 35939674264.653305,
+          "temperature": 50.0
+        },
+        {
+          "pressure": 35910021925.8432,
+          "temperature": 119.99838839726662
+        },
+        {
+          "pressure": 35836012031.07589,
+          "temperature": 163.5587282223692
+        }
+      ]
+    },
+    {
+      "id": 712,
+      "zero_phase": 27,
+      "assemblage": [
+        27,
+        30,
+        33,
+        39,
+        42,
+        45,
+        60,
+        78
+      ],
+      "side_a": [
+        27,
+        30,
+        33,
+        39,
+        42,
+        45,
+        60,
+        78
+      ],
+      "side_b": [
+        30,
+        33,
+        39,
+        42,
+        45,
+        60,
+        78
+      ],
+      "is_solution_replacement": false,
+      "start_node": 329,
+      "end_node": 332,
+      "termination": "junction; junction",
+      "points": [
+        {
+          "pressure": 33416403281.619904,
+          "temperature": 447.9510813850023
+        },
+        {
+          "pressure": 33624965398.369587,
+          "temperature": 432.94163693474707
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "id": 329,
+      "pressure": 33416403281.61963,
+      "temperature": 447.9510813850137,
+      "kind": "junction",
+      "assemblage": [
+        27,
+        30,
+        33,
+        39,
+        42,
+        45,
+        60,
+        78
+      ],
+      "zero_phases": [
+        27,
+        33
+      ],
+      "gibbs_variance": 2,
+      "pt_nullity": 0
+    },
+    {
+      "id": 331,
+      "pressure": 35836003700.84669,
+      "temperature": 163.55881121259975,
+      "kind": "junction",
+      "assemblage": [
+        27,
+        30,
+        33,
+        34,
+        39,
+        42,
+        45,
+        60,
+        78
+      ],
+      "zero_phases": [
+        33,
+        34
+      ],
+      "gibbs_variance": 1,
+      "pt_nullity": 0
+    },
+    {
+      "id": 332,
+      "pressure": 33624965398.370552,
+      "temperature": 432.9416369346841,
+      "kind": "junction",
+      "assemblage": [
+        27,
+        30,
+        33,
+        39,
+        42,
+        45,
+        60,
+        78
+      ],
+      "zero_phases": [
+        60,
+        27
+      ],
+      "gibbs_variance": 2,
+      "pt_nullity": 0
+    },
+    {
+      "id": 336,
+      "pressure": 35836002185.58862,
+      "temperature": 163.55942379152867,
+      "kind": "junction",
+      "assemblage": [
+        27,
+        30,
+        33,
+        34,
+        39,
+        42,
+        45,
+        60,
+        78
+      ],
+      "zero_phases": [
+        60,
+        34
+      ],
+      "gibbs_variance": 1,
+      "pt_nullity": 0
+    },
+    {
+      "id": 340,
+      "pressure": 35940584755.754814,
+      "temperature": 0.0,
+      "kind": "domain_edge",
+      "assemblage": [
+        27,
+        30,
+        33,
+        34,
+        39,
+        42,
+        45,
+        60,
+        78
+      ],
+      "zero_phases": [
+        34
+      ],
+      "gibbs_variance": 1,
+      "pt_nullity": 0
+    }
+  ],
+  "fields": [],
+  "samples": [],
+  "fragment_label_positions": [
+    [
+      35717148877.73766,
+      200.19996832857217
+    ],
+    [
+      35478111366.00959,
+      247.0731193904231
+    ],
+    [
+      35251533493.91906,
+      280.1078677126635
+    ]
+  ],
+  "description": "Original Audit large-pyrolite traces bounding fields displayed as 296-298; incidental chord crossings must not subdivide their common stable-vertex loop."
+}

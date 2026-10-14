@@ -1,0 +1,2566 @@
+{
+  "diagram_type": "PT",
+  "pressure_range": [
+    0.0,
+    380630835.1210549
+  ],
+  "temperature_range": [
+    92.53225275184687,
+    363.1657299697988
+  ],
+  "phase_names": [
+    "ol",
+    "ol #2",
+    "ol #3",
+    "wa",
+    "wa #2",
+    "wa #3",
+    "ri",
+    "ri #2",
+    "ri #3",
+    "opx",
+    "opx #2",
+    "opx #3",
+    "cpx",
+    "cpx #2",
+    "cpx #3",
+    "hpcpx",
+    "hpcpx #2",
+    "hpcpx #3",
+    "gt",
+    "gt #2",
+    "gt #3",
+    "sp",
+    "sp #2",
+    "sp #3",
+    "pl",
+    "pl #2",
+    "pl #3",
+    "ak",
+    "ak #2",
+    "ak #3",
+    "fp",
+    "fp #2",
+    "fp #3",
+    "bg",
+    "bg #2",
+    "bg #3",
+    "ppv",
+    "ppv #2",
+    "ppv #3",
+    "cf",
+    "cf #2",
+    "cf #3",
+    "nal",
+    "nal #2",
+    "nal #3",
+    "capv",
+    "capv #2",
+    "capv #3",
+    "neph",
+    "neph #2",
+    "neph #3",
+    "ky",
+    "ky #2",
+    "ky #3",
+    "q",
+    "q #2",
+    "q #3",
+    "coe",
+    "coe #2",
+    "coe #3",
+    "st",
+    "st #2",
+    "st #3",
+    "seif",
+    "seif #2",
+    "seif #3",
+    "wo",
+    "wo #2",
+    "wo #3",
+    "pwo",
+    "pwo #2",
+    "pwo #3",
+    "Fe-bcc",
+    "Fe-bcc #2",
+    "Fe-bcc #3",
+    "Fe-fcc",
+    "Fe-fcc #2",
+    "Fe-fcc #3",
+    "Fe-hcp",
+    "Fe-hcp #2",
+    "Fe-hcp #3"
+  ],
+  "settings": {
+    "pressure_seeds": 9,
+    "temperature_seeds": 9,
+    "entropy_seeds": 7,
+    "volume_seeds": 7,
+    "composition_seeds": 7,
+    "max_refinement_iterations": 150,
+    "minimization_starts": 10,
+    "max_phase_instances": 3,
+    "max_trace_steps": 500,
+    "max_lines": 1000,
+    "max_recovery_passes": 2,
+    "step": 0.025,
+    "min_step": 1e-07,
+    "affinity_tolerance": 0.2,
+    "mass_balance_tolerance": 1e-08,
+    "amount_tolerance": 1e-07,
+    "composition_tolerance": 1e-05,
+    "node_tolerance": 0.0002,
+    "verbose": true,
+    "exclude_invalid_eos": true,
+    "active_solution_faces": true,
+    "required_eos_phases": [
+      "opx"
+    ]
+  },
+  "nodes": [
+    {
+      "id": 0,
+      "pressure": -2.912853734706052e-20,
+      "temperature": 95.99827474777375,
+      "entropy": 9.696554390696713,
+      "volume": 2.9911907963088285e-05,
+      "composition_coordinate": 0.0,
+      "kind": "domain_edge",
+      "zero_phases": [
+        18
+      ],
+      "assemblage": [
+        0,
+        12,
+        13,
+        18,
+        21,
+        22,
+        51,
+        54
+      ],
+      "gibbs_variance": 2,
+      "pt_nullity": 0,
+      "incident_lines": [
+        0
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    },
+    {
+      "id": 1,
+      "pressure": 380630835.1210549,
+      "temperature": 155.98155220743487,
+      "entropy": 22.739171151293018,
+      "volume": 2.982999554607882e-05,
+      "composition_coordinate": 0.0,
+      "kind": "domain_edge",
+      "zero_phases": [
+        18
+      ],
+      "assemblage": [
+        0,
+        12,
+        13,
+        18,
+        21,
+        22,
+        51,
+        54
+      ],
+      "gibbs_variance": 2,
+      "pt_nullity": 0,
+      "incident_lines": [
+        0
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    },
+    {
+      "id": 2,
+      "pressure": 7.555318763054627e-22,
+      "temperature": 104.83377444355789,
+      "entropy": 11.204659500257579,
+      "volume": 2.99859585156439e-05,
+      "composition_coordinate": 0.0,
+      "kind": "domain_edge",
+      "zero_phases": [
+        12
+      ],
+      "assemblage": [
+        0,
+        12,
+        13,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "gibbs_variance": 2,
+      "pt_nullity": 0,
+      "incident_lines": [
+        1,
+        2
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    },
+    {
+      "id": 3,
+      "pressure": 362501668.2390207,
+      "temperature": 350.8623624045136,
+      "entropy": 79.09001154102104,
+      "volume": 3.0005234417876354e-05,
+      "composition_coordinate": 0.0,
+      "kind": "junction",
+      "zero_phases": [
+        12,
+        9
+      ],
+      "assemblage": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "gibbs_variance": 1,
+      "pt_nullity": 0,
+      "incident_lines": [
+        1,
+        4,
+        10
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    },
+    {
+      "id": 4,
+      "pressure": 362505557.25819486,
+      "temperature": 350.86420827807314,
+      "entropy": 78.9811923858614,
+      "volume": 2.9951067356569688e-05,
+      "composition_coordinate": 0.0,
+      "kind": "junction",
+      "zero_phases": [
+        24,
+        9
+      ],
+      "assemblage": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "gibbs_variance": 1,
+      "pt_nullity": 0,
+      "incident_lines": [
+        2,
+        3,
+        9,
+        10
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    },
+    {
+      "id": 5,
+      "pressure": 380630835.1210549,
+      "temperature": 329.31307010175505,
+      "entropy": 73.13385178922577,
+      "volume": 2.99302643276912e-05,
+      "composition_coordinate": 0.0,
+      "kind": "domain_edge",
+      "zero_phases": [
+        9
+      ],
+      "assemblage": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        51,
+        54
+      ],
+      "gibbs_variance": 2,
+      "pt_nullity": 0,
+      "incident_lines": [
+        3
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    },
+    {
+      "id": 6,
+      "pressure": 352083061.6008885,
+      "temperature": 363.1657299697988,
+      "entropy": 82.33997657976246,
+      "volume": 3.001673886863674e-05,
+      "composition_coordinate": 0.0,
+      "kind": "domain_edge",
+      "zero_phases": [
+        9
+      ],
+      "assemblage": [
+        0,
+        9,
+        12,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "gibbs_variance": 2,
+      "pt_nullity": 0,
+      "incident_lines": [
+        4
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    },
+    {
+      "id": 7,
+      "pressure": 363195234.2983387,
+      "temperature": 351.19186750214345,
+      "entropy": 79.41291528873971,
+      "volume": 2.9726436200473778e-05,
+      "composition_coordinate": 0.0,
+      "kind": "junction",
+      "zero_phases": [
+        54,
+        13
+      ],
+      "assemblage": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "gibbs_variance": 1,
+      "pt_nullity": 0,
+      "incident_lines": [
+        5,
+        7,
+        9,
+        11
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    },
+    {
+      "id": 8,
+      "pressure": 353054411.21734786,
+      "temperature": 363.1657299697988,
+      "entropy": 82.57661277131278,
+      "volume": 2.9736658872109928e-05,
+      "composition_coordinate": 0.0,
+      "kind": "domain_edge",
+      "zero_phases": [
+        54
+      ],
+      "assemblage": [
+        0,
+        9,
+        12,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "gibbs_variance": 2,
+      "pt_nullity": 0,
+      "incident_lines": [
+        5
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    },
+    {
+      "id": 9,
+      "pressure": 363227740.4889038,
+      "temperature": 351.2073218432273,
+      "entropy": 79.31703599238598,
+      "volume": 2.9661439533990367e-05,
+      "composition_coordinate": 0.0,
+      "kind": "junction",
+      "zero_phases": [
+        54,
+        24
+      ],
+      "assemblage": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "gibbs_variance": 1,
+      "pt_nullity": 0,
+      "incident_lines": [
+        6,
+        8,
+        11
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    },
+    {
+      "id": 10,
+      "pressure": 380630835.1210549,
+      "temperature": 330.5272029932704,
+      "entropy": 73.70833374122181,
+      "volume": 2.9642897280325404e-05,
+      "composition_coordinate": 0.0,
+      "kind": "domain_edge",
+      "zero_phases": [
+        54
+      ],
+      "assemblage": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        51,
+        54
+      ],
+      "gibbs_variance": 2,
+      "pt_nullity": 0,
+      "incident_lines": [
+        6
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    },
+    {
+      "id": 11,
+      "pressure": 380630835.1210549,
+      "temperature": 362.5036505887278,
+      "entropy": 82.38759254409355,
+      "volume": 2.9727005360279002e-05,
+      "composition_coordinate": 0.0,
+      "kind": "domain_edge",
+      "zero_phases": [
+        12
+      ],
+      "assemblage": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        24,
+        51
+      ],
+      "gibbs_variance": 2,
+      "pt_nullity": 0,
+      "incident_lines": [
+        7
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    },
+    {
+      "id": 12,
+      "pressure": 380630835.1210549,
+      "temperature": 362.4978764157797,
+      "entropy": 82.2909014189336,
+      "volume": 2.966536408347092e-05,
+      "composition_coordinate": 0.0,
+      "kind": "domain_edge",
+      "zero_phases": [
+        24
+      ],
+      "assemblage": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        24,
+        51
+      ],
+      "gibbs_variance": 2,
+      "pt_nullity": 0,
+      "incident_lines": [
+        8
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    }
+  ],
+  "boundaries": [
+    {
+      "id": 0,
+      "zero_phase": 18,
+      "assemblage": [
+        0,
+        12,
+        13,
+        18,
+        21,
+        22,
+        51,
+        54
+      ],
+      "side_a": [
+        0,
+        12,
+        13,
+        21,
+        22,
+        51,
+        54
+      ],
+      "side_b": [
+        0,
+        12,
+        13,
+        18,
+        21,
+        22,
+        51,
+        54
+      ],
+      "is_solution_replacement": false,
+      "start_node": 1,
+      "end_node": 0,
+      "termination": "domain edge; domain edge",
+      "points": [
+        {
+          "pressure": 380630835.1210549,
+          "temperature": 155.98155220743487,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 371613642.89038754,
+          "temperature": 154.55655712836435,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 362324148.0523308,
+          "temperature": 153.0898729321688,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 353034275.67559636,
+          "temperature": 151.62439812731043,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 343744054.0310557,
+          "temperature": 150.16004308517572,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 334453511.08904546,
+          "temperature": 148.69671892581243,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 325162674.53813547,
+          "temperature": 147.23433747700614,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 315871571.80334306,
+          "temperature": 145.77281123452516,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 306580230.06342936,
+          "temperature": 144.31205332475378,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 297288676.2675063,
+          "temperature": 142.85197746902563,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 287996937.15079,
+          "temperature": 141.3924979502293,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 278705039.24945873,
+          "temperature": 139.93352958186222,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 269413008.9147875,
+          "temperature": 138.474987679018,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 260120872.32612088,
+          "temperature": 137.01678803275047,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 250828655.50312063,
+          "temperature": 135.5588468864459,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 241536384.31680688,
+          "temperature": 134.10108091577519,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 232244084.49957252,
+          "temperature": 132.6434072116766,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 222951781.65400645,
+          "temperature": 131.18574326691632,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 213659501.2605191,
+          "temperature": 129.72800696626547,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 204367268.6835413,
+          "temperature": 128.27011658104078,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 195075109.17641464,
+          "temperature": 126.81199076763646,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 185783047.88461798,
+          "temperature": 125.35354857119061,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 176491109.84743842,
+          "temperature": 123.89470943403391,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 167199319.9978468,
+          "temperature": 122.4353932096789,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 157907703.1605143,
+          "temperature": 120.97552018253714,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 148616284.04766357,
+          "temperature": 119.51501109432307,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 139325079.8702413,
+          "temperature": 118.05381090040652,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 130034130.92505725,
+          "temperature": 116.59179049307424,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 120743452.96055558,
+          "temperature": 115.12889978249262,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 111453070.16699901,
+          "temperature": 113.6650616950478,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 102163006.56530298,
+          "temperature": 112.20019985704181,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 92873285.98772112,
+          "temperature": 110.73423866715397,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 83583932.0552886,
+          "temperature": 109.26710337860108,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 74294968.15222433,
+          "temperature": 107.79872019024926,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 65006417.396551214,
+          "temperature": 106.32901634893213,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 55718302.6074977,
+          "temperature": 104.85792026104716,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 46430648.42933498,
+          "temperature": 103.38535473175953,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 37143472.195402324,
+          "temperature": 101.91126608061498,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 27856798.293091074,
+          "temperature": 100.4355783736676,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 18570647.92951281,
+          "temperature": 98.95822603740572,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 9285041.793613676,
+          "temperature": 97.47914537574711,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 0.0,
+          "temperature": 95.9982747477848,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": -2.912853734706052e-20,
+          "temperature": 95.99827474777375,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "zero_phase": 12,
+      "assemblage": [
+        0,
+        12,
+        13,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "side_a": [
+        0,
+        12,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "side_b": [
+        0,
+        12,
+        13,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "is_solution_replacement": false,
+      "start_node": 3,
+      "end_node": 2,
+      "termination": "junction; domain edge",
+      "points": [
+        {
+          "pressure": 362501668.2390207,
+          "temperature": 350.8623624045136,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 359100006.3654886,
+          "temperature": 349.1760868762975,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 351297319.3706602,
+          "temperature": 345.3033178215587,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 343499623.292446,
+          "temperature": 341.42546992275703,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 335707634.7790398,
+          "temperature": 337.5418260105603,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 327922095.4502431,
+          "temperature": 333.6516484450209,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 320143774.0737088,
+          "temperature": 329.7541777604824,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 312373468.9653356,
+          "temperature": 325.84863117378666,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 304612010.63815475,
+          "temperature": 321.9342009442803,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 296860264.7276352,
+          "temperature": 318.010052572643,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 289119135.2254192,
+          "temperature": 314.07532282397506,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 281389568.05774087,
+          "temperature": 310.1291175592666,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 273672555.0499546,
+          "temperature": 306.17050935765735,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 265969138.32496718,
+          "temperature": 302.19853490963413,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 258280415.18976647,
+          "temperature": 298.2121921597647,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 250607543.5724855,
+          "temperature": 294.2104371751019,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 242951748.08225915,
+          "temperature": 290.19218071247764,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 235314326.7742115,
+          "temperature": 286.15628445605523,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 227696658.7153211,
+          "temperature": 282.1015568929625,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 220100212.3020594,
+          "temperature": 278.02674894158906,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 212526555.4579536,
+          "temperature": 273.93054835682506,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 204977365.2349181,
+          "temperature": 269.81157533063157,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 197454440.67119431,
+          "temperature": 265.6683757935266,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 189959849.9208,
+          "temperature": 261.4992943087203,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 182495387.67893907,
+          "temperature": 257.3029708478776,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 175063467.42233676,
+          "temperature": 253.07754295617832,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 167666530.42225152,
+          "temperature": 248.8211891050536,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 160307228.68492588,
+          "temperature": 244.53197444006264,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 152988450.71632713,
+          "temperature": 240.2078407038763,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 145713350.95789814,
+          "temperature": 235.8465953290476,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 138485383.47090214,
+          "temperature": 231.4458996922514,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 131308340.53890577,
+          "temperature": 227.003256550653,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 124186396.95721583,
+          "temperature": 222.51599672754705,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 117124160.88823259,
+          "temperature": 217.98126517986753,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 110126518.36088903,
+          "temperature": 213.39616953769308,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 103199603.63730514,
+          "temperature": 208.75707838888565,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 96349441.4983604,
+          "temperature": 204.06069930232644,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 89583051.1605771,
+          "temperature": 199.3032924728871,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 82908275.7071427,
+          "temperature": 194.480867560356,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 76333895.5251698,
+          "temperature": 189.5891781271329,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 69869755.50301404,
+          "temperature": 184.6237227583503,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 63526905.65794064,
+          "temperature": 179.57975615787416,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 57318031.269393474,
+          "temperature": 174.4521494614572,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 51256392.80912958,
+          "temperature": 169.23616006708846,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 45358012.4622613,
+          "temperature": 163.9263013443328,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 39640299.31799676,
+          "temperature": 158.517357500154,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 34122591.14735248,
+          "temperature": 153.00428145886605,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 28826189.90171982,
+          "temperature": 147.3824132568505,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 23774277.79727366,
+          "temperature": 141.64776756693993,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 18991649.09927373,
+          "temperature": 135.79739475796018,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 14504177.921662375,
+          "temperature": 129.82980835029147,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 10337936.481676267,
+          "temperature": 123.74545200578123,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 6518281.657115246,
+          "temperature": 117.54704134282562,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 3066351.7614519633,
+          "temperature": 111.24040728866818,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 0.0,
+          "temperature": 104.83377444355789,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 7.555318763054627e-22,
+          "temperature": 104.83377444355789,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "zero_phase": 24,
+      "assemblage": [
+        0,
+        12,
+        13,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "side_a": [
+        0,
+        12,
+        13,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "side_b": [
+        0,
+        12,
+        13,
+        21,
+        22,
+        51,
+        54
+      ],
+      "is_solution_replacement": false,
+      "start_node": 4,
+      "end_node": 2,
+      "termination": "junction; domain edge",
+      "points": [
+        {
+          "pressure": 362505557.25819486,
+          "temperature": 350.86420827807314,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 359100057.0530299,
+          "temperature": 349.17603607492185,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 351297362.5929676,
+          "temperature": 345.30327462337635,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 343499659.9631258,
+          "temperature": 341.4254333841987,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 335707665.73020524,
+          "temperature": 337.5417952727974,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 327922121.43499905,
+          "temperature": 333.65162273155545,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 320143795.7693911,
+          "temperature": 329.75415637388454,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 312373486.97737145,
+          "temperature": 325.84861349172894,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 304612025.50451,
+          "temperature": 321.93418641491724,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 296860276.9232196,
+          "temperature": 318.01004070998533,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 289119145.1670755,
+          "temperature": 314.075313202643,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 281389576.1089521,
+          "temperature": 310.1291098095011,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 273672561.5257199,
+          "temperature": 306.1705031601551,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 265969143.49648675,
+          "temperature": 302.19852999057076,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 258280419.28899917,
+          "temperature": 298.21218828595545,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 250607546.7964375,
+          "temperature": 294.2104341494413,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 242951750.59709865,
+          "temperature": 290.192178369581,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 235314328.71904597,
+          "temperature": 286.1562826582513,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 227696660.2057442,
+          "temperature": 282.1015555265552,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 220100213.43337598,
+          "temperature": 278.02674791346044,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 212526556.30804157,
+          "temperature": 273.9305475914262,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 204977365.86686623,
+          "temperature": 269.8115747672305,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 197454441.13570917,
+          "temperature": 265.66837538371726,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 189959850.26245448,
+          "temperature": 261.4992940105104,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 182495387.92381954,
+          "temperature": 257.3029706366236,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 175063467.5954752,
+          "temperature": 253.07754280865925,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 167666530.54288256,
+          "temperature": 248.82118900362025,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 160307228.76767656,
+          "temperature": 244.5319743714508,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 152988450.77212015,
+          "temperature": 240.20784065830279,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 145713350.99483544,
+          "temperature": 235.84659529935377,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 138485383.494911,
+          "temperature": 231.4458996732765,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 131308340.55415155,
+          "temperature": 227.00325653882268,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 124186396.96672744,
+          "temperature": 222.5159967203093,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 117124160.89397393,
+          "temperature": 217.98126517559177,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 110126518.36421476,
+          "temperature": 213.3961695352759,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 103199603.63921331,
+          "temperature": 208.75707838753564,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 96349441.49936332,
+          "temperature": 204.06069930164153,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 89583051.16111122,
+          "temperature": 199.30329247253826,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 82908275.7074127,
+          "temperature": 194.4808675601912,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 76333895.52530117,
+          "temperature": 189.58917812706193,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 69869755.50311343,
+          "temperature": 184.62372275830057,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 63526905.65792765,
+          "temperature": 179.5797561578949,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 57318031.26942296,
+          "temperature": 174.45214946145245,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 51256392.80912993,
+          "temperature": 169.23616006710054,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 45358012.46227514,
+          "temperature": 163.92630134433753,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 39640299.318019256,
+          "temperature": 158.5173575001542,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 34122591.14732894,
+          "temperature": 153.00428145888887,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 28826189.901714336,
+          "temperature": 147.382413256865,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 23774277.79726283,
+          "temperature": 141.64776756695673,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 18991649.099256523,
+          "temperature": 135.79739475797953,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 14504177.921650097,
+          "temperature": 129.82980835030907,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 10337936.481640076,
+          "temperature": 123.7454520058067,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 6518281.657157978,
+          "temperature": 117.54704134282788,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 3066351.7614467503,
+          "temperature": 111.2404072886829,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 0.0,
+          "temperature": 104.83377444357146,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 2.1567709056783116e-23,
+          "temperature": 104.83377444357146,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "zero_phase": 9,
+      "assemblage": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        51,
+        54
+      ],
+      "side_a": [
+        0,
+        12,
+        13,
+        21,
+        22,
+        51,
+        54
+      ],
+      "side_b": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        51,
+        54
+      ],
+      "is_solution_replacement": false,
+      "start_node": 4,
+      "end_node": 5,
+      "termination": "junction; domain edge",
+      "points": [
+        {
+          "pressure": 362505600.948485,
+          "temperature": 350.86428792548156,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 365970667.8512073,
+          "temperature": 346.7614830027592,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 370862005.2226955,
+          "temperature": 340.95791155139926,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 375742866.79412633,
+          "temperature": 335.1498824639135,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 380611214.1614959,
+          "temperature": 329.33654531755485,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 380630835.1210549,
+          "temperature": 329.31307010175505,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "zero_phase": 9,
+      "assemblage": [
+        0,
+        9,
+        12,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "side_a": [
+        0,
+        9,
+        12,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "side_b": [
+        0,
+        12,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "is_solution_replacement": false,
+      "start_node": 3,
+      "end_node": 6,
+      "termination": "junction; domain edge",
+      "points": [
+        {
+          "pressure": 362501633.68778694,
+          "temperature": 350.86240327858144,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 361900511.45306534,
+          "temperature": 351.57344267318337,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 356994431.237048,
+          "temperature": 357.3707187515224,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 352083061.6008667,
+          "temperature": 363.1657299697988,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 352083061.6008885,
+          "temperature": 363.1657299697988,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "zero_phase": 54,
+      "assemblage": [
+        0,
+        9,
+        12,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "side_a": [
+        0,
+        9,
+        12,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "side_b": [
+        0,
+        9,
+        12,
+        21,
+        22,
+        24,
+        51
+      ],
+      "is_solution_replacement": false,
+      "start_node": 8,
+      "end_node": 7,
+      "termination": "domain edge; junction",
+      "points": [
+        {
+          "pressure": 353054411.21734786,
+          "temperature": 363.1657299697988,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 353054411.21730584,
+          "temperature": 363.1657299697988,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 357966030.4608456,
+          "temperature": 357.37082570555486,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 362872402.9447855,
+          "temperature": 351.5736746790737,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 363195234.2983387,
+          "temperature": 351.19186750214345,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "zero_phase": 54,
+      "assemblage": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        51,
+        54
+      ],
+      "side_a": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        51
+      ],
+      "side_b": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        51,
+        54
+      ],
+      "is_solution_replacement": false,
+      "start_node": 10,
+      "end_node": 9,
+      "termination": "domain edge; junction",
+      "points": [
+        {
+          "pressure": 380630835.1210549,
+          "temperature": 330.5272029932704,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 380630835.1210549,
+          "temperature": 330.52720299305804,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 375759044.1042776,
+          "temperature": 336.33908133542326,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 370875216.3694606,
+          "temperature": 342.14584960610114,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 365981367.63623023,
+          "temperature": 347.94835052577224,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 363227740.4889038,
+          "temperature": 351.2073218432273,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "zero_phase": 12,
+      "assemblage": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        24,
+        51
+      ],
+      "side_a": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        24,
+        51
+      ],
+      "side_b": [
+        0,
+        9,
+        12,
+        21,
+        22,
+        24,
+        51
+      ],
+      "is_solution_replacement": false,
+      "start_node": 7,
+      "end_node": 11,
+      "termination": "junction; domain edge",
+      "points": [
+        {
+          "pressure": 363195234.298416,
+          "temperature": 351.1918675021791,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 366569729.47123826,
+          "temperature": 353.3847905529707,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 373597873.4418741,
+          "temperature": 357.9460984855167,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 380630835.1210549,
+          "temperature": 362.5036505887423,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 380630835.1210549,
+          "temperature": 362.5036505887278,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "zero_phase": 24,
+      "assemblage": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        24,
+        51
+      ],
+      "side_a": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        24,
+        51
+      ],
+      "side_b": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        51
+      ],
+      "is_solution_replacement": false,
+      "start_node": 12,
+      "end_node": 9,
+      "termination": "domain edge; junction",
+      "points": [
+        {
+          "pressure": 380630835.1210549,
+          "temperature": 362.4978764157797,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 380630835.1210549,
+          "temperature": 362.49787641579536,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 373597843.4179542,
+          "temperature": 357.9403477351407,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 366569669.0330916,
+          "temperature": 353.3790634937541,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 363227660.5070257,
+          "temperature": 351.2072822321093,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "zero_phase": 24,
+      "assemblage": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "side_a": [
+        0,
+        9,
+        12,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "side_b": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        51,
+        54
+      ],
+      "is_solution_replacement": false,
+      "start_node": 7,
+      "end_node": 4,
+      "termination": "junction; junction",
+      "points": [
+        {
+          "pressure": 363195269.18831867,
+          "temperature": 351.19182623556014,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 362505557.25818604,
+          "temperature": 350.8642082780731,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 362505557.2580947,
+          "temperature": 350.86420827803386,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "zero_phase": 12,
+      "assemblage": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "side_a": [
+        0,
+        9,
+        12,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "side_b": [
+        0,
+        12,
+        13,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "is_solution_replacement": false,
+      "start_node": 4,
+      "end_node": 3,
+      "termination": "junction; junction",
+      "points": [
+        {
+          "pressure": 362505557.2580644,
+          "temperature": 350.86420827802885,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 362501668.238972,
+          "temperature": 350.86236240451353,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 362501668.2390903,
+          "temperature": 350.86236240454855,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "zero_phase": 54,
+      "assemblage": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        24,
+        51,
+        54
+      ],
+      "side_a": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        51,
+        54
+      ],
+      "side_b": [
+        0,
+        9,
+        12,
+        13,
+        21,
+        22,
+        24,
+        51
+      ],
+      "is_solution_replacement": false,
+      "start_node": 7,
+      "end_node": 9,
+      "termination": "junction; junction",
+      "points": [
+        {
+          "pressure": 363195234.2983354,
+          "temperature": 351.19186750215863,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 363195234.2983146,
+          "temperature": 351.1918675021434,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        },
+        {
+          "pressure": 363227660.5069554,
+          "temperature": 351.2072822320844,
+          "phases": [],
+          "mass_balance_error": 0.0,
+          "minimum_affinity": 0.0,
+          "residual": 0.0
+        }
+      ]
+    }
+  ],
+  "samples": [],
+  "fields": [],
+  "diagnostics": [],
+  "description": "Saved pyrolite patch: coincident endpoint chords reverse two reaction branches at the pressure-domain edge. Equilibrium phase states are omitted; this fixture tests polygon topology only."
+}

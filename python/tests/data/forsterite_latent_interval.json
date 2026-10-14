@@ -1,0 +1,1460 @@
+{
+  "diagram_type": "PS",
+  "pressure_range": [
+    23200000000.0,
+    23900000000.0
+  ],
+  "temperature_range": [
+    500.0,
+    3000.0
+  ],
+  "entropy_range": [
+    302.6464393007779,
+    337.5671822970215
+  ],
+  "volume_range": [
+    1e-06,
+    0.0001
+  ],
+  "settings": {
+    "pressure_seeds": 9,
+    "temperature_seeds": 9,
+    "entropy_seeds": 9,
+    "volume_seeds": 9,
+    "composition_seeds": 7,
+    "max_refinement_iterations": 150,
+    "minimization_starts": 10,
+    "max_phase_instances": 1,
+    "max_trace_steps": 500,
+    "max_lines": 1000,
+    "max_recovery_passes": 2,
+    "step": 0.025,
+    "min_step": 1e-07,
+    "affinity_tolerance": 0.2,
+    "mass_balance_tolerance": 1e-08,
+    "amount_tolerance": 1e-07,
+    "composition_tolerance": 1e-05,
+    "node_tolerance": 0.0002,
+    "verbose": false,
+    "exclude_invalid_eos": true,
+    "active_solution_faces": true,
+    "required_eos_phases": []
+  },
+  "phase_names": [
+    "per",
+    "bdg",
+    "aki",
+    "rw"
+  ],
+  "nodes": [
+    {
+      "id": 0,
+      "pressure": 23500685604.661964,
+      "temperature": 1531.9865590552076,
+      "entropy": 316.9727350289944,
+      "volume": 3.631278724746213e-05,
+      "composition_coordinate": 0.0,
+      "kind": "junction",
+      "zero_phases": [
+        0,
+        1
+      ],
+      "assemblage": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "gibbs_variance": 0,
+      "pt_nullity": 0,
+      "incident_lines": [
+        0,
+        1,
+        4,
+        8
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    },
+    {
+      "id": 1,
+      "pressure": 23361903568.15977,
+      "temperature": 1410.7890847789834,
+      "entropy": 302.64643930077796,
+      "volume": 3.625807396692364e-05,
+      "composition_coordinate": 0.0,
+      "kind": "domain_edge",
+      "zero_phases": [
+        0
+      ],
+      "assemblage": [
+        0,
+        2,
+        3
+      ],
+      "gibbs_variance": 1,
+      "pt_nullity": 0,
+      "incident_lines": [
+        0
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    },
+    {
+      "id": 2,
+      "pressure": 23341880928.872425,
+      "temperature": 1721.1069303599634,
+      "entropy": 337.5671822970214,
+      "volume": 3.645480317768877e-05,
+      "composition_coordinate": 0.0,
+      "kind": "domain_edge",
+      "zero_phases": [
+        0
+      ],
+      "assemblage": [
+        0,
+        1,
+        3
+      ],
+      "gibbs_variance": 1,
+      "pt_nullity": 0,
+      "incident_lines": [
+        1
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    },
+    {
+      "id": 3,
+      "pressure": 23365840124.88681,
+      "temperature": 1696.029209128681,
+      "entropy": 337.5671822970214,
+      "volume": 3.36522618593019e-05,
+      "composition_coordinate": 0.0,
+      "kind": "domain_edge",
+      "zero_phases": [
+        3
+      ],
+      "assemblage": [
+        0,
+        1,
+        3
+      ],
+      "gibbs_variance": 1,
+      "pt_nullity": 0,
+      "incident_lines": [
+        2
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    },
+    {
+      "id": 4,
+      "pressure": 23500685604.662067,
+      "temperature": 1531.9865590550685,
+      "entropy": 318.9726806376145,
+      "volume": 3.3493379028056844e-05,
+      "composition_coordinate": 0.0,
+      "kind": "junction",
+      "zero_phases": [
+        3,
+        2
+      ],
+      "assemblage": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "gibbs_variance": 0,
+      "pt_nullity": 0,
+      "incident_lines": [
+        2,
+        5,
+        7,
+        8
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    },
+    {
+      "id": 5,
+      "pressure": 23377983763.24736,
+      "temperature": 1424.5219653894812,
+      "entropy": 302.64643930077796,
+      "volume": 3.48256286856419e-05,
+      "composition_coordinate": 0.0,
+      "kind": "domain_edge",
+      "zero_phases": [
+        3
+      ],
+      "assemblage": [
+        0,
+        2,
+        3
+      ],
+      "gibbs_variance": 1,
+      "pt_nullity": 0,
+      "incident_lines": [
+        3
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    },
+    {
+      "id": 6,
+      "pressure": 23500685604.661995,
+      "temperature": 1531.986559055163,
+      "entropy": 315.3778040960902,
+      "volume": 3.488270858057312e-05,
+      "composition_coordinate": 0.0,
+      "kind": "junction",
+      "zero_phases": [
+        3,
+        1
+      ],
+      "assemblage": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "gibbs_variance": 0,
+      "pt_nullity": 0,
+      "incident_lines": [
+        3,
+        4,
+        5,
+        6
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    },
+    {
+      "id": 7,
+      "pressure": 23759915053.7265,
+      "temperature": 1426.5974612431548,
+      "entropy": 302.64643930077784,
+      "volume": 3.4778426091562646e-05,
+      "composition_coordinate": 0.0,
+      "kind": "domain_edge",
+      "zero_phases": [
+        1
+      ],
+      "assemblage": [
+        0,
+        1,
+        2
+      ],
+      "gibbs_variance": 1,
+      "pt_nullity": 0,
+      "incident_lines": [
+        6
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    },
+    {
+      "id": 8,
+      "pressure": 23818692495.496872,
+      "temperature": 1401.0875136883562,
+      "entropy": 302.6464393007778,
+      "volume": 3.334455373334083e-05,
+      "composition_coordinate": 0.0,
+      "kind": "domain_edge",
+      "zero_phases": [
+        2
+      ],
+      "assemblage": [
+        0,
+        1,
+        2
+      ],
+      "gibbs_variance": 1,
+      "pt_nullity": 0,
+      "incident_lines": [
+        7
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    }
+  ],
+  "boundaries": [
+    {
+      "id": 0,
+      "zero_phase": 0,
+      "assemblage": [
+        0,
+        2,
+        3
+      ],
+      "side_a": [
+        0,
+        2,
+        3
+      ],
+      "side_b": [
+        3
+      ],
+      "is_solution_replacement": false,
+      "start_node": 1,
+      "end_node": 0,
+      "termination": "domain edge; junction",
+      "points": [
+        {
+          "pressure": 23361903568.15977,
+          "temperature": 1410.7890847789834,
+          "entropy": 302.64643930077796,
+          "volume": 3.625807396692364e-05
+        },
+        {
+          "pressure": 23361903568.160095,
+          "temperature": 1410.7890847789831,
+          "entropy": 302.64643930077773,
+          "volume": 3.6258073966923594e-05
+        },
+        {
+          "pressure": 23369439163.256897,
+          "temperature": 1417.215271963484,
+          "entropy": 303.4343737826598,
+          "volume": 3.62609261934141e-05
+        },
+        {
+          "pressure": 23376984934.101727,
+          "temperature": 1423.666733704829,
+          "entropy": 304.2220658673089,
+          "volume": 3.626379507678231e-05
+        },
+        {
+          "pressure": 23384540703.43837,
+          "temperature": 1430.1435903887311,
+          "entropy": 305.00951938570785,
+          "volume": 3.6266680744801995e-05
+        },
+        {
+          "pressure": 23392106291.634644,
+          "temperature": 1436.6459637075286,
+          "entropy": 305.7967382459594,
+          "volume": 3.626958332687305e-05
+        },
+        {
+          "pressure": 23399681516.642567,
+          "temperature": 1443.1739766856113,
+          "entropy": 306.58372643426657,
+          "volume": 3.627250295405122e-05
+        },
+        {
+          "pressure": 23407266193.960148,
+          "temperature": 1449.727753704786,
+          "entropy": 307.3704880158643,
+          "volume": 3.627543975907812e-05
+        },
+        {
+          "pressure": 23414860136.59103,
+          "temperature": 1456.3074205303417,
+          "entropy": 308.1570271359908,
+          "volume": 3.627839387641195e-05
+        },
+        {
+          "pressure": 23422463155.004776,
+          "temperature": 1462.9131043372595,
+          "entropy": 308.94334802083364,
+          "volume": 3.628136544225855e-05
+        },
+        {
+          "pressure": 23430075057.094116,
+          "temperature": 1469.5449337372786,
+          "entropy": 309.7294549785345,
+          "volume": 3.6284354594603545e-05
+        },
+        {
+          "pressure": 23437695648.133335,
+          "temperature": 1476.2030388060232,
+          "entropy": 310.51535240015596,
+          "volume": 3.628736147324469e-05
+        },
+        {
+          "pressure": 23445324730.7334,
+          "temperature": 1482.8875511110346,
+          "entropy": 311.30104476071244,
+          "volume": 3.629038621982548e-05
+        },
+        {
+          "pressure": 23452962104.796844,
+          "temperature": 1489.5986037401467,
+          "entropy": 312.08653662019367,
+          "volume": 3.629342897786909e-05
+        },
+        {
+          "pressure": 23460607567.4708,
+          "temperature": 1496.336331330496,
+          "entropy": 312.871832624619,
+          "volume": 3.629648989281347e-05
+        },
+        {
+          "pressure": 23468260913.100594,
+          "temperature": 1503.1008700977052,
+          "entropy": 313.65693750706185,
+          "volume": 3.629956911204644e-05
+        },
+        {
+          "pressure": 23475921933.179977,
+          "temperature": 1509.8923578660217,
+          "entropy": 314.4418560887403,
+          "volume": 3.630266678494243e-05
+        },
+        {
+          "pressure": 23483590416.300278,
+          "temperature": 1516.710934098955,
+          "entropy": 315.22659328011764,
+          "volume": 3.630578306289968e-05
+        },
+        {
+          "pressure": 23491266148.10042,
+          "temperature": 1523.556739930026,
+          "entropy": 316.0111540819643,
+          "volume": 3.6308918099377805e-05
+        },
+        {
+          "pressure": 23498948911.210953,
+          "temperature": 1530.4299181950205,
+          "entropy": 316.79554358654707,
+          "volume": 3.6312072049937374e-05
+        },
+        {
+          "pressure": 23500685604.661964,
+          "temperature": 1531.9865590552076,
+          "entropy": 316.9727350289944,
+          "volume": 3.631278724746213e-05
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "zero_phase": 0,
+      "assemblage": [
+        0,
+        1,
+        3
+      ],
+      "side_a": [
+        3
+      ],
+      "side_b": [
+        0,
+        1,
+        3
+      ],
+      "is_solution_replacement": false,
+      "start_node": 2,
+      "end_node": 0,
+      "termination": "domain edge; junction",
+      "points": [
+        {
+          "pressure": 23341880928.872425,
+          "temperature": 1721.1069303599634,
+          "entropy": 337.5671822970214,
+          "volume": 3.645480317768877e-05
+        },
+        {
+          "pressure": 23341880928.872593,
+          "temperature": 1721.1069303599627,
+          "entropy": 337.56718229702136,
+          "volume": 3.645480317768874e-05
+        },
+        {
+          "pressure": 23349278167.954693,
+          "temperature": 1713.4652269597423,
+          "entropy": 336.77598753833246,
+          "volume": 3.6448835656986806e-05
+        },
+        {
+          "pressure": 23356581289.296734,
+          "temperature": 1705.8335366313026,
+          "entropy": 335.98261980685925,
+          "volume": 3.644289584205762e-05
+        },
+        {
+          "pressure": 23363790422.24587,
+          "temperature": 1698.2123609015591,
+          "entropy": 335.1871156682249,
+          "volume": 3.643698395688965e-05
+        },
+        {
+          "pressure": 23370905719.979736,
+          "temperature": 1690.602195603441,
+          "entropy": 334.3895118094429,
+          "volume": 3.643110021742627e-05
+        },
+        {
+          "pressure": 23377927359.252872,
+          "temperature": 1683.0035305785668,
+          "entropy": 333.58984500949896,
+          "volume": 3.6425244831467164e-05
+        },
+        {
+          "pressure": 23384855540.112312,
+          "temperature": 1675.4168493908498,
+          "entropy": 332.78815211018645,
+          "volume": 3.641941799858218e-05
+        },
+        {
+          "pressure": 23391690485.588566,
+          "temperature": 1667.8426290526738,
+          "entropy": 331.98446998737336,
+          "volume": 3.6413619910036916e-05
+        },
+        {
+          "pressure": 23398432441.360268,
+          "temperature": 1660.2813397633577,
+          "entropy": 331.1788355226932,
+          "volume": 3.640785074873065e-05
+        },
+        {
+          "pressure": 23405081675.398155,
+          "temperature": 1652.7334446612128,
+          "entropy": 330.3712855758102,
+          "volume": 3.640211068914565e-05
+        },
+        {
+          "pressure": 23411638477.581627,
+          "temperature": 1645.199399587804,
+          "entropy": 329.5618569571397,
+          "volume": 3.6396399897308866e-05
+        },
+        {
+          "pressure": 23418103159.29791,
+          "temperature": 1637.6796528664593,
+          "entropy": 328.7505864012573,
+          "volume": 3.639071853076487e-05
+        },
+        {
+          "pressure": 23424476053.018456,
+          "temperature": 1630.1746450938747,
+          "entropy": 327.9375105409016,
+          "volume": 3.638506673856047e-05
+        },
+        {
+          "pressure": 23430757511.85782,
+          "temperature": 1622.6848089457135,
+          "entropy": 327.12266588169103,
+          "volume": 3.6379444661240505e-05
+        },
+        {
+          "pressure": 23436947909.11221,
+          "temperature": 1615.2105689955288,
+          "entropy": 326.3060887775143,
+          "volume": 3.637385243085485e-05
+        },
+        {
+          "pressure": 23443047637.78555,
+          "temperature": 1607.7523415482744,
+          "entropy": 325.48781540675037,
+          "volume": 3.636829017097588e-05
+        },
+        {
+          "pressure": 23449057110.09554,
+          "temperature": 1600.3105344867463,
+          "entropy": 324.66788174918264,
+          "volume": 3.6362757996726816e-05
+        },
+        {
+          "pressure": 23454976756.969883,
+          "temperature": 1592.88554713256,
+          "entropy": 323.84632356379973,
+          "volume": 3.6357256014819985e-05
+        },
+        {
+          "pressure": 23460807027.527054,
+          "temperature": 1585.4777701203204,
+          "entropy": 323.0231763673777,
+          "volume": 3.635178432360499e-05
+        },
+        {
+          "pressure": 23466548388.548443,
+          "temperature": 1578.0875852858228,
+          "entropy": 322.19847541396456,
+          "volume": 3.634634301312648e-05
+        },
+        {
+          "pressure": 23472201323.937237,
+          "temperature": 1570.7153655671361,
+          "entropy": 321.3722556751775,
+          "volume": 3.6340932165190904e-05
+        },
+        {
+          "pressure": 23477766334.171326,
+          "temperature": 1563.3614749193798,
+          "entropy": 320.5445518214334,
+          "volume": 3.633555185344215e-05
+        },
+        {
+          "pressure": 23483243935.74787,
+          "temperature": 1556.026268242343,
+          "entropy": 319.71539820405883,
+          "volume": 3.633020214344552e-05
+        },
+        {
+          "pressure": 23488634660.62133,
+          "temperature": 1548.7100913208376,
+          "entropy": 318.8848288382968,
+          "volume": 3.632488309277958e-05
+        },
+        {
+          "pressure": 23493939055.636528,
+          "temperature": 1541.413280777517,
+          "entropy": 318.0528773872227,
+          "volume": 3.631959475113566e-05
+        },
+        {
+          "pressure": 23499157681.95968,
+          "temperature": 1534.1361640381494,
+          "entropy": 317.21957714659646,
+          "volume": 3.631433716042433e-05
+        },
+        {
+          "pressure": 23500685604.661877,
+          "temperature": 1531.9865590552224,
+          "entropy": 316.97273502899617,
+          "volume": 3.631278724746215e-05
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "zero_phase": 3,
+      "assemblage": [
+        0,
+        1,
+        3
+      ],
+      "side_a": [
+        0,
+        1
+      ],
+      "side_b": [
+        0,
+        1,
+        3
+      ],
+      "is_solution_replacement": false,
+      "start_node": 4,
+      "end_node": 3,
+      "termination": "junction; domain edge",
+      "points": [
+        {
+          "pressure": 23500685604.662067,
+          "temperature": 1531.9865590550685,
+          "entropy": 318.9726806376145,
+          "volume": 3.3493379028056844e-05
+        },
+        {
+          "pressure": 23497349600.850853,
+          "temperature": 1536.6687132101358,
+          "entropy": 319.5269280487466,
+          "volume": 3.3497789941516165e-05
+        },
+        {
+          "pressure": 23492250139.342655,
+          "temperature": 1543.747330834283,
+          "entropy": 320.3620619772554,
+          "volume": 3.3504471983236555e-05
+        },
+        {
+          "pressure": 23487069947.335262,
+          "temperature": 1550.8438426877149,
+          "entropy": 321.19595851114354,
+          "volume": 3.3511187269469305e-05
+        },
+        {
+          "pressure": 23481808522.95627,
+          "temperature": 1557.9579568499378,
+          "entropy": 322.0285884394579,
+          "volume": 3.351793570166677e-05
+        },
+        {
+          "pressure": 23476465376.474617,
+          "temperature": 1565.0893739219125,
+          "entropy": 322.8599222457647,
+          "volume": 3.352471717317183e-05
+        },
+        {
+          "pressure": 23471040030.75154,
+          "temperature": 1572.2377870605603,
+          "entropy": 323.68993012015386,
+          "volume": 3.353153156914216e-05
+        },
+        {
+          "pressure": 23465532021.68788,
+          "temperature": 1579.4028820221567,
+          "entropy": 324.5185819719113,
+          "volume": 3.353837876648168e-05
+        },
+        {
+          "pressure": 23459940898.667923,
+          "temperature": 1586.5843372149432,
+          "entropy": 325.3458474428688,
+          "volume": 3.3545258633779844e-05
+        },
+        {
+          "pressure": 23454266224.998333,
+          "temperature": 1593.7818237610763,
+          "entropy": 326.1716959214204,
+          "volume": 3.35521710312585e-05
+        },
+        {
+          "pressure": 23448507578.342632,
+          "temperature": 1600.9950055682677,
+          "entropy": 326.996096557224,
+          "volume": 3.3559115810727424e-05
+        },
+        {
+          "pressure": 23442664551.145912,
+          "temperature": 1608.2235394105533,
+          "entropy": 327.81901827650097,
+          "volume": 3.356609281554808e-05
+        },
+        {
+          "pressure": 23436736751.056038,
+          "temperature": 1615.467075019462,
+          "entropy": 328.64042979805157,
+          "volume": 3.357310188060643e-05
+        },
+        {
+          "pressure": 23430723801.33369,
+          "temperature": 1622.7252551845975,
+          "entropy": 329.4602996498554,
+          "volume": 3.358014283229479e-05
+        },
+        {
+          "pressure": 23424625341.253895,
+          "temperature": 1629.9977158642685,
+          "entropy": 330.2785961863043,
+          "volume": 3.358721548850307e-05
+        },
+        {
+          "pressure": 23418441026.49784,
+          "temperature": 1637.284086306204,
+          "entropy": 331.09528760605025,
+          "volume": 3.359431965861965e-05
+        },
+        {
+          "pressure": 23412170529.531223,
+          "temperature": 1644.5839891778276,
+          "entropy": 331.91034197039386,
+          "volume": 3.360145514354223e-05
+        },
+        {
+          "pressure": 23405813539.975716,
+          "temperature": 1651.8970407075096,
+          "entropy": 332.72372722233723,
+          "volume": 3.3608621735698516e-05
+        },
+        {
+          "pressure": 23399369764.960876,
+          "temperature": 1659.2228508345588,
+          "entropy": 333.53541120605314,
+          "volume": 3.361581921907724e-05
+        },
+        {
+          "pressure": 23392838929.46646,
+          "temperature": 1666.5610233699094,
+          "entropy": 334.3453616869545,
+          "volume": 3.362304736926975e-05
+        },
+        {
+          "pressure": 23386220776.64935,
+          "temperature": 1673.9111561665213,
+          "entropy": 335.15354637224243,
+          "volume": 3.363030595352187e-05
+        },
+        {
+          "pressure": 23379515068.15338,
+          "temperature": 1681.2728412992085,
+          "entropy": 335.959932931887,
+          "volume": 3.363759473079655e-05
+        },
+        {
+          "pressure": 23372721584.40441,
+          "temperature": 1688.6456652543338,
+          "entropy": 336.76448902007326,
+          "volume": 3.364491345184723e-05
+        },
+        {
+          "pressure": 23365840124.88698,
+          "temperature": 1696.0292091286813,
+          "entropy": 337.56718229702136,
+          "volume": 3.365226185930186e-05
+        },
+        {
+          "pressure": 23365840124.88681,
+          "temperature": 1696.029209128681,
+          "entropy": 337.5671822970214,
+          "volume": 3.36522618593019e-05
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "zero_phase": 3,
+      "assemblage": [
+        0,
+        2,
+        3
+      ],
+      "side_a": [
+        0,
+        2,
+        3
+      ],
+      "side_b": [
+        0,
+        2
+      ],
+      "is_solution_replacement": false,
+      "start_node": 6,
+      "end_node": 5,
+      "termination": "junction; domain edge",
+      "points": [
+        {
+          "pressure": 23500685604.661995,
+          "temperature": 1531.986559055163,
+          "entropy": 315.3778040960902,
+          "volume": 3.488270858057312e-05
+        },
+        {
+          "pressure": 23499300595.69367,
+          "temperature": 1530.745053222335,
+          "entropy": 315.2354927160933,
+          "volume": 3.48820395459834e-05
+        },
+        {
+          "pressure": 23491661205.90137,
+          "temperature": 1523.909650537809,
+          "entropy": 314.4500496524264,
+          "volume": 3.487836008277375e-05
+        },
+        {
+          "pressure": 23484028460.98331,
+          "temperature": 1517.1010538171422,
+          "entropy": 313.664445830961,
+          "volume": 3.4874701876663294e-05
+        },
+        {
+          "pressure": 23476402577.29352,
+          "temperature": 1510.319127162103,
+          "entropy": 312.8786761987812,
+          "volume": 3.487106475943142e-05
+        },
+        {
+          "pressure": 23468783768.247543,
+          "temperature": 1503.5637362474254,
+          "entropy": 312.09273579116405,
+          "volume": 3.486744856509528e-05
+        },
+        {
+          "pressure": 23461172244.37081,
+          "temperature": 1496.83474829275,
+          "entropy": 311.3066197306046,
+          "volume": 3.486385312986994e-05
+        },
+        {
+          "pressure": 23453568213.348087,
+          "temperature": 1490.132032034583,
+          "entropy": 310.52032322579885,
+          "volume": 3.486027829212846e-05
+        },
+        {
+          "pressure": 23445971880.071228,
+          "temperature": 1483.4554576988041,
+          "entropy": 309.73384157064834,
+          "volume": 3.4856723892363105e-05
+        },
+        {
+          "pressure": 23438383446.690296,
+          "temperature": 1476.8048969727383,
+          "entropy": 308.94717014316893,
+          "volume": 3.485318977314621e-05
+        },
+        {
+          "pressure": 23430803112.653946,
+          "temperature": 1470.1802229795694,
+          "entropy": 308.1603044046402,
+          "volume": 3.48496757790941e-05
+        },
+        {
+          "pressure": 23423231074.7591,
+          "temperature": 1463.5813102511588,
+          "entropy": 307.3732398985184,
+          "volume": 3.484618175682938e-05
+        },
+        {
+          "pressure": 23415667527.189793,
+          "temperature": 1457.0080347031958,
+          "entropy": 306.5859722495932,
+          "volume": 3.484270755494623e-05
+        },
+        {
+          "pressure": 23408112661.564175,
+          "temperature": 1450.4602736089894,
+          "entropy": 305.79849716293484,
+          "volume": 3.483925302397407e-05
+        },
+        {
+          "pressure": 23400566666.972256,
+          "temperature": 1443.937905575286,
+          "entropy": 305.0108104230519,
+          "volume": 3.483581801634431e-05
+        },
+        {
+          "pressure": 23393029730.019196,
+          "temperature": 1437.4408105172338,
+          "entropy": 304.2229078929014,
+          "volume": 3.48324023863558e-05
+        },
+        {
+          "pressure": 23385502034.861073,
+          "temperature": 1430.9688696350054,
+          "entropy": 303.43478551306697,
+          "volume": 3.4829005990142845e-05
+        },
+        {
+          "pressure": 23377983763.246872,
+          "temperature": 1424.521965389478,
+          "entropy": 302.6464393007779,
+          "volume": 3.4825628685641963e-05
+        },
+        {
+          "pressure": 23377983763.24736,
+          "temperature": 1424.5219653894812,
+          "entropy": 302.64643930077796,
+          "volume": 3.48256286856419e-05
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "zero_phase": 1,
+      "assemblage": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "side_a": [
+        0,
+        1,
+        2
+      ],
+      "side_b": [
+        0,
+        2,
+        3
+      ],
+      "is_solution_replacement": false,
+      "start_node": 6,
+      "end_node": 0,
+      "termination": "junction; junction",
+      "points": [
+        {
+          "pressure": 23500685604.661907,
+          "temperature": 1531.9865590551622,
+          "entropy": 315.3778040960901,
+          "volume": 3.488270858057312e-05
+        },
+        {
+          "pressure": 23500685604.66222,
+          "temperature": 1531.9865590550748,
+          "entropy": 315.74171792436925,
+          "volume": 3.520900822884462e-05
+        },
+        {
+          "pressure": 23500685604.662136,
+          "temperature": 1531.9865590550742,
+          "entropy": 316.6147364992753,
+          "volume": 3.5991791491754686e-05
+        },
+        {
+          "pressure": 23500685604.661907,
+          "temperature": 1531.9865590551622,
+          "entropy": 316.97273502898935,
+          "volume": 3.6312787247462126e-05
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "zero_phase": 3,
+      "assemblage": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "side_a": [
+        0,
+        1,
+        2
+      ],
+      "side_b": [
+        0,
+        1,
+        3
+      ],
+      "is_solution_replacement": false,
+      "start_node": 6,
+      "end_node": 4,
+      "termination": "junction; junction",
+      "points": [
+        {
+          "pressure": 23500685604.662163,
+          "temperature": 1531.986559055132,
+          "entropy": 315.37780409608644,
+          "volume": 3.488270858057307e-05
+        },
+        {
+          "pressure": 23500685604.662033,
+          "temperature": 1531.9865590550862,
+          "entropy": 315.74171792436914,
+          "volume": 3.474206502011472e-05
+        },
+        {
+          "pressure": 23500685604.662163,
+          "temperature": 1531.986559055132,
+          "entropy": 316.6147364992753,
+          "volume": 3.440466525353267e-05
+        },
+        {
+          "pressure": 23500685604.662342,
+          "temperature": 1531.9865590549987,
+          "entropy": 317.4877550741812,
+          "volume": 3.4067265486942344e-05
+        },
+        {
+          "pressure": 23500685604.66196,
+          "temperature": 1531.9865590549507,
+          "entropy": 318.36077364908715,
+          "volume": 3.372986572035627e-05
+        },
+        {
+          "pressure": 23500685604.66206,
+          "temperature": 1531.9865590550412,
+          "entropy": 318.9726806376111,
+          "volume": 3.3493379028056804e-05
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "zero_phase": 1,
+      "assemblage": [
+        0,
+        1,
+        2
+      ],
+      "side_a": [
+        0,
+        2
+      ],
+      "side_b": [
+        0,
+        1,
+        2
+      ],
+      "is_solution_replacement": false,
+      "start_node": 6,
+      "end_node": 7,
+      "termination": "junction; domain edge",
+      "points": [
+        {
+          "pressure": 23500685604.66187,
+          "temperature": 1531.9865590552672,
+          "entropy": 315.3778040961022,
+          "volume": 3.4882708580573186e-05
+        },
+        {
+          "pressure": 23510081524.852936,
+          "temperature": 1528.3489791017605,
+          "entropy": 314.95134922727766,
+          "volume": 3.4879011998498985e-05
+        },
+        {
+          "pressure": 23522987115.618664,
+          "temperature": 1523.3319908908275,
+          "entropy": 314.3617203659611,
+          "volume": 3.487392529311888e-05
+        },
+        {
+          "pressure": 23535847385.784096,
+          "temperature": 1518.308573499196,
+          "entropy": 313.7696322595323,
+          "volume": 3.4868845569169824e-05
+        },
+        {
+          "pressure": 23548661923.40271,
+          "temperature": 1513.2788498364575,
+          "entropy": 313.1750815808332,
+          "volume": 3.4863772954548296e-05
+        },
+        {
+          "pressure": 23561430316.563454,
+          "temperature": 1508.2429453610355,
+          "entropy": 312.57806528137723,
+          "volume": 3.485870757841781e-05
+        },
+        {
+          "pressure": 23574152153.5329,
+          "temperature": 1503.2009880799667,
+          "entropy": 311.9785805964072,
+          "volume": 3.485364957118392e-05
+        },
+        {
+          "pressure": 23586827022.90009,
+          "temperature": 1498.1531085467095,
+          "entropy": 311.37662504983876,
+          "volume": 3.48485990644677e-05
+        },
+        {
+          "pressure": 23599454513.65219,
+          "temperature": 1493.0994398871246,
+          "entropy": 310.77219646269356,
+          "volume": 3.484355619110739e-05
+        },
+        {
+          "pressure": 23612034215.545807,
+          "temperature": 1488.0401177047427,
+          "entropy": 310.1652929472093,
+          "volume": 3.483852108504056e-05
+        },
+        {
+          "pressure": 23624565719.040157,
+          "temperature": 1482.9752801624775,
+          "entropy": 309.55591292213273,
+          "volume": 3.483349388136213e-05
+        },
+        {
+          "pressure": 23637048615.52859,
+          "temperature": 1477.9050679435616,
+          "entropy": 308.9440551137173,
+          "volume": 3.482847471626252e-05
+        },
+        {
+          "pressure": 23649482497.498802,
+          "temperature": 1472.8296242403035,
+          "entropy": 308.32971856013853,
+          "volume": 3.4823463726993994e-05
+        },
+        {
+          "pressure": 23661866958.695866,
+          "temperature": 1467.749094740917,
+          "entropy": 307.7129026157802,
+          "volume": 3.481846105183563e-05
+        },
+        {
+          "pressure": 23674201594.288815,
+          "temperature": 1462.66362761473,
+          "entropy": 307.0936069554254,
+          "volume": 3.4813466830056816e-05
+        },
+        {
+          "pressure": 23686486001.03759,
+          "temperature": 1457.573373494462,
+          "entropy": 306.471831578192,
+          "volume": 3.480848120187916e-05
+        },
+        {
+          "pressure": 23698719777.465744,
+          "temperature": 1452.4784854578406,
+          "entropy": 305.8475768114779,
+          "volume": 3.480350430843726e-05
+        },
+        {
+          "pressure": 23710902524.03175,
+          "temperature": 1447.3791190055952,
+          "entropy": 305.220843314562,
+          "volume": 3.479853629173773e-05
+        },
+        {
+          "pressure": 23723033843.30602,
+          "temperature": 1442.275432038822,
+          "entropy": 304.5916320822074,
+          "volume": 3.479357729461705e-05
+        },
+        {
+          "pressure": 23735113340.14797,
+          "temperature": 1437.1675848333778,
+          "entropy": 303.9599444479902,
+          "volume": 3.4788627460697854e-05
+        },
+        {
+          "pressure": 23747140621.88464,
+          "temperature": 1432.055740012035,
+          "entropy": 303.32578208742933,
+          "volume": 3.478368693434394e-05
+        },
+        {
+          "pressure": 23759115298.49371,
+          "temperature": 1426.9400625155058,
+          "entropy": 302.68914702104837,
+          "volume": 3.477875586061385e-05
+        },
+        {
+          "pressure": 23759915053.7265,
+          "temperature": 1426.5974612431548,
+          "entropy": 302.64643930077784,
+          "volume": 3.4778426091562646e-05
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "zero_phase": 2,
+      "assemblage": [
+        0,
+        1,
+        2
+      ],
+      "side_a": [
+        0,
+        1
+      ],
+      "side_b": [
+        0,
+        1,
+        2
+      ],
+      "is_solution_replacement": false,
+      "start_node": 8,
+      "end_node": 4,
+      "termination": "domain edge; junction",
+      "points": [
+        {
+          "pressure": 23818692495.496872,
+          "temperature": 1401.0875136883562,
+          "entropy": 302.6464393007778,
+          "volume": 3.334455373334083e-05
+        },
+        {
+          "pressure": 23810466618.074837,
+          "temperature": 1404.6976547581241,
+          "entropy": 303.1137708956153,
+          "volume": 3.334854192293714e-05
+        },
+        {
+          "pressure": 23798873768.516613,
+          "temperature": 1409.763033157179,
+          "entropy": 303.7677580117766,
+          "volume": 3.3354148599128424e-05
+        },
+        {
+          "pressure": 23787227573.29802,
+          "temperature": 1414.8255933988244,
+          "entropy": 304.4193820557745,
+          "volume": 3.3359764859426896e-05
+        },
+        {
+          "pressure": 23775528382.140408,
+          "temperature": 1419.8851698240653,
+          "entropy": 305.0686392016625,
+          "volume": 3.3365390535490126e-05
+        },
+        {
+          "pressure": 23763776548.182068,
+          "temperature": 1424.9415987135376,
+          "entropy": 305.7155259499021,
+          "volume": 3.3371025459656996e-05
+        },
+        {
+          "pressure": 23751972427.81132,
+          "temperature": 1429.9947183244146,
+          "entropy": 306.3600391258415,
+          "volume": 3.337666946500185e-05
+        },
+        {
+          "pressure": 23740116380.49794,
+          "temperature": 1435.0443689245783,
+          "entropy": 307.0021758778883,
+          "volume": 3.3382322385386595e-05
+        },
+        {
+          "pressure": 23728208768.627445,
+          "temperature": 1440.0903928256528,
+          "entropy": 307.6419336755829,
+          "volume": 3.338798405551186e-05
+        },
+        {
+          "pressure": 23716249957.336414,
+          "temperature": 1445.132634414179,
+          "entropy": 308.27931030748863,
+          "volume": 3.339365431096688e-05
+        },
+        {
+          "pressure": 23704240314.346405,
+          "temperature": 1450.1709401799517,
+          "entropy": 308.9143038787828,
+          "volume": 3.339933298827735e-05
+        },
+        {
+          "pressure": 23692180209.803246,
+          "temperature": 1455.2051587440487,
+          "entropy": 309.5469128088624,
+          "volume": 3.34050199249525e-05
+        },
+        {
+          "pressure": 23680070016.11329,
+          "temperature": 1460.2351408832765,
+          "entropy": 310.1771358285727,
+          "volume": 3.341071495953022e-05
+        },
+        {
+          "pressure": 23667910107.785122,
+          "temperature": 1465.2607395542777,
+          "entropy": 310.80497197745495,
+          "volume": 3.341641793162104e-05
+        },
+        {
+          "pressure": 23655700861.2709,
+          "temperature": 1470.2818099150281,
+          "entropy": 311.4304206007399,
+          "volume": 3.342212868195041e-05
+        },
+        {
+          "pressure": 23643442654.809143,
+          "temperature": 1475.29820934434,
+          "entropy": 312.0534813461737,
+          "volume": 3.3427847052399424e-05
+        },
+        {
+          "pressure": 23631135868.271515,
+          "temperature": 1480.309797460426,
+          "entropy": 312.6741541607981,
+          "volume": 3.343357288604428e-05
+        },
+        {
+          "pressure": 23618780883.008865,
+          "temperature": 1485.3164361365484,
+          "entropy": 313.29243928745746,
+          "volume": 3.343930602719384e-05
+        },
+        {
+          "pressure": 23606378081.702766,
+          "temperature": 1490.317989516305,
+          "entropy": 313.908337261339,
+          "volume": 3.34450463214262e-05
+        },
+        {
+          "pressure": 23593927848.21624,
+          "temperature": 1495.3143240259267,
+          "entropy": 314.52184890623676,
+          "volume": 3.345079361562329e-05
+        },
+        {
+          "pressure": 23581430567.44739,
+          "temperature": 1500.305308385114,
+          "entropy": 315.13297533072455,
+          "volume": 3.345654775800374e-05
+        },
+        {
+          "pressure": 23568886625.18848,
+          "temperature": 1505.2908136174917,
+          "entropy": 315.7417179243691,
+          "volume": 3.346230859815521e-05
+        },
+        {
+          "pressure": 23556296407.91481,
+          "temperature": 1510.270713083932,
+          "entropy": 316.3480783568234,
+          "volume": 3.346807598709489e-05
+        },
+        {
+          "pressure": 23543660302.850784,
+          "temperature": 1515.2448824098963,
+          "entropy": 316.9520585641026,
+          "volume": 3.347384977720612e-05
+        },
+        {
+          "pressure": 23530978697.6319,
+          "temperature": 1520.2131995692037,
+          "entropy": 317.55366075403896,
+          "volume": 3.347962982235742e-05
+        },
+        {
+          "pressure": 23518251980.238632,
+          "temperature": 1525.1755448606423,
+          "entropy": 318.1528873987503,
+          "volume": 3.3485415977897624e-05
+        },
+        {
+          "pressure": 23505480538.867367,
+          "temperature": 1530.1318009100607,
+          "entropy": 318.7497412303232,
+          "volume": 3.349120810068024e-05
+        },
+        {
+          "pressure": 23500685604.662216,
+          "temperature": 1531.9865590549134,
+          "entropy": 318.97268063759594,
+          "volume": 3.34933790280567e-05
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "zero_phase": 2,
+      "assemblage": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "side_a": [
+        0,
+        1,
+        3
+      ],
+      "side_b": [
+        0,
+        1,
+        2
+      ],
+      "is_solution_replacement": false,
+      "start_node": 4,
+      "end_node": 0,
+      "termination": "junction; junction",
+      "points": [
+        {
+          "pressure": 23500685604.66197,
+          "temperature": 1531.9865590550385,
+          "entropy": 318.97268063761084,
+          "volume": 3.349337902805682e-05
+        },
+        {
+          "pressure": 23500685604.661907,
+          "temperature": 1531.9865590551278,
+          "entropy": 318.9726806376145,
+          "volume": 3.3493379028066785e-05
+        },
+        {
+          "pressure": 23500685604.66197,
+          "temperature": 1531.9865590550385,
+          "entropy": 318.0996620627083,
+          "volume": 3.4724110371522016e-05
+        },
+        {
+          "pressure": 23500685604.662235,
+          "temperature": 1531.9865590551303,
+          "entropy": 317.2266434878021,
+          "volume": 3.5954841715007035e-05
+        },
+        {
+          "pressure": 23500685604.661617,
+          "temperature": 1531.986559055305,
+          "entropy": 316.9727350290058,
+          "volume": 3.6312787247462234e-05
+        }
+      ]
+    }
+  ],
+  "fields": [],
+  "samples": []
+}
