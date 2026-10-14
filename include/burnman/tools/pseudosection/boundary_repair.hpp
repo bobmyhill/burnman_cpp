@@ -18,16 +18,23 @@
 
 namespace burnman::pseudosections::detail {
 struct Engine;
-// Infer Gibbs variance from saved endpoint metadata; -1 means unavailable.
+/// Infer a reaction assemblage's Gibbs variance from its saved junctions.
+/// Return -1 when suitable endpoint metadata is unavailable.
 int boundary_variance(const Boundary &, const Result &);
 
+/// Junction/endpoint IDs used by retained traces; also supports geometry-only
+/// input files whose nodes have no explicit endpoint references.
 std::set<int> active_boundary_nodes(const Result &);
 
-// Drop lines whose interior is metastable when a parallel line joins the same
-// nodes. Returns the number removed.
+/// Re-solve interior points of alternative traces joining the same two nodes.
+/// Remove a failing trace only when a competing trace passes the checks;
+/// sharing endpoints does not by itself make two curves duplicates.
+/// Return the number of removed records.
 std::size_t remove_metastable_parallel_lines(Result &, Engine &);
 
-// Split verified arcs at stable nodes, then recover side labels.
+/// Repair reaction-line connectivity using verified equilibrium junctions.
+/// Split curves at accepted nodes and use the supplied label/refinement
+/// callbacks to recover neighbouring assemblages and test suspect segments.
 void repair_field_boundaries(
     Result &, Engine &, const std::function<void(Boundary &)> &,
     const std::function<bool(Boundary &, std::size_t)> &);

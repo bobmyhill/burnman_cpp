@@ -16,6 +16,8 @@
 #include <functional>
 
 namespace burnman::pseudosections {
+/// Sampling and continuation controls for property contours within saved
+/// fields.
 struct ContourSettings {
   // Cross-field sweeps also connect their interior samples along the polygon;
   // geometry subdivisions follow bends and avoid crossing excluded holes.
@@ -24,6 +26,7 @@ struct ContourSettings {
   double step = .02, min_step = 1.e-6;
 };
 
+/// One connected contour segment in a particular closed assemblage field.
 struct ContourLine {
   // Same one-based number as the source FieldPolygon.
   int field_number = 0;
@@ -35,6 +38,8 @@ struct ContourLine {
   std::string termination;
 };
 
+/// Solved contour segments and any failed-tracing diagnostics, separate from
+/// the resolution status of the source pseudosection.
 struct ContourResult {
   DiagramType diagram_type = DiagramType::PT;
   std::vector<ContourLine> lines;
@@ -43,24 +48,29 @@ struct ContourResult {
   bool resolved = true;
 };
 
-/// Construct an equality constraint for the field's actual assemblage and
-/// parameter layout. Return nullptr where it is undefined
-/// (e.g. a garnet composition in a field without garnet). Called once per
-/// field; the constraint and its native derivatives drive continuation.
+/// Build the equation defining a contour, e.g. a fixed garnet X_Mg or density.
+/// Called once per field with its actual assemblage and parameter layout.
+/// Return nullptr where the quantity is undefined, such as garnet X_Mg in a
+/// garnet-free field. Its derivatives guide subsequent equilibrium
+/// continuation.
 using ContourConstraintFactory =
     std::function<std::unique_ptr<equilibration::EqualityConstraint>(
         const Assemblage &, const equilibration::EquilibrationParameters &,
         const std::vector<int> &)>;
 
-/// Trace a constraint through saved, identified closed fields, using their
-/// accepted phase amounts/compositions as warm starts. No phase boundaries
-/// are recalculated and the source is not modified. Candidates and phase-ID
-/// spacing must match the original calculation. Seeds sweep across each field
-/// and along paths inside its polygon. Finite sampling can miss disconnected
-/// contours; increase seed_grid to assess their discovery.
-/// Use the saved field's phases, check the equilibrium constraints and reject
-/// negative Gibbs curvature along mass-conserving reactions;
-/// discovering phases and checking alternative assemblages is not repeated.
+/// Calculate property or mineral-composition contours within saved phase
+/// fields. The supplied constraint fixes the contour value; equilibrium
+/// continuation solves phase amounts/compositions along it. Saved states
+/// initialise the solves, and the field's outer ring and holes limit the traced
+/// segments. Use the original candidate order and phase-ID spacing. previous is
+/// unchanged.
+///
+/// The assemblage is held to the identified field's phases. Check equilibrium
+/// and reject negative Gibbs curvature along mass-conserving reactions, but do
+/// not repeat phase discovery or alternative-candidate searches. Consequently,
+/// contour success is not an independent validation of the source field labels.
+/// Finite seeding can miss disconnected contours; vary seed_grid to assess
+/// this.
 ContourResult
 pseudosection_contours(const Result &previous,
                        const std::vector<std::shared_ptr<Material>> &candidates,

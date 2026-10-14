@@ -38,12 +38,17 @@ class CriticalConstraint : public EqualityConstraint {
                      const Eigen::VectorXd &) const;
 
 public:
+  /// Create one of the two critical-point equations for a chosen solution.
+  /// The bool selects third (true) or second (false) directional derivative;
+  /// the reference composition direction fixes the soft mode's sign.
   CriticalConstraint(const Assemblage &, int, const EquilibrationParameters &,
                      const Eigen::VectorXd &, bool);
   std::unique_ptr<EqualityConstraint> clone() const override;
   double evaluate(const Eigen::VectorXd &, const Assemblage &) const override;
   Eigen::VectorXd derivative(const Eigen::VectorXd &, const Assemblage &,
                              Eigen::Index) const override;
+  /// Endmember-composition direction in which the Gibbs curvature is softest,
+  /// restricted to allowed changes of occupied sites and sum(proportions)=1.
   Eigen::VectorXd mode(const Assemblage &, int) const;
   // Call only after both critical constraints have converged. Require one
   // soft mode, stable transverse modes, and positive quartic curvature after

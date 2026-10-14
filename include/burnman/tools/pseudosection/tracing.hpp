@@ -15,17 +15,27 @@
 #include "burnman/tools/pseudosection/refinement.hpp"
 
 namespace burnman::pseudosections {
-/// Calculate phase fields for a closed elemental bulk. Find stable starting
-/// assemblages by minimising Gibbs energy, then trace boundaries where a phase
-/// amount reaches zero. At junctions, try branches with one phase added,
-/// removed or exchanged. Accept branches only where equilibrium defines a line
-/// in the selected diagram and no lower-Gibbs-energy alternative is found.
-/// Finite seed sampling does not guarantee discovery of every disconnected
-/// field. Inspect resolved and diagnostics; increase seed density to assess it.
-/// section selects any pair of P,T,S,V,X and supplies S/V/X ranges. X diagrams
-/// fix one other thermodynamic coordinate. S and V are extensive on the bulk
-/// amount scale. Missing P/T are solved using the supplied P/T ranges as search
-/// bounds. PX/TX can specify fixed T/P by giving that range equal endpoints.
+/// Calculate an assemblage diagram for a closed bulk and supplied phase models.
+/// composition gives elemental mole amounts; candidates are the allowed mineral
+/// and solution models. Initial equilibrium calculations locate changes in
+/// stable assemblage. Predictor-corrector continuation then follows the
+/// corresponding phase boundaries, usually by imposing zero amount of an
+/// appearing phase. Junction calculations test further branches, including
+/// solvus reactions. Accepted states satisfy mass balance, reaction equilibrium
+/// and candidate affinity checks within settings tolerances. A converged Newton
+/// root alone does not establish stability against the other candidate phases.
+///
+/// section selects P,T,S,V or X axes. Native units are Pa, K, total J/K and
+/// total m^3; S and V scale with the supplied bulk amount. Along an X axis,
+/// bulk(X) = (1-X)*composition + X*section.composition_end, without automatic
+/// normalisation, and one other thermodynamic coordinate is fixed. Unplotted
+/// P/T ranges guide inverse seed searches. Legacy PX/TX sections can specify
+/// fixed T/P by giving the corresponding range equal endpoints.
+///
+/// The Result contains equilibrium samples, traced boundaries and junctions.
+/// field_polygons() reconstructs the closed fields for plotting. resolved means
+/// that the implemented checks have no outstanding diagnostics; finite sampling
+/// cannot prove that every disconnected stability field has been discovered.
 Result pseudosection(const types::FormulaMap &composition,
                      const std::vector<std::shared_ptr<Material>> &candidates,
                      const std::array<double, 2> &pressure_range,
@@ -33,17 +43,22 @@ Result pseudosection(const types::FormulaMap &composition,
                      const Settings &settings = Settings{},
                      const CompositionSection &section = CompositionSection{});
 
-/// Resume unfinished boundaries from their last verified compositions and
-/// revisit junction branches. Supply the same bulk, candidates and phase-ID
-/// settings as the original calculation, including candidate order. Recovery
-/// may refine straight segments, trim tails or merge duplicate lines.
-/// resolution also subdivides every boundary using verified equilibrium solves,
-/// limiting point spacing to the axis span divided by (axis_points - 1).
-/// With resolution.region, use the window span and refine only segments that
-/// intersect it. Retrace unstable arcs and arcs around provisional loops once,
-/// using smaller steps within the window when max_recovery_passes is nonzero.
-/// Spacing that cannot be reached is reported in the returned diagnostics.
-/// Added points per line are limited by
+/// Continue and refine a saved calculation, returning a new Result.
+/// Reuse the original bulk, candidate order and max_phase_instances so saved
+/// phase IDs still identify the same minerals and coexisting solution copies.
+/// Recovery starts from accepted boundary states and revisits junction branches
+/// where needed. It can trim verified overshoots and remove duplicate traces.
+///
+/// Optional resolution controls the spacing of solved boundary points, rather
+/// than the density of initial assemblage samples: 101 axis points means 100
+/// divisions of that axis. With resolution.region, subdivide the window span
+/// and refine segments intersecting it, retaining the whole diagram. Recovery
+/// can retrace suspect arcs; when resolution is supplied, additional
+/// equilibrium samples test closed fields that still lack a trusted label.
+///
+/// Every inserted point is an equilibrium calculation, not a linear estimate
+/// of mineral compositions. Unmet spacing and unresolved fields are reported
+/// in diagnostics. Added points per line are limited by
 /// max_trace_steps*max_refinement_iterations.
 Result refine_pseudosection(
     const types::FormulaMap &composition,

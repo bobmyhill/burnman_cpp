@@ -35,6 +35,9 @@ struct SeedSample {
   double residual = 0.;
 };
 
+// Follow a fixed property/composition value inside each saved assemblage field.
+// Re-equilibrate its phases along the contour; the source reaction network and
+// phase identities are retained rather than repeating phase discovery.
 class Contours {
   const Result &source;
   Engine engine;

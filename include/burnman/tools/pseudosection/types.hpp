@@ -27,11 +27,14 @@
 namespace burnman::pseudosections {
 
 // Native records use diagram_axes() order, regardless of plot orientation.
-// P/T are Pa/K; S/V are total J/K and m^3 on the supplied elemental bulk scale.
-// X linearly interpolates endpoint amounts without normalising their totals.
+// P/T are Pa/K; S/V are total J/K and m^3 for the supplied elemental mole
+// amounts. X is the mixing fraction between two bulk compositions, not a
+// mineral's endmember proportion. Endpoint amounts are interpolated without
+// normalisation.
 enum class Coordinate { P, T, S, V, X };
 enum class DiagramType { PT, PX, TX, PS, PV, TS, TV, SV, SX, VX };
 
+/// Selected coordinates in calculation order, e.g. {P,T} for a P-T section.
 inline std::array<Coordinate, 2> diagram_axes(DiagramType type) {
   using C = Coordinate;
   switch (type) {
@@ -58,10 +61,12 @@ inline std::array<Coordinate, 2> diagram_axes(DiagramType type) {
   }
   throw std::invalid_argument("Unknown diagram type.");
 }
+/// Whether one diagram axis varies bulk composition along an X mixing path.
 inline bool has_composition_axis(DiagramType type) {
   return diagram_axes(type)[1] == Coordinate::X;
 }
 
+/// Choice of diagram axes, extensive-coordinate ranges and bulk mixing path.
 struct CompositionSection {
   DiagramType type = DiagramType::PT;
   // Bulk(X) = (1-X) bulk_start + X composition_end, retaining supplied amounts.
@@ -75,6 +80,7 @@ struct CompositionSection {
   double fixed_value = 0.;
 };
 
+/// Read a physical coordinate from an equilibrium, boundary point or junction.
 template <typename Point>
 double coordinate_value(const Point &point, Coordinate axis) {
   switch (axis) {
@@ -92,26 +98,33 @@ double coordinate_value(const Point &point, Coordinate axis) {
   throw std::invalid_argument("Unknown diagram coordinate.");
 }
 
-// Geometry uses the selected pair; P,T always retain their physical values.
+/// Position in the selected diagram, in native units. Stored P,T still give
+/// the physical pressure and temperature even for an S/V/X section.
 template <typename Point>
 Eigen::Vector2d diagram_coordinates(const Point &point, DiagramType type) {
   const auto axes = diagram_axes(type);
   return {coordinate_value(point, axes[0]), coordinate_value(point, axes[1])};
 }
 
+/// Sampling, continuation and acceptance criteria for one calculation.
 struct Settings {
-  // Seed counts apply to their respective selected diagram axes.
+  // Initial equilibrium grid along the selected axes; not an output pixel grid.
   int pressure_seeds = 7, temperature_seeds = 7;
   int composition_seeds = 7;
   int entropy_seeds = 7, volume_seeds = 7;
   int max_refinement_iterations = 150, minimization_starts = 10;
+  // Allow distinct compositions of the same solution model, e.g. two feldspars.
   int max_phase_instances = 3, max_trace_steps = 500, max_lines = 1000;
   int max_recovery_passes = 2;
   // Steps and node distances are fractions of the supplied diagram domain.
   double step = .025, min_step = 1.e-7;
-  // Affinities are J/mol; mass balance and phase amounts use relative errors.
+  // Candidate affinities are J/mol. A negative affinity favours forming that
+  // phase; mass balance uses relative elemental errors on the bulk scale.
   double affinity_tolerance = .2, mass_balance_tolerance = 1.e-8;
+  // amount_tolerance is a fraction of total phase moles; composition_tolerance
+  // compares vectors of endmember proportions. Neither is a geometric width.
   double amount_tolerance = 1.e-7, composition_tolerance = 1.e-5;
+  // Geometric junction-search distance in the rescaled diagram.
   double node_tolerance = 2.e-4;
   bool verbose = false;
   // Restrict the calculation to candidates with a stable EOS root, recording
@@ -126,6 +139,7 @@ struct Settings {
   std::vector<std::string> required_eos_phases;
 };
 
+/// Amount and composition of one phase, including an individual solvus branch.
 struct PhaseState {
   // id = candidate_index * settings.max_phase_instances + copy_index.
   // Solution copy numbers can change between assemblages; compare compositions
@@ -138,12 +152,13 @@ struct PhaseState {
   Eigen::VectorXd composition;
 };
 
+/// One sampled equilibrium, or a failed attempt with its diagnostic message.
 struct State {
   double pressure = 0., temperature = 0.; // Pa, K
   double composition_coordinate = 0.;     // X on the supplied bulk path
   double entropy = 0., volume = 0.;       // total J/K, m^3
   bool success = false;
-  // A solve explicitly requested at the interior of a constructed face.
+  // A solve explicitly requested inside a constructed phase-field polygon.
   bool is_field_verification = false;
   bool outside_model_domain = false;
   std::string message;
@@ -157,29 +172,38 @@ struct State {
   double mass_balance_error = 0., minimum_affinity = 0., equilibrium_error = 0.;
 };
 
+/// An accepted equilibrium on a reaction boundary, used to resume tracing.
 struct BoundaryPoint {
   double pressure = 0., temperature = 0.;
   double composition_coordinate = 0.;
   double entropy = 0., volume = 0.;
-  // Boundary states retain the zero-amount phase for reconstructing the solve.
+  // Retain the solved zero-amount phase and its equilibrium composition. Its
+  // presence in this record does not make it a present phase on both sides.
   std::vector<PhaseState> phases;
   double mass_balance_error = 0., minimum_affinity = 0., residual = 0.;
 };
 
+/// One traced reaction curve, stored as an ordered sequence of solved points.
+/// Consecutive points are joined by straight segments only for
+/// geometry/drawing.
 struct Boundary {
   int id = -1, zero_phase = -1, start_node = -1, end_node = -1;
   // Verified exchange of distinct solution compositions at unchanged counts.
   bool is_solution_replacement = false;
-  // assemblage retains all boundary instances, including zero_phase.
-  // In selected-axis order, side_a is right and side_b left along the line.
+  // assemblage retains all boundary instances, including zero_phase. The side
+  // labels identify the adjacent finite-area assemblages. In calculation-axis
+  // order, side_a is right and side_b left when following points front to back.
   std::vector<int> assemblage, side_a, side_b;
   std::vector<BoundaryPoint> points;
   // "start status; end status". Failed/unresolved ends have node ID -1.
   std::string termination;
 };
 
+/// A junction, critical endpoint, or endpoint on the frame or EOS-domain limit.
 struct Node {
-  // pt_nullity refers to the selected diagram axes, including S/V/X sections.
+  // Gibbs variance describes the assemblage's thermodynamic freedom;
+  // pt_nullity counts local directions in the selected diagram, including
+  // S/V/X.
   int id = -1, gibbs_variance = 0, pt_nullity = 0;
   std::string kind;
   double pressure = 0., temperature = 0.;
@@ -192,6 +216,7 @@ struct Node {
   bool is_verified_critical_endpoint = false;
 };
 
+/// A sampled assemblage, which can occur in several disconnected phase fields.
 struct Field {
   // Internal sampled-assemblage ID, distinct from a closed-loop field_number.
   int id = -1;
@@ -200,10 +225,15 @@ struct Field {
   std::vector<int> phases, sample_indices;
 };
 
+/// Saved thermodynamic states and boundary connectivity for the whole diagram.
+/// fields groups samples by assemblage; field_polygons() finds the actual
+/// areas.
 struct Result {
   std::array<double, 2> pressure_range, temperature_range;
   CompositionSection section;
   types::FormulaMap composition_start;
+  /// Bounds in calculation-axis order and native units, independent of
+  /// plotting.
   std::array<std::array<double, 2>, 2> coordinate_ranges() const {
     auto range = [&](Coordinate axis) {
       switch (axis) {
@@ -236,13 +266,16 @@ struct Result {
   // remaining candidates cannot represent the bulk or a required EOS fails.
   // These are model limits, not equilibrium phase lines.
   std::vector<Eigen::MatrixXd> excluded_regions;
-  // True when boundary topology and perimeter labelling have no diagnostics.
-  // Even if true, the fields may not represent the global minimum Gibbs energy.
+  // True when the implemented tracing and field-identification checks leave
+  // no diagnostics. This does not prove that finite seed sampling found every
+  // stability field or every lower-energy composition of the candidate models.
   bool resolved = false;
   // Cumulative work, including the previous result when refined.
   int equilibrium_solves = 0, minimization_calls = 0;
 };
 
+/// One drawable closed field: an outer coordinate ring and any interior holes.
+/// A ring repeats its first point at the end; holes exclude enclosed areas.
 struct FieldPolygon {
   // One-based closed-loop number, shared by plots, keys and diagnostics.
   int field_number = 0;
@@ -253,6 +286,9 @@ struct FieldPolygon {
   // Source reaction arcs forming the exterior and holes; useful for targeted
   // side-label recovery without equilibrating arbitrary polygon interiors.
   std::vector<int> boundary_ids;
+  // A closed drawing walk can still contain an unfinished interior reaction
+  // line. Such a field is open thermodynamically and cannot be trusted as
+  // closed.
   bool has_open_boundary = false;
   // A display label chosen despite missing or conflicting perimeter evidence.
   // This does not assert a resolved topology or a newly verified equilibrium.
@@ -269,13 +305,14 @@ struct FieldPolygon {
   // Interior label point with approximate maximum clearance, in diagram units.
   Eigen::Vector2d label_position = Eigen::Vector2d::Zero();
   double label_clearance = 0.; // normalised distance to the closest ring
-  /// True only when the entire axis-aligned rectangle lies strictly inside
-  /// the exterior and outside all holes. Centre and half-size use diagram
-  /// units.
+  /// Test whether a label rectangle fits wholly inside this field, including
+  /// clearance from holes and concave boundaries. centre and half_size use
+  /// native diagram units; contact with a boundary returns false.
   bool contains_rectangle(const Eigen::Vector2d &centre,
                           const Eigen::Vector2d &half_size) const;
 };
 
+/// Plotting geometry, inferred neighbouring assemblages and labelling messages.
 struct FieldPolygons {
   std::vector<FieldPolygon> polygons;
   std::vector<std::string> diagnostics;

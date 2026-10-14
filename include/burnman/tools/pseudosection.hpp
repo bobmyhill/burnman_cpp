@@ -12,6 +12,9 @@
 // ------------------------------------------------------
 
 #pragma once
+/// Pseudosection API: calculate equilibrium boundaries, reconstruct closed
+/// assemblage fields, and trace property or mineral-composition contours.
+/// The component headers document numerical settings, units and saved records.
 #include "burnman/tools/pseudosection/contours.hpp"
 #include "burnman/tools/pseudosection/polygons.hpp"
 #include "burnman/tools/pseudosection/stability.hpp"
