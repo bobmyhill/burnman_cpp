@@ -1,3 +1,16 @@
+# ------------------------------------------------------
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
+#
+# This file is part of BurnMan.
+#
+# Detailed license information governing the source code
+# and contributions can be found in the LICENSE document.
+#
+# ------------------------------------------------------
+
 """Independent assemblage landmarks in Green et al. (2025), Supplement 3.
 
 The reference is the published MAGEMin figures, not Python BurnMan output.

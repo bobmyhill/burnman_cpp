@@ -1,3 +1,16 @@
+# ------------------------------------------------------
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
+#
+# This file is part of BurnMan.
+#
+# Detailed license information governing the source code
+# and contributions can be found in the LICENSE document.
+#
+# ------------------------------------------------------
+
 """Constants exported from the C++ library, using Python BurnMan's names.
 
 gas_constant: molar gas constant R, J/(mol K).

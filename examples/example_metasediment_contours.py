@@ -1,4 +1,17 @@
 #!/usr/bin/env python3
+# ------------------------------------------------------
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
+#
+# This file is part of BurnMan.
+#
+# Detailed license information governing the source code
+# and contributions can be found in the LICENSE document.
+#
+# ------------------------------------------------------
+
 """Density and garnet Mg/(Mg + Fe2+) contours on a saved metasediment diagram.
 
 First run example_metasediment_pseudosection.py, then:

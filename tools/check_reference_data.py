@@ -1,4 +1,17 @@
 #!/usr/bin/env python3
+# ------------------------------------------------------
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
+#
+# This file is part of BurnMan.
+#
+# Detailed license information governing the source code
+# and contributions can be found in the LICENSE document.
+#
+# ------------------------------------------------------
+
 """Check or regenerate native numerical snapshots using pinned Python BurnMan.
 
 Run with the clean reference checkout first on PYTHONPATH. --write replaces

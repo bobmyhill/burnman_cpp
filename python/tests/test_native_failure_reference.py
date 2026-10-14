@@ -1,3 +1,16 @@
+# ------------------------------------------------------
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
+#
+# This file is part of BurnMan.
+#
+# Detailed license information governing the source code
+# and contributions can be found in the LICENSE document.
+#
+# ------------------------------------------------------
+
 """Regressions for the native failures, compared with pure Python BurnMan.
 
 Reference: geodynamics/burnman at 39b582cd23954fabd3bdbbee6526a522b1d97bc9.

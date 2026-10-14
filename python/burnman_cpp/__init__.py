@@ -1,3 +1,16 @@
+# ------------------------------------------------------
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
+#
+# This file is part of BurnMan.
+#
+# Detailed license information governing the source code
+# and contributions can be found in the LICENSE document.
+#
+# ------------------------------------------------------
+
 """BurnMan C++ mineral physics, solid solutions and equilibrium calculations.
 
 All quantities use SI units: Pa, K, m³/mol, kg/mol and J/mol.

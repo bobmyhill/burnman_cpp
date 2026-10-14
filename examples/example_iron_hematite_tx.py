@@ -1,4 +1,17 @@
 #!/usr/bin/env python3
+# ------------------------------------------------------
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
+#
+# This file is part of BurnMan.
+#
+# Detailed license information governing the source code
+# and contributions can be found in the LICENSE document.
+#
+# ------------------------------------------------------
+
 """Iron-hematite T-X diagram at 1 bar, from Fe to Fe2O3, 300 to 1500 K.
 
 Uses HGP18 iron, wuestite, magnetite and hematite with the Holland

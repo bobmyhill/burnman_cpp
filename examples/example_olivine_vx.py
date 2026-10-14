@@ -1,4 +1,17 @@
 #!/usr/bin/env python3
+# ------------------------------------------------------
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
+#
+# This file is part of BurnMan.
+#
+# Detailed license information governing the source code
+# and contributions can be found in the LICENSE document.
+#
+# ------------------------------------------------------
+
 """Olivine V-X diagram at 1673 K using the shared olivine example.
 
 Both endpoints contain one mole of formula units. The closed-system total
