@@ -68,6 +68,7 @@ def check_joined_edges(geometry):
         "pyrolite_frame_order",
         "pyrolite_reaction_extents",
         "pyrolite_zoom_reaction_limits",
+        "forsterite_latent_interval",
     ],
 )
 def test_boundary_permutations_and_ids_preserve_polygon_results(fixture):
@@ -652,6 +653,48 @@ def test_latent_invariant_loops_have_no_area_but_univariant_strips_remain(
         assert {tuple(p.phases) for p in geometry.polygons} == {(0, 1, 2), (0, 1, 3)}
     else:
         assert any(0.0 < p.area < 1.0e-11 for p in geometry.polygons)
+
+
+@pytest.mark.parametrize("axes", ["PS", "TV"])
+@pytest.mark.parametrize("variance", [0, 1])
+def test_latent_interval_can_change_neighbours_without_conflicting_field_labels(
+    axes, variance
+):
+    # Recorded Mg2SiO4 P-S traces. There are no samples to supply fallback
+    # labels: the ordinary perimeter reactions must identify all six fields.
+    data = json.loads(
+        (Path(__file__).parent / "data/forsterite_latent_interval.json").read_text()
+    )
+    for node in data["nodes"]:
+        if node["kind"] == "junction":
+            node["gibbs_variance"] = variance
+    if axes == "TV":
+        # Exercise the same topology with temperature and volume axes.
+        data["diagram_type"] = axes
+        p0, p1 = data["pressure_range"]
+        s0, s1 = data["entropy_range"]
+        data["temperature_range"] = [1400.0, 1700.0]
+        data["volume_range"] = [3.3e-5, 3.7e-5]
+        for point in data["nodes"] + [
+            p for b in data["boundaries"] for p in b["points"]
+        ]:
+            point["temperature"] = 1400.0 + 300.0 * (point["pressure"] - p0) / (p1 - p0)
+            point["volume"] = 3.3e-5 + 4.0e-6 * (point["entropy"] - s0) / (s1 - s0)
+    geometry = bm.pseudosection_field_polygons(data)
+    assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
+    if variance == 0:
+        assert len(geometry.polygons) == 6
+        assert not geometry.diagnostics
+        assert {tuple(p.phases) for p in geometry.polygons} == {
+            (0, 1),
+            (0, 2),
+            (3,),
+            (0, 1, 2),
+            (0, 1, 3),
+            (0, 2, 3),
+        }
+    else:
+        assert any("conflicting perimeter" in d for d in geometry.diagnostics)
 
 
 def test_nested_and_disconnected_fields():

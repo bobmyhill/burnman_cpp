@@ -1000,6 +1000,12 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
           if (!observations.insert(record).second)
             continue;
           const auto &source = *record;
+          // A P-S/T-V invariant can change limiting assemblage along its
+          // latent interval. Its global phase-out pair cannot constrain
+          // every adjacent face; retain side evidence and use the other
+          // perimeter reactions to identify each finite field.
+          if (edges[edge].latent_invariant)
+            continue;
           intersect_assemblages(candidates[0],
                                 boundary_assemblages(source, result),
                                 constrained[0]);
