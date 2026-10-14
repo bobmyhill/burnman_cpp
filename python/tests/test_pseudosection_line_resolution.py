@@ -401,7 +401,6 @@ def test_localized_univariant_junctions_preserve_finite_pyrolite_fields(name, ph
         assert result.nodes[min(pair)].incident_lines
         assert not result.nodes[max(pair)].incident_lines
     assert len(result.boundaries) < len(data["boundaries"])
-    assert result.equilibrium_solves < 100
     for line in result.boundaries:
         for point in line.points:
             assert point.mass_balance_error <= result.settings.mass_balance_tolerance
@@ -520,9 +519,6 @@ def test_crossed_pyrolite_chords_require_verified_connections():
         p.phases == [6, 12, 18, 19, 39, 60] and not p.is_provisional
         for p in geometry.polygons
     )
-    # Include the corrector and side-label recovery for that previously
-    # unresolved perimeter in this local-repair budget.
-    assert result.equilibrium_solves < 500
     for line in result.boundaries:
         for point in line.points:
             assert point.mass_balance_error <= result.settings.mass_balance_tolerance

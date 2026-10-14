@@ -43,6 +43,30 @@ def square(low=0.2, high=0.8):
     return [(low, low), (high, low), (high, high), (low, high), (low, low)]
 
 
+@pytest.mark.parametrize(
+    "offset,provisional", [(0.0, False), (1.0e-12, False), (1.0e-6, True)]
+)
+def test_uniform_field_classifies_frame_samples_with_the_geometry_tolerance(
+    offset, provisional
+):
+    # All four inverse-coordinate solves can round outward from frame corners.
+    points = [
+        (-offset, -offset),
+        (1 + offset, -offset),
+        (1 + offset, 1 + offset),
+        (-offset, 1 + offset),
+    ]
+    geometry = bm.pseudosection_field_polygons(
+        diagram([], [sample(p, t, [0]) for p, t in points])
+    )
+    assert len(geometry.polygons) == 1
+    polygon = geometry.polygons[0]
+    assert polygon.phases == [0]
+    assert polygon.area == pytest.approx(1.0)
+    assert polygon.is_provisional == provisional
+    assert bool(geometry.diagnostics) == provisional
+
+
 def check_joined_edges(geometry):
     def key(a, b):
         return tuple(sorted((tuple(a), tuple(b))))

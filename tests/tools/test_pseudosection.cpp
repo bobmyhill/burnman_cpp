@@ -17,6 +17,7 @@
 #include "burnman/tools/polytope.hpp"
 #include "burnman/tools/pseudosection.hpp"
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 using namespace burnman;
 
@@ -89,6 +90,29 @@ TEST_CASE("Intensive branch matching preserves distinct coexisting copies",
   exchanged[1].amount = 0.;
   CHECK(ps::detail::zero_phases_at(node, exchanged, 3) ==
         std::vector<int>{4, 5});
+}
+
+TEST_CASE("Boundary variance is independent of local phase-instance numbers",
+          "[pseudosection]") {
+  namespace ps = pseudosections;
+  ps::Result result;
+  result.settings.max_phase_instances = 3;
+  ps::Node node;
+  node.id = 0;
+  node.kind = "junction";
+  node.gibbs_variance = 0;
+  node.assemblage = {2, 5};
+  result.nodes = {node};
+  ps::Boundary line;
+  line.start_node = 0;
+  line.assemblage = {0};
+  CHECK(ps::detail::boundary_variance(line, result) == 1);
+  line.assemblage = {0, 3};
+  CHECK(ps::detail::boundary_variance(line, result) == 0);
+  for (auto unrelated : {std::vector<int>{0, 1}, std::vector<int>{6}}) {
+    line.assemblage = unrelated;
+    CHECK(ps::detail::boundary_variance(line, result) == -1);
+  }
 }
 
 TEST_CASE("Reaction-extent seeds preserve present phase compositions",
@@ -167,9 +191,11 @@ TEST_CASE("Entropy-volume sections solve physical P and T", "[pseudosection]") {
                           mineral->get_molar_volume() + 1.e-9};
   ps::Settings settings;
   settings.entropy_seeds = settings.volume_seeds = 2;
+  const double pressure_limit = GENERATE(8.e9, 8.2e9);
   auto result =
       ps::pseudosection({{"Ca", 1.}, {"Si", 1.}, {"O", 3.}}, {mineral},
-                        {0., 8.e9}, {500., 1500.}, settings, section);
+                        {0., pressure_limit}, {500., 1500.}, settings, section);
+  CAPTURE(pressure_limit, result.diagnostics);
   REQUIRE(result.resolved);
   CHECK(result.coordinate_ranges()[0] == section.entropy_range);
   CHECK(result.coordinate_ranges()[1] == section.volume_range);
