@@ -1284,10 +1284,12 @@ class Tracer {
       auto old_x = solve.x;
       auto old_u = normalised_coordinates(*a);
       current_ids = ids;
-      const double maximum_step = line_resolution
-          ? refinement_step(result, *line_resolution, engine.coordinates(*a),
-                            engine.project_direction(direction, *a), engine.settings)
-          : engine.settings.step;
+      const double maximum_step =
+          line_resolution
+              ? refinement_step(
+                    result, *line_resolution, engine.coordinates(*a),
+                    engine.project_direction(direction, *a), engine.settings)
+              : engine.settings.step;
       double requested = std::min(step, maximum_step);
       double affinity = 0.;
       // Predict the first phase-out event from amount derivatives.
@@ -2713,10 +2715,11 @@ class Tracer {
           add_sample(verified, burnman::utils::checked_int(i));
       }
     reconcile_boundaries(true);
-    repair_field_boundaries(result, engine, [&](Boundary &line) { label(line); },
-                            [&](Boundary &line, std::size_t k) {
-                              return refine_segment(line, k, true);
-                            });
+    repair_field_boundaries(
+        result, engine, [&](Boundary &line) { label(line); },
+        [&](Boundary &line, std::size_t k) {
+          return refine_segment(line, k, true);
+        });
     // Short duplicates may become verifiable only after recovering side labels.
     reconcile_boundaries();
     index_boundaries();
@@ -2771,20 +2774,19 @@ class Tracer {
       engine.settings = saved_settings;
       reconcile_boundaries();
       // Recovery discovers stable nodes after the first perimeter repair.
-      repair_field_boundaries(result, engine,
-                              [&](Boundary &line) { label(line); },
-                              [&](Boundary &line, std::size_t k) {
-                                return refine_segment(line, k, true);
-                              });
+      repair_field_boundaries(
+          result, engine, [&](Boundary &line) { label(line); },
+          [&](Boundary &line, std::size_t k) {
+            return refine_segment(line, k, true);
+          });
       reconcile_boundaries();
       index_boundaries();
       result.diagnostics =
           line_resolution
-              ? detail::refine_line_spacing(
-                    result, engine, *line_resolution,
-                    [&](Boundary &line, std::size_t k) {
-                      return refine_segment(line, k);
-                    })
+              ? detail::refine_line_spacing(result, engine, *line_resolution,
+                                            [&](Boundary &line, std::size_t k) {
+                                              return refine_segment(line, k);
+                                            })
               : std::vector<std::string>{};
     }
     if (detail::remove_metastable_parallel_lines(result, engine))
@@ -2837,7 +2839,8 @@ class Tracer {
     detail::verify_critical_endpoints(result, engine);
     detail::recover_boundary_labels(result);
     auto messages = detail::field_diagnostics(result, engine);
-    result.diagnostics.insert(result.diagnostics.end(), messages.begin(), messages.end());
+    result.diagnostics.insert(result.diagnostics.end(), messages.begin(),
+                              messages.end());
     if (!queue.empty())
       result.diagnostics.push_back(
           "Boundary search limit reached; increase max_lines.");

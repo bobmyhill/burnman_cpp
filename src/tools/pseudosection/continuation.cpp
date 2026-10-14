@@ -452,7 +452,8 @@ std::optional<BoundaryPoint> junction_point_at(
     const std::vector<PhaseState> &seed, const Eigen::Vector2d &allowance) {
   if (node.zero_phases.size() != 2)
     return std::nullopt;
-  const auto zeros = zero_phases_at(node, warm, engine.settings.max_phase_instances);
+  const auto zeros =
+      zero_phases_at(node, warm, engine.settings.max_phase_instances);
   if (zeros.size() != 2)
     return std::nullopt;
   if (!seed_phase_compositions(warm, seed))
@@ -482,9 +483,9 @@ std::optional<BoundaryPoint> junction_point_at(
 // replace the overshot tail. Verify the event on the earlier branch before
 // trimming; coordinate order alone is insufficient for curved traces.
 bool trim_boundary_endpoints(Boundary &line, Engine &engine,
-                              const Eigen::Vector2d &range) {
-  if (engine.section.type != DiagramType::PT ||
-      line.points.size() < 3 || line.zero_phase < 0 ||
+                             const Eigen::Vector2d &range) {
+  if (engine.section.type != DiagramType::PT || line.points.size() < 3 ||
+      line.zero_phase < 0 ||
       (line.start_node >= 0 && line.start_node == line.end_node))
     return false;
   bool changed = false;
@@ -503,15 +504,19 @@ bool trim_boundary_endpoints(Boundary &line, Engine &engine,
     };
     std::size_t tail = line.points.size() - 2;
     const auto accuracy = equilibrium_pt_tolerance();
-    while (tail > 0 &&
-           ((diagram_coordinates(line.points[tail], engine.section.type) - target)
-                .cwiseAbs().array() <= accuracy.array()).all())
+    while (
+        tail > 0 &&
+        ((diagram_coordinates(line.points[tail], engine.section.type) - target)
+             .cwiseAbs()
+             .array() <= accuracy.array())
+            .all())
       --tail;
     // Ordinary forward arrivals and repeated endpoint records need no solve.
     // Search the earlier branch only when attaching the event turns back.
-    const bool turns_back = tail > 0 &&
-        -q(line.points[tail]).dot(q(line.points[tail]) -
-                                  q(line.points[tail - 1])) < 0.;
+    const bool turns_back =
+        tail > 0 &&
+        -q(line.points[tail])
+                .dot(q(line.points[tail]) - q(line.points[tail - 1])) < 0.;
     for (std::size_t k = tail; turns_back && k > 0; --k) {
       const auto a = q(line.points[k - 1]), b = q(line.points[k]);
       const Eigen::Vector2d delta = b - a;
@@ -519,15 +524,18 @@ bool trim_boundary_endpoints(Boundary &line, Engine &engine,
         continue;
       const double along = -a.dot(delta) / delta.squaredNorm();
       if (along < 0. || along > 1. ||
-          (a.cwiseProduct(range).cwiseAbs().array() <= accuracy.array()).all() ||
-          (b.cwiseProduct(range).cwiseAbs().array() <= accuracy.array()).all() ||
+          (a.cwiseProduct(range).cwiseAbs().array() <= accuracy.array())
+              .all() ||
+          (b.cwiseProduct(range).cwiseAbs().array() <= accuracy.array())
+              .all() ||
           segment_distance(Eigen::Vector2d::Zero(), a, b) >
               std::max(engine.settings.node_tolerance, .5 * delta.norm()))
         continue;
       try {
-        auto point = boundary_point_at(
-            engine, line, line.points[k - 1].phases, target,
-            delta.normalized().cwiseQuotient(range), equilibrium_pt_tolerance());
+        auto point =
+            boundary_point_at(engine, line, line.points[k - 1].phases, target,
+                              delta.normalized().cwiseQuotient(range),
+                              equilibrium_pt_tolerance());
         if (!point ||
             !same_phase_compositions(point->phases, endpoint.phases,
                                      engine.settings.composition_tolerance,

@@ -52,16 +52,17 @@ TEST_CASE("visual_center_of_polygon (hole is avoided)",
   const auto centre = utils::visual_center_of_polygon(rings, 1.e-6);
   CHECK(utils::signed_distance_to_polygon(centre.point, rings) > 0.);
   // The centroid lies in the hole; the best point sits in a corner region,
-  // equidistant from the outer corner edges and the hole corner: 4 sqrt2/(1+sqrt2).
-  CHECK(centre.distance == Approx(4. * std::sqrt(2.) / (1. + std::sqrt(2.)))
-                               .margin(1.e-3));
+  // equidistant from the outer corner edges and the hole corner: 4
+  // sqrt2/(1+sqrt2).
+  CHECK(centre.distance ==
+        Approx(4. * std::sqrt(2.) / (1. + std::sqrt(2.))).margin(1.e-3));
 }
 
 TEST_CASE("visual_center_of_polygon (seed and input checks)",
           "[utils][polygon_utils]") {
   const auto ring = rectangle(0, 0, 1, 1);
-  const auto centre = utils::visual_center_of_polygon(
-      {ring}, 0., {Eigen::Vector2d(.5, .5)});
+  const auto centre =
+      utils::visual_center_of_polygon({ring}, 0., {Eigen::Vector2d(.5, .5)});
   CHECK(centre.distance >= .49);
   CHECK_THROWS_AS(utils::visual_center_of_polygon({}), std::invalid_argument);
   CHECK(utils::signed_distance_to_polygon(Eigen::Vector2d(2, .5), {ring}) ==

@@ -38,8 +38,8 @@ INITIAL_FERRIC_FRACTION = 0.03
 
 P_Pa_low = 3.932e9
 P_Pa_high = 3.935e9
-T_K_low = 96.
-T_K_high = 98.
+T_K_low = 96.0
+T_K_high = 98.0
 
 
 def pyrolite_composition(ferric_fraction=INITIAL_FERRIC_FRACTION):

@@ -11,11 +11,11 @@
 //
 // ------------------------------------------------------
 
+#include "../../src/tools/pseudosection/internal.hpp"
 #include "burnman/minerals/datasets.hpp"
 #include "burnman/tools/equilibration/equilibrate_utils.hpp"
 #include "burnman/tools/polytope.hpp"
 #include "burnman/tools/pseudosection.hpp"
-#include "../../src/tools/pseudosection/internal.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 using namespace burnman;
@@ -31,11 +31,13 @@ TEST_CASE("Drawn interior boundaries are candidates without inventing nodes",
   ps::Boundary boundary;
   boundary.id = boundary.zero_phase = 0;
   ps::BoundaryPoint a, b;
-  a.pressure = 0.; b.pressure = 1.;
+  a.pressure = 0.;
+  b.pressure = 1.;
   a.temperature = b.temperature = .5;
   boundary.points = {a, b};
   result.boundaries = {boundary};
-  CHECK(ps::detail::interior_boundaries(result, polygon) == std::vector<int>{0});
+  CHECK(ps::detail::interior_boundaries(result, polygon) ==
+        std::vector<int>{0});
   CHECK(result.nodes.empty());
   CHECK(result.boundaries[0].points.size() == 2);
   polygon.boundary_ids = {0};
@@ -53,26 +55,33 @@ TEST_CASE("Intensive branch matching preserves distinct coexisting copies",
           "[pseudosection]") {
   namespace ps = pseudosections;
   ps::PhaseState rich, poor, extra;
-  rich.id = 3; poor.id = 4; extra.id = 5;
+  rich.id = 3;
+  poor.id = 4;
+  extra.id = 5;
   rich.candidate_index = poor.candidate_index = extra.candidate_index = 1;
   rich.amount = poor.amount = 1.;
   rich.composition = Eigen::Vector2d(.9, .1);
   poor.composition = Eigen::Vector2d(.1, .9);
   extra.composition = Eigen::Vector2d(.5, .5);
   auto exchanged = std::vector<ps::PhaseState>{poor, rich, extra};
-  exchanged[0].id = 3; exchanged[1].id = 4;
-  CHECK(ps::detail::same_phase_compositions({rich, poor}, exchanged, 1.e-5, 1.e-7));
-  CHECK(ps::detail::same_phase_compositions(exchanged, {rich, poor}, 1.e-5, 1.e-7));
+  exchanged[0].id = 3;
+  exchanged[1].id = 4;
+  CHECK(ps::detail::same_phase_compositions({rich, poor}, exchanged, 1.e-5,
+                                            1.e-7));
+  CHECK(ps::detail::same_phase_compositions(exchanged, {rich, poor}, 1.e-5,
+                                            1.e-7));
   exchanged[2].amount = .01;
-  CHECK_FALSE(ps::detail::same_phase_compositions({rich, poor}, exchanged, 1.e-5, 1.e-7));
-  CHECK_FALSE(ps::detail::same_phase_compositions({rich, poor}, {rich, rich}, 1.e-5, 1.e-7));
+  CHECK_FALSE(ps::detail::same_phase_compositions({rich, poor}, exchanged,
+                                                  1.e-5, 1.e-7));
+  CHECK_FALSE(ps::detail::same_phase_compositions({rich, poor}, {rich, rich},
+                                                  1.e-5, 1.e-7));
   exchanged[2].amount = 0.;
-  CHECK(ps::detail::same_boundary_compositions(
-      {rich, poor}, 3, exchanged, 4, 1.e-5, 1.e-7));
-  CHECK_FALSE(ps::detail::same_boundary_compositions(
-      {rich, poor}, 3, exchanged, 3, 1.e-5, 1.e-7));
-  CHECK_FALSE(ps::detail::same_boundary_compositions(
-      {rich, poor}, 5, exchanged, 4, 1.e-5, 1.e-7));
+  CHECK(ps::detail::same_boundary_compositions({rich, poor}, 3, exchanged, 4,
+                                               1.e-5, 1.e-7));
+  CHECK_FALSE(ps::detail::same_boundary_compositions({rich, poor}, 3, exchanged,
+                                                     3, 1.e-5, 1.e-7));
+  CHECK_FALSE(ps::detail::same_boundary_compositions({rich, poor}, 5, exchanged,
+                                                     4, 1.e-5, 1.e-7));
   CHECK_FALSE(ps::detail::same_boundary_compositions(
       {rich, extra}, 3, exchanged, 4, 1.e-5, 1.e-7));
   ps::Node node;
@@ -106,7 +115,8 @@ TEST_CASE("Reaction entropy and volume orient singular P-T boundaries",
   namespace ps = pseudosections;
   ps::Settings settings;
   settings.max_phase_instances = 1;
-  ps::detail::Engine engine({{"Al", 2.}, {"Si", 1.}, {"O", 5.}},
+  ps::detail::Engine engine(
+      {{"Al", 2.}, {"Si", 1.}, {"O", 5.}},
       {minerals::HP11::andalusite(), minerals::HP11::ky()}, settings);
   std::vector<ps::PhaseState> states(2);
   for (int k = 0; k < 2; ++k) {
@@ -141,7 +151,8 @@ TEST_CASE("Reaction entropy and volume orient singular P-T boundaries",
                                                 range, {0., 1.});
   CHECK(temperature[0] == std::vector<int>{1});
   CHECK(temperature[1] == std::vector<int>{0}); // Higher-entropy andalusite.
-  CHECK(engine.equilibrium_solves == 1); // Side identification performs no solves.
+  CHECK(engine.equilibrium_solves ==
+        1); // Side identification performs no solves.
 }
 
 TEST_CASE("Entropy-volume sections solve physical P and T", "[pseudosection]") {

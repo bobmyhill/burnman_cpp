@@ -212,11 +212,12 @@ int field_variance(const Assemblage &, std::size_t n_phases);
 // Infer Gibbs variance from saved endpoint metadata; -1 means unavailable.
 int boundary_variance(const Boundary &, const Result &);
 std::set<int> active_boundary_nodes(const Result &);
-bool seed_phase_compositions(std::vector<PhaseState> &,
-                             const std::vector<PhaseState> &,
-                             double tolerance = std::numeric_limits<double>::infinity(),
-                             double amount_tolerance = 0.);
-bool trim_boundary_endpoints(Boundary &, Engine &, const Eigen::Vector2d &range);
+bool seed_phase_compositions(
+    std::vector<PhaseState> &, const std::vector<PhaseState> &,
+    double tolerance = std::numeric_limits<double>::infinity(),
+    double amount_tolerance = 0.);
+bool trim_boundary_endpoints(Boundary &, Engine &,
+                             const Eigen::Vector2d &range);
 bool same_phase_compositions(const std::vector<PhaseState> &,
                              const std::vector<PhaseState> &, double tolerance,
                              double amount_tolerance);
@@ -227,10 +228,11 @@ bool same_boundary_compositions(const std::vector<PhaseState> &, int,
 // Node instance numbers may differ from those in an incident equilibrium.
 std::vector<int> zero_phases_at(const Node &, const std::vector<PhaseState> &,
                                 int copies);
-std::optional<BoundaryPoint>
-corrected_point(Engine &, Assemblage &, const std::vector<int> &,
-                ConstraintList &, const Eigen::Vector2d &target,
-                const Eigen::Vector2d &allowance);
+std::optional<BoundaryPoint> corrected_point(Engine &, Assemblage &,
+                                             const std::vector<int> &,
+                                             ConstraintList &,
+                                             const Eigen::Vector2d &target,
+                                             const Eigen::Vector2d &allowance);
 void verify_critical_endpoints(Result &, Engine &);
 void recover_boundary_labels(Result &);
 std::vector<std::string> field_diagnostics(const Result &, Engine &);

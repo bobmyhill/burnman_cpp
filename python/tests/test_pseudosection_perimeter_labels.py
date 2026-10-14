@@ -13,7 +13,9 @@ from test_pseudosection_plot import diagram, line, square
 
 @pytest.fixture
 def pyrolite_neighbours():
-    data = json.loads((Path(__file__).parent / "data/pyrolite_perimeter_neighbours.json").read_text())
+    data = json.loads(
+        (Path(__file__).parent / "data/pyrolite_perimeter_neighbours.json").read_text()
+    )
     factories = """olivine wadsleyite ringwoodite orthopyroxene clinopyroxene
         c2c_pyroxene garnet mg_fe_aluminous_spinel plagioclase ilmenite
         ferropericlase bridgmanite post_perovskite calcium_ferrite_structured_phase
@@ -25,7 +27,9 @@ def pyrolite_neighbours():
 
 
 @pytest.mark.parametrize("unrelated", [False, True])
-def test_closed_perimeters_recover_ambiguous_boundary_labels(pyrolite_neighbours, unrelated):
+def test_closed_perimeters_recover_ambiguous_boundary_labels(
+    pyrolite_neighbours, unrelated
+):
     data, phases = pyrolite_neighbours
     if unrelated:
         data["diagnostics"].append("An unrelated diagnostic must survive.")
@@ -39,14 +43,16 @@ def test_closed_perimeters_recover_ambiguous_boundary_labels(pyrolite_neighbours
     boundary = next(b for b in result.boundaries if b.id == 9)
     assert boundary.side_a == full and boundary.side_b == absent
     assert result.equilibrium_solves == data["equilibrium_solves"]
-    assert list(result.diagnostics) == (["An unrelated diagnostic must survive."] if unrelated else [])
+    assert list(result.diagnostics) == (
+        ["An unrelated diagnostic must survive."] if unrelated else []
+    )
     assert result.resolved == (not unrelated)
     checked = result.to_dict()
     assert checked["nodes"] == data["nodes"]
     assert checked["samples"] == data["samples"]
     for a, b in zip(checked["boundaries"], data["boundaries"]):
-        assert {k:v for k,v in a.items() if k not in ("side_a", "side_b")} == {
-            k:v for k,v in b.items() if k not in ("side_a", "side_b")
+        assert {k: v for k, v in a.items() if k not in ("side_a", "side_b")} == {
+            k: v for k, v in b.items() if k not in ("side_a", "side_b")
         }
     after = bm.pseudosection_field_polygons(result)
     assert len(after.polygons) == len(before.polygons)
@@ -81,10 +87,14 @@ def test_reaction_incompatible_perimeters_do_not_clear_warning(pyrolite_neighbou
 @pytest.mark.parametrize("reverse", [False, True])
 def test_opposed_duplicate_loops_keep_each_records_side_orientation(reverse):
     points = square()
-    data = diagram([
-        dict(id=3, zero_phase=0, assemblage=[0, 3], **line(points, [0, 3], [3])),
-        dict(id=9, zero_phase=0, assemblage=[0, 3], **line(points[::-1], [3], [0, 3])),
-    ])
+    data = diagram(
+        [
+            dict(id=3, zero_phase=0, assemblage=[0, 3], **line(points, [0, 3], [3])),
+            dict(
+                id=9, zero_phase=0, assemblage=[0, 3], **line(points[::-1], [3], [0, 3])
+            ),
+        ]
+    )
     if reverse:
         data["boundaries"].reverse()
     geometry = bm.pseudosection_field_polygons(data)
@@ -95,8 +105,14 @@ def test_opposed_duplicate_loops_keep_each_records_side_orientation(reverse):
 
 
 def test_equal_neighbours_do_not_certify_an_ordinary_phase_boundary():
-    data = diagram([
-        dict(id=3, zero_phase=0, assemblage=[0, 3],
-             **line([(0.5, 0), (0.5, 1)], [3], [3])),
-    ])
+    data = diagram(
+        [
+            dict(
+                id=3,
+                zero_phase=0,
+                assemblage=[0, 3],
+                **line([(0.5, 0), (0.5, 1)], [3], [3]),
+            ),
+        ]
+    )
     assert not bm.pseudosection_field_polygons(data).boundary_sides

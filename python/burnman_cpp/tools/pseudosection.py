@@ -840,8 +840,11 @@ def refine_pseudosection(
     native_region = None
     if region is not None:
         bounds = np.asarray(region, dtype=float)
-        if (bounds.shape != (2, 2) or not np.isfinite(bounds).all()
-                or (bounds[:, 0] >= bounds[:, 1]).any()):
+        if (
+            bounds.shape != (2, 2)
+            or not np.isfinite(bounds).all()
+            or (bounds[:, 0] >= bounds[:, 1]).any()
+        ):
             raise ValueError("region must contain finite increasing x and y bounds.")
         native_region = np.sort(native_coordinates(bounds.T), axis=0).T.tolist()
     return _core.refine_pseudosection(
