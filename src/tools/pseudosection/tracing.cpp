@@ -32,6 +32,8 @@
 namespace burnman::pseudosections {
 namespace {
 using namespace detail;
+// Starting estimate for one reaction branch: assemblage, zero-amount phase,
+// mineral compositions and a direction in the rescaled diagram.
 struct Seed {
   std::vector<int> ids;
   int zero = -1, node = -1;
@@ -41,6 +43,9 @@ struct Seed {
   std::vector<BoundaryPoint> prefix{};
   int bridge_node = -1;
 };
+// Own one diagram calculation. calculate() gives the overall sequence;
+// Engine supplies thermodynamic solves, while field_polygons() interprets
+// the saved reaction network as closed assemblage fields.
 class Tracer {
   Engine engine;
   Result result;
@@ -157,10 +162,14 @@ class Tracer {
             : 0.;
     return p;
   }
+  // Basic root/domain/mass checks; competing-phase affinity is checked
+  // separately.
   bool valid(const Assemblage &a, const EquilibriumSolve &s) const {
     return s.success && s.x.allFinite() && inside(normalised_coordinates(a)) &&
            engine.mass_error(a) <= engine.settings.mass_balance_tolerance;
   }
+  // Keep coexisting solution compositions on the same branches during a step;
+  // exchanging or coalescing them needs a separate critical/junction treatment.
   bool same_branch(const Assemblage &a, const Assemblage &b,
                    const std::vector<int> &ids) const {
     auto old = engine.snapshot(a, ids), next = engine.snapshot(b, ids);
@@ -269,6 +278,8 @@ class Tracer {
     out.phases = std::move(states);
     return out;
   }
+  // Store an equilibrium and group it by present assemblage. These groups are
+  // thermodynamic identities, not connected areas: one assemblage may recur.
   void add_sample(const State &state, int existing = -1) {
     int index = existing >= 0
                     ? existing
@@ -872,6 +883,9 @@ class Tracer {
           }
         }
   }
+  // A junction's zero-amount choices define possible outgoing reactions.
+  // Queue their trial branches; later corrector/stability tests decide
+  // acceptance.
   void expand(const Assemblage &a, const std::vector<int> &ids,
               const std::vector<int> &zeros, int index) {
     std::ostringstream key;
@@ -919,6 +933,9 @@ class Tracer {
         }
     }
   }
+  // Narrow an interval whose sampled equilibria have different assemblages,
+  // then seed the intervening phase-appearance or solution-replacement
+  // reactions.
   void bracket(WorkState left, WorkState right, int depth = 0) {
     if (!left.state.success || !right.state.success)
       return;
@@ -1257,7 +1274,10 @@ class Tracer {
       }
     return false;
   }
-  // Each direction returns points after the seed, including an exact endpoint.
+  // Follow one reaction direction with predictor-corrector equilibrium solves.
+  // Phase entry/exit, a critical point or a domain edge can terminate the
+  // branch. Return accepted points after the seed, including a solved endpoint
+  // when found.
   std::vector<BoundaryPoint> follow(std::shared_ptr<Assemblage> a,
                                     const Seed &seed, EquilibriumSolve solve,
                                     Eigen::VectorXd direction, int &end_node,
@@ -1599,6 +1619,10 @@ class Tracer {
     termination = "trace step limit";
     return points;
   }
+  // Identify the stable assemblage on each side of a solved reaction segment.
+  // Start with the equilibrium response; local probes provide additional
+  // evidence when degeneracy or solution replacement prevents a derivative-only
+  // decision.
   void label(Boundary &line) {
     if (line.points.size() < 2)
       return;
@@ -1995,6 +2019,9 @@ class Tracer {
               1.e-10)
         kept.points.push_back(entry.second);
   }
+  // Correct a queued reaction estimate, follow it in both directions, and
+  // retain its accepted states, endpoint identities and neighbouring
+  // assemblages.
   void trace(const Seed &seed) {
     if (covered(seed))
       return;
@@ -2143,6 +2170,8 @@ class Tracer {
         std::cerr << "Rejected boundary seed: " << e.what() << '\n';
     }
   }
+  // Process queued reaction branches, including new ones discovered at
+  // junctions.
   void search() {
     int seeds = 0;
     const int limit = engine.settings.max_lines * 30;
@@ -2176,6 +2205,8 @@ class Tracer {
                   << queue.size() << " seeds remaining\n";
     }
   }
+  // Retry incomplete boundaries and junction branches from accepted equilibria.
+  // This reuses mineral compositions already found in the current diagram.
   void recover() {
     for (int pass = 0; pass < engine.settings.max_recovery_passes; ++pass) {
       bool progress = false;
@@ -2350,7 +2381,9 @@ class Tracer {
         break;
     }
   }
-  // Correct a segment midpoint when the caller requests finer line spacing.
+  // Replace a coarse chord with an additional solved reaction point. A midpoint
+  // in the drawing is only a starting estimate; it need not lie on the true
+  // curve.
   bool refine_segment(Boundary &line, std::size_t right_index,
                       bool reconnect = false) {
     const auto left = normalise(line.points[right_index - 1]);
@@ -2539,6 +2572,8 @@ class Tracer {
     }
     result.boundaries = std::move(unique);
   }
+  // Renumber retained reaction records, preserving the set selected for
+  // retracing.
   void index_boundaries() {
     std::set<int> unstable;
     for (std::size_t i = 0; i < result.boundaries.size(); ++i) {
@@ -2549,6 +2584,8 @@ class Tracer {
     }
     unstable_lines = std::move(unstable);
   }
+  // Complete frame/EOS-limit endpoints and exclude states outside the models'
+  // admissible domain. Model validity limits are distinct from phase reactions.
   void apply_model_domain() {
     separate_junctions();
     model_domain();
@@ -2636,6 +2673,9 @@ class Tracer {
           add_sample(verified, burnman::utils::checked_int(i));
       }
   }
+  // Reconcile duplicate records, repair verified junction connections, then add
+  // boundary points if requested. The first pass transfers labels before
+  // pruning.
   void repair_and_refine_boundaries(bool initial = false) {
     reconcile_boundaries(initial);
     repair_field_boundaries(
@@ -2655,6 +2695,9 @@ class Tracer {
                                           })
             : std::vector<std::string>{};
   }
+  // Recalculate suspect reaction arcs and locally flagged provisional
+  // perimeters. Reuse ordinary phase-entry and junction discovery to supply
+  // missing branches.
   void retrace_unstable_boundaries() {
     if (line_resolution)
       for (int id : regional_retrace_lines(result, *line_resolution))
@@ -2700,6 +2743,8 @@ class Tracer {
       repair_and_refine_boundaries();
     }
   }
+  // Record incomplete trace ends and failed equilibrium samples, rebuilding
+  // node incidence from the surviving lines rather than stale trace history.
   void collect_boundary_diagnostics() {
     for (auto &n : result.nodes)
       n.incident_lines.clear();
@@ -2718,12 +2763,16 @@ class Tracer {
       if (!state.success && !state.outside_model_domain)
         result.diagnostics.push_back("Unresolved seed: " + state.message);
   }
+  // With requested line resolution, add interior equilibrium evidence only for
+  // closed fields whose labels remain provisional or unknown after perimeter
+  // tests.
   void verify_field_interiors() {
     if (engine.settings.verbose && line_resolution)
       std::cerr
           << "Checking phase field consistency from saved boundary labels.\n";
-    // Solve once at the visual centre of every region that lacks a trusted
-    // label; the extra sample is interior evidence for the labeller.
+    // Seek the interior point with greatest clearance from outer ring and
+    // holes; a centroid can lie outside a concave field or inside one of its
+    // holes.
     if (line_resolution) {
       std::vector<Eigen::Vector2d> centres;
       for (const auto &polygon :
@@ -2741,6 +2790,9 @@ class Tracer {
       }
     }
   }
+  // Refresh critical-endpoint certificates and closed-field diagnostics, then
+  // set resolved from the outstanding messages. This is completion of the
+  // implemented checks, not a proof that every stability field was discovered.
   Result certify_result() {
     // Certification changes endpoint diagnostics, never field geometry.
     detail::verify_critical_endpoints(result, engine);
@@ -2759,6 +2811,9 @@ class Tracer {
     result.resolved = result.diagnostics.empty();
     return result;
   }
+  // Evaluate the initial assemblage grid and bracket changes between
+  // neighbours. These equilibria seed reaction tracing; they are not pixels
+  // used for filling.
   void seed_boundaries() {
     auto &opts = engine.settings;
     auto seed_count = [&](Coordinate axis) {
@@ -2804,6 +2859,9 @@ class Tracer {
                   grid[static_cast<std::size_t>(k + 1)]);
       }
   }
+  // Restore accepted states and reaction identities for a resumed calculation.
+  // Return whether junction branches need searching as well as boundary
+  // recovery.
   bool prepare_previous(const Result &previous,
                         const std::optional<LineResolution> &resolution) {
     if (resolution)
@@ -2968,6 +3026,10 @@ public:
         result.phase_names.push_back(phase.material->get_name() +
                                      (j ? " #" + std::to_string(j + 1) : ""));
   }
+  // Master calculation for new and saved diagrams. A resumed run first extends
+  // accepted traces; a fresh run first discovers reactions from a seed grid.
+  // Both then use the same model-domain, repair and field-identification
+  // stages.
   Result
   calculate(const Result *previous = nullptr,
             const std::optional<LineResolution> &resolution = std::nullopt) {

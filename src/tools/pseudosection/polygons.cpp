@@ -32,6 +32,13 @@ namespace {
 using Point = Eigen::Vector2d;
 using Index = std::size_t;
 constexpr Index no_index = std::numeric_limits<Index>::max();
+// Geometry vocabulary used below:
+// - A polyline joins saved points by straight drawing segments (chords).
+// - An arc is a boundary path between graph endpoints, stored in both
+// directions.
+// - A loop follows connected arcs back to its start; its coordinates form a
+// ring.
+// - A field has an outer ring and may have holes excluding enclosed areas.
 // Rescale each diagram axis to 0..1 internally; rings repeat their first index.
 using Ring = std::vector<Index>;
 using Phases = std::vector<int>;
@@ -41,6 +48,9 @@ using detail::segment_distance;
 using Assemblages = std::set<Phases>;
 using detail::canonical_phase_ids;
 
+// Finite-area neighbouring assemblages permitted by this reaction. Include the
+// zero phase only on an admissible side; a univariant reaction is not itself an
+// additional area to colour. Verified replacement reactions supply their sides.
 Assemblages boundary_assemblages(const Boundary &line, const Result &result,
                                  bool limiting = false) {
   Assemblages choices;
@@ -108,8 +118,8 @@ void intersect_assemblages(Assemblages &common, const Assemblages &choices,
 }
 
 struct Edge {
-  // Store both directions consecutively; index ^ 1 reverses the direction.
-  // Labels describe the region on the left when following the edge.
+  // Directed arc: store both directions consecutively, so index ^ 1 reverses
+  // it. Labels describe the field on the left while following this direction.
   Index from, to, next = no_index;
   Ring path;
   std::set<Phases> labels{};
@@ -191,11 +201,15 @@ void link_junction(const std::vector<Index> &list, std::vector<Edge> &edges,
         list[best[(i + best.size() - 1) % best.size()]];
 }
 
+// A traversal can touch a vertex repeatedly or go out and back along a dangling
+// line. Split such walks into individual rings before assigning field
+// interiors.
 struct Walk {
   std::vector<Ring> rings;
   bool dangling = false;
 };
 
+// A candidate finite-area field before its mineral assemblage is identified.
 struct Face {
   Ring exterior;
   std::vector<Ring> holes;
@@ -208,7 +222,8 @@ struct Hole {
   bool dangling;
 };
 
-// Snap numerical duplicates, rather than connecting nearby unfinished traces.
+// Coalesce coordinates identical within numerical tolerance. This does not give
+// permission to connect nearby unfinished reactions into a physical junction.
 class Vertices {
   double tolerance;
   std::map<std::pair<long long, long long>, std::vector<Index>> bins;
@@ -246,6 +261,7 @@ public:
   }
 };
 
+// Signed ring area in rescaled diagram units: counterclockwise is positive.
 double area(const Ring &ring, const std::vector<Point> &points) {
   double total = 0.;
   const Point origin = points[ring.front()];
@@ -255,8 +271,10 @@ double area(const Ring &ring, const std::vector<Point> &points) {
   return .5 * total;
 }
 
-// Boundary points are excluded for classification: zero-amount states can
-// have either neighbouring assemblage, and chord approximation adds roundoff.
+// Return outside/edge/inside as -1/0/+1. Edge points cannot unambiguously
+// identify a finite-area field: a zero-amount equilibrium is shared by both
+// neighbours, and a curved reaction need not coincide with its straight drawing
+// chord.
 int contains(const Ring &ring, const std::vector<Point> &points, const Point &p,
              double tolerance) {
   return detail::ring_location(
@@ -264,6 +282,7 @@ int contains(const Ring &ring, const std::vector<Point> &points, const Point &p,
       tolerance);
 }
 
+// Strict field-interior test: inside the exterior and outside every hole.
 bool contains(const Face &face, const std::vector<Point> &points,
               const Point &p, double tolerance) {
   if (contains(face.exterior, points, p, tolerance) != 1)
@@ -274,6 +293,7 @@ bool contains(const Face &face, const std::vector<Point> &points,
   return true;
 }
 
+// Extract closed rings from a walk, removing retraced excursions of zero area.
 std::vector<Ring> rings(const Ring &walk) {
   // A dangling branch is traversed twice. Remove its zero-area excursion,
   // retaining any actual exterior/hole cycles in the same face walk.
@@ -300,6 +320,7 @@ std::vector<Ring> rings(const Ring &walk) {
   return result;
 }
 
+// Convert a ring's graph indices back to native diagram coordinates for export.
 Eigen::MatrixXd coordinates(const Ring &ring, const std::vector<Point> &points,
                             const Point &origin, const Point &scale) {
   Eigen::MatrixXd output(ring.size(), 2);
@@ -310,7 +331,8 @@ Eigen::MatrixXd coordinates(const Ring &ring, const std::vector<Point> &points,
 }
 
 // Find an interior label point far from the edges. A centroid can lie outside
-// a concave region or in a hole, so use the pole of inaccessibility.
+// a concave region or in a hole, so use the pole of inaccessibility: the
+// interior point with greatest clearance from the surrounding rings.
 std::pair<Point, double> label_point(const Face &face,
                                      const std::vector<Point> &points,
                                      const Point *sample = nullptr) {
@@ -377,8 +399,9 @@ bool FieldPolygon::contains_rectangle(const Point &centre,
 }
 
 namespace {
-// A calculation-local graph: stable vertices and directed arcs form closed
-// loops; perimeter evidence labels them without modifying the saved traces.
+// Reconstruct drawable phase fields from the saved reaction network. build()
+// lists the stages. Stable vertices and directed arcs determine closed loops;
+// perimeter evidence labels the fields without new thermodynamic calculations.
 class PolygonBuilder {
   const Result &result;
   double tolerance;
@@ -423,6 +446,8 @@ class PolygonBuilder {
   Phases canonical_assemblage(const Phases &values) const {
     return canonical_phase_ids(values, result.settings.max_phase_instances);
   }
+  // Cache present-phase assemblages from successful saved equilibria. A uniform
+  // sampled assemblage can identify the domain when no reactions were found.
   void read_sample_labels() {
     // Calculate saved labels once; polygon reconstruction never changes
     // samples.
@@ -460,6 +485,9 @@ class PolygonBuilder {
           complete_critical.insert(vertex);
       }
   }
+  // Add an arc in both directions, keeping its left/right assemblage evidence.
+  // Multiple records of one reaction can share an arc without merging distinct
+  // fields bounded by different reactions between the same endpoints.
   void add_edge(Ring path, const Phases &left, const Phases &right,
                 bool phase_boundary, bool replacement = false,
                 bool latent_invariant = false,
@@ -597,6 +625,8 @@ class PolygonBuilder {
                       detail::boundary_variance(*line, result),
                       reversed};
   }
+  // Convert saved reaction curves to graph arcs. Stable endpoints establish
+  // connectivity; incidental crossings of interior drawing chords do not.
   void add_phase_boundaries() {
     std::vector<const Boundary *> lines;
     for (const auto &line : result.boundaries)
@@ -704,6 +734,9 @@ class PolygonBuilder {
                true, line.is_solution_replacement, latent, &line);
     }
   }
+  // Add the EOS validity envelope as an unlabelled geometric boundary so
+  // excluded regions can be hatched without assigning them a mineral
+  // assemblage.
   void add_model_boundaries(bool close_domain) {
     auto on_frame = [&](const Point &a, const Point &b) {
       for (int k = 0; k < 2; ++k)
@@ -752,6 +785,9 @@ class PolygonBuilder {
         add_edge({ordered[i - 1], ordered[i]}, {}, {}, false);
     }
   }
+  // Order outgoing arcs at each vertex and set the next arc around each field.
+  // Junction assemblages can resolve angular ambiguity from coarse curved
+  // lines.
   void link_edges() {
     outgoing.resize(vertices.points.size());
     for (std::size_t i = 0; i < edges.size(); ++i)
@@ -792,6 +828,9 @@ class PolygonBuilder {
       }
     }
   }
+  // Walk directed arcs, split repeated-vertex walks into rings, and associate
+  // clockwise hole rings with their enclosing counterclockwise outer rings.
+  // Finite-area loops become candidate fields; zero-area excursions do not.
   void find_closed_loops() {
     std::vector<Walk> walks;
     std::vector<bool> visited(edges.size(), false);
@@ -882,11 +921,15 @@ class PolygonBuilder {
       }
     }
   }
+  // Visit the directed graph arc underlying every consecutive ring segment.
   template <typename Action>
   void ring_edges(const Ring &ring, Action action) const {
     for (std::size_t j = 1; j < ring.size(); ++j)
       action(edge_index.at({ring[j - 1], ring[j]}));
   }
+  // Assign mineral assemblages from perimeter reactions and saved interior
+  // equilibria. Missing/conflicting evidence remains provisional or unknown;
+  // geometrically narrow fields receive the same evidence tests as wider ones.
   void label_fields() {
     std::map<Phases, int> field_ids;
     for (auto &field : result.fields)
@@ -1133,6 +1176,9 @@ class PolygonBuilder {
       output.polygons.push_back(std::move(polygon));
     }
   }
+  // Export reaction geometry and recover sides supported by trusted adjacent
+  // fields. Continuous drawing strokes stop at junctions, accepted endpoints
+  // or a change of neighbours; joining strokes does not alter thermodynamics.
   void record_boundaries() {
     // Assign actual rings; dangling excursions remain unassigned.
     std::vector<Index> edge_faces(edges.size(), no_index);
@@ -1264,6 +1310,8 @@ public:
       throw std::invalid_argument(
           "Polygon diagram ranges must be finite and increasing.");
   }
+  // Geometry/identification pipeline. No stage moves the saved equilibrium
+  // traces or creates a thermodynamic junction from a drawing intersection.
   FieldPolygons build(bool close_domain) {
     read_sample_labels();
     add_stable_vertices();

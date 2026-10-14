@@ -15,19 +15,27 @@
 #include "burnman/tools/pseudosection/types.hpp"
 
 namespace burnman::pseudosections {
-/// Find closed loops through saved stable vertices and traced lines, retaining
-/// holes and disconnected regions. Optionally use the calculation frame to
-/// close edge fields. No equilibrium solves or raster interpolation are
-/// performed. tolerance measures distance after each diagram axis is rescaled
-/// to 0..1. Agreed exterior-loop labels take priority; otherwise intersect
-/// admissible boundary assemblages around the loop, then use a saved interior
-/// sample. With no perimeter labels, the nearest saved sample is provisional
-/// evidence. Unresolved conflicts remain unidentified; boundary lengths never
-/// select an assemblage. Missing or conflicting evidence adds a diagnostic.
-/// Model-domain exclusions remain unidentified.
-/// Interior chord crossings do not connect traces. Each closed loop is filled
-/// independently; no polygon union or overlap repair is performed.
-/// merge_fields is retained for compatibility and has no effect.
+/// Reconstruct the closed phase fields bounded by saved equilibrium lines.
+/// A loop follows connected boundary arcs back to its starting vertex. Its
+/// coordinates form a ring: an ordered list whose last point repeats the first.
+/// A field has an outer ring and may contain holes, e.g. islands with a
+/// different assemblage or areas excluded by the phase models. close_domain
+/// allows the calculation frame to complete fields at its edges. No equilibrium
+/// calculations are performed and result is unchanged.
+///
+/// Stable junctions and accepted endpoints determine which arcs connect. A
+/// crossing of straight drawing segments (chords) does not establish a new
+/// thermodynamic junction. Fields are filled independently, so coarse curved
+/// boundaries can overlap visually without changing their connectivity.
+/// tolerance is a distance after each diagram axis is rescaled to 0..1.
+///
+/// Identify each field from the assemblages permitted by its perimeter
+/// reactions. Agreed outer-ring side labels take priority; otherwise find the
+/// assemblages common to the perimeter and consult saved interior equilibria.
+/// Conflicting or incomplete evidence produces a provisional label or leaves
+/// the assemblage unknown, with a diagnostic. Boundary length gives no extra
+/// authority to a label. EOS-domain exclusions have no assigned assemblage.
+/// merge_fields is retained for API compatibility and has no effect.
 FieldPolygons field_polygons(const Result &result, double tolerance = 1.e-8,
                              bool close_domain = true,
                              bool merge_fields = true);

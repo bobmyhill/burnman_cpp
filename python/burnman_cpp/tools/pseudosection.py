@@ -11,7 +11,14 @@
 #
 # ------------------------------------------------------
 
-"""Pseudosection figures, refinement and local patches using native calculations."""
+"""Plot, refine and locally patch calculated mineral-assemblage diagrams.
+
+Thermodynamic states and reaction lines are calculated in C++. Closed loops of
+connected lines define the plotted fields. A loop's coordinate sequence is a
+ring, with its first point repeated at the end; interior rings describe holes.
+Saved calculations use SI units, while plotting and patch-window helpers can
+use geological display units such as kbar and degrees Celsius.
+"""
 
 from collections.abc import Mapping
 from copy import deepcopy
@@ -21,7 +28,12 @@ from .. import _core, constants
 
 
 def save_pseudosection(result, path, *, metadata=None):
-    """Save a native result or saved dictionary as JSON; return the file path.
+    """Save the calculated equilibria and reaction network; return the JSON path.
+
+    Accept a native result or its dictionary. Retain the solved mineral amounts,
+    compositions, junctions, numerical settings and diagnostics, so the diagram
+    can later be plotted or refined without repeating the initial calculation.
+    Candidate model objects are not serialised; refinement needs them separately.
 
     All coordinates retain their native SI units. Optional ``metadata`` adds
     top-level entries, e.g. a model set or oxide amounts. Result entries take
@@ -141,15 +153,19 @@ def _padded_section_region(data, points, padding, display):
 
 
 def pseudosection_field_regions(result, field_numbers=None, *, padding=0.05, **display):
-    """Return ``{Field number: ((xmin, xmax), (ymin, ymax))}`` for local patches.
+    """Select rectangular recalculation windows around closed phase fields.
 
-    Select provisional, unlabelled and open fields by default, or supply the
-    one-based Field numbers used in plots. Include their complete boundaries
-    and endpoint nodes. Pad each side by ``padding`` times that axis span and
-    clip to the original domain. A zero-width field uses the tracing step as
-    its minimum window width. Regions use the plot units and axis order;
-    ``**display`` accepts the same unit options as ``plot_pseudosection``.
-    No equilibrium solves are performed.
+    Return ``{Field number: ((xmin, xmax), (ymin, ymax))}``. ``field_numbers``
+    uses the one-based numbers shown on the plot and in its assemblage key.
+    If omitted, select fields with provisional/unknown assemblages or unfinished
+    boundary connections. This identifies candidates for further investigation;
+    a provisional label does not by itself establish an incorrect assemblage.
+
+    Each window includes the field's saved reaction points and endpoint nodes.
+    Pad each side by ``padding`` times that coordinate's window span, then clip
+    to the calculation domain. A zero-width field uses the tracing step as a
+    minimum width. Windows use plot units and axis order; ``**display`` accepts
+    the unit options of ``plot_pseudosection``. No equilibria are calculated.
     """
     import numpy as np
 
@@ -184,14 +200,17 @@ def pseudosection_field_regions(result, field_numbers=None, *, padding=0.05, **d
 
 
 def pseudosection_problem_regions(result, *, padding=0.05, **display):
-    """Return patch windows labelled ``'Field N'`` or ``'Boundary N'``.
+    """Select local recalculation windows from field and boundary diagnostics.
 
-    Include provisional, unlabelled and open fields, plus boundaries named in
-    saved ``Boundary N`` diagnostics. Each boundary is included once, using
-    its native ID without adding one. Field numbers remain one-based.
-    Windows include all saved boundary points and endpoint nodes, with the
-    same padding, domain clipping, units and zero-width handling as
-    ``pseudosection_field_regions``. No equilibrium solves are performed.
+    Return ``{'Field N': window, 'Boundary N': window, ...}``, where a window
+    is ``((xmin, xmax), (ymin, ymax))``. Include provisional, unidentified and
+    open fields, plus reaction boundaries named in saved ``Boundary N`` messages.
+    This also covers boundary problems that do not belong to a closed field.
+
+    Field numbers are the one-based plot labels; Boundary IDs are used as saved,
+    without adding one. Each boundary is included once. Windows use the padding,
+    clipping and plot units of ``pseudosection_field_regions``. This selects
+    windows only; ``calculate_pseudosection_patch`` performs the new calculations.
     """
     import re
 
@@ -223,16 +242,21 @@ def pseudosection_problem_regions(result, *, padding=0.05, **display):
 def calculate_pseudosection_patch(
     previous, phases, region, settings=None, *, resolution=None, **display
 ):
-    """Calculate an independent, locally detailed diagram inside ``previous``.
+    """Calculate a fresh pseudosection in a small window of a saved diagram.
 
     ``previous`` is a native result, dictionary or JSON path; its bulk, diagram
     axes, composition endpoints and fixed coordinate are reused. ``region``
-    is ``((xmin, xmax), (ymin, ymax))`` in plot units, as in regional refinement.
-    Supply the original candidate models and settings with increased axis seed
-    counts and/or smaller tracing steps. Defaults reuse the saved settings.
-    Optional ``resolution=(nx, ny)`` also refines the new patch's line spacing.
-    This calculation starts afresh in the small window. It does not change the
-    original graph; use ``merge_pseudosections`` to insert the returned result.
+    is ``((xmin, xmax), (ymin, ymax))`` in the chosen plot units and axis order.
+    Supply the original candidate mineral/solution models in their original order.
+
+    Seed counts in ``settings`` control the initial equilibrium grid across the
+    window. Smaller tracing steps help resolve closely spaced reaction events.
+    Omitted settings reuse the saved ones. Optional ``resolution=(nx, ny)``
+    additionally limits the spacing of solved points along the new boundaries;
+    it does not replace the seed grid used to discover assemblages.
+
+    Return an independent native result. The original diagram is unchanged;
+    ``merge_pseudosections`` inserts the patch once it has been inspected.
     """
     data, axes, window = _section_window(previous, region, display)
     options = {
@@ -303,7 +327,7 @@ class _PatchSegment:
 
 
 def merge_pseudosections(base, patch, *, join_tolerance=None, phases=None):
-    """Replace the part of ``base`` inside ``patch``; return ``(dict, report)``.
+    """Insert a locally recalculated diagram; return ``(merged_dict, report)``.
 
     Inputs accept native results, dictionaries or JSON paths and are not
     modified. They must use the same bulk, candidate ordering, phase-instance
@@ -311,13 +335,17 @@ def merge_pseudosections(base, patch, *, join_tolerance=None, phases=None):
     and overlapping rectangles: the last patch wins. Original samples inside
     the rectangle are replaced, and graph/sample indices are rebuilt.
 
-    Match cut ends to patch-frame ports with the same reaction (zero phase,
-    assemblage and replacement flag), nearest first, one-to-one. Distances
-    are measured to the cut chord in units of the patch's axis spans. Optional
-    ``join_tolerance`` limits this distance. Unmatched internal ends stay open
-    and diagnostic. Points retain their solved thermodynamic states; seam
-    joins add chords, not interpolated equilibrium states. Thus a geometric
-    merge does not itself certify the thermodynamics of the seam.
+    Remove the base diagram's reaction segments inside the patch rectangle.
+    Record each cut chord (the straight segment between two solved points),
+    then match it to a patch endpoint on the rectangle's edge. Matches require
+    the same reaction assemblage, zero phase and solution-replacement flag;
+    closest matches are paired one-to-one. ``join_tolerance`` optionally limits
+    the distance to a cut chord, measured in units of the patch's axis spans.
+
+    The join between diagrams is the patch seam. Retain solved thermodynamic
+    states and connect them by drawing chords; do not invent interpolated phase
+    compositions at a cut. Unmatched internal ends remain open with diagnostics.
+    Joining the geometry alone does not establish equilibrium along the seam.
 
     Rebuild polygon diagnostics and retain unrelated source warnings. Supplying
     the original ``phases`` additionally runs the native endpoint and sampled
@@ -803,30 +831,33 @@ def refine_pseudosection(
     volume_unit="m3",
     swap_axes=False,
 ):
-    """Resume a saved diagram and optionally refine all its phase lines.
+    """Continue unfinished reaction lines and refine their equilibrium sampling.
 
     ``previous`` accepts a native result, its full dictionary or a JSON path.
-    Use the same bulk and candidate models as the saved calculation.
-    ``resolution=(nx, ny)`` gives axis point counts in plot axis order.
-    ``(101, 201)`` means 100 divisions across x and 200 across y, limiting
-    consecutive line-point spacing to the full axis span divided by (n - 1).
-    Counts must be integers of at least 2. Plot unit options and ``swap_axes``
-    select the displayed axes, including uniform spacing in density when used.
-    All added points are solved and checked in C++. Failed refinements leave
-    accepted points intact and report unmet spacing in ``result.diagnostics``.
-    Completed diagrams reuse their saved lines without reopening each junction.
-    Field labels use perimeter evidence and saved minimizations. Conflicting
-    evidence is reported as provisional labelling, without interior solves or
-    automatic curve edits.
-    Set ``settings.verbose = True`` to report refinement and checking progress.
-    Save the returned result with ``save_pseudosection``. Omitted resolution
-    retains ordinary boundary recovery and the saved settings by default.
-    ``region=((xmin, xmax), (ymin, ymax))`` limits spacing refinement to
-    segments intersecting that window, in the selected plot units and axis
-    order. Counts then subdivide the window rather than the whole diagram.
-    Unstable arcs and arcs around provisional loops are retraced, using smaller
-    steps within the window. The full graph and its original frame are retained.
-    Regional refinement requires ``resolution`` and honours ``max_recovery_passes``.
+    Supply the same elemental bulk and candidate models, in the original order.
+    Omitted ``settings`` reuse the saved numerical settings and EOS-domain policy.
+    Return a new native result; save it with ``save_pseudosection``.
+
+    ``resolution=(nx, ny)`` controls boundary-point spacing in plot axis order.
+    ``(101, 201)`` means 100 x divisions and 200 y divisions, so successive
+    reaction points differ by at most the corresponding axis span divided by
+    (n - 1). Counts must be integers of at least 2. This is distinct from seed
+    density: initial seeds discover assemblages, while resolution adds solved
+    points along existing reaction curves. Added points are equilibrated and
+    validated in C++; unmet spacing is recorded in ``result.diagnostics``.
+
+    ``region=((xmin, xmax), (ymin, ymax))`` restricts spacing refinement to
+    segments meeting that window. Bounds use the chosen plot units and axis
+    order, and counts subdivide the window's spans. Density units request uniform
+    spacing in density rather than volume. A region requires ``resolution``.
+
+    Recovery can trim overshoots, reconcile duplicate traces and retrace suspect
+    arcs, including those around provisional fields in a requested window.
+    ``max_recovery_passes`` controls recovery. With resolution supplied, additional
+    interior equilibria test closed fields whose labels remain provisional or
+    unknown. This differs from plotting, which only interprets saved evidence.
+    The whole diagram and its original frame are retained. Use
+    ``settings.verbose = True`` to follow calculation progress.
     """
     from os import PathLike
     import numpy as np
@@ -901,49 +932,57 @@ def plot_pseudosection(
 ):
     """Plot phase lines and colour closed fields by number of coexisting phases.
 
-    Accept a native ``PseudosectionResult`` or a dictionary loaded from the
-    basalt example's JSON. Return ``(figure, axes)``. Matplotlib is imported
+    Accept a native ``PseudosectionResult`` or its saved dictionary, for example
+    from ``load_pseudosection``. Return ``(figure, axes)``. Matplotlib is imported
     only when this function is called; install ``burnman_cpp[examples]``.
 
-    C++ finds closed loops through saved stable vertices and traced lines,
-    preserving holes and disconnected regions. Incidental chord crossings
-    do not create vertices or subdivide a field. Each loop is filled independently,
-    allowing coarse curves to overlap. The calculation frame closes edge fields;
-    unfinished interior lines are never extended to manufacture closure.
+    Connected reaction lines define closed loops. Each field is represented by
+    an outer coordinate ring (the first point repeated at the end), with interior
+    rings for holes such as islands with another assemblage. Saved junctions and
+    endpoints establish connectivity. Crossings of straight drawing segments
+    (chords) do not create thermodynamic junctions. Fields are filled independently, so
+    coarsely sampled curved boundaries can overlap visually. ``close_domain``
+    lets the calculation frame close fields at its edges; unfinished interior
+    reactions are not extended to manufacture closure. Plotting runs no new
+    equilibrium calculations.
     ``merge_fields`` is retained for compatibility and has no effect.
     Boundaries where solution compositions switch remain visible even when
     both fields have the same assemblage names.
-    Connected segments separating the same two assemblages are drawn as one
-    continuous line between endpoint vertices. Junctions and separate paths
-    remain distinct; the equilibrium points are retained.
+    Connected segments separating the same two assemblages form continuous
+    drawing strokes, stopping at endpoints and junctions. Solved points and
+    distinct reaction paths are retained.
     ``line_capstyle`` accepts ``'butt'``, ``'round'`` or ``'projecting'``;
     ``line_joinstyle`` accepts ``'miter'``, ``'round'`` or ``'bevel'``.
     Both default to ``'round'``.
-    Fields use agreed exterior-loop labels, then common admissible assemblages
-    around the loop and saved interior minimizations. Boundary lengths never
-    resolve conflicting assemblages. Provisional labels remain coloured and are
-    identified by ``is_provisional`` and polygon diagnostics. Fields without
-    any assemblage evidence stay uncoloured and issue a warning.
-    Each coexisting solution instance counts as one phase.
-    Native ``excluded_regions`` are drawn with grey hatching: the solid model
-    cannot be evaluated there within its required mechanically stable EOS domain.
-    Such regions have no assemblage count and are distinct from solve failures.
+    Field labels use agreed outer-ring side assemblages, then assemblages
+    compatible with the perimeter reactions and saved interior equilibria.
+    Longer boundaries have no extra authority. A provisional label has enough
+    evidence to display an assemblage but lacks full perimeter agreement; it
+    remains coloured and is flagged by ``is_provisional`` and polygon diagnostics.
+    Fields without assemblage evidence stay uncoloured and issue a warning.
+    Each coexisting solution copy counts as one phase: two feldspars count as two,
+    irrespective of their number of endmembers. A phase with zero solved amount
+    on a reaction line is not counted as present on both sides.
+    Native ``excluded_regions`` are drawn with grey hatching: a required EOS
+    model is unavailable there, or the remaining valid models cannot represent
+    the bulk. These model-domain exclusions have no assigned phase count and
+    are distinct from numerical failures of equilibrium calculations.
 
-    The result selects any pair of P, T, S, V and X axes automatically. Composition diagrams
-    place the dimensionless bulk mixing coordinate X on the horizontal axis;
-    ``composition_label`` supplies its axis label. Pressure/temperature units
-    apply to the physical axes, including temperature on the vertical TX axis.
+    The saved diagram selects the P, T, S, V or X axes. By default, the second
+    calculation coordinate is horizontal: T in P-T, or X in a composition section.
+    ``swap_axes=True`` reverses this order. X is the dimensionless bulk mixing
+    fraction; ``composition_label`` supplies its label. Unit conversions follow
+    the physical coordinate, including T on the vertical axis of a T-X diagram.
 
     Pressure units are ``'Pa'``, ``'GPa'`` or ``'kbar'``; temperature units are
     ``'K'`` or ``'C'``. Total entropy units are ``'J/K'`` or ``'kJ/K'``;
     total volume units are ``'m3'`` or ``'cm3'``. For constant-composition
     sections, ``entropy_unit='kB/atom'`` divides entropy by the supplied bulk
     atom amount times the gas constant; ``volume_unit='kg/m3'`` displays
-    density, using the bulk mass divided by total volume. ``swap_axes=True``
-    places the first section coordinate on the horizontal axis. Both totals
-    retain the supplied bulk amount scale. ``tolerance`` is a fraction of the calculation domain,
-    used to merge numerically identical vertices. The colourbar uses integer
-    ticks and discrete colours. All thermodynamics and polygon work are native.
+    density, using the bulk mass divided by total volume. Both totals retain the
+    supplied bulk amount scale. ``tolerance`` measures distance after
+    rescaling each calculation axis to 0..1, for coalescing numerically identical
+    vertices. The colourbar uses integer phase counts and discrete colours.
 
     ``assemblage_colors`` maps tuples of native phase IDs or base model names
     to Matplotlib colours; order is ignored. Repeat a model name for each
@@ -953,8 +992,9 @@ def plot_pseudosection(
 
     Label each identified closed field with its assemblage. ``phase_aliases``
     maps model names to abbreviations (e.g. ``{'g': 'gt'}``); repeated solution
-    instances appear as ``2hb``. C++ selects interior label positions, avoiding
-    holes. Every assemblage and numeric label uses ``label_fontsize`` (points).
+    instances appear as ``2hb``. C++ seeks an interior label point with good
+    clearance from the outer ring and holes. Every assemblage and numeric label
+    uses ``label_fontsize`` (points).
     Labels that cannot fit, including their background, become unique field
     numbers. These one-based ``polygon.field_number`` values also identify
     fields in diagnostics and contours. Numbers that also cannot fit use

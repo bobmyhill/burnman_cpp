@@ -18,7 +18,10 @@
 #include "burnman/tools/pseudosection/common.hpp"
 
 namespace burnman::pseudosections {
-/// Same native stability search at a single P,T, useful for checking diagrams.
+/// Find a stable assemblage at one P (Pa) and T (K) for elemental mole amounts.
+/// Search the supplied candidate minerals/solutions, refine reaction
+/// equilibrium and test candidate affinities. The returned State contains phase
+/// amounts, endmember proportions and validation errors, or a failure message.
 State stable_equilibrium(
     const types::FormulaMap &composition,
     const std::vector<std::shared_ptr<Material>> &candidates, double pressure,
@@ -68,7 +71,10 @@ struct FaceMineral : Mineral {
   FaceMineral(const Mineral &m, const Eigen::MatrixXd &b)
       : Mineral(m), original_basis(b) {}
 };
-// Per-calculation mutable workspace with cloned candidate materials.
+// Thermodynamic workspace for one diagram. Candidate minerals are cloned so
+// their state/composition can change without altering the caller's models.
+// Phase selection combines a linear-programming bulk balance, solution
+// composition minimisation, and constrained equilibrium refinement.
 struct Engine {
   types::FormulaMap bulk;
   CompositionSection section;
@@ -89,22 +95,42 @@ struct Engine {
   Engine(const types::FormulaMap &,
          const std::vector<std::shared_ptr<Material>> &, const Settings &,
          const CompositionSection & = CompositionSection{});
+  /// Elemental mole amounts at bulk mixing fraction X; totals are not
+  /// normalised.
   types::FormulaMap composition_at(double) const;
+  /// Set the working bulk and its mass-balance vectors to the requested X.
   void set_bulk(double);
+  /// Read the assemblage's bulk mixing fraction, distinct from phase
+  /// compositions.
   double composition_coordinate(const Assemblage &) const;
+  /// Retain a solved X exactly rather than reconstructing it from mass
+  /// residuals.
   void set_coordinate(Assemblage &, double) const;
+  /// Selected diagram coordinates in native units, e.g. {P,S} for a P-S
+  /// section.
   Eigen::Vector2d coordinates(const Assemblage &) const;
+  /// P,T starting guess consistent with plotted/fixed P or T where supplied.
   Eigen::Vector2d physical_coordinates(const Eigen::Vector2d &) const;
+  /// Equation fixing one physical coordinate; base_x anchors the free X change.
   std::unique_ptr<EqualityConstraint>
   coordinate_constraint(Coordinate, double, Eigen::Index, double base_x = 0.,
                         bool normalized = false) const;
+  /// Constraints for an equilibrium at a chosen diagram position, including
+  /// the additional fixed thermodynamic coordinate of an X section.
   ConstraintList state_constraints(const Eigen::Vector2d &) const;
+  /// Derivatives of the selected coordinates with respect to solve parameters.
   Eigen::MatrixXd coordinate_jacobian(const Assemblage &, Eigen::Index) const;
+  /// Parameter scales for conditioning continuation in the rescaled diagram.
   Eigen::VectorXd parameter_scales(const Assemblage &, Eigen::Index,
                                    const Eigen::Vector2d &) const;
+  /// Project a change in solve parameters into the selected diagram axes.
   Eigen::Vector2d project_direction(const Eigen::VectorXd &,
                                     const Assemblage &) const;
+  /// Whether selected/fixed P,T directly specify a state without an inverse
+  /// solve.
   bool direct_coordinates() const;
+  /// Save physical P,T and extensive S,V, even when only two of them are
+  /// plotted.
   template <typename Point>
   void record_coordinates(Point &p, const Assemblage &a) const {
     p.pressure = a.get_pressure();
@@ -113,61 +139,93 @@ struct Engine {
     p.volume = a.get_n_moles() * a.get_molar_volume();
     p.composition_coordinate = composition_coordinate(a);
   }
-  // The free X parameter measures a change from the assemblage's current X.
+  /// Equilibrium parameter layout and composition bounds for this assemblage.
+  /// The free X parameter measures a change from the assemblage's current X.
   EquilibrationParameters parameters(const Assemblage &) const;
-  // *_at accepts the selected diagram coordinates in their native units.
+  /// Discover an equilibrium at diagram coordinates in native units. S/V
+  /// sections also solve for the unplotted P and/or T using physical seed
+  /// bounds.
   WorkState stable_at(const Eigen::Vector2d &);
-  // Equilibrate the supplied phases and check for lower-energy alternatives.
+  /// Equilibrate supplied phase IDs at a diagram position, using saved amounts
+  /// and compositions as starting estimates, then test alternative candidates.
   WorkState fixed_at(const std::vector<int> &, const PhaseStates &,
                      const Eigen::Vector2d &);
 
+  /// Build a trial assemblage at a diagram position; no equilibrium is implied.
   std::shared_ptr<Assemblage> make_at(const std::vector<int> &,
                                       const PhaseStates &,
                                       const Eigen::Vector2d &);
+  /// Whether available EOS models can represent the bulk at a diagram position.
   bool eos_bulk_feasible_at(const Eigen::Vector2d &);
+  /// Set all candidate P,T states and record diagnosed EOS-domain exclusions.
   void set_pt(double, double);
+  /// Test bulk representability at physical P,T, respecting required EOS
+  /// phases.
   bool eos_bulk_feasible(double, double);
+  /// Candidate molar Gibbs energy at supplied endmember proportions.
   double energy(int, const Eigen::VectorXd &) const;
+  /// Vertices of the allowed composition region, accounting for inactive sites.
   Eigen::MatrixXd feasible_vertices(const Phase &) const;
+  /// Minimise one phase's tangent-plane affinity from a composition estimate.
+  /// Elemental chemical potentials supply the reference plane.
   Minimum minimize_phase(const Phase &, const Eigen::VectorXd &,
                          const Eigen::VectorXd &);
+  /// Best found affinity/composition for one candidate, using multiple starts.
   Minimum minimize(int, const Eigen::VectorXd &,
                    const Eigen::VectorXd &start = Eigen::VectorXd());
+  /// Distinct composition minima for one candidate, allowing solvus branches.
   std::vector<Minimum> minima(int, const Eigen::VectorXd &,
                               const Eigen::VectorXd &start = Eigen::VectorXd());
-  // Discover stable phases at physical P,T (Pa, K).
+  /// Discover stable phases at physical P,T (Pa, K), including solution copies.
   WorkState stable(double, double);
-  // Refine phase amounts/compositions at P,T, or at requested diagram
-  // coordinates.
+  /// Refine a specified assemblage at P,T, or at requested diagram coordinates.
+  /// Remove phases driven to zero amount and check against other candidates.
   WorkState
   equilibrate_phase_set(const std::vector<int> &, const PhaseStates &, double,
                         double, std::optional<Eigen::Vector2d> = std::nullopt);
+  /// Construct trial phases, reducing to occupied solution sites where needed.
+  /// Saved zero-amount phases retain compositions to initialise reaction
+  /// solves.
   std::shared_ptr<Assemblage> make_assemblage(const std::vector<int> &,
                                               const PhaseStates &, double,
                                               double,
                                               double face_tolerance = 1.e-7);
+  /// Clone a trial assemblage, including its reduced composition bases and X.
   std::shared_ptr<Assemblage> copy_assemblage(const Assemblage &) const;
-  // Changes the trial assemblage, including on failure. Checks mass balance,
-  // reactions and constraints; lower-energy alternatives need a separate check.
+  /// Solve reaction equilibrium, bulk balance and the supplied constraints.
+  /// Changes the trial assemblage even on failure. Success checks those
+  /// equations; stability against competing phases requires a separate
+  /// stability() call.
   EquilibriumSolve solve(Assemblage &, ConstraintList &,
                          bool vary_composition = true);
+  /// Elemental chemical potentials defining this assemblage's tangent plane.
   Eigen::VectorXd potentials(const Assemblage &) const;
-  // Return the most negative candidate affinity, or zero if none is negative.
-  // Optionally return each candidate's best composition and affinity.
+  /// Search candidate compositions for negative tangent-plane affinities.
+  /// Return the most negative affinity (J/mol), or zero if none is found;
+  /// optionally retain each candidate's best found composition and affinity.
   double stability(const Assemblage &, std::vector<Minimum> * = nullptr);
+  /// Relative elemental mass-balance error, using the current or solved X bulk.
   double mass_error(const Assemblage &, bool vary_composition = true) const;
+  /// Save phase amounts/proportions in the original candidate endmember bases.
   PhaseStates snapshot(const Assemblage &, const std::vector<int> &) const;
+  /// Map reduced active-site endmembers back to the candidate's original basis.
   Eigen::MatrixXd composition_basis(const Material &, int) const;
+  /// Elemental formula rows for the supplied phase compositions, in ID order.
   Eigen::MatrixXd phase_formulae(const std::vector<int> &ids,
                                  const PhaseStates &states) const;
+  /// Canonical IDs of phases above the relative amount cutoff in a saved state.
   std::vector<int> active_phases(const State &) const;
+  /// Assemblage identity retaining candidate multiplicity, ignoring copy order.
   std::vector<int> canonical_ids(const std::vector<int> &) const;
+  /// Reject near-identical copies of the same solution as distinct phases.
   bool distinct(const Assemblage &, const std::vector<int> &) const;
 };
 
+/// Copy a mineral/solution model, including any reduced active-site basis.
 std::shared_ptr<Material> clone(const std::shared_ptr<Material> &);
 
-// Row 0 fixes the phase amount/contour target; row 1 fixes the moving plane.
+/// Two constraint groups used by continuation: phase amount/contour target,
+/// followed by the plane through which the next boundary point is corrected.
 ConstraintList constraints(std::unique_ptr<EqualityConstraint>,
                            std::unique_ptr<EqualityConstraint>);
 } // namespace burnman::pseudosections::detail

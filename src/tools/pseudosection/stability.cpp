@@ -399,6 +399,10 @@ EquilibrationParameters Engine::parameters(const Assemblage &a) const {
       free_vectors.empty() ? bulk : composition_at(composition_coordinate(a)),
       free_vectors);
 }
+// In P-T sections the plotted coordinates specify a direct Gibbs search. For
+// S/V sections, first obtain plausible P,T assemblages, then solve the selected
+// extensive-coordinate constraints, searching physical seed bounds if
+// necessary.
 WorkState Engine::stable_at(const Eigen::Vector2d &q) {
   if (!free_vectors.empty())
     set_bulk(q[1]);
@@ -1079,6 +1083,11 @@ Eigen::VectorXd Engine::potentials(const Assemblage &a) const {
   return prior + reduced.completeOrthogonalDecomposition().solve(
                      a.get_partial_gibbs().matrix() - reduced * prior);
 }
+// The current assemblage defines elemental chemical potentials (a tangent plane
+// to Gibbs energy). A candidate composition below that plane has negative
+// affinity and can lower the energy by entering the assemblage. Test solutions
+// over their allowed compositions, including alternatives to occupied site
+// faces.
 double Engine::stability(const Assemblage &a, std::vector<Minimum> *output) {
   if (!free_vectors.empty())
     set_bulk(composition_coordinate(a));
@@ -1276,6 +1285,11 @@ Engine::equilibrate_phase_set(const std::vector<int> &ids,
     }
   return out;
 }
+// Phase discovery at physical P,T. Linear programming first represents the bulk
+// with a finite set of candidate compositions; solution minimisation adds
+// lower- energy compositions, and equilibrium refinement adjusts phase amounts
+// and compositions continuously. Candidate affinities test the resulting
+// assemblage.
 WorkState Engine::stable(double p, double t) {
   WorkState out;
   out.state.pressure = p;

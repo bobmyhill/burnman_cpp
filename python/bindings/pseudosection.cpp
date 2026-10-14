@@ -486,17 +486,23 @@ pseudosections::Result saved_result(const py::dict &data, bool full = false) {
 void bind_pseudosection(py::module_ &m) {
   m.def("_normalize_pseudosection_diagnostics", &normalize_field_diagnostics);
   using namespace pseudosections;
-  py::class_<Settings>(m, "PseudosectionSettings")
+  py::class_<Settings>(m, "PseudosectionSettings",
+                       "Initial equilibrium sampling, reaction continuation "
+                       "and numerical acceptance criteria for a diagram.")
       .def(py::init<>())
       .def("to_dict", &settings_dict,
            "Return all settings as a JSON-compatible dictionary.")
-      .def_static("from_dict", &saved_settings, py::arg("data"))
+      .def_static(
+          "from_dict", &saved_settings, py::arg("data"),
+          "Restore numerical settings; omitted entries retain defaults.")
 #define OPTION(name) .def_readwrite(#name, &Settings::name)
           SETTINGS_OPTIONS(OPTION)
 #undef OPTION
 #undef SETTINGS_OPTIONS
       ;
-  py::class_<PhaseState>(m, "PhaseState")
+  py::class_<PhaseState>(m, "PhaseState",
+                         "One mineral/solution instance: amount in moles and "
+                         "proportions in its original endmember basis.")
       .def_readonly("id", &PhaseState::id)
       .def_readonly("candidate_index", &PhaseState::candidate_index)
       .def_readonly("name", &PhaseState::name)
@@ -522,7 +528,11 @@ void bind_pseudosection(py::module_ &m) {
                   PROPERTY(residual)
 #undef PROPERTY
                       ;
-  py::class_<Boundary>(m, "PhaseBoundary")
+  py::class_<Boundary>(
+      m, "PhaseBoundary",
+      "Solved reaction curve. The boundary assemblage retains "
+      "the zero-amount phase; side_a/side_b label its right/left "
+      "neighbours in calculation-axis order.")
 #define PROPERTY(name) .def_readonly(#name, &Boundary::name)
       PROPERTY(id) PROPERTY(zero_phase) PROPERTY(start_node) PROPERTY(end_node)
           PROPERTY(assemblage) PROPERTY(side_a) PROPERTY(side_b)
@@ -540,18 +550,27 @@ void bind_pseudosection(py::module_ &m) {
                           PROPERTY(is_verified_critical_endpoint)
 #undef PROPERTY
                               ;
-  py::class_<Field>(m, "PhaseField")
+  py::class_<Field>(m, "PhaseField",
+                    "Samples sharing one assemblage, which may occupy several "
+                    "disconnected fields. Its id is not the plot Field number.")
       .def_readonly("id", &Field::id)
       .def_readonly("phases", &Field::phases)
       .def_readonly("sample_indices", &Field::sample_indices);
-  py::class_<Result>(m, "PseudosectionResult")
+  py::class_<Result>(
+      m, "PseudosectionResult",
+      "Equilibrium samples, traced reaction boundaries, junctions "
+      "and diagnostics. resolved means no outstanding diagnostics "
+      "from implemented checks; finite sampling cannot guarantee "
+      "field discovery.")
       .def("to_dict", &result_dict,
            "Return a complete JSON-compatible result, including continuation "
            "states, settings and EOS-domain diagnostics.")
       .def_static(
           "from_dict",
           [](const py::dict &data) { return saved_result(data, true); },
-          py::arg("data"))
+          py::arg("data"),
+          "Restore a complete saved calculation; candidate models are supplied "
+          "separately when new equilibrium solves are needed.")
       .def_property_readonly(
           "settings", [](const Result &result) { return result.settings; },
           py::return_value_policy::copy)
@@ -590,7 +609,10 @@ void bind_pseudosection(py::module_ &m) {
                                   PROPERTY(excluded_regions)
 #undef PROPERTY
       ;
-  py::class_<FieldPolygon>(m, "PhaseFieldPolygon")
+  py::class_<FieldPolygon>(m, "PhaseFieldPolygon",
+                           "One plotted field: a closed outer coordinate ring "
+                           "and any holes, with its inferred assemblage and "
+                           "one-based field_number.")
       .def_readonly("field_number", &FieldPolygon::field_number)
       .def_readonly("field_id", &FieldPolygon::field_id)
       .def_readonly("n_phases", &FieldPolygon::n_phases)
@@ -605,6 +627,9 @@ void bind_pseudosection(py::module_ &m) {
       .def_readonly("label_clearance", &FieldPolygon::label_clearance)
       .def("contains_rectangle", &FieldPolygon::contains_rectangle,
            py::arg("centre"), py::arg("half_size"),
+           "Whether a label rectangle fits strictly inside the field, avoiding "
+           "all holes. Coordinates and positive half-sizes use native diagram "
+           "units; boundary contact returns False.",
            py::call_guard<py::gil_scoped_release>())
       .def_property_readonly("vertices",
                              [](const FieldPolygon &p) { return p.vertices; })
@@ -717,15 +742,19 @@ void bind_pseudosection(py::module_ &m) {
       py::arg("result"), py::arg("phases"), py::arg("constraint"),
       py::kw_only(), py::arg("settings") = ContourSettings{},
       py::arg("composition") = py::none(),
-      "Trace any native equality constraint through saved closed fields. "
-      "Accept a constraint or factory(assemblage, parameters, phase_ids); "
-      "return None from the factory in fields where it is undefined. "
-      "Build PhaseFraction/PhaseComposition/LinearX constraints in a factory "
-      "using that field's parameter layout. The factory is called once per "
-      "field; all seeding, solves and continuation run in C++. Supply the same "
-      "candidate models in their original order. composition supplies the "
-      "elemental bulk for legacy JSON without composition_start. Increase "
-      "settings.seed_grid to check disconnected contour discovery.");
+      R"doc(Calculate a property contour or mineral-composition isopleth within saved fields.
+
+constraint fixes the contour value, for example a garnet composition or total
+volume. Supply a native equality constraint or a factory called once per field
+as factory(assemblage, parameters, phase_ids). Build phase-dependent constraints
+using that field's parameter layout; return None where the quantity is undefined.
+
+Use the original candidate models in their original order. The calculation holds
+each saved field's assemblage and follows equilibrium to its outer ring or holes;
+it does not repeat phase discovery or validate the source field identification.
+Increase settings.seed_grid to assess discovery of disconnected contours.
+composition supplies the elemental bulk for legacy JSON without composition_start.
+)doc");
   m.def(
       "pseudosection_field_polygons",
       [](py::object object, double tolerance, bool close_domain,
@@ -744,10 +773,21 @@ void bind_pseudosection(py::module_ &m) {
       },
       py::arg("result"), py::arg("tolerance") = 1.e-8,
       py::arg("close_domain") = true, py::arg("merge_fields") = true,
-      "Find closed loops through saved vertices and traces, including holes. "
-      "Incidental chord crossings do not create vertices. merge_fields is "
-      "retained for compatibility and has no effect. Accept a native result "
-      "or saved JSON dictionary.");
+      R"doc(Reconstruct closed assemblage fields from saved equilibrium boundaries.
+
+Accept a native result or saved dictionary; no equilibrium calculations are run.
+A loop follows connected reaction arcs back to its start. Its coordinate ring
+repeats the first point at the end; a field can have an outer ring and inner holes.
+Saved junctions establish connectivity. Crossings of straight drawing segments
+(chords) do not create thermodynamic junctions or automatically subdivide fields.
+
+Labels use perimeter reaction assemblages and saved equilibria. Inspect each
+polygon's is_provisional/has_open_boundary flags and the returned diagnostics.
+field_number is the one-based number used by plots, keys and field diagnostics.
+tolerance is a distance after rescaling both calculation axes to 0..1.
+close_domain permits the frame to close edge fields. merge_fields is retained
+for compatibility and has no effect.
+)doc");
   m.def(
       "verify_pseudosection_critical_endpoints",
       [](py::object object,
@@ -759,14 +799,23 @@ void bind_pseudosection(py::module_ &m) {
         return verify_critical_endpoints(result, phases);
       },
       py::arg("result"), py::arg("phases"),
-      "Verify terminal univariant critical reactions using the original "
-      "models. "
-      "Preserve traces and samples, retain unrelated diagnostics, and save "
-      "the certificates for plotting without further solves.");
-  m.def("stable_equilibrium", &stable_equilibrium, py::arg("composition"),
-        py::arg("phases"), py::arg("pressure"), py::arg("temperature"),
-        py::arg("settings") = Settings{},
-        py::call_guard<py::gil_scoped_release>());
+      R"doc(Test whether a dangling solvus reaction ends at a genuine critical point.
+
+Use the original models to re-solve the coalescing solution compositions and
+limiting univariant states. Return updated certificates/diagnostics, preserving
+the saved traces, samples and unrelated messages. A line ending on the drawing
+alone does not establish critical behaviour. Certificates are retained for later
+plotting without additional solves.
+)doc");
+  m.def(
+      "stable_equilibrium", &stable_equilibrium, py::arg("composition"),
+      py::arg("phases"), py::arg("pressure"), py::arg("temperature"),
+      py::arg("settings") = Settings{},
+      "Find an equilibrium assemblage at P (Pa) and T (K) for elemental mole "
+      "amounts. Search the candidate minerals/solutions, refine reaction "
+      "equilibrium, and test affinities against competing phases. Return phase "
+      "amounts/compositions and validation errors, or a failure message.",
+      py::call_guard<py::gil_scoped_release>());
   m.def(
       "pseudosection",
       [](const types::FormulaMap &composition,
@@ -847,11 +896,24 @@ void bind_pseudosection(py::module_ &m) {
       py::arg("entropy_range") = py::none(),
       py::arg("volume_range") = py::none(), py::arg("entropy") = py::none(),
       py::arg("volume") = py::none(),
-      "Trace any pair of P,T,S,V,X with native equilibrate continuation. "
-      "S (J/K) and V (m^3) are totals on the supplied bulk amount scale. "
-      "X diagrams fix one other thermodynamic coordinate and use "
-      "bulk(X)=(1-X)*composition+X*composition_end. Unplotted P/T ranges "
-      "bound inverse seed searches (defaults 0-150 GPa and 1-6000 K).");
+      R"doc(Calculate a mineral-assemblage diagram for a closed elemental bulk.
+
+composition gives elemental mole amounts; phases supplies the candidate mineral
+and solution models. Initial equilibrium sampling discovers assemblage changes.
+Reaction continuation then follows phase-appearance/disappearance and solvus
+boundaries, testing reaction equilibrium, mass balance and competing affinities.
+Use pseudosection_field_polygons() or plot_pseudosection() to identify closed fields.
+
+diagram selects PT, PS, PV, TS, TV, SV, PX, TX, SX or VX. Native units are Pa, K,
+total J/K and total m^3. S and V scale with the supplied bulk amount. An X section
+uses bulk(X)=(1-X)*composition+X*composition_end, without automatic normalisation,
+and fixes one other thermodynamic coordinate, e.g. temperature for a P-X diagram.
+Unplotted P/T ranges guide inverse seed searches (defaults 0-150 GPa, 1-6000 K).
+
+settings controls seed density, tracing and acceptance tolerances. In the returned
+result, resolved means that the implemented checks have no outstanding messages;
+finite sampling cannot prove discovery of every disconnected stability field.
+)doc");
   m.def(
       "refine_pseudosection",
       [](const types::FormulaMap &bulk,
@@ -883,13 +945,21 @@ void bind_pseudosection(py::module_ &m) {
       py::arg("settings") = py::none(), py::kw_only(),
       py::arg("resolution") = py::none(), py::arg("reciprocal_volume") = false,
       py::arg("region") = py::none(),
-      "Resume unfinished phase lines from saved accepted states, using the "
-      "same bulk and candidate models. Omitted settings reuse the saved "
-      "calculation settings, including its EOS policy. All continuation runs "
-      "in C++. Optional resolution gives axis point counts in native axis "
-      "order: "
-      "101 means 100 divisions. reciprocal_volume divides density uniformly. "
-      "region supplies a refinement window in native diagram-axis units.");
+      R"doc(Continue saved reaction lines and optionally refine their equilibrium sampling.
+
+Supply the original bulk, candidate order and phase-instance settings. previous
+is a native result or full saved dictionary; omitted settings reuse its settings.
+Recovery can extend incomplete reactions, trim overshoots and reconcile duplicate
+records. With resolution supplied, closed fields still lacking trusted labels
+can receive additional interior equilibrium samples.
+
+resolution gives point counts in calculation-axis order: 101 means 100 divisions.
+It limits spacing along reaction lines, rather than adding an assemblage seed
+grid. reciprocal_volume requests uniform density spacing. region gives a window
+in native diagram units; counts then subdivide its spans. Suspect arcs can be
+retraced during recovery. The complete diagram is retained, and unmet spacing
+or unresolved connections/labels remain in the returned diagnostics.
+)doc");
   m.def("water_fluid", py::overload_cast<>(&minerals::water_fluid));
 }
 } // namespace burnman::python

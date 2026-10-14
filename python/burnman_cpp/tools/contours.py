@@ -11,7 +11,12 @@
 #
 # ------------------------------------------------------
 
-"""High-level constraint construction and contour batches; solves use C++."""
+"""Property contours and mineral-composition isopleths within saved phase fields.
+
+Each contour fixes a quantity, such as density or garnet Mg/(Mg+Fe2+), while
+the native equilibrium solver follows it through an identified assemblage field.
+The source diagram supplies the phase identities and surrounding reaction lines.
+"""
 
 from numbers import Integral
 
@@ -28,7 +33,7 @@ def pseudosection_contour_levels(
     composition=None,
     verbose=False,
 ):
-    """Trace several constraint values through a completed pseudosection.
+    """Calculate a family of property contours or mineral-composition isopleths.
 
     ``result`` is a native result or its saved JSON dictionary. Supply the
     original candidate phases, in their original order. ``constraint(value)``
@@ -36,6 +41,13 @@ def pseudosection_contour_levels(
     factory. Levels use the units expected by that constructor (normally SI).
     ``settings`` controls native seeding and continuation; ``composition``
     supplies the elemental bulk for legacy results without composition_start.
+
+    For example, ``levels`` can contain garnet Mg/(Mg+Fe2+) values and the
+    factory can construct the corresponding phase-composition constraint.
+    Contours use the saved field assemblages and stop at their outer rings or
+    holes; they do not rediscover the phase boundaries. Undefined quantities
+    are skipped when a field-specific factory returns ``None``. Successful
+    contour tracing therefore does not independently verify the field labels.
 
     Return JSON-ready records with ``value`` and ``contours`` keys, retaining
     every level's resolution status and diagnostics. The saved diagram is

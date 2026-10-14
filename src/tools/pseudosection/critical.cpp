@@ -25,6 +25,9 @@ Eigen::VectorXd CriticalConstraint::fractions(const Eigen::VectorXd &x) const {
   return p;
 }
 
+// The softest allowed composition mode is the lowest Gibbs-Hessian eigenvector.
+// At an ordinary critical point its curvature vanishes; reference keeps the
+// otherwise arbitrary eigenvector sign consistent during numerical derivatives.
 std::pair<double, Eigen::VectorXd>
 CriticalConstraint::curvature(double P, double T,
                               const Eigen::VectorXd &p) const {
