@@ -11,11 +11,15 @@
 //
 // ------------------------------------------------------
 
-#include "../../src/tools/pseudosection/internal.hpp"
 #include "burnman/minerals/datasets.hpp"
+#include "burnman/tools/equilibration/equality_constraint_variants.hpp"
 #include "burnman/tools/equilibration/equilibrate_utils.hpp"
 #include "burnman/tools/polytope.hpp"
 #include "burnman/tools/pseudosection.hpp"
+#include "burnman/tools/pseudosection/boundary_repair.hpp"
+#include "burnman/tools/pseudosection/continuation.hpp"
+#include "burnman/tools/pseudosection/refinement.hpp"
+#include "burnman/tools/pseudosection/stability.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>

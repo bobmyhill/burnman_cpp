@@ -1,16 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: Copyright (C) 2026 by the BurnMan Team.
 
+#include "burnman/tools/pseudosection/boundary_repair.hpp"
+#include "burnman/tools/pseudosection/continuation.hpp"
+#include "burnman/tools/pseudosection/domain.hpp"
+#include "burnman/tools/pseudosection/polygons.hpp"
+#include "burnman/tools/pseudosection/refinement.hpp"
+#include "burnman/tools/pseudosection/stability.hpp"
 #include "burnman/utils/index_utils.hpp"
-#include "internal.hpp"
 #include <iostream>
 #include <set>
 
 namespace burnman::pseudosections::detail {
 namespace {
-std::vector<PhaseState> junction_states(const std::vector<Boundary> &lines,
-                                        const Node &event,
-                                        std::vector<PhaseState> phases = {}) {
+PhaseStates junction_states(const std::vector<Boundary> &lines,
+                            const Node &event, PhaseStates phases = {}) {
   for (const auto &peer : lines)
     if (!peer.points.empty() && peer.assemblage == event.assemblage &&
         (peer.start_node == event.id || peer.end_node == event.id)) {
@@ -28,14 +32,10 @@ std::vector<PhaseState> junction_states(const std::vector<Boundary> &lines,
         if (std::none_of(phases.begin(), phases.end(),
                          [&](const auto &q) { return p.id == q.id; }))
           phases.push_back(p);
-  phases.erase(std::remove_if(phases.begin(), phases.end(),
-                              [&](const auto &p) {
-                                return std::find(event.assemblage.begin(),
-                                                 event.assemblage.end(),
-                                                 p.id) ==
-                                       event.assemblage.end();
-                              }),
-               phases.end());
+  erase_if(phases, [&](const auto &p) {
+    return std::find(event.assemblage.begin(), event.assemblage.end(), p.id) ==
+           event.assemblage.end();
+  });
   return phases;
 }
 
@@ -110,21 +110,16 @@ void join_duplicate_junctions(Result &result, Engine &engine) {
     if (bridge && b.start_node >= 0 && b.start_node == b.end_node)
       contracted.insert(b.id);
   }
-  result.boundaries.erase(
-      std::remove_if(
-          result.boundaries.begin(), result.boundaries.end(),
-          [&](const Boundary &b) {
-            return contracted.count(b.id) &&
-                   std::all_of(
-                       b.points.begin(), b.points.end(), [&](const auto &p) {
-                         return ((diagram_coordinates(p, result.section.type) -
-                                  diagram_coordinates(b.points.front(),
-                                                      result.section.type))
-                                     .cwiseQuotient(range))
-                                    .norm() <= engine.settings.node_tolerance;
-                       });
-          }),
-      result.boundaries.end());
+  erase_if(result.boundaries, [&](const Boundary &b) {
+    return contracted.count(b.id) &&
+           std::all_of(b.points.begin(), b.points.end(), [&](const auto &p) {
+             return ((diagram_coordinates(p, result.section.type) -
+                      diagram_coordinates(b.points.front(),
+                                          result.section.type))
+                         .cwiseQuotient(range))
+                        .norm() <= engine.settings.node_tolerance;
+           });
+  });
 }
 // Curved traces can pass a saved stable node between corrector points. Locate
 // it with an equilibrium solve before splitting; chord proximity is only a
@@ -207,14 +202,10 @@ std::set<int> split_at_stable_nodes(Result &result, Engine &engine) {
           std::optional<BoundaryPoint> point;
           for (const auto *warm : {&line.points[k - 1], &line.points[k]}) {
             auto states = warm->phases;
-            states.erase(std::remove_if(
-                             states.begin(), states.end(),
-                             [&](const auto &p) {
-                               return std::find(line.assemblage.begin(),
-                                                line.assemblage.end(),
-                                                p.id) == line.assemblage.end();
-                             }),
-                         states.end());
+            erase_if(states, [&](const auto &p) {
+              return std::find(line.assemblage.begin(), line.assemblage.end(),
+                               p.id) == line.assemblage.end();
+            });
             // Compare independent zero constraints on the same intensive
             // seed, including active solution faces. Preserve each trace's
             // instance IDs and amounts so reaction extents remain distinct.
@@ -472,8 +463,7 @@ void repair_field_boundaries(
                              line.assemblage.size();
   };
   for (auto &line : result.boundaries)
-    if (line.side_a.empty() || line.side_b.empty() ||
-        (line.side_a == line.side_b && !line.is_solution_replacement) ||
+    if (ambiguous_boundary(line) ||
         (!rejected.count(line.id) &&
          (skipped_neighbour(line) || selected.count(line.id))))
       try {

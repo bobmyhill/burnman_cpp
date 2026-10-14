@@ -11,32 +11,13 @@
 //
 // ------------------------------------------------------
 
-#include "internal.hpp"
+#include "burnman/tools/pseudosection/refinement.hpp"
+#include "burnman/tools/pseudosection/polygons.hpp"
+#include "burnman/tools/pseudosection/stability.hpp"
 #include <chrono>
 #include <iostream>
 
 namespace burnman::pseudosections::detail {
-namespace {
-bool intersects_region(const Eigen::Vector2d &a, const Eigen::Vector2d &b,
-                       const std::array<std::array<double, 2>, 2> &ranges) {
-  double first = 0., last = 1.;
-  for (Eigen::Index axis = 0; axis < 2; ++axis) {
-    const auto &bounds = ranges[static_cast<std::size_t>(axis)];
-    const double delta = b[axis] - a[axis];
-    if (delta == 0.) {
-      if (a[axis] < bounds[0] || a[axis] > bounds[1])
-        return false;
-    } else {
-      double lo = (bounds[0] - a[axis]) / delta,
-             hi = (bounds[1] - a[axis]) / delta;
-      first = std::max(first, std::min(lo, hi));
-      last = std::min(last, std::max(lo, hi));
-    }
-  }
-  return first <= last;
-}
-} // namespace
-
 void validate_line_resolution(const Result &result,
                               const LineResolution &resolution) {
   for (int count : resolution.axis_points)
@@ -126,24 +107,19 @@ std::vector<int> regional_retrace_lines(const Result &result,
       selected.push_back(line.id);
   std::sort(selected.begin(), selected.end());
   selected.erase(std::unique(selected.begin(), selected.end()), selected.end());
-  selected.erase(
-      std::remove_if(
-          selected.begin(), selected.end(),
-          [&](int id) {
-            const auto line =
-                std::find_if(result.boundaries.begin(), result.boundaries.end(),
-                             [&](const Boundary &b) { return b.id == id; });
-            if (line != result.boundaries.end())
-              for (std::size_t k = 1; k < line->points.size(); ++k)
-                if (intersects_region(diagram_coordinates(line->points[k - 1],
-                                                          result.section.type),
-                                      diagram_coordinates(line->points[k],
-                                                          result.section.type),
-                                      *resolution.region))
-                  return false;
-            return true;
-          }),
-      selected.end());
+  erase_if(selected, [&](int id) {
+    const auto line =
+        std::find_if(result.boundaries.begin(), result.boundaries.end(),
+                     [&](const Boundary &b) { return b.id == id; });
+    if (line != result.boundaries.end())
+      for (std::size_t k = 1; k < line->points.size(); ++k)
+        if (intersects_region(
+                diagram_coordinates(line->points[k - 1], result.section.type),
+                diagram_coordinates(line->points[k], result.section.type),
+                *resolution.region))
+          return false;
+    return true;
+  });
   return selected;
 }
 

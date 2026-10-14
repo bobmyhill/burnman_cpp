@@ -11,7 +11,11 @@
 //
 // ------------------------------------------------------
 
-#include "internal.hpp"
+#include "burnman/tools/pseudosection/contours.hpp"
+#include "burnman/tools/equilibration/equality_constraint_variants.hpp"
+#include "burnman/tools/pseudosection/continuation.hpp"
+#include "burnman/tools/pseudosection/polygons.hpp"
+#include "burnman/tools/pseudosection/stability.hpp"
 #include <Eigen/Eigenvalues>
 #include <algorithm>
 #include <cmath>
@@ -24,7 +28,7 @@ using namespace detail;
 using V2 = Eigen::Vector2d;
 struct TraceState {
   std::shared_ptr<Assemblage> a;
-  optim::roots::DampedNewtonResult solve;
+  EquilibriumSolve solve;
 };
 struct SeedSample {
   TraceState state;
@@ -67,9 +71,13 @@ class Contours {
   double edge_distance(const V2 &p) const {
     double distance = std::numeric_limits<double>::infinity();
     for (const auto &ring : rings)
-      for (Eigen::Index i = 1; i < ring.rows(); ++i)
-        distance = std::min(distance,
-                            segment_distance(p, ring.row(i - 1), ring.row(i)));
+      distance = std::min(distance,
+                          polyline_distance(
+                              static_cast<std::size_t>(ring.rows()),
+                              [&](std::size_t i) -> V2 {
+                                return ring.row(static_cast<Eigen::Index>(i));
+                              },
+                              p));
     return distance;
   }
   std::unique_ptr<EqualityConstraint> target(const Assemblage &a,
@@ -187,17 +195,15 @@ class Contours {
   bool covered(const V2 &p) const {
     for (std::size_t k = first_line; k < result.lines.size(); ++k) {
       const auto &points = result.lines[k].points;
-      for (std::size_t i = 1; i < points.size(); ++i) {
-        auto a =
-            (diagram_coordinates(points[i - 1], source.section.type) - origin)
-                .cwiseQuotient(range)
-                .eval();
-        auto b = (diagram_coordinates(points[i], source.section.type) - origin)
-                     .cwiseQuotient(range)
-                     .eval();
-        if (segment_distance(p, a, b) < settings.step * .05)
-          return true;
-      }
+      if (polyline_distance(
+              points.size(),
+              [&](std::size_t i) -> V2 {
+                return (diagram_coordinates(points[i], source.section.type) -
+                        origin)
+                    .cwiseQuotient(range);
+              },
+              p) < settings.step * .05)
+        return true;
     }
     return false;
   }
@@ -550,7 +556,7 @@ class Contours {
   bool prepare() {
     ids = field.phases;
     double best = std::numeric_limits<double>::infinity(), saved_x = 0.;
-    const std::vector<PhaseState> *states = nullptr;
+    const PhaseStates *states = nullptr;
     V2 physical;
     auto consider = [&](const auto &saved) {
       if (!std::all_of(ids.begin(), ids.end(), [&](int id) {

@@ -11,9 +11,13 @@
 //
 // ------------------------------------------------------
 
+#include "burnman/tools/pseudosection/continuation.hpp"
+#include "burnman/tools/equilibration/equality_constraint_variants.hpp"
 #include "burnman/tools/equilibration/equilibrate_objective.hpp"
+#include "burnman/tools/pseudosection/boundary_repair.hpp"
+#include "burnman/tools/pseudosection/domain.hpp"
+#include "burnman/tools/pseudosection/stability.hpp"
 #include "burnman/utils/index_utils.hpp"
-#include "internal.hpp"
 
 namespace burnman::pseudosections::detail {
 namespace {
@@ -59,7 +63,7 @@ Eigen::VectorXd field_response(const Engine &engine, const Assemblage &a,
 }
 
 int phase_entry_side(Engine &engine, Assemblage &a, const std::vector<int> &ids,
-                     int zero, const optim::roots::DampedNewtonResult &s,
+                     int zero, const EquilibriumSolve &s,
                      const Eigen::Vector2d &range,
                      const Eigen::Vector2d &normal, int &full_side) {
   auto entry = std::find(ids.begin(), ids.end(), zero);
@@ -135,7 +139,7 @@ int phase_entry_side(Engine &engine, Assemblage &a, const std::vector<int> &ids,
 
 std::array<std::vector<int>, 2>
 boundary_sides(Engine &engine, Assemblage &a, const std::vector<int> &ids,
-               int zero, const optim::roots::DampedNewtonResult &s,
+               int zero, const EquilibriumSolve &s,
                const Eigen::Vector2d &range, const Eigen::Vector2d &normal,
                std::array<State, 2> *limiting_states) {
   if (limiting_states)
@@ -221,10 +225,7 @@ boundary_sides(Engine &engine, Assemblage &a, const std::vector<int> &ids,
       state.phases = engine.snapshot(*limit, present);
       state.gibbs = limit->get_n_moles() * limit->get_molar_gibbs();
       state.mass_balance_error = engine.mass_error(*limit);
-      state.equilibrium_error =
-          limit->get_n_reactions()
-              ? limit->get_reaction_affinities().cwiseAbs().maxCoeff()
-              : 0.;
+      state.equilibrium_error = reaction_residual(*limit);
       state.success =
           state.mass_balance_error <= engine.settings.mass_balance_tolerance &&
           state.equilibrium_error <= engine.settings.affinity_tolerance * .1;
@@ -249,7 +250,7 @@ continuation_plane(const Engine &engine, const Assemblage &a, Eigen::Index n,
       engine.coordinate_constraint(axes[1], target[1], n, x), weights);
 }
 Eigen::VectorXd continuation_tangent(const Engine &engine,
-                                     const optim::roots::DampedNewtonResult &s,
+                                     const EquilibriumSolve &s,
                                      const Assemblage &a,
                                      const Eigen::Vector2d &range,
                                      int *coordinate_rank) {
@@ -301,8 +302,7 @@ Eigen::VectorXd continuation_tangent(const Engine &engine,
 }
 namespace {
 std::optional<std::vector<std::size_t>>
-phase_matches(const std::vector<PhaseState> &a,
-              const std::vector<PhaseState> &b, double tolerance) {
+phase_matches(const PhaseStates &a, const PhaseStates &b, double tolerance) {
   std::vector<std::size_t> matches;
   std::vector<bool> used(b.size(), false);
   for (const auto &phase : a) {
@@ -324,18 +324,13 @@ phase_matches(const std::vector<PhaseState> &a,
 }
 } // namespace
 
-bool seed_phase_compositions(std::vector<PhaseState> &warm,
-                             const std::vector<PhaseState> &seed,
+bool seed_phase_compositions(PhaseStates &warm, const PhaseStates &seed,
                              double tolerance, double amount_tolerance) {
   const auto matches =
       phase_matches(warm, seed, std::numeric_limits<double>::infinity());
   if (!matches)
     return false;
-  double warm_total = 0., seed_total = 0.;
-  for (const auto &phase : warm)
-    warm_total += phase.amount;
-  for (const auto &phase : seed)
-    seed_total += phase.amount;
+  const double warm_total = total_amount(warm), seed_total = total_amount(seed);
   // Preserve the compositions of phases present in both reaction extents.
   // A zero-amount phase can start on a different active face; its composition
   // must be verified after correcting its own zero-amount constraint.
@@ -351,17 +346,14 @@ bool seed_phase_compositions(std::vector<PhaseState> &warm,
   return true;
 }
 
-bool same_phase_compositions(const std::vector<PhaseState> &a,
-                             const std::vector<PhaseState> &b, double tolerance,
-                             double amount_tolerance) {
+bool same_phase_compositions(const PhaseStates &a, const PhaseStates &b,
+                             double tolerance, double amount_tolerance) {
   if (a.size() > b.size())
     return same_phase_compositions(b, a, tolerance, amount_tolerance);
   const auto matches = phase_matches(a, b, tolerance);
   if (!matches)
     return false;
-  double total = 0.;
-  for (const auto &phase : b)
-    total += phase.amount;
+  const double total = total_amount(b);
   for (std::size_t j = 0; j < b.size(); ++j)
     if (std::find(matches->begin(), matches->end(), j) == matches->end() &&
         b[j].amount > amount_tolerance * total)
@@ -369,14 +361,10 @@ bool same_phase_compositions(const std::vector<PhaseState> &a,
   return true;
 }
 
-bool same_boundary_compositions(const std::vector<PhaseState> &a, int zero_a,
-                                const std::vector<PhaseState> &b, int zero_b,
+bool same_boundary_compositions(const PhaseStates &a, int zero_a,
+                                const PhaseStates &b, int zero_b,
                                 double tolerance, double amount_tolerance) {
-  auto zero = [](const auto &states, int id) {
-    return std::find_if(states.begin(), states.end(),
-                        [&](const auto &phase) { return phase.id == id; });
-  };
-  const auto x = zero(a, zero_a), y = zero(b, zero_b);
+  const auto x = find_phase(a, zero_a), y = find_phase(b, zero_b);
   return x != a.end() && y != b.end() &&
          x->candidate_index == y->candidate_index &&
          x->composition.size() == y->composition.size() &&
@@ -384,8 +372,7 @@ bool same_boundary_compositions(const std::vector<PhaseState> &a, int zero_a,
          same_phase_compositions(a, b, tolerance, amount_tolerance);
 }
 
-std::vector<int> zero_phases_at(const Node &node,
-                                const std::vector<PhaseState> &states,
+std::vector<int> zero_phases_at(const Node &node, const PhaseStates &states,
                                 int copies) {
   std::vector<int> zeros;
   for (int zero : node.zero_phases) {
@@ -427,8 +414,7 @@ std::optional<BoundaryPoint> corrected_point(Engine &engine, Assemblage &a,
 
 // Correct an existing branch without starting a new bulk phase search.
 std::optional<BoundaryPoint>
-boundary_point_at(Engine &engine, const Boundary &line,
-                  const std::vector<PhaseState> &warm,
+boundary_point_at(Engine &engine, const Boundary &line, const PhaseStates &warm,
                   const Eigen::Vector2d &target, const Eigen::Vector2d &weights,
                   const Eigen::Vector2d &allowance) {
   auto assembly = engine.make_at(line.assemblage, warm, target);
@@ -447,9 +433,9 @@ boundary_point_at(Engine &engine, const Boundary &line,
 
 // Use the same intensive seed (and active solution faces) for both events,
 // while preserving each event's solution-copy identities and zero constraints.
-std::optional<BoundaryPoint> junction_point_at(
-    Engine &engine, const Node &node, std::vector<PhaseState> warm,
-    const std::vector<PhaseState> &seed, const Eigen::Vector2d &allowance) {
+std::optional<BoundaryPoint>
+junction_point_at(Engine &engine, const Node &node, PhaseStates warm,
+                  const PhaseStates &seed, const Eigen::Vector2d &allowance) {
   if (node.zero_phases.size() != 2)
     return std::nullopt;
   const auto zeros =
@@ -568,16 +554,8 @@ bool same_boundary_curve(Engine &engine, const Result &result,
         .cwiseQuotient(range);
   };
   auto near = [&](const Boundary &one, const Boundary &two) {
-    for (const auto &p : one.points) {
-      double distance = std::numeric_limits<double>::infinity();
-      for (std::size_t k = 1; k < two.points.size(); ++k)
-        distance =
-            std::min(distance, segment_distance(q(p), q(two.points[k - 1]),
-                                                q(two.points[k])));
-      if (distance > engine.settings.node_tolerance * 2.)
-        return false;
-    }
-    return true;
+    return follows_polyline(one.points, two.points, q,
+                            engine.settings.node_tolerance * 2.);
   };
   const bool univariant = result.section.type == DiagramType::PT &&
                           boundary_variance(first, result) == 1 &&
@@ -667,14 +645,10 @@ bool same_boundary_curve(Engine &engine, const Result &result,
           if (!left)
             return false;
           auto warm = closest->phases;
-          warm.erase(std::remove_if(warm.begin(), warm.end(),
-                                    [&](const auto &p) {
-                                      return std::find(two.assemblage.begin(),
-                                                       two.assemblage.end(),
-                                                       p.id) ==
-                                             two.assemblage.end();
-                                    }),
-                     warm.end());
+          erase_if(warm, [&](const auto &p) {
+            return std::find(two.assemblage.begin(), two.assemblage.end(),
+                             p.id) == two.assemblage.end();
+          });
           auto right = boundary_point_at(
               engine, two, warm,
               diagram_coordinates(*left, result.section.type), weights,
