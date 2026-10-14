@@ -482,13 +482,12 @@ std::optional<BoundaryPoint> junction_point_at(
 // An event found behind a point accepted within the affinity tolerance must
 // replace the overshot tail. Verify the event on the earlier branch before
 // trimming; coordinate order alone is insufficient for curved traces.
-bool trim_boundary_endpoints(Boundary &line, Engine &engine,
+void trim_boundary_endpoints(Boundary &line, Engine &engine,
                              const Eigen::Vector2d &range) {
   if (engine.section.type != DiagramType::PT || line.points.size() < 3 ||
       line.zero_phase < 0 ||
       (line.start_node >= 0 && line.start_node == line.end_node))
-    return false;
-  bool changed = false;
+    return;
   const auto statuses = boundary_statuses(line);
   for (bool front : {false, true}) {
     const auto &status = front ? statuses.first : statuses.second;
@@ -543,7 +542,6 @@ bool trim_boundary_endpoints(Boundary &line, Engine &engine,
           continue;
         line.points.resize(k);
         line.points.push_back(endpoint);
-        changed = true;
         break;
       } catch (const std::exception &) {
         // Keep a trace whose earlier branch cannot be verified at the event.
@@ -552,7 +550,6 @@ bool trim_boundary_endpoints(Boundary &line, Engine &engine,
     if (front)
       std::reverse(line.points.begin(), line.points.end());
   }
-  return changed;
 }
 
 // Chords are a quick comparison only when both traces already have matching

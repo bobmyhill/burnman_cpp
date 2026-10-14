@@ -20,7 +20,6 @@
 #include <limits>
 #include <map>
 #include <numeric>
-#include <queue>
 #include <set>
 #include <stdexcept>
 #include <tuple>
@@ -894,9 +893,8 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     }
   }
   auto ring_edges = [&](const Ring &ring, auto action) {
-    for (std::size_t j = 1; j < ring.size(); ++j) {
-      action(edge_index.at({ring[j - 1], ring[j]}), ring[j - 1], ring[j]);
-    }
+    for (std::size_t j = 1; j < ring.size(); ++j)
+      action(edge_index.at({ring[j - 1], ring[j]}));
   };
   std::map<Phases, int> field_ids;
   for (auto &field : result.fields)
@@ -985,23 +983,19 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
     std::array<bool, 3> constrained{};
     std::set<const Boundary *> sources, observations;
     std::set<Index> perimeter_edges;
-    auto collect = [&](Index edge, Index, Index) {
-      perimeter_edges.insert(edge);
-    };
+    auto collect = [&](Index edge) { perimeter_edges.insert(edge); };
     ring_edges(face.exterior, collect);
     for (const auto &hole : face.holes)
       ring_edges(hole, collect);
     bool physical_perimeter = false, unknown_side = false;
     auto evidence = [&](const Ring &ring, bool exterior) {
-      ring_edges(ring, [&](Index edge, Index from, Index to) {
+      ring_edges(ring, [&](Index edge) {
         // Traversing both directions is a spur, not a separating perimeter.
         if (perimeter_edges.count(edge ^ 1))
           return;
         physical_perimeter = physical_perimeter || edges[edge].phase_boundary;
         unknown_side = unknown_side || (edges[edge].phase_boundary &&
                                         edges[edge].labels.empty());
-        (void)from;
-        (void)to;
         if (edges[edge].source)
           sources.insert(edges[edge].source);
         for (const auto &[record, follows] : edges[edge].observations) {
@@ -1155,7 +1149,7 @@ FieldPolygons field_polygons(const Result &result, double tolerance,
   // Assign actual rings; dangling excursions remain unassigned.
   std::vector<Index> edge_faces(edges.size(), no_index);
   for (std::size_t i = 0; i < faces.size(); ++i) {
-    auto assign = [&](Index edge, Index, Index) { edge_faces[edge] = i; };
+    auto assign = [&](Index edge) { edge_faces[edge] = i; };
     ring_edges(faces[i].exterior, assign);
     for (auto &hole : faces[i].holes)
       ring_edges(hole, assign);

@@ -20,7 +20,6 @@
 #include <algorithm>
 #include <functional>
 #include <limits>
-#include <map>
 #include <set>
 
 namespace burnman::pseudosections::detail {
@@ -216,7 +215,7 @@ bool seed_phase_compositions(
     std::vector<PhaseState> &, const std::vector<PhaseState> &,
     double tolerance = std::numeric_limits<double>::infinity(),
     double amount_tolerance = 0.);
-bool trim_boundary_endpoints(Boundary &, Engine &,
+void trim_boundary_endpoints(Boundary &, Engine &,
                              const Eigen::Vector2d &range);
 bool same_phase_compositions(const std::vector<PhaseState> &,
                              const std::vector<PhaseState> &, double tolerance,
