@@ -25,10 +25,16 @@ Add --verbose to report line refinement and field-checking progress.
 """
 
 import argparse
-import importlib
+from functools import partial
 from pathlib import Path
 
 import burnman_cpp as bm
+from burnman_cpp.tools.phase_diagram_helpers import (
+    load_example,
+    plot_phase_diagram_example,
+    refine_saved,
+    write_phase_diagram,
+)
 
 
 def main():
@@ -37,7 +43,7 @@ def main():
     parser.add_argument(
         "--models",
         required=True,
-        help="Original example module supplying candidate_phases().",
+        help="Original module or .py file supplying candidate_phases().",
     )
     parser.add_argument(
         "--resolution",
@@ -65,7 +71,7 @@ def main():
     )
     args = parser.parse_args()
     saved = bm.load_phase_diagram(args.source)
-    candidates = importlib.import_module(args.models).candidate_phases()
+    candidates = load_example(args.models).candidate_phases()
     settings = bm.PhaseDiagramSettings.from_dict(saved.get("settings", {}))
     settings.verbose = args.verbose
     if args.verbose:
@@ -80,37 +86,30 @@ def main():
             "swap_axes",
         )
     }
-    result = bm.refine_phase_diagram(
-        saved["composition_start"],
-        candidates,
+    result = refine_saved(
         saved,
-        settings,
+        candidates,
+        settings=settings,
+        verbose=args.verbose,
         resolution=args.resolution,
         **display,
     )
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    if args.verbose:
-        print(f"Saving refined diagram to {args.output_dir}.", flush=True)
-    bm.save_phase_diagram(
-        result, args.output_dir / "phase_diagram.json", metadata=saved
+    write_phase_diagram(
+        result,
+        args.output_dir / "phase_diagram",
+        metadata=saved,
+        label_fontsize=args.label_fontsize,
+        plot=(
+            None
+            if args.no_plots
+            else partial(
+                plot_phase_diagram_example,
+                **display,
+                key_path=args.output_dir / "assemblages.md",
+                bbox_inches=None,
+            )
+        ),
     )
-    if not args.no_plots:
-        import matplotlib.pyplot as plt
-
-        if args.verbose:
-            print("Plotting refined diagram.", flush=True)
-        figure, _ = bm.plot_phase_diagram(
-            result,
-            **display,
-            label_fontsize=args.label_fontsize,
-            label_key_path=args.output_dir / "assemblages.md",
-        )
-        figure.savefig(args.output_dir / "phase_diagram.png", dpi=200)
-        figure.savefig(args.output_dir / "phase_diagram.svg")
-        plt.close(figure)
-    print(f"Resolved: {result.resolved}. Outputs: {args.output_dir}")
-    for diagnostic in result.diagnostics:
-        print(diagnostic)
 
 
 if __name__ == "__main__":

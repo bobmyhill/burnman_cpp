@@ -27,12 +27,16 @@ Run: python examples/example_forsterite_thermodynamic_sections.py
 Use --volume-unit m3 --entropy-unit J/K to display total volume and entropy.
 """
 
-import argparse
 import json
 from pathlib import Path
 
 import burnman_cpp as bm
 from burnman_cpp.minerals import SLB11
+from burnman_cpp.tools.phase_diagram_helpers import (
+    example_parser,
+    save_figure,
+    write_phase_diagram,
+)
 
 BULK = bm.Composition({"Mg2SiO4": 1.0}, "molar")
 BULK_MASS = sum(BULK.mass_composition.values())
@@ -187,34 +191,22 @@ def plot(
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--quick", action="store_true")
-    parser.add_argument("--verbose", action="store_true")
-    parser.add_argument("--no-plots", action="store_true")
-    parser.add_argument("--label-fontsize", type=float, default=9.0)
+    parser = example_parser(
+        __doc__,
+        Path(__file__).resolve().parent / "forsterite_sections_output",
+        label_fontsize=9.0,
+    )
     parser.add_argument(
         "--volume-unit", choices=["kg/m3", "m3", "cm3"], default="kg/m3"
     )
     parser.add_argument(
         "--entropy-unit", choices=["kB/atom", "J/K", "kJ/K"], default="kB/atom"
     )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=Path(__file__).resolve().parent / "forsterite_sections_output",
-    )
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     results = calculate(args.quick, args.verbose)
     for diagram, result in results.items():
-        bm.save_phase_diagram(
-            result, args.output_dir / f"forsterite_{diagram.lower()}.json"
-        )
-        print(
-            f"{diagram}: {len(result.boundaries)} boundaries; resolved={result.resolved}"
-        )
-        for diagnostic in result.diagnostics:
-            print(diagnostic)
+        write_phase_diagram(result, args.output_dir / f"forsterite_{diagram.lower()}")
     contours = calculate_contours(results, args.verbose)
     (args.output_dir / "forsterite_contours.json").write_text(
         json.dumps(contours, indent=2, allow_nan=False) + "\n"
@@ -228,8 +220,7 @@ def main():
             volume_unit=args.volume_unit,
             entropy_unit=args.entropy_unit,
         )
-        fig.savefig(args.output_dir / "forsterite_sections.png", dpi=200)
-        fig.savefig(args.output_dir / "forsterite_sections.pdf")
+        save_figure(fig, args.output_dir / "forsterite_sections.png", formats=("pdf",))
     print(f"Results saved to {args.output_dir}")
 
 

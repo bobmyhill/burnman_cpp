@@ -22,11 +22,16 @@ Run: python examples/example_olivine_px.py
 Use --quick for fewer seeds, or --no-plots to save only the resumable JSON.
 """
 
-import argparse
+from functools import partial
 from pathlib import Path
 
 import burnman_cpp as bm
 from burnman_cpp.minerals import SLB11
+from burnman_cpp.tools.phase_diagram_helpers import (
+    example_parser,
+    plot_phase_diagram_example,
+    run_phase_diagram_example,
+)
 
 FORSTERITE = bm.Composition({"Mg2SiO4": 1.0}, "molar")
 FAYALITE = bm.Composition({"Fe2SiO4": 1.0}, "molar")
@@ -67,46 +72,41 @@ def calculate(quick=False, verbose=False, *, diagram="PX"):
     )
 
 
+def plot(result, path, label_fontsize=9.0, *, diagram="PX"):
+    condition = "14 GPa" if diagram == "TX" else "1673 K"
+    axes = dict(title=f"Olivine polymorphs at {condition}")
+    if diagram == "VX":
+        axes["ylabel"] = "Volume (cm³ per mole of bulk formula units)"
+    plot_phase_diagram_example(
+        result,
+        path,
+        label_fontsize,
+        axes=axes,
+        formats=("pdf",),
+        pressure_unit="GPa",
+        temperature_unit="K",
+        volume_unit="cm3",
+        composition_label=r"$X_{\mathrm{Fe}} = \mathrm{Fe}/(\mathrm{Mg}+\mathrm{Fe})$",
+        phase_aliases={"ol": "ol", "wa": "wa", "ri": "ri"},
+        show_nodes=True,
+        key_path=path.with_name(path.stem + "_labels.md"),
+    )
+
+
 def main(diagram="PX"):
     stem = f"olivine_{diagram.lower()}"
     condition = "14 GPa" if diagram == "TX" else "1673 K"
-    parser = argparse.ArgumentParser(
-        description=f"Olivine-polymorph {diagram[0]}-X diagram at {condition}."
+    parser = example_parser(
+        f"Olivine-polymorph {diagram[0]}-X diagram at {condition}.",
+        Path(__file__).resolve().parent / f"{stem}_output",
+        label_fontsize=9.0,
     )
-    parser.add_argument("--quick", action="store_true")
-    parser.add_argument("--verbose", action="store_true")
-    parser.add_argument("--no-plots", action="store_true")
-    parser.add_argument("--label-fontsize", type=float, default=9.0)
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=Path(__file__).resolve().parent / f"{stem}_output",
+    return run_phase_diagram_example(
+        parser,
+        lambda args: calculate(args.quick, args.verbose, diagram=diagram),
+        stem=stem,
+        plot=partial(plot, diagram=diagram),
     )
-    args = parser.parse_args()
-    result = calculate(args.quick, args.verbose, diagram=diagram)
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    bm.save_phase_diagram(result, args.output_dir / f"{stem}.json")
-    if not args.no_plots:
-        fig, ax = bm.plot_phase_diagram(
-            result,
-            pressure_unit="GPa",
-            temperature_unit="K",
-            volume_unit="cm3",
-            composition_label=r"$X_{\mathrm{Fe}} = \mathrm{Fe}/(\mathrm{Mg}+\mathrm{Fe})$",
-            phase_aliases={"ol": "ol", "wa": "wa", "ri": "ri"},
-            label_fontsize=args.label_fontsize,
-            label_key_path=args.output_dir / f"{stem}_labels.md",
-            show_nodes=True,
-        )
-        if diagram == "VX":
-            ax.set_ylabel("Volume (cm³ per mole of bulk formula units)")
-        ax.set_title(f"Olivine polymorphs at {condition}")
-        fig.savefig(args.output_dir / f"{stem}.png", dpi=200, bbox_inches="tight")
-        fig.savefig(args.output_dir / f"{stem}.pdf", bbox_inches="tight")
-    print(f"{len(result.boundaries)} phase boundaries; resolved={result.resolved}")
-    for diagnostic in result.diagnostics:
-        print(diagnostic)
-    print(f"Results saved to {args.output_dir}")
 
 
 if __name__ == "__main__":

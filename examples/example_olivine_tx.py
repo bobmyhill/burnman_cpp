@@ -24,11 +24,13 @@ Use --quick for fewer seeds, or --no-plots to save only the resumable JSON.
 """
 
 from functools import partial
+from pathlib import Path
 
-from example_olivine_px import calculate as calculate_section, main as section_main
+from burnman_cpp.tools.phase_diagram_helpers import load_example
 
-calculate = partial(calculate_section, diagram="TX")
-main = partial(section_main, diagram="TX")
+olivine = load_example(Path(__file__).with_name("example_olivine_px.py"))
+calculate = partial(olivine.calculate, diagram="TX")
+main = partial(olivine.main, diagram="TX")
 
 
 if __name__ == "__main__":
