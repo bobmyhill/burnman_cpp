@@ -1,0 +1,5912 @@
+{
+  "schema_version": 3,
+  "diagram_type": "PT",
+  "composition_start": {
+    "Cr": 0.007500518941903751,
+    "Si": 0.7489522445881484,
+    "O": 2.7663350706839376,
+    "Mg": 0.9646647623082004,
+    "Ca": 0.0567076785900418,
+    "Al": 0.07846169170147545,
+    "Na": 0.004194994559401659,
+    "Fe": 0.11430278558091557
+  },
+  "composition_end": {},
+  "composition_range": [
+    0.0,
+    1.0
+  ],
+  "entropy_range": [
+    0.0,
+    1.0
+  ],
+  "volume_range": [
+    1e-06,
+    0.0001
+  ],
+  "phase_names": [
+    "ol",
+    "ol #2",
+    "ol #3",
+    "wa",
+    "wa #2",
+    "wa #3",
+    "ri",
+    "ri #2",
+    "ri #3",
+    "opx",
+    "opx #2",
+    "opx #3",
+    "cpx",
+    "cpx #2",
+    "cpx #3",
+    "hpcpx",
+    "hpcpx #2",
+    "hpcpx #3",
+    "gt",
+    "gt #2",
+    "gt #3",
+    "sp",
+    "sp #2",
+    "sp #3",
+    "pl",
+    "pl #2",
+    "pl #3",
+    "ak",
+    "ak #2",
+    "ak #3",
+    "fp",
+    "fp #2",
+    "fp #3",
+    "bg",
+    "bg #2",
+    "bg #3",
+    "ppv",
+    "ppv #2",
+    "ppv #3",
+    "cf",
+    "cf #2",
+    "cf #3",
+    "nal",
+    "nal #2",
+    "nal #3",
+    "capv",
+    "capv #2",
+    "capv #3",
+    "neph",
+    "neph #2",
+    "neph #3",
+    "ky",
+    "ky #2",
+    "ky #3",
+    "q",
+    "q #2",
+    "q #3",
+    "coe",
+    "coe #2",
+    "coe #3",
+    "st",
+    "st #2",
+    "st #3",
+    "seif",
+    "seif #2",
+    "seif #3",
+    "wo",
+    "wo #2",
+    "wo #3",
+    "pwo",
+    "pwo #2",
+    "pwo #3",
+    "Fe-bcc",
+    "Fe-bcc #2",
+    "Fe-bcc #3",
+    "Fe-fcc",
+    "Fe-fcc #2",
+    "Fe-fcc #3",
+    "Fe-hcp",
+    "Fe-hcp #2",
+    "Fe-hcp #3"
+  ],
+  "settings": {
+    "pressure_seeds": 9,
+    "temperature_seeds": 9,
+    "entropy_seeds": 7,
+    "volume_seeds": 7,
+    "composition_seeds": 7,
+    "max_refinement_iterations": 150,
+    "minimization_starts": 10,
+    "max_phase_instances": 3,
+    "max_trace_steps": 500,
+    "max_lines": 2,
+    "max_recovery_passes": 0,
+    "step": 0.025,
+    "min_step": 1e-07,
+    "affinity_tolerance": 0.2,
+    "mass_balance_tolerance": 1e-08,
+    "amount_tolerance": 1e-07,
+    "composition_tolerance": 1e-05,
+    "node_tolerance": 0.0002,
+    "verbose": false,
+    "exclude_invalid_eos": true,
+    "active_solution_faces": true,
+    "required_eos_phases": []
+  },
+  "pressure_range": [
+    7000000000.0,
+    10000000000.0
+  ],
+  "temperature_range": [
+    0.0,
+    204.12291365962645
+  ],
+  "nodes": [
+    {
+      "id": 0,
+      "pressure": 8600889515.530207,
+      "temperature": 0.0,
+      "entropy": 0.6442955759714538,
+      "volume": 2.741416283261715e-05,
+      "composition_coordinate": 0.0,
+      "kind": "domain_edge",
+      "zero_phases": [
+        13
+      ],
+      "assemblage": [
+        0,
+        12,
+        13,
+        15,
+        18,
+        19,
+        39,
+        72
+      ],
+      "gibbs_variance": 2,
+      "pt_nullity": 0,
+      "incident_lines": [
+        0
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    },
+    {
+      "id": 1,
+      "pressure": 9610712284.542875,
+      "temperature": 204.12291365962645,
+      "entropy": 29.85201663746531,
+      "volume": 2.727460976717137e-05,
+      "composition_coordinate": 0.0,
+      "kind": "domain_edge",
+      "zero_phases": [
+        13,
+        3
+      ],
+      "assemblage": [
+        0,
+        3,
+        12,
+        13,
+        15,
+        18,
+        19,
+        39,
+        72
+      ],
+      "gibbs_variance": 1,
+      "pt_nullity": 0,
+      "incident_lines": [
+        0,
+        1
+      ],
+      "is_verified_critical_endpoint": false,
+      "critical_mode": []
+    }
+  ],
+  "boundaries": [
+    {
+      "id": 0,
+      "zero_phase": 13,
+      "assemblage": [
+        0,
+        12,
+        13,
+        15,
+        18,
+        19,
+        39,
+        72
+      ],
+      "side_a": [
+        0,
+        12,
+        15,
+        18,
+        19,
+        39,
+        72
+      ],
+      "side_b": [
+        0,
+        12,
+        13,
+        15,
+        18,
+        19,
+        39,
+        72
+      ],
+      "is_solution_replacement": false,
+      "start_node": 0,
+      "end_node": 1,
+      "termination": "domain edge; domain edge",
+      "points": [
+        {
+          "pressure": 8600889515.52978,
+          "temperature": 0.0,
+          "entropy": 0.644295575971454,
+          "volume": 2.7414162832617218e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 1.5127919926785355e-16,
+          "minimum_affinity": -9.068746979349392e-07,
+          "residual": 2.910383045716137e-11,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.33006193702191994,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.1439247471607294,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.0049475177007417505,
+              "composition": [
+                -0.7580082978560384,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7580082978560384
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035936090341247014,
+              "composition": [
+                0.0,
+                0.6116705602430338,
+                0.3883294397569662,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016691393942901606,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159187844,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8600622540.933258,
+          "temperature": 0.24395620668546433,
+          "entropy": 0.6553547495083463,
+          "volume": 2.7414204929416537e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 2.291846027186438e-18,
+          "minimum_affinity": -2.0391041004549284e-06,
+          "residual": 7.27595761503382e-12,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3300619370219202,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14392474716072926,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004947517700696897,
+              "composition": [
+                -0.7580082978629105,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7580082978629105
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035936090341291874,
+              "composition": [
+                0.0,
+                0.6116705602422703,
+                0.3883294397577297,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016691393942901533,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159187993,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8600380357.982845,
+          "temperature": 0.48768017979967293,
+          "entropy": 0.6665588502095804,
+          "volume": 2.741424311738034e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 1.515569831243097e-16,
+          "minimum_affinity": -2.2361637093126774e-06,
+          "residual": 7.275957615894087e-12,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.33006193702192027,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14392474716072926,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004947517700691919,
+              "composition": [
+                -0.7580082978636731,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7580082978636731
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03593609034129685,
+              "composition": [
+                0.0,
+                0.6116705602421855,
+                0.38832943975781453,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.01669139394290153,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159187985,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8599971983.976843,
+          "temperature": 0.9746109503360584,
+          "entropy": 0.6894319939993648,
+          "volume": 2.7414307511491455e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 1.5564317677067363e-16,
+          "minimum_affinity": -1.199713661748092e-06,
+          "residual": 1.957232598215345e-09,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.33006193702192,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 3.851859888774472e-34,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14392474716072937,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004947517700688599,
+              "composition": [
+                -0.7580082978641817,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7580082978641817
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035936090341300166,
+              "composition": [
+                0.0,
+                0.6116705602421291,
+                0.38832943975787093,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016691393942901606,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159187851,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8599473520.039791,
+          "temperature": 1.9479612612591344,
+          "entropy": 0.7372678846183177,
+          "volume": 2.741438611313015e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 5.2061522344092876e-17,
+          "minimum_affinity": -2.151413355022669e-06,
+          "residual": 7.275957614184952e-10,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3300619370219201,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14392474716072926,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004947517700686385,
+              "composition": [
+                -0.7580082978645211,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7580082978645211
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035936090341302386,
+              "composition": [
+                0.0,
+                0.6116705602420913,
+                0.3883294397579087,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016691393942901554,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159187953,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8599947905.947334,
+          "temperature": 3.9148335927217586,
+          "entropy": 0.8426133260442533,
+          "volume": 2.741431131603438e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 1.5121001279510455e-16,
+          "minimum_affinity": -9.85387799801174e-07,
+          "residual": 3.4488039091229476e-09,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.33006193702192005,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.1439247471607293,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.0049475177006848906,
+              "composition": [
+                -0.75800829786475,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.75800829786475
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03593609034130388,
+              "composition": [
+                0.0,
+                0.6116705602420659,
+                0.3883294397579341,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016691393942901592,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159187872,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8611656922.236925,
+          "temperature": 8.345110024828447,
+          "entropy": 1.3932708441897228,
+          "volume": 2.7412465437640348e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 1.5133154290161057e-16,
+          "minimum_affinity": -2.1737723727710545e-06,
+          "residual": 3.346940502524745e-10,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.33006193702192016,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.1439247471607293,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004947517700683794,
+              "composition": [
+                -0.7580082978649179,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7580082978649179
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035936090341304974,
+              "composition": [
+                0.0,
+                0.6116705602420472,
+                0.38832943975795275,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016691393942901478,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.01497685215918811,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8647175253.718225,
+          "temperature": 16.68964216125748,
+          "entropy": 1.4148361078315714,
+          "volume": 2.7406871642674005e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 1.5127919926785355e-16,
+          "minimum_affinity": -5.410598699072564e-07,
+          "residual": 2.004787104587836e-09,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.33006193702192005,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.1439247471607293,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.0049475177006831775,
+              "composition": [
+                -0.7580082978650123,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7580082978650123
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03593609034130559,
+              "composition": [
+                0.0,
+                0.6116705602420368,
+                0.3883294397579632,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.01669139394290159,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159187874,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8724512527.151772,
+          "temperature": 34.887768458220705,
+          "entropy": 1.6118393401137046,
+          "volume": 2.739474118859757e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 2.957104516078122e-16,
+          "minimum_affinity": -7.084272988322482e-05,
+          "residual": 1.149601303040992e-09,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.33006193702192016,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.1439247471607293,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004947517700682754,
+              "composition": [
+                -0.7580082978650771,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7580082978650771
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035936090341306015,
+              "composition": [
+                0.0,
+                0.6116705602420296,
+                0.3883294397579704,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016691393942901478,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159188106,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8779537088.663315,
+          "temperature": 47.89560593127546,
+          "entropy": 1.9612878469690977,
+          "volume": 2.738618866909814e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 1.0392304039792919e-16,
+          "minimum_affinity": -6.75930599215858e-07,
+          "residual": 1.281580986237435e-09,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.33006127825063775,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14392507654637043,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.00494765938820688,
+              "composition": [
+                -0.7579865905666225,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7579865905666225
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035935948653781885,
+              "composition": [
+                4.582954585748533e-06,
+                0.6116683889696313,
+                0.388327028075783,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016691558635722158,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.01497701685200878,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8857772780.930063,
+          "temperature": 66.49386358918363,
+          "entropy": 2.9087619679498444,
+          "volume": 2.7374226683593187e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 3.6954906781182214e-17,
+          "minimum_affinity": -1.670297933742404e-06,
+          "residual": 2.6637657439625746e-09,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3300482510118165,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14393159016578114,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.00494964622829889,
+              "composition": [
+                -0.7576823267712158,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7576823267712158
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03593396181368988,
+              "composition": [
+                9.521640123264192e-05,
+                0.6116115757955756,
+                0.38829320780319176,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016694815445427384,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014980273661714087,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8913818519.10995,
+          "temperature": 79.7715054542779,
+          "entropy": 3.989722341992265,
+          "volume": 2.736585342962975e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 1.4710751818320755e-16,
+          "minimum_affinity": -1.3323642590770206e-09,
+          "residual": 9.354063472703748e-10,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3300111861573784,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14395012259300022,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004954125820541933,
+              "composition": [
+                -0.7569972194492293,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7569972194492293
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03592948222144683,
+              "composition": [
+                0.0003531282765843579,
+                0.6114299298954597,
+                0.38821694182795585,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016704081659036907,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014989539875323555,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8954365320.967329,
+          "temperature": 89.23370889834707,
+          "entropy": 4.992655240162864,
+          "volume": 2.7359916468026306e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 5.132724645226837e-18,
+          "minimum_affinity": -0.00011399010085130163,
+          "residual": 1.3096723705530262e-09,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.32995951666767837,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14397595733785018,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004959490261898096,
+              "composition": [
+                -0.7561784120766832,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7561784120766832
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03592411778009068,
+              "composition": [
+                0.0007127548327625229,
+                0.6111616590785749,
+                0.38812558608866254,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016716999031462013,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.015002457247748506,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8983791864.831396,
+          "temperature": 95.97232950418926,
+          "entropy": 5.8293216022712855,
+          "volume": 2.7355674667292436e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 5.132724645226837e-18,
+          "minimum_affinity": -3.40340196397814e-05,
+          "residual": 9.03936125033208e-07,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.32990622028902866,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.00419499558272073,
+              "composition": [
+                2.4393805675426705e-07,
+                0.0,
+                0.0,
+                0.0,
+                0.9999997560619432,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                0.9999997560619432,
+                0.0,
+                0.0,
+                0.0,
+                2.4393805672251915e-07,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14400260450385594,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004964504441598196,
+              "composition": [
+                -0.7554146672783667,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7554146672783667
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03591910360039057,
+              "composition": [
+                0.001083811131878659,
+                0.6108760277779705,
+                0.38804016109015094,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.01673032312612452,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.015015781342410571,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 9071119303.956589,
+          "temperature": 115.08282729696802,
+          "entropy": 8.748402189216886,
+          "volume": 2.734341153147445e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 6.899370174098718e-18,
+          "minimum_affinity": -2.628805714266491e-05,
+          "residual": 2.769162542103732e-07,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3296658746018433,
+              "composition": [
+                0.9999996202286163,
+                3.797713836607301e-07
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004195007386884668,
+              "composition": [
+                3.057797478223101e-06,
+                0.0,
+                0.0,
+                0.0,
+                0.9999969422025218,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                0.9999969422025218,
+                0.0,
+                0.0,
+                0.0,
+                3.057797478231576e-06,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14412276554328468,
+              "composition": [
+                0.999999517305746,
+                4.826942540421646e-07
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.0049840882214561896,
+              "composition": [
+                -0.7524464464347242,
+                3.4099571044610144e-07,
+                0.9999996590042896,
+                0.0,
+                0.0,
+                0.0,
+                0.7524464464347242
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03589951982053258,
+              "composition": [
+                0.0027618676964672514,
+                0.6095318676553307,
+                0.387706264648202,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016790409547920836,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.01507586776420715,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 9207436071.605377,
+          "temperature": 141.8353301252799,
+          "entropy": 14.0489860062643,
+          "volume": 2.732509802238648e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 5.2324907722586074e-17,
+          "minimum_affinity": -1.0408984962850809e-07,
+          "residual": 1.656064343896355e-07,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3290820037577592,
+              "composition": [
+                0.9999933034245007,
+                6.696575499338946e-06
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004195135344863374,
+              "composition": [
+                3.355921803260831e-05,
+                0.0,
+                0.0,
+                0.0,
+                0.9999664407819674,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                0.9999664407819674,
+                0.0,
+                0.0,
+                0.0,
+                3.3559218032632356e-05,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.1444145730073481,
+              "composition": [
+                0.9999921896809143,
+                7.810319085657415e-06
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.0050234795555098265,
+              "composition": [
+                -0.7465408762271126,
+                6.351491852907287e-06,
+                0.9999936485081471,
+                0.0,
+                0.0,
+                0.0,
+                0.7465408762271126
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035860128486478945,
+              "composition": [
+                0.006894138718283038,
+                0.6060717880571319,
+                0.38703333028601494,
+                0.0,
+                0.0,
+                0.0,
+                7.429385701085423e-07
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.01693637725894163,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.015221835475228642,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 9314434930.660065,
+          "temperature": 160.4176194640286,
+          "entropy": 18.38440730463124,
+          "volume": 2.73112544803913e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 1.5627571050268118e-16,
+          "minimum_affinity": -0.00015389393956866115,
+          "residual": 2.8101764099713e-08,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.328513268023432,
+              "composition": [
+                0.9999724674883832,
+                2.7532511616809478e-05
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004195459549689629,
+              "composition": [
+                0.00011083178909554459,
+                0.0,
+                0.0,
+                0.0,
+                0.9998891682109045,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                0.9998891682109045,
+                0.0,
+                0.0,
+                0.0,
+                0.00011083178909551028,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14469861666968536,
+              "composition": [
+                0.9999693649706953,
+                3.063502930466113e-05
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.005057689580992585,
+              "composition": [
+                -0.7414674392179599,
+                2.7282292742292213e-05,
+                0.9999727177072577,
+                0.0,
+                0.0,
+                0.0,
+                0.7414674392179599
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035825918460996184,
+              "composition": [
+                0.011057916416821023,
+                0.6024900158804769,
+                0.3864479553454961,
+                0.0,
+                0.0,
+                0.0,
+                4.1123572060985936e-06
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.017078561192523507,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.015364019408810246,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 9395772317.955227,
+          "temperature": 173.39335493578855,
+          "entropy": 21.6431044429537,
+          "volume": 2.7300971249222205e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 1.55681665181514e-16,
+          "minimum_affinity": -1.4616329480077184e-08,
+          "residual": 9.859308668685655e-07,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3280527159935146,
+              "composition": [
+                0.9999387546549322,
+                6.124534506784448e-05
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004195915495756157,
+              "composition": [
+                0.00021948400901550258,
+                0.0,
+                0.0,
+                0.0,
+                0.9997805159909845,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                0.9997805159909846,
+                0.0,
+                0.0,
+                0.0,
+                0.00021948400901544636,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14492843673857755,
+              "composition": [
+                0.9999337582372259,
+                6.624176277417278e-05
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.005084349422134234,
+              "composition": [
+                -0.7375318227685221,
+                6.264322006899192e-05,
+                0.9999372153795406,
+                0.0,
+                0.0,
+                0.0,
+                0.7375319641689126
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03579925861985454,
+              "composition": [
+                0.014581812088859336,
+                0.5994154566840796,
+                0.3859918579537267,
+                0.0,
+                0.0,
+                0.0,
+                1.0873273334377487e-05
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.01719369920000291,
+              "composition": [
+                0.9999998041717458,
+                -0.9999998041717458,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.015479157416289345,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 9518619111.000982,
+          "temperature": 191.49861754014938,
+          "entropy": 26.416009110147204,
+          "volume": 2.728577099329865e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 1.515634812317001e-16,
+          "minimum_affinity": -6.561794735993054e-05,
+          "residual": 5.114579049038907e-07,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3273537839948468,
+              "composition": [
+                0.9998456660949541,
+                0.00015433390504595158
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.0041970452822481874,
+              "composition": [
+                0.0004886110843744795,
+                0.0,
+                0.0,
+                0.0,
+                0.9995113889156255,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                0.9995113889156255,
+                0.0,
+                0.0,
+                0.0,
+                0.0004886110843744874,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14527677295141936,
+              "composition": [
+                0.9998387485139327,
+                0.00016125148606722418
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.005124751266388066,
+              "composition": [
+                -0.7315578708600405,
+                0.00016510795442925552,
+                0.9998342572401244,
+                0.0,
+                0.0,
+                0.0,
+                0.7315585056654869
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.0357588567756007,
+              "composition": [
+                0.020297575826890013,
+                0.5943663308288201,
+                0.3853024207743511,
+                0.0,
+                0.0,
+                0.0,
+                3.3672569938802965e-05
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.017368432199669943,
+              "composition": [
+                0.9999991307049194,
+                -0.9999991307049194,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.015653890415956193,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 9610712284.542038,
+          "temperature": 204.1229136596827,
+          "entropy": 29.85201663748007,
+          "volume": 2.727460976717154e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 3.7159767373981025e-17,
+          "minimum_affinity": -1.0455950476107034e-05,
+          "residual": 9.822539006428138e-08,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3268499877400424,
+              "composition": [
+                0.9997349641564491,
+                0.00026503584355087347
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004198294601669831,
+              "composition": [
+                0.0007860435203520533,
+                0.0,
+                0.0,
+                0.0,
+                0.9992137928857229,
+                1.6359392504543754e-07
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                0.9992139565447775,
+                0.0,
+                0.0,
+                0.0,
+                0.0007860434552224299,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.1455274212442884,
+              "composition": [
+                0.9997289021465385,
+                0.00027109785346145817
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.0051547472813587535,
+              "composition": [
+                -0.7270793439538425,
+                0.00029262604849411566,
+                0.9997058237826849,
+                0.0,
+                0.0,
+                0.0,
+                0.7270808941226635
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03572886110403775,
+              "composition": [
+                0.024792380602301323,
+                0.5903487287874563,
+                0.3847933635105019,
+                0.0,
+                0.0,
+                0.0,
+                6.55270997405033e-05
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.017494381005815077,
+              "composition": [
+                0.9999979074349106,
+                -0.9999979074349106,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.015779839565509574,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 9610712284.542875,
+          "temperature": 204.12291365962645,
+          "entropy": 29.85201663746531,
+          "volume": 2.727460976717137e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 1.512805555490635e-16,
+          "minimum_affinity": -2.227566539625414e-05,
+          "residual": 4.6452246704305964e-07,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3268499877400376,
+              "composition": [
+                0.9997349641564502,
+                0.0002650358435497543
+              ]
+            },
+            {
+              "id": 3,
+              "candidate_index": 1,
+              "name": "wa",
+              "amount": 0.0,
+              "composition": [
+                0.9984731237040835,
+                0.0015268762959165752
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004198294601669825,
+              "composition": [
+                0.000786043520350499,
+                0.0,
+                0.0,
+                0.0,
+                0.9992137928857244,
+                1.63593925044132e-07
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                0.9992139565447792,
+                0.0,
+                0.0,
+                0.0,
+                0.0007860434552208023,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14552742124429077,
+              "composition": [
+                0.9997289021465396,
+                0.00027109785346036036
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.005154747281360228,
+              "composition": [
+                -0.7270793439536368,
+                0.0002926260484938936,
+                0.999705823782685,
+                0.0,
+                0.0,
+                0.0,
+                0.7270808941224578
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03572886110403629,
+              "composition": [
+                0.024792380602326913,
+                0.5903487287874563,
+                0.38479336351047655,
+                0.0,
+                0.0,
+                0.0,
+                6.552709974028126e-05
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.017494381005816316,
+              "composition": [
+                0.9999979074349106,
+                -0.9999979074349106,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.01577983956551075,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "zero_phase": 13,
+      "assemblage": [
+        0,
+        12,
+        13,
+        15,
+        18,
+        19,
+        39,
+        72
+      ],
+      "side_a": [
+        0,
+        12,
+        15,
+        18,
+        19,
+        39,
+        72
+      ],
+      "side_b": [
+        0,
+        12,
+        13,
+        15,
+        18,
+        19,
+        39,
+        72
+      ],
+      "is_solution_replacement": false,
+      "start_node": -1,
+      "end_node": 1,
+      "termination": "corrector failed; domain edge",
+      "points": [
+        {
+          "pressure": 8600888970.166945,
+          "temperature": 0.0004767298032468075,
+          "entropy": 0.6443170393168391,
+          "volume": 2.7414162918610147e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 5.132724645226837e-18,
+          "minimum_affinity": -1.1104129611586716e-06,
+          "residual": 9.604264050722188e-10,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3300619370219202,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14392474716072926,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.00494751770085334,
+              "composition": [
+                -0.758008297838942,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.758008297838942
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03593609034113543,
+              "composition": [
+                0.0,
+                0.6116705602449332,
+                0.38832943975506684,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.0166913939429016,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.01497685215918786,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8600888424.896664,
+          "temperature": 0.000953458561068774,
+          "entropy": 0.6443385031877455,
+          "volume": 2.741416300458848e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 1.4676876204988126e-16,
+          "minimum_affinity": -1.5273248770992523e-06,
+          "residual": 2.4956534616649176e-09,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3300619370219201,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14392474716072934,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.0049475177007962095,
+              "composition": [
+                -0.758008297847695,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.758008297847695
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035936090341192564,
+              "composition": [
+                0.0,
+                0.6116705602439607,
+                0.3883294397560393,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.01669139394290153,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159187969,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8600887334.636686,
+          "temperature": 0.0019069129755318903,
+          "entropy": 0.6443814325078551,
+          "volume": 2.74141631765009e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 1.5121001279510455e-16,
+          "minimum_affinity": -2.135597260715967e-06,
+          "residual": 1.447915565222506e-09,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3300619370219202,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14392474716072926,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004947517700758122,
+              "composition": [
+                -0.7580082978535303,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7580082978535303
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03593609034123065,
+              "composition": [
+                0.0,
+                0.6116705602433125,
+                0.38832943975668754,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016691393942901492,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159188063,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8600885155.234562,
+          "temperature": 0.0038138093365401196,
+          "entropy": 0.6444672974594965,
+          "volume": 2.7414163520149514e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 1.5134889637917527e-16,
+          "minimum_affinity": -2.0998401129037105e-06,
+          "residual": 4.940375220030548e-09,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3300619370219202,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14392474716072926,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004947517700732731,
+              "composition": [
+                -0.7580082978574204,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7580082978574204
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035936090341256034,
+              "composition": [
+                0.0,
+                0.6116705602428801,
+                0.38832943975711987,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016691393942901506,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159188049,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8600880800.905947,
+          "temperature": 0.007627552299436725,
+          "entropy": 0.6446390526221614,
+          "volume": 2.7414164206741085e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 5.2111156154654104e-17,
+          "minimum_affinity": -1.8042774172499776e-06,
+          "residual": 9.167706593871251e-10,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.33006193702192016,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14392474716072926,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.0049475177007158025,
+              "composition": [
+                -0.7580082978600139,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7580082978600139
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035936090341272965,
+              "composition": [
+                0.0,
+                0.611670560242592,
+                0.38832943975740797,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016691393942901617,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159187834,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8600872110.15615,
+          "temperature": 0.01525483972118458,
+          "entropy": 0.6449826640780665,
+          "volume": 2.7414165577100915e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 6.482319469035916e-18,
+          "minimum_affinity": -1.2694200354212981e-06,
+          "residual": 2.5538611225784334e-09,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.33006193702192027,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14392474716072928,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004947517700704518,
+              "composition": [
+                -0.7580082978617428,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7580082978617428
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035936090341284255,
+              "composition": [
+                0.0,
+                0.6116705602424,
+                0.38832943975760004,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016691393942901513,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159188044,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8600854800.318222,
+          "temperature": 0.030508624587948445,
+          "entropy": 0.6456702922473111,
+          "volume": 2.7414168306522093e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 6.4886467711464876e-18,
+          "minimum_affinity": -1.9178370448566965e-06,
+          "residual": 7.93079379946009e-10,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.33006193702192,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14392474716072934,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004947517700696994,
+              "composition": [
+                -0.7580082978628956,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7580082978628956
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035936090341291776,
+              "composition": [
+                0.0,
+                0.611670560242272,
+                0.38832943975772805,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016691393942901662,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159187712,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8600820467.579063,
+          "temperature": 0.06101306735639116,
+          "entropy": 0.6470471755358088,
+          "volume": 2.7414173720124917e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 3.70259057069263e-17,
+          "minimum_affinity": -2.1506675687949147e-06,
+          "residual": 1.979060471057892e-09,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3300619370219201,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14392474716072934,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004947517700691979,
+              "composition": [
+                -0.758008297863664,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.758008297863664
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035936090341296786,
+              "composition": [
+                0.0,
+                0.6116705602421866,
+                0.3883294397578134,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.01669139394290155,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159187962,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8600752952.188927,
+          "temperature": 0.12200971127420598,
+          "entropy": 0.6498074975719079,
+          "volume": 2.741418436600242e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 1.5577810802858597e-16,
+          "minimum_affinity": -1.4573822017639923e-06,
+          "residual": 2.131855580955747e-09,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.33006193702192027,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14392474716072923,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004947517700688635,
+              "composition": [
+                -0.7580082978641762,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7580082978641762
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03593609034130013,
+              "composition": [
+                0.0,
+                0.6116705602421297,
+                0.38832943975787027,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.0166913939429015,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159188044,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8600622540.933323,
+          "temperature": 0.24395620668647705,
+          "entropy": 0.6553547495083927,
+          "volume": 2.7414204929416527e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 3.70259057069263e-17,
+          "minimum_affinity": -1.5153576602153813e-06,
+          "residual": 7.275957614183511e-10,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3300619370219201,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.1439247471607293,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004947517700686408,
+              "composition": [
+                -0.7580082978645175,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7580082978645175
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03593609034130236,
+              "composition": [
+                0.0,
+                0.6116705602420917,
+                0.38832943975790835,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016691393942901513,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159188038,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8600380357.982853,
+          "temperature": 0.4876801798006832,
+          "entropy": 0.666558850209627,
+          "volume": 2.741424311738033e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 3.731294964426947e-17,
+          "minimum_affinity": -2.2035528672859073e-06,
+          "residual": 1.2232483970494046e-09,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3300619370219202,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14392474716072926,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.00494751770068492,
+              "composition": [
+                -0.7580082978647452,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7580082978647452
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03593609034130384,
+              "composition": [
+                0.0,
+                0.6116705602420665,
+                0.38832943975793355,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016691393942901585,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159187912,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8599971983.976746,
+          "temperature": 0.9746109503365503,
+          "entropy": 0.6894319939993883,
+          "volume": 2.7414307511491466e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 1.46767643671098e-16,
+          "minimum_affinity": -1.0158546501770616e-06,
+          "residual": 2.350134309381249e-09,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3300619370219201,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14392474716072928,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004947517700683958,
+              "composition": [
+                -0.7580082978648928,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7580082978648928
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035936090341304815,
+              "composition": [
+                0.0,
+                0.6116705602420501,
+                0.38832943975794987,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016691393942901606,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.01497685215918783,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8599473520.039743,
+          "temperature": 1.9479612612604158,
+          "entropy": 0.7372678846183831,
+          "volume": 2.741438611313017e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 3.7867511034740065e-17,
+          "minimum_affinity": -1.1879606489628713e-06,
+          "residual": 1.2296368367970893e-09,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.33006193702192027,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14392474716072926,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.0049475177006832885,
+              "composition": [
+                -0.7580082978649954,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7580082978649954
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035936090341305474,
+              "composition": [
+                0.0,
+                0.6116705602420386,
+                0.3883294397579614,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016691393942901374,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159188314,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8599947905.946985,
+          "temperature": 3.9148335927296203,
+          "entropy": 0.8426133260446864,
+          "volume": 2.741431131603443e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 1.5566031319736432e-16,
+          "minimum_affinity": -1.7597631085664034e-06,
+          "residual": 2.10275175049901e-09,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.33006193702192016,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14392474716072928,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004947517700682837,
+              "composition": [
+                -0.7580082978650646,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7580082978650646
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03593609034130594,
+              "composition": [
+                0.0,
+                0.6116705602420309,
+                0.3883294397579691,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016691393942901492,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159188078,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8611656922.237202,
+          "temperature": 8.345110024782555,
+          "entropy": 1.3932708441896697,
+          "volume": 2.74124654376403e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 1.5134862524639019e-16,
+          "minimum_affinity": -1.2446180335246027e-06,
+          "residual": 2.8280272324598148e-09,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.33006193702192005,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14392474716072934,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004947517700682505,
+              "composition": [
+                -0.7580082978651154,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7580082978651154
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035936090341306265,
+              "composition": [
+                0.0,
+                0.6116705602420253,
+                0.38832943975797474,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016691393942901516,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159188023,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8647175253.717754,
+          "temperature": 16.689642161223112,
+          "entropy": 1.4148361078314196,
+          "volume": 2.7406871642674083e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 2.934011905447943e-16,
+          "minimum_affinity": -6.989403510711615e-07,
+          "residual": 6.475602276629534e-10,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3300619370219199,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14392474716072945,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004947517700682319,
+              "composition": [
+                -0.7580082978651439,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7580082978651439
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035936090341306445,
+              "composition": [
+                0.0,
+                0.611670560242022,
+                0.38832943975797796,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016691393942901676,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159187724,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8724512527.151506,
+          "temperature": 34.8877684581776,
+          "entropy": 1.6118393401128863,
+          "volume": 2.7394741188597618e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 3.751913646267075e-17,
+          "minimum_affinity": -7.084141418545187e-05,
+          "residual": 1.2150849215686373e-09,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3300619370219201,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.1439247471607293,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004947517700682191,
+              "composition": [
+                -0.7580082978651635,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7580082978651635
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03593609034130658,
+              "composition": [
+                0.0,
+                0.6116705602420199,
+                0.38832943975798007,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.01669139394290161,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014976852159187844,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8779537088.663296,
+          "temperature": 47.89560593122198,
+          "entropy": 1.9612878469671908,
+          "volume": 2.738618866909813e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 2.956836678686145e-16,
+          "minimum_affinity": -1.3830140233039856e-06,
+          "residual": 9.972309760712282e-10,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.33006127825063747,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.1439250765463706,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004947659388208467,
+              "composition": [
+                -0.7579865905663795,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7579865905663795
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035935948653780296,
+              "composition": [
+                4.582954585697307e-06,
+                0.6116683889696585,
+                0.3883270280757558,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.01669155863572216,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014977016852008751,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8857772780.930319,
+          "temperature": 66.49386358911865,
+          "entropy": 2.908761967945424,
+          "volume": 2.737422668359315e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 3.8076083541052634e-17,
+          "minimum_affinity": -6.384861123557451e-08,
+          "residual": 3.2785758888416644e-09,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.33004825101181656,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14393159016578103,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004949646228298804,
+              "composition": [
+                -0.757682326771229,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.757682326771229
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03593396181368997,
+              "composition": [
+                9.521640123196961e-05,
+                0.6116115757955749,
+                0.3882932078031931,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.01669481544542747,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014980273661713825,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8913818519.109495,
+          "temperature": 79.77150545424303,
+          "entropy": 3.989722341988946,
+          "volume": 2.7365853429629825e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 3.723919224791612e-17,
+          "minimum_affinity": -6.755409053736401e-08,
+          "residual": 1.83309373500567e-09,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3300111861573786,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14395012259300008,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004954125820541268,
+              "composition": [
+                -0.7569972194493311,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7569972194493311
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.0359294822214475,
+              "composition": [
+                0.0003531282765832406,
+                0.6114299298954496,
+                0.38821694182796707,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016704081659036953,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.014989539875323319,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8954365320.967127,
+          "temperature": 89.23370889830133,
+          "entropy": 4.992655240157534,
+          "volume": 2.7359916468026336e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 2.9793998353423695e-16,
+          "minimum_affinity": -0.00011406349223314377,
+          "residual": 2.076033572432469e-09,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.32995951666767837,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004194994559401659,
+              "composition": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.1439759573378502,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004959490261898405,
+              "composition": [
+                -0.7561784120766359,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7561784120766359
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03592411778009036,
+              "composition": [
+                0.0007127548327609486,
+                0.6111616590785818,
+                0.3881255860886573,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016716999031461944,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.015002457247748477,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 8983791864.830984,
+          "temperature": 95.972329504153,
+          "entropy": 5.829321602266524,
+          "volume": 2.7355674667292493e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 3.7240294178474526e-17,
+          "minimum_affinity": -3.403599814046283e-05,
+          "residual": 9.420216602688984e-07,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3299062202890291,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.00419499558272073,
+              "composition": [
+                2.4393805675426705e-07,
+                0.0,
+                0.0,
+                0.0,
+                0.9999997560619432,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                0.9999997560619432,
+                0.0,
+                0.0,
+                0.0,
+                2.4393805672110603e-07,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.1440026045038557,
+              "composition": [
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004964504441597614,
+              "composition": [
+                -0.7554146672784552,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.7554146672784552
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035919103600391154,
+              "composition": [
+                0.001083811131875707,
+                0.6108760277779635,
+                0.3880401610901608,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016730323126124234,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.015015781342410824,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 9071119303.956776,
+          "temperature": 115.08282729690421,
+          "entropy": 8.748402189205844,
+          "volume": 2.7343411531474417e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 5.1909964690293235e-17,
+          "minimum_affinity": -2.061940722342115e-05,
+          "residual": 2.068866192532603e-07,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.32966587460184443,
+              "composition": [
+                0.9999996202286163,
+                3.797713836571264e-07
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004195007386884668,
+              "composition": [
+                3.057797478223101e-06,
+                0.0,
+                0.0,
+                0.0,
+                0.9999969422025218,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                0.9999969422025218,
+                0.0,
+                0.0,
+                0.0,
+                3.0577974782097492e-06,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14412276554328413,
+              "composition": [
+                0.999999517305746,
+                4.826942540379546e-07
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.004984088221455903,
+              "composition": [
+                -0.7524464464347674,
+                3.4099571044610144e-07,
+                0.9999996590042896,
+                0.0,
+                0.0,
+                0.0,
+                0.7524464464347674
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03589951982053287,
+              "composition": [
+                0.0027618676964607535,
+                0.6095318676553324,
+                0.3877062646482068,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016790409547920476,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.015075867764207149,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 9207436071.605045,
+          "temperature": 141.83533012524535,
+          "entropy": 14.0489860062566,
+          "volume": 2.7325098022386527e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 1.5190721301610374e-16,
+          "minimum_affinity": -2.6302586775273085e-08,
+          "residual": 1.727664667658103e-07,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3290820037577606,
+              "composition": [
+                0.9999933034245007,
+                6.696575499323396e-06
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004195135344863373,
+              "composition": [
+                3.3559218032497284e-05,
+                0.0,
+                0.0,
+                0.0,
+                0.9999664407819675,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                0.9999664407819675,
+                0.0,
+                0.0,
+                0.0,
+                3.355921803254883e-05,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14441457300734734,
+              "composition": [
+                0.9999921896809144,
+                7.810319085639741e-06
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.005023479555509289,
+              "composition": [
+                -0.7465408762271926,
+                6.351491852907287e-06,
+                0.9999936485081471,
+                0.0,
+                0.0,
+                0.0,
+                0.7465408762271926
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03586012848647949,
+              "composition": [
+                0.006894138718273657,
+                0.606071788057132,
+                0.3870333302860242,
+                0.0,
+                0.0,
+                0.0,
+                7.4293856999752e-07
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.016936377258941412,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.015221835475228087,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 9314434930.660059,
+          "temperature": 160.41761946397406,
+          "entropy": 18.384407304618048,
+          "volume": 2.7311254480391292e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 3.0480690553151454e-16,
+          "minimum_affinity": -0.00015720279043307528,
+          "residual": 9.25246428362126e-08,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.32851326802343245,
+              "composition": [
+                0.9999724674883833,
+                2.7532511616680428e-05
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.0041954595496896275,
+              "composition": [
+                0.00011083178909521152,
+                0.0,
+                0.0,
+                0.0,
+                0.9998891682109048,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                0.9998891682109048,
+                0.0,
+                0.0,
+                0.0,
+                0.00011083178909517562,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.1446986166696851,
+              "composition": [
+                0.9999693649706954,
+                3.063502930452495e-05
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.005057689580992645,
+              "composition": [
+                -0.7414674392179522,
+                2.7282292742292213e-05,
+                0.9999727177072577,
+                0.0,
+                0.0,
+                0.0,
+                0.7414674392179522
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03582591846099612,
+              "composition": [
+                0.011057916416816693,
+                0.6024900158804822,
+                0.3864479553454951,
+                0.0,
+                0.0,
+                0.0,
+                4.1123572060985936e-06
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.01707856119252343,
+              "composition": [
+                1.0,
+                -1.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.01536401940881005,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 9395772317.955067,
+          "temperature": 173.3933549357421,
+          "entropy": 21.643104442942157,
+          "volume": 2.7300971249222208e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 3.218396747326858e-16,
+          "minimum_affinity": -6.738073099477049e-08,
+          "residual": 6.480792086503165e-07,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.32805271599351726,
+              "composition": [
+                0.9999387546549323,
+                6.124534506768236e-05
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.0041959154957561555,
+              "composition": [
+                0.00021948400901494747,
+                0.0,
+                0.0,
+                0.0,
+                0.999780515990985,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                0.999780515990985,
+                0.0,
+                0.0,
+                0.0,
+                0.00021948400901492627,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.14492843673857617,
+              "composition": [
+                0.999933758237226,
+                6.624176277400358e-05
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.005084349422133908,
+              "composition": [
+                -0.7375318227685688,
+                6.264322006876988e-05,
+                0.9999372153795407,
+                0.0,
+                0.0,
+                0.0,
+                0.7375319641689593
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03579925861985486,
+              "composition": [
+                0.014581812088840018,
+                0.5994154566840934,
+                0.38599185795373225,
+                0.0,
+                0.0,
+                0.0,
+                1.0873273334377487e-05
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.017193699200002147,
+              "composition": [
+                0.9999998041717458,
+                -0.9999998041717458,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.015479157416288995,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 9518619111.00102,
+          "temperature": 191.49861754008884,
+          "entropy": 26.416009110131608,
+          "volume": 2.7285770993298634e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 1.6410721828783255e-16,
+          "minimum_affinity": -7.138598485423309e-05,
+          "residual": 2.634782393433082e-07,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.32735378399484727,
+              "composition": [
+                0.9998456660949546,
+                0.00015433390504538647
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004197045282248182,
+              "composition": [
+                0.0004886110843732583,
+                0.0,
+                0.0,
+                0.0,
+                0.9995113889156267,
+                0.0
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                0.9995113889156267,
+                0.0,
+                0.0,
+                0.0,
+                0.0004886110843732774,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.1452767729514192,
+              "composition": [
+                0.9998387485139334,
+                0.00016125148606663475
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.005124751266389448,
+              "composition": [
+                -0.7315578708598456,
+                0.00016510795442925552,
+                0.9998342572401244,
+                0.0,
+                0.0,
+                0.0,
+                0.7315585056652919
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035758856775599326,
+              "composition": [
+                0.02029757582688224,
+                0.5943663308288518,
+                0.38530242077432725,
+                0.0,
+                0.0,
+                0.0,
+                3.3672569938802965e-05
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.01736843219966968,
+              "composition": [
+                0.9999991307049194,
+                -0.9999991307049194,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.01565389041595632,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 9610712284.542313,
+          "temperature": 204.12291365960564,
+          "entropy": 29.852016637459826,
+          "volume": 2.7274609767171465e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 2.5623617553758534e-18,
+          "minimum_affinity": -2.372381411630542e-05,
+          "residual": 4.6481076968426753e-08,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.3268499877400429,
+              "composition": [
+                0.9997349641564501,
+                0.00026503584354985686
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004198294601669822,
+              "composition": [
+                0.0007860435203499438,
+                0.0,
+                0.0,
+                0.0,
+                0.999213792885725,
+                1.635939250440679e-07
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                0.9992139565447797,
+                0.0,
+                0.0,
+                0.0,
+                0.0007860434552202985,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.1455274212442881,
+              "composition": [
+                0.9997289021465394,
+                0.00027109785346054695
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.005154747281359431,
+              "composition": [
+                -0.72707934395375,
+                0.00029262604849344953,
+                0.9997058237826856,
+                0.0,
+                0.0,
+                0.0,
+                0.7270808941225709
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.035728861104037085,
+              "composition": [
+                0.024792380602289776,
+                0.5903487287874798,
+                0.38479336351049015,
+                0.0,
+                0.0,
+                0.0,
+                6.552709974028126e-05
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.017494381005815067,
+              "composition": [
+                0.9999979074349106,
+                -0.9999979074349106,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.015779839565509202,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "pressure": 9610712284.543392,
+          "temperature": 204.12291365976714,
+          "entropy": 29.85201663750214,
+          "volume": 2.7274609767171336e-05,
+          "composition_coordinate": 0.0,
+          "mass_balance_error": 5.618675669634814e-17,
+          "minimum_affinity": -9.473981211982618e-06,
+          "residual": 4.4285395645812293e-07,
+          "phases": [
+            {
+              "id": 0,
+              "candidate_index": 0,
+              "name": "ol",
+              "amount": 0.32684998774003715,
+              "composition": [
+                0.9997349641564485,
+                0.00026503584355157126
+              ]
+            },
+            {
+              "id": 3,
+              "candidate_index": 1,
+              "name": "wa",
+              "amount": 0.0,
+              "composition": [
+                0.9984731237040742,
+                0.0015268762959258471
+              ]
+            },
+            {
+              "id": 12,
+              "candidate_index": 4,
+              "name": "cpx",
+              "amount": 0.004198294601669841,
+              "composition": [
+                0.0007860435203544958,
+                0.0,
+                0.0,
+                0.0,
+                0.9992137928857204,
+                1.6359392504651529e-07
+              ]
+            },
+            {
+              "id": 13,
+              "candidate_index": 4,
+              "name": "cpx #2",
+              "amount": 0.0,
+              "composition": [
+                0.9992139565447753,
+                0.0,
+                0.0,
+                0.0,
+                0.0007860434552247293,
+                0.0
+              ]
+            },
+            {
+              "id": 15,
+              "candidate_index": 5,
+              "name": "hpcpx",
+              "amount": 0.1455274212442909,
+              "composition": [
+                0.9997289021465378,
+                0.0002710978534622138
+              ]
+            },
+            {
+              "id": 18,
+              "candidate_index": 6,
+              "name": "gt",
+              "amount": 0.005154747281359561,
+              "composition": [
+                -0.7270793439537275,
+                0.0002926260484953369,
+                0.9997058237826837,
+                0.0,
+                0.0,
+                0.0,
+                0.7270808941225485
+              ]
+            },
+            {
+              "id": 19,
+              "candidate_index": 6,
+              "name": "gt #2",
+              "amount": 0.03572886110403694,
+              "composition": [
+                0.024792380602343955,
+                0.5903487287874272,
+                0.38479336351048804,
+                0.0,
+                0.0,
+                0.0,
+                6.552709974072535e-05
+              ]
+            },
+            {
+              "id": 39,
+              "candidate_index": 13,
+              "name": "cf",
+              "amount": 0.017494381005816555,
+              "composition": [
+                0.9999979074349106,
+                -0.9999979074349106,
+                0.0,
+                1.0,
+                0.0
+              ]
+            },
+            {
+              "id": 72,
+              "candidate_index": 24,
+              "name": "Fe-bcc",
+              "amount": 0.015779839565510476,
+              "composition": [
+                1.0
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "fields": [],
+  "samples": [],
+  "excluded_regions": [],
+  "resolved": false,
+  "diagnostics": [],
+  "equilibrium_solves": 0,
+  "minimization_calls": 0
+}
