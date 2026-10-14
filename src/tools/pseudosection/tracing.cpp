@@ -16,7 +16,6 @@
 #include "critical.hpp"
 #include "internal.hpp"
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <deque>
 #include <iostream>

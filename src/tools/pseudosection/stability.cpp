@@ -21,7 +21,6 @@
 #include <iostream>
 #include <limits>
 #include <nlopt.hpp>
-#include <numeric>
 #include <set>
 #include <sstream>
 #include <stdexcept>
