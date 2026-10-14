@@ -37,7 +37,7 @@ models = model_sets.metabasite(clinopyroxene="dio")
 bulk = bm.Composition({"SiO2": 0.050, "Al2O3": 0.015, "FeO": 0.009,
                        "MgO": 0.007, "CaO": 0.012, "Na2O": 0.003,
                        "K2O": 0.001, "TiO2": 0.001, "H2O": 0.002}, "mass")
-diagram = bm.pseudosection(bulk.atomic_composition, models.phases,
+diagram = bm.phase_diagram(bulk.atomic_composition, models.phases,
                           (1.0e5, 2.0e9), (573.15, 1173.15))
 saved = diagram.to_dict()
 saved["model_set"] = models.to_dict()  # Record calibration and source links.
@@ -66,7 +66,7 @@ HPx explicitly prohibits combining them. The complete Mg-bearing ilmenite
 model is included. One ternary feldspar model represents both feldspars using
 coexisting solution instances; adding the equivalent `k4tr` model would
 duplicate it. Multiple compositions of other solution phases are likewise
-handled by the pseudosection solver's `max_phase_instances` setting.
+handled by the phase diagram solver's `max_phase_instances` setting.
 
 The fluid uses Pitzer–Sterner (1994) with the Holland–Powell (2011), Table 2a,
 thermal reference (`H₀ = −241810 J/mol`, `S₀ = 188.80 J/(mol K)`). This keeps
@@ -74,8 +74,8 @@ water on the solids' formation-energy scale. Liquid water in the melt uses the
 matching dataset's `h2oL` endmember. The implemented PS94 fluid supports
 500–1700 K and positive pressures up to 5 GPa.
 
-The [basalt example](../../examples/example_basalt_pseudosection.py) and
-[shaly metasediment example](../../examples/example_metasediment_pseudosection.py)
+The [basalt example](../../examples/example_basalt_phase_diagram.py) and
+[shaly metasediment example](../../examples/example_metasediment_phase_diagram.py)
 use these sets with their existing closed, 2 wt% H₂O bulk compositions over
 300–900 °C and 0–20 kbar (calculation starts at 1 bar). The
 [metasediment contour example](../../examples/example_metasediment_contours.py)

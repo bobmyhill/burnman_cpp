@@ -13,28 +13,28 @@
 
 """Native numerical tools and optional plotting helpers."""
 
-from .contours import pseudosection_contour_levels
-from .pseudosection import (
-    calculate_pseudosection_patch,
-    merge_pseudosections,
-    pseudosection_field_regions,
-    pseudosection_problem_regions,
-    save_pseudosection,
-    load_pseudosection,
-    plot_pseudosection,
-    plot_pseudosection_contours,
-    refine_pseudosection,
+from .contours import phase_diagram_contour_levels
+from .phase_diagram import (
+    calculate_phase_diagram_patch,
+    merge_phase_diagrams,
+    phase_diagram_field_regions,
+    phase_diagram_problem_regions,
+    save_phase_diagram,
+    load_phase_diagram,
+    plot_phase_diagram,
+    plot_phase_diagram_contours,
+    refine_phase_diagram,
 )
 
 __all__ = [
-    "calculate_pseudosection_patch",
-    "merge_pseudosections",
-    "pseudosection_field_regions",
-    "pseudosection_problem_regions",
-    "save_pseudosection",
-    "load_pseudosection",
-    "pseudosection_contour_levels",
-    "plot_pseudosection",
-    "plot_pseudosection_contours",
-    "refine_pseudosection",
+    "calculate_phase_diagram_patch",
+    "merge_phase_diagrams",
+    "phase_diagram_field_regions",
+    "phase_diagram_problem_regions",
+    "save_phase_diagram",
+    "load_phase_diagram",
+    "phase_diagram_contour_levels",
+    "plot_phase_diagram",
+    "plot_phase_diagram_contours",
+    "refine_phase_diagram",
 ]

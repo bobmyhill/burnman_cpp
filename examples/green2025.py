@@ -155,7 +155,7 @@ def plot(data, target, temperature_range, pressure_range, title, fontsize):
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(figsize=(10, 9))
-    bm.plot_pseudosection(
+    bm.plot_phase_diagram(
         data,
         ax=ax,
         cmap="Blues_r",
@@ -218,7 +218,7 @@ def main(
         {oxide: amount / sum(oxides.values()) for oxide, amount in oxides.items()},
         unit_type="molar",
     )
-    settings = bm.PseudosectionSettings()
+    settings = bm.PhaseDiagramSettings()
     settings.pressure_seeds = settings.temperature_seeds = (
         3 if args.quick else args.seeds
     )
@@ -228,18 +228,18 @@ def main(
     args.output_dir.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
     if args.plot_json:
-        data = bm.load_pseudosection(args.plot_json)
+        data = bm.load_phase_diagram(args.plot_json)
     elif not args.check_only:
         phases = candidate_phases(composition)
         result = (
-            bm.refine_pseudosection(
+            bm.refine_phase_diagram(
                 composition.atomic_composition,
                 phases,
-                bm.load_pseudosection(args.refine_json),
+                bm.load_phase_diagram(args.refine_json),
                 settings,
             )
             if args.refine_json
-            else bm.pseudosection(
+            else bm.phase_diagram(
                 composition.atomic_composition,
                 phases,
                 (max(1.0e5, pressure_range[0] * 1.0e8), pressure_range[1] * 1.0e8),
@@ -255,7 +255,7 @@ def main(
             model_set=model_sets.igneous("G25").to_dict(),
             calculation_seconds=time.monotonic() - started,
         )
-        bm.save_pseudosection(data, args.output_dir / f"{name}.json")
+        bm.save_phase_diagram(data, args.output_dir / f"{name}.json")
         print(
             f"{len(result.boundaries)} boundaries; resolved={result.resolved}; "
             f"{result.equilibrium_solves} solves in {data['calculation_seconds']:.1f} s",
@@ -277,7 +277,7 @@ def main(
             report["liquidus"] = compare_liquidus(data, *liquidus)
             report["resolved"] = data["resolved"]
             report["diagnostics"] = data["diagnostics"]
-            geometry = bm.pseudosection_field_polygons(data)
+            geometry = bm.phase_diagram_field_polygons(data)
             report["geometry"] = dict(
                 fields=len(geometry.polygons),
                 open_fields=sum(p.has_open_boundary for p in geometry.polygons),

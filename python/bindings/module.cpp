@@ -39,5 +39,5 @@ PYBIND11_MODULE(_core, m) {
   burnman::python::bind_equilibration(m);
   burnman::python::bind_polytope(m);
   burnman::python::bind_utils(m);
-  burnman::python::bind_pseudosection(m);
+  burnman::python::bind_phase_diagram(m);
 }

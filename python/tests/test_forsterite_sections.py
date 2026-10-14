@@ -131,7 +131,7 @@ def test_forsterite_sections_close_all_fields(sections, diagram, count):
     assert all(
         line.start_node >= 0 and line.end_node >= 0 for line in result.boundaries
     )
-    geometry = bm.pseudosection_field_polygons(result)
+    geometry = bm.phase_diagram_field_polygons(result)
     assert not geometry.diagnostics
     assert len(geometry.polygons) == count
     assert all(
@@ -144,7 +144,7 @@ def test_forsterite_sections_close_all_fields(sections, diagram, count):
 def test_four_phase_sv_field_is_the_latent_entropy_volume_triangle(sections, example):
     result = sections["SV"]
     polygon = next(
-        p for p in bm.pseudosection_field_polygons(result).polygons if p.n_phases == 4
+        p for p in bm.phase_diagram_field_polygons(result).polygons if p.n_phases == 4
     )
     invariant = next(n for n in sections["PT"].nodes if n.kind == "junction")
     minerals = example["candidate_phases"]()
@@ -191,7 +191,7 @@ def test_plot_units_are_optional_and_preserve_native_sv_geometry(
     result = sections["SV"]
     before = result.to_dict()
     options = dict(entropy_unit="kB/atom", volume_unit="kg/m3") if normalized else {}
-    fig, ax = bm.plot_pseudosection(
+    fig, ax = bm.plot_phase_diagram(
         result,
         swap_axes=True,
         colorbar=False,
@@ -208,7 +208,7 @@ def test_plot_units_are_optional_and_preserve_native_sv_geometry(
     assert ax.get_xlabel().startswith("Entropy")
     assert ax.get_ylabel() == ("Density (kg/m³)" if normalized else "Volume (m³)")
     collection = next(c for c in ax.collections if isinstance(c, PatchCollection))
-    polygon = ax.pseudosection_geometry.polygons[0]
+    polygon = ax.phase_diagram_geometry.polygons[0]
     native = np.array(polygon.vertices)
     expected = np.column_stack(
         [

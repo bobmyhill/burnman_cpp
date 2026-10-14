@@ -30,7 +30,7 @@ import argparse
 from pathlib import Path
 
 import burnman_cpp as bm
-from example_pyrolite_pseudosection import (
+from example_pyrolite_phase_diagram import (
     PAPER_URL,
     candidate_phases,
     settings,
@@ -72,7 +72,7 @@ BASALT = endmember(
 def calculate(seeds=7, quick=False, verbose=False):
     opts = settings(seeds, quick, verbose)
     opts.composition_seeds = opts.pressure_seeds
-    return bm.pseudosection(
+    return bm.phase_diagram(
         HARZBURGITE.atomic_composition,
         candidate_phases(),
         diagram="PX",
@@ -97,9 +97,9 @@ def main():
         default=Path(__file__).resolve().parent / "harzburgite_basalt_px_output",
     )
     args = parser.parse_args()
-    saved = bm.load_pseudosection(args.plot_json) if args.plot_json else {}
+    saved = bm.load_phase_diagram(args.plot_json) if args.plot_json else {}
     result = (
-        bm.PseudosectionResult.from_dict(saved)
+        bm.PhaseDiagramResult.from_dict(saved)
         if args.plot_json
         else calculate(args.seeds, args.quick, args.verbose)
     )
@@ -114,9 +114,9 @@ def main():
         composition_source=PAPER_URL,
         closed_system=True,
     )
-    bm.save_pseudosection(data, stem.with_suffix(".json"))
+    bm.save_phase_diagram(data, stem.with_suffix(".json"))
     if not args.no_plots:
-        fig, ax = bm.plot_pseudosection(
+        fig, ax = bm.plot_phase_diagram(
             result,
             pressure_unit="GPa",
             composition_label="Basalt mass fraction",

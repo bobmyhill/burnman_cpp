@@ -23,7 +23,7 @@ from numbers import Integral
 from .. import _core
 
 
-def pseudosection_contour_levels(
+def phase_diagram_contour_levels(
     result,
     phases,
     levels,
@@ -61,11 +61,11 @@ def pseudosection_contour_levels(
     if not callable(constraint):
         raise TypeError("constraint must construct a constraint from a contour value.")
     if settings is None:
-        settings = _core.PseudosectionContourSettings()
+        settings = _core.PhaseDiagramContourSettings()
     phases = list(phases)
     records = []
     for value in values:
-        lines = _core.pseudosection_contours(
+        lines = _core.phase_diagram_contours(
             result,
             phases,
             constraint(value),
@@ -87,7 +87,7 @@ def pseudosection_contour_levels(
 def _phase_composition_constraint_for_diagram(
     result, phase_name, site_names, numerator, denominator, value, *, instance=None
 ):
-    """Constrain a named solution's composition across pseudosection fields.
+    """Constrain a named solution's composition across phase diagram fields.
 
     ``result`` is the saved diagram or its native result. ``numerator`` and
     ``denominator`` give weights for ``site_names``; site multiplicities are

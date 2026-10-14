@@ -36,7 +36,7 @@ def main():
     bulk = composition.atomic_composition
     for element, amount in atoms_before.items():
         assert abs(bulk[element] - amount) < 1.0e-10
-    print("Bulk for equilibrate()/pseudosection():", bulk)
+    print("Bulk for equilibrate()/phase_diagram():", bulk)
 
 
 if __name__ == "__main__":

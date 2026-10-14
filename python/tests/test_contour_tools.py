@@ -25,23 +25,23 @@ from conftest import oxide_params
 @pytest.fixture
 def section():
     phase = bm.Mineral(oxide_params())
-    settings = bm.PseudosectionSettings()
+    settings = bm.PhaseDiagramSettings()
     settings.pressure_seeds = settings.temperature_seeds = 2
     settings.max_phase_instances = 1
-    result = bm.pseudosection(
+    result = bm.phase_diagram(
         {"Mg": 1.0, "O": 1.0}, [phase], (3.0e9, 5.0e9), (800.0, 1200.0), settings
     )
     return result, phase
 
 
 def test_contour_batches_preserve_levels_native_targets_and_source(section, capsys):
-    from burnman_cpp.tools import pseudosection_contour_levels
+    from burnman_cpp.tools import phase_diagram_contour_levels
 
     result, phase = section
     saved = result.to_dict()
     before = json.dumps(saved, sort_keys=True)
     levels = [4.5e9, 3.5e9]
-    records = pseudosection_contour_levels(
+    records = phase_diagram_contour_levels(
         saved, iter([phase]), iter(levels), bm.PressureConstraint, verbose=True
     )
     assert [r["value"] for r in records] == levels
@@ -58,11 +58,11 @@ def test_contour_batches_preserve_levels_native_targets_and_source(section, caps
 
 def test_batches_accept_field_factories_and_retain_failed_level_diagnostics(section):
     result, phase = section
-    settings = bm.PseudosectionContourSettings()
+    settings = bm.PhaseDiagramContourSettings()
     settings.max_trace_steps = 1
     saved = result.to_dict()
     del saved["composition_start"]
-    records = bm.pseudosection_contour_levels(
+    records = bm.phase_diagram_contour_levels(
         saved,
         [phase],
         [1000.0],
@@ -78,7 +78,7 @@ def test_batch_rejects_nonfinite_levels_before_starting_solves(section):
     result, phase = section
     calls = []
     with pytest.raises(ValueError, match="finite"):
-        bm.pseudosection_contour_levels(
+        bm.phase_diagram_contour_levels(
             result, [phase], [4.0e9, np.nan], lambda value: calls.append(value)
         )
     assert not calls
@@ -136,11 +136,11 @@ def test_contour_labels_inherit_units_and_allow_explicit_display_options(
     import matplotlib.pyplot as plt
 
     result, phase = section
-    contours = bm.pseudosection_contours(
+    contours = bm.phase_diagram_contours(
         result, [phase], bm.TemperatureConstraint(1000)
     )
-    fig, ax = bm.plot_pseudosection(result, label_key_path=None)
-    bm.plot_pseudosection_contours(
+    fig, ax = bm.plot_phase_diagram(result, label_key_path=None)
+    bm.plot_phase_diagram_contours(
         result,
         contours,
         ax,
@@ -185,7 +185,7 @@ def test_label_placement_can_prefer_coexistence_over_the_longest_segment(
     )
     fig, ax = plt.subplots()
     ax.set(xlim=(0, 1), ylim=(0, 1))
-    bm.plot_pseudosection_contours(
+    bm.plot_phase_diagram_contours(
         saved,
         contours,
         ax,
