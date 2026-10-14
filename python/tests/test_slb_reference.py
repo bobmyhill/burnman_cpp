@@ -1,3 +1,16 @@
+# ------------------------------------------------------
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
+#
+# This file is part of BurnMan.
+#
+# Detailed license information governing the source code
+# and contributions can be found in the LICENSE document.
+#
+# ------------------------------------------------------
+
 """Independent Python BurnMan checks of the native SLB equations and limits.
 
 Requires the optional reference dependency (SLB_2024, BurnMan 3.x). The

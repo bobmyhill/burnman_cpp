@@ -1,3 +1,16 @@
+# ------------------------------------------------------
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
+#
+# This file is part of BurnMan.
+#
+# Detailed license information governing the source code
+# and contributions can be found in the LICENSE document.
+#
+# ------------------------------------------------------
+
 # Adapted from BurnMan's examples/example_equilibrate.py.
 # Copyright (C) 2012–2021 by the BurnMan team, GPL v2 or later.
 # This adaptation is distributed under GPL v3 or later.
