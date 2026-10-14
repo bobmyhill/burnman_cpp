@@ -27,6 +27,19 @@ State stable_equilibrium(
     const std::vector<std::shared_ptr<Material>> &candidates, double pressure,
     double temperature, const Settings &settings = Settings{});
 
+/// Single seed equilibrium at two of P,T,S,V, without tracing.
+/// Uses exactly the phase-discovery routine used for the initial diagram grid.
+/// S (J/K) and V (m^3) are totals on the supplied elemental mole scale.
+/// Select PT, PS, PV, TS, TV or SV; P/T ranges guide inverse searches and
+/// provide the initial physical seed.
+State stable_equilibrium_at(
+    const types::FormulaMap &composition,
+    const std::vector<std::shared_ptr<Material>> &candidates,
+    const Eigen::Vector2d &coordinates, DiagramType type,
+    const Settings &settings = Settings{},
+    const std::array<double, 2> &pressure_range = {0., 150.e9},
+    const std::array<double, 2> &temperature_range = {1., 6000.});
+
 } // namespace burnman::phase_diagrams
 
 namespace burnman::phase_diagrams::detail {

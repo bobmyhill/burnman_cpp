@@ -817,6 +817,49 @@ plotting without additional solves.
       "amounts/compositions and validation errors, or a failure message.",
       py::call_guard<py::gil_scoped_release>());
   m.def(
+      "stable_equilibrium",
+      [](const types::FormulaMap &bulk,
+         const std::vector<std::shared_ptr<Material>> &phases,
+         std::optional<double> pressure, std::optional<double> temperature,
+         std::optional<double> entropy, std::optional<double> volume,
+         const Settings &settings,
+         const std::array<double, 2> &pressure_range,
+         const std::array<double, 2> &temperature_range) {
+        std::string axes;
+        Eigen::Vector2d position;
+        const std::array<std::optional<double>, 4> values{pressure, temperature,
+                                                          entropy, volume};
+        for (std::size_t i = 0; i < values.size(); ++i)
+          if (values[i]) {
+            if (axes.size() < 2)
+              position[static_cast<Eigen::Index>(axes.size())] = *values[i];
+            axes += std::string("PTSV")[i];
+          }
+        if (axes.size() != 2)
+          throw py::value_error("Specify exactly two of pressure, temperature, "
+                                "entropy and volume.");
+        const auto type = diagram_type(axes);
+        py::gil_scoped_release release;
+        return stable_equilibrium_at(bulk, phases, position, type, settings,
+                                     pressure_range, temperature_range);
+      },
+      py::arg("composition"), py::arg("phases"), py::kw_only(),
+      py::arg("pressure") = py::none(), py::arg("temperature") = py::none(),
+      py::arg("entropy") = py::none(), py::arg("volume") = py::none(),
+      py::arg("settings") = Settings{},
+      py::arg("pressure_range") = std::array<double, 2>{0., 150.e9},
+      py::arg("temperature_range") = std::array<double, 2>{1., 6000.},
+      R"doc(Discover a stable assemblage at one point, without tracing a diagram.
+
+Specify exactly two of pressure (Pa), temperature (K), entropy (total J/K),
+and volume (total m^3). Use the same elemental mole scale for bulk, S and V.
+
+This is the full phase-discovery calculation used for initial diagram grid
+points: the candidate assemblage is not prescribed. P/T search ranges guide
+inverse S/V solves and supply the initial physical seed. Return an EquilibriumState
+with success, phase amounts/compositions and validation diagnostics.
+)doc");
+  m.def(
       "phase_diagram",
       [](const types::FormulaMap &composition,
          const std::vector<std::shared_ptr<Material>> &phases,
