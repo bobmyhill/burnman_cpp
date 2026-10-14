@@ -24,11 +24,15 @@ Run: python examples/example_iron_hematite_tx.py
 Use --quick for fewer seeds, or --no-plots to save only the resumable JSON.
 """
 
-import argparse
 from pathlib import Path
 
 import burnman_cpp as bm
 from burnman_cpp.minerals import HGP18
+from burnman_cpp.tools.phase_diagram_helpers import (
+    example_parser,
+    plot_phase_diagram_example,
+    run_phase_diagram_example,
+)
 
 IRON = bm.Composition({"Fe": 1.0}, "molar")
 HEMATITE = bm.Composition({"Fe2O3": 1.0}, "molar")
@@ -63,41 +67,32 @@ def calculate(quick=False, verbose=False):
     )
 
 
+def plot(result, path, label_fontsize=9.0):
+    plot_phase_diagram_example(
+        result,
+        path,
+        label_fontsize,
+        formats=("pdf",),
+        temperature_unit="K",
+        composition_label="Molar hematite fraction in Fe–Fe$_2$O$_3$ bulk",
+        axes=dict(title="Iron-Hematite at 1 bar"),
+        show_nodes=False,
+        key_path=path.with_name(path.stem + "_labels.md"),
+    )
+
+
 def main():
-    stem = "Fe-O_tx"
-    condition = "1 bar"
-    parser = argparse.ArgumentParser(
-        description=f"Iron-Hematite T-X diagram at {condition}."
+    parser = example_parser(
+        "Iron-Hematite T-X diagram at 1 bar.",
+        Path(__file__).resolve().parent / "Fe-O_tx_output",
+        label_fontsize=9.0,
     )
-    parser.add_argument("--quick", action="store_true")
-    parser.add_argument("--verbose", action="store_true")
-    parser.add_argument("--no-plots", action="store_true")
-    parser.add_argument("--label-fontsize", type=float, default=9.0)
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=Path(__file__).resolve().parent / f"{stem}_output",
+    return run_phase_diagram_example(
+        parser,
+        lambda args: calculate(args.quick, args.verbose),
+        stem="Fe-O_tx",
+        plot=plot,
     )
-    args = parser.parse_args()
-    result = calculate(args.quick, args.verbose)
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    bm.save_phase_diagram(result, args.output_dir / f"{stem}.json")
-    if not args.no_plots:
-        fig, ax = bm.plot_phase_diagram(
-            result,
-            temperature_unit="K",
-            composition_label="Molar hematite fraction in Fe–Fe$_2$O$_3$ bulk",
-            label_fontsize=args.label_fontsize,
-            label_key_path=args.output_dir / f"{stem}_labels.md",
-            show_nodes=False,
-        )
-        ax.set_title(f"Iron-Hematite at {condition}")
-        fig.savefig(args.output_dir / f"{stem}.png", dpi=200, bbox_inches="tight")
-        fig.savefig(args.output_dir / f"{stem}.pdf", bbox_inches="tight")
-    print(f"{len(result.boundaries)} phase boundaries; resolved={result.resolved}")
-    for diagnostic in result.diagnostics:
-        print(diagnostic)
-    print(f"Results saved to {args.output_dir}")
 
 
 if __name__ == "__main__":

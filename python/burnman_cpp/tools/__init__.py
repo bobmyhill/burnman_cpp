@@ -25,6 +25,16 @@ from .phase_diagram import (
     plot_phase_diagram_contours,
     refine_phase_diagram,
 )
+from .phase_diagram_helpers import (
+    example_parser,
+    load_example,
+    plot_phase_diagram_example,
+    refine_saved,
+    report_phase_diagram,
+    run_phase_diagram_example,
+    save_figure,
+    write_phase_diagram,
+)
 
 __all__ = [
     "calculate_phase_diagram_patch",
@@ -37,4 +47,12 @@ __all__ = [
     "plot_phase_diagram",
     "plot_phase_diagram_contours",
     "refine_phase_diagram",
+    "example_parser",
+    "load_example",
+    "plot_phase_diagram_example",
+    "refine_saved",
+    "report_phase_diagram",
+    "run_phase_diagram_example",
+    "save_figure",
+    "write_phase_diagram",
 ]

@@ -36,48 +36,38 @@ in overlaps.
 """
 
 import argparse
-import importlib
-import importlib.util
+from functools import partial
 from pathlib import Path
-import sys
 
 import burnman_cpp as bm
+from burnman_cpp.tools.phase_diagram_helpers import (
+    load_example,
+    plot_phase_diagram_example,
+    write_phase_diagram,
+)
 
 
 def candidate_phases(module_name):
     """Accept an import name or a Python file, including sibling imports."""
-    path = Path(module_name)
-    if path.suffix != ".py":
-        return importlib.import_module(module_name).candidate_phases()
-    path = path.resolve()
-    spec = importlib.util.spec_from_file_location(path.stem, path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    sys.path.insert(0, str(path.parent))
-    try:
-        spec.loader.exec_module(module)
-        return module.candidate_phases()
-    finally:
-        sys.path.pop(0)
+    return load_example(module_name).candidate_phases()
 
 
 def save(result, directory, plots, metadata=None):
     data = result if isinstance(result, dict) else result.to_dict()
     data = dict(metadata or {}) | data
-    bm.save_phase_diagram(data, directory / "phase_diagram.json")
-    if plots:
-        import matplotlib.pyplot as plt
-
-        figure, _ = bm.plot_phase_diagram(
-            data, label_key_path=directory / "assemblages.md"
-        )
-        figure.savefig(directory / "phase_diagram.png", dpi=200)
-        figure.savefig(directory / "phase_diagram.svg")
-        plt.close(figure)
-    print(f"Resolved: {data['resolved']}. Outputs: {directory}", flush=True)
-    for message in data.get("diagnostics", []):
-        print(message, flush=True)
-    return data
+    return write_phase_diagram(
+        data,
+        directory / "phase_diagram",
+        plot=(
+            partial(
+                plot_phase_diagram_example,
+                key_path=directory / "assemblages.md",
+                bbox_inches=None,
+            )
+            if plots
+            else None
+        ),
+    )
 
 
 def main():

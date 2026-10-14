@@ -30,10 +30,13 @@ import json
 from pathlib import Path
 
 import burnman_cpp as bm
-from example_metasediment_phase_diagram import (
-    METASEDIMENT_COMPOSITION,
-    candidate_phases,
+from burnman_cpp.tools.phase_diagram_helpers import load_example, save_figure
+
+metasediment = load_example(
+    Path(__file__).with_name("example_metasediment_phase_diagram.py")
 )
+METASEDIMENT_COMPOSITION = metasediment.METASEDIMENT_COMPOSITION
+candidate_phases = metasediment.candidate_phases
 
 
 def calculate(diagram, density_levels, garnet_levels, seed_grid=5, step=0.02):
@@ -99,9 +102,9 @@ def plot(diagram, contours, output_dir, label_fontsize=7.0):
         )
         ax.set_xlim(300.0, 900.0)
         ax.set_ylim(0.0, 20.0)
-    fig.savefig(output_dir / "metasediment_contours.png", dpi=180)
-    fig.savefig(output_dir / "metasediment_contours.pdf")
-    plt.close(fig)
+    save_figure(
+        fig, output_dir / "metasediment_contours.png", formats=("pdf",), dpi=180
+    )
 
 
 def main():

@@ -22,11 +22,14 @@ Run: python examples/example_olivine_vx.py
 """
 
 from functools import partial
+from pathlib import Path
 
-from example_olivine_px import calculate as _calculate, main as _main
+from burnman_cpp.tools.phase_diagram_helpers import load_example
 
-calculate = partial(_calculate, diagram="VX")
-main = partial(_main, diagram="VX")
+olivine = load_example(Path(__file__).with_name("example_olivine_px.py"))
+calculate = partial(olivine.calculate, diagram="VX")
+main = partial(olivine.main, diagram="VX")
+
 
 if __name__ == "__main__":
     main()

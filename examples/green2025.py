@@ -17,7 +17,6 @@ Use the separate example_green2025_*.py scripts. Thermodynamics, equilibrium,
 boundary tracing and polygon construction use the standard C++ routines.
 """
 
-import argparse
 from collections import Counter
 import json
 from pathlib import Path
@@ -25,6 +24,12 @@ import time
 
 import burnman_cpp as bm
 from burnman_cpp.minerals import HPx_ds636, model_sets
+from burnman_cpp.tools.phase_diagram_helpers import (
+    example_parser,
+    refine_saved,
+    run_phase_diagram_example,
+    save_figure,
+)
 
 SOURCE = "https://doi.org/10.1093/petrology/egae079"
 
@@ -174,9 +179,7 @@ def plot(data, target, temperature_range, pressure_range, title, fontsize):
         "A prefix counts coexisting compositions; numbered fields have a separate key.",
         fontsize=fontsize,
     )
-    fig.savefig(target, dpi=180)
-    fig.savefig(target.with_suffix(".svg"))
-    plt.close(fig)
+    save_figure(fig, target, dpi=180)
 
 
 def main(
@@ -189,27 +192,17 @@ def main(
     reference_points,
     liquidus,
 ):
-    parser = argparse.ArgumentParser(
-        description=f"Green et al. (2025), Figure S3-{figure}: {title}"
+    parser = example_parser(
+        f"Green et al. (2025), Figure S3-{figure}: {title}",
+        Path(__file__).parent / f"green2025_{name}_output",
+        seeds=7,
+        replot=True,
+        refine=True,
     )
-    parser.add_argument("--seeds", type=int, default=7)
-    parser.add_argument(
-        "--quick", action="store_true", help="Coarse discovery; may miss narrow fields."
-    )
-    parser.add_argument("--verbose", action="store_true")
-    parser.add_argument("--no-plots", action="store_true")
-    parser.add_argument("--label-fontsize", type=float, default=7.0)
-    parser.add_argument("--plot-json", type=Path)
-    parser.add_argument("--refine-json", type=Path)
     parser.add_argument(
         "--check-only",
         action="store_true",
         help="Only compare interior assemblages with the PDF.",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=Path(__file__).parent / f"green2025_{name}_output",
     )
     args = parser.parse_args()
     # These are oxide moles (including atomic O), not oxide weight percentages.
@@ -227,48 +220,51 @@ def main(
     settings.verbose = args.verbose
     args.output_dir.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
-    if args.plot_json:
-        data = bm.load_phase_diagram(args.plot_json)
-    elif not args.check_only:
-        phases = candidate_phases(composition)
-        result = (
-            bm.refine_phase_diagram(
-                composition.atomic_composition,
-                phases,
-                bm.load_phase_diagram(args.refine_json),
-                settings,
+    if not args.check_only:
+
+        def calculate_section(source=None, verbose=False):
+            phases = candidate_phases(composition)
+            result = (
+                refine_saved(
+                    source,
+                    phases,
+                    composition=composition.atomic_composition,
+                    settings=settings,
+                    verbose=verbose,
+                )
+                if source is not None
+                else bm.phase_diagram(
+                    composition.atomic_composition,
+                    phases,
+                    (max(1.0e5, pressure_range[0] * 1.0e8), pressure_range[1] * 1.0e8),
+                    tuple(t + 273.15 for t in temperature_range),
+                    settings,
+                )
             )
-            if args.refine_json
-            else bm.phase_diagram(
-                composition.atomic_composition,
-                phases,
-                (max(1.0e5, pressure_range[0] * 1.0e8), pressure_range[1] * 1.0e8),
-                tuple(t + 273.15 for t in temperature_range),
-                settings,
+            data = result.to_dict()
+            data.update(
+                source=SOURCE,
+                reference_figure=f"S3-{figure}",
+                oxide_molar_amounts=oxides,
+                model_set=model_sets.igneous("G25").to_dict(),
+                calculation_seconds=time.monotonic() - started,
             )
-        )
-        data = result.to_dict()
-        data.update(
-            source=SOURCE,
-            reference_figure=f"S3-{figure}",
-            oxide_molar_amounts=oxides,
-            model_set=model_sets.igneous("G25").to_dict(),
-            calculation_seconds=time.monotonic() - started,
-        )
-        bm.save_phase_diagram(data, args.output_dir / f"{name}.json")
-        print(
-            f"{len(result.boundaries)} boundaries; resolved={result.resolved}; "
-            f"{result.equilibrium_solves} solves in {data['calculation_seconds']:.1f} s",
-            flush=True,
-        )
-    if not args.check_only and not args.no_plots:
-        plot(
-            data,
-            args.output_dir / f"{name}.png",
-            temperature_range,
-            pressure_range,
-            title,
-            args.label_fontsize,
+            return data
+
+        data = run_phase_diagram_example(
+            parser,
+            lambda options: calculate_section(),
+            args=args,
+            stem=name,
+            refine=calculate_section,
+            plot=lambda result, target, fontsize: plot(
+                result,
+                target,
+                temperature_range,
+                pressure_range,
+                title,
+                fontsize,
+            ),
         )
     if not args.plot_json:
         rows = compare(composition, reference_points, settings)

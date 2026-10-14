@@ -39,12 +39,17 @@ Increase --seeds to check narrow/disconnected fields. --refine-json resumes
 unfinished lines from the last accepted native phase compositions and amounts.
 """
 
-import argparse
 from math import isclose
 from pathlib import Path
 
 import burnman_cpp as bm
 from burnman_cpp.minerals import SLB24
+from burnman_cpp.tools.phase_diagram_helpers import (
+    example_parser,
+    plot_phase_diagram_example,
+    refine_saved,
+    run_phase_diagram_example,
+)
 
 PAPER_URL = "https://academic.oup.com/gji/article/237/3/1699/7640845"
 INITIAL_FERRIC_FRACTION = 0.03
@@ -177,12 +182,19 @@ def settings(seeds=9, quick=False, verbose=False):
     return opts
 
 
-def calculate(seeds=9, quick=False, verbose=False):
+def calculate(
+    seeds=9,
+    quick=False,
+    verbose=False,
+    *,
+    pressure_range=(0.0, P_Pa),
+    temperature_range=(0.0, T_K),
+):
     return bm.phase_diagram(
         PYROLITE_COMPOSITION.atomic_composition,
         candidate_phases(),
-        (0.0, P_Pa),
-        (0.0, T_K),
+        pressure_range,
+        temperature_range,
         settings(seeds, quick, verbose),
     )
 
@@ -202,14 +214,17 @@ def refine(source, verbose=False):
         for oxide, mass in PYROLITE_COMPOSITION.mass_composition.items()
     ):
         raise ValueError("Saved diagram has a different bulk composition.")
-    opts = bm.PhaseDiagramResult.from_dict(data).settings
-    opts.verbose = verbose
-    return bm.refine_phase_diagram(
-        PYROLITE_COMPOSITION.atomic_composition, candidate_phases(), data, opts
+    return refine_saved(
+        data,
+        candidate_phases(),
+        composition=PYROLITE_COMPOSITION.atomic_composition,
+        verbose=verbose,
     )
 
 
-def save_json(result, path):
+def save_json(
+    result, path, *, pressure_range=(0.0, P_Pa), temperature_range=(0.0, T_K)
+):
     bm.save_phase_diagram(
         result,
         path,
@@ -220,56 +235,40 @@ def save_json(result, path):
             dataset_source=PAPER_URL,
             initial_ferric_fraction=INITIAL_FERRIC_FRACTION,
             solid_only=True,
-            display_pressure_range_GPa=[0.0, P_Pa / 1.0e9],
-            display_temperature_range_K=[0.0, T_K],
+            display_pressure_range_GPa=[p / 1.0e9 for p in pressure_range],
+            display_temperature_range_K=list(temperature_range),
         ),
     )
 
 
-def plot(result, path, label_fontsize=7.0):
-    import matplotlib.pyplot as plt
-
-    fig, ax = plt.subplots(figsize=(12, 10))
-    fig.subplots_adjust(bottom=0.20)
-    key_path = path.with_name(path.stem + "_assemblages.md")
-    bm.plot_phase_diagram(
+def plot(
+    result,
+    path,
+    label_fontsize=7.0,
+    *,
+    pressure_range=(0.0, P_Pa),
+    temperature_range=(0.0, T_K),
+    figsize=(12, 10),
+):
+    key_path = Path(path).with_name(Path(path).stem + "_assemblages.md")
+    plot_phase_diagram_example(
         result,
-        ax=ax,
+        path,
+        label_fontsize,
         pressure_unit="GPa",
         temperature_unit="K",
         show_nodes=False,
-        label_fontsize=label_fontsize,
-        label_key_path=key_path,
+        figsize=figsize,
+        axes=dict(
+            xlim=temperature_range,
+            ylim=tuple(p / 1.0e9 for p in pressure_range),
+            xlabel="Temperature (K)",
+            ylabel="Pressure (GPa)",
+            title="Pyrolite, 3% Fe³⁺/ΣFe on a no metal-basis",
+        ),
+        scope="SLB2024 solids; closed oxygen; high/low spin populations equilibrated; no liquids",
+        notes="Hatched area: outside the orthopyroxene EOS domain (Mg-Tschermak spinodal). Numbered fields: ",
     )
-    if ax.get_legend() is not None:
-        ax.get_legend().set_bbox_to_anchor((0.0, -0.11))
-    ax.set(
-        xlim=(0, T_K),
-        ylim=(0, P_Pa / 1.0e9),
-        xlabel="Temperature (K)",
-        ylabel="Pressure (GPa)",
-        title="Pyrolite, 3% Fe³⁺/ΣFe on a no metal-basis",
-    )
-    ax.grid(alpha=0.12)
-    scope = "SLB2024 solids; closed oxygen; high/low spin populations equilibrated; no liquids"
-    diagnostics = (
-        result["diagnostics"] if isinstance(result, dict) else result.diagnostics
-    )
-    polygons = ax.phase_diagram_geometry.polygons
-    open_fields = sum(
-        p.has_open_boundary and not p.outside_model_domain for p in polygons
-    )
-    unidentified = sum(
-        (p.n_phases <= 0 or not p.phases) and not p.outside_model_domain
-        for p in polygons
-    )
-    status = f"{open_fields} open fields; {unidentified} unidentified fields; {len(diagnostics)} numerical diagnostics in JSON"
-    caption = scope + "\n" + status + "; finite seeds may miss narrow fields."
-    caption += (
-        "\nHatched area: outside the orthopyroxene EOS domain (Mg-Tschermak spinodal). Numbered fields: "
-        + key_path.name
-    )
-    fig.text(0.1, 0.015, caption, fontsize=8)
     if key_path.exists():
         with key_path.open("a") as key:
             key.write("\n## Phase abbreviations\n\n| Label | Model |\n| --- | --- |\n")
@@ -281,69 +280,24 @@ def plot(result, path, label_fontsize=7.0):
             key.write(
                 f"\nDataset and bulk source: [Stixrude & Lithgow-Bertelloni (2024)]({PAPER_URL}).\n"
             )
-    fig.savefig(path, dpi=200)
-    fig.savefig(path.with_suffix(".svg"))
-    plt.close(fig)
-
-
-def plot_saved_json(source, output_dir, label_fontsize=7.0):
-    data = bm.load_phase_diagram(source)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    target = output_dir / "pyrolite_phase_diagram.json"
-    if source.resolve() != target.resolve():
-        bm.save_phase_diagram(data, target)
-    plot(data, output_dir / "pyrolite_phase_diagram.png", label_fontsize)
-    print(f"Coloured phase diagram figures saved to {output_dir}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--seeds", type=int, default=9)
-    parser.add_argument("--quick", action="store_true")
-    parser.add_argument("--verbose", action="store_true")
-    parser.add_argument("--no-plots", action="store_true")
-    parser.add_argument(
-        "--label-fontsize",
-        type=float,
-        default=7.0,
-        help="Font size in points for every assemblage and field number (default: 7).",
+    parser = example_parser(
+        __doc__,
+        "pyrolite_phase_diagram_output",
+        seeds=9,
+        replot=True,
+        refine=True,
     )
-    parser.add_argument(
-        "--plot-json",
-        type=Path,
-        help="Replot a saved pyrolite result without repeating equilibrium solves.",
+    return run_phase_diagram_example(
+        parser,
+        lambda args: calculate(args.seeds, args.quick, args.verbose),
+        stem="pyrolite_phase_diagram",
+        save_json=save_json,
+        plot=plot,
+        refine=refine,
     )
-    parser.add_argument(
-        "--refine-json",
-        type=Path,
-        help="Resume unfinished lines from saved successful equilibrium states in C++.",
-    )
-    parser.add_argument(
-        "--output-dir", type=Path, default=Path("pyrolite_phase_diagram_output")
-    )
-    args = parser.parse_args()
-    if args.plot_json:
-        plot_saved_json(args.plot_json, args.output_dir, args.label_fontsize)
-        return
-    result = (
-        refine(args.refine_json, args.verbose)
-        if args.refine_json
-        else calculate(args.seeds, args.quick, args.verbose)
-    )
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    save_json(result, args.output_dir / "pyrolite_phase_diagram.json")
-    if not args.no_plots:
-        plot(
-            result, args.output_dir / "pyrolite_phase_diagram.png", args.label_fontsize
-        )
-    print(
-        f"{len(result.fields)} fields, {len(result.boundaries)} edges, "
-        f'{sum(n.kind=="junction" for n in result.nodes)} junctions; '
-        f"{result.equilibrium_solves} native equilibrium solves."
-    )
-    print(f"Resolved: {result.resolved}. Outputs: {args.output_dir}")
-    for diagnostic in result.diagnostics:
-        print(diagnostic)
 
 
 if __name__ == "__main__":

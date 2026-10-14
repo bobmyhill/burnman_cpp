@@ -26,15 +26,20 @@ closed and unbuffered.
 Run: python examples/example_harzburgite_basalt_px.py
 """
 
-import argparse
 from pathlib import Path
 
 import burnman_cpp as bm
-from example_pyrolite_phase_diagram import (
-    PAPER_URL,
-    candidate_phases,
-    settings,
+from burnman_cpp.tools.phase_diagram_helpers import (
+    example_parser,
+    load_example,
+    plot_phase_diagram_example,
+    run_phase_diagram_example,
 )
+
+pyrolite = load_example(Path(__file__).with_name("example_pyrolite_phase_diagram.py"))
+PAPER_URL = pyrolite.PAPER_URL
+candidate_phases = pyrolite.candidate_phases
+settings = pyrolite.settings
 
 
 def endmember(oxides):
@@ -83,53 +88,49 @@ def calculate(seeds=7, quick=False, verbose=False):
     )
 
 
+def save_json(result, path):
+    bm.save_phase_diagram(
+        result,
+        path,
+        metadata=dict(
+            endpoint_masses_kg={
+                "harzburgite": HARZBURGITE.mass_composition,
+                "basalt": BASALT.mass_composition,
+            },
+            composition_source=PAPER_URL,
+            closed_system=True,
+        ),
+    )
+
+
+def plot(result, path, label_fontsize=8.0):
+    plot_phase_diagram_example(
+        result,
+        path,
+        label_fontsize,
+        formats=("pdf",),
+        pressure_unit="GPa",
+        composition_label="Basalt mass fraction",
+        axes=dict(title="Harzburgite–basalt at 1673 K (SLB2024 solids)"),
+        key_path=path.with_name(path.stem + "_labels.md"),
+    )
+
+
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--seeds", type=int, default=7)
-    parser.add_argument("--quick", action="store_true")
-    parser.add_argument("--verbose", action="store_true")
-    parser.add_argument("--no-plots", action="store_true")
-    parser.add_argument("--plot-json", type=Path, help="Replot saved results.")
-    parser.add_argument("--label-fontsize", type=float, default=8.0)
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=Path(__file__).resolve().parent / "harzburgite_basalt_px_output",
+    parser = example_parser(
+        __doc__,
+        Path(__file__).resolve().parent / "harzburgite_basalt_px_output",
+        seeds=7,
+        label_fontsize=8.0,
+        replot=True,
     )
-    args = parser.parse_args()
-    saved = bm.load_phase_diagram(args.plot_json) if args.plot_json else {}
-    result = (
-        bm.PhaseDiagramResult.from_dict(saved)
-        if args.plot_json
-        else calculate(args.seeds, args.quick, args.verbose)
+    return run_phase_diagram_example(
+        parser,
+        lambda args: calculate(args.seeds, args.quick, args.verbose),
+        stem="harzburgite_basalt_px",
+        save_json=save_json,
+        plot=plot,
     )
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    stem = args.output_dir / "harzburgite_basalt_px"
-    data = saved | result.to_dict()
-    data.update(
-        endpoint_masses_kg={
-            "harzburgite": HARZBURGITE.mass_composition,
-            "basalt": BASALT.mass_composition,
-        },
-        composition_source=PAPER_URL,
-        closed_system=True,
-    )
-    bm.save_phase_diagram(data, stem.with_suffix(".json"))
-    if not args.no_plots:
-        fig, ax = bm.plot_phase_diagram(
-            result,
-            pressure_unit="GPa",
-            composition_label="Basalt mass fraction",
-            label_fontsize=args.label_fontsize,
-            label_key_path=stem.with_name(stem.name + "_labels.md"),
-        )
-        ax.set_title("Harzburgite–basalt at 1673 K (SLB2024 solids)")
-        fig.savefig(stem.with_suffix(".png"), dpi=200, bbox_inches="tight")
-        fig.savefig(stem.with_suffix(".pdf"), bbox_inches="tight")
-    print(f"{len(result.boundaries)} phase boundaries; resolved={result.resolved}")
-    for diagnostic in result.diagnostics:
-        print(diagnostic)
-    print(f"Results saved to {args.output_dir}")
 
 
 if __name__ == "__main__":
