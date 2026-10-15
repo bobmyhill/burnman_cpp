@@ -199,6 +199,8 @@ def test_unequal_atom_totals_preserve_supplied_amounts(diagram):
 )
 def test_composition_boundary_labels_preserve_immediate_fields(fixture):
     saved = json.loads((Path(__file__).parent / "data" / fixture).read_text())
+    saved["resolved"] = False  # Missing side labels explicitly request recovery.
+    saved["settings"]["max_lines"] = 1  # Isolate neighbour labelling on this arc.
     example = runpy.run_path(
         str(Path(__file__).parents[2] / "examples/example_pyrolite_phase_diagram.py")
     )

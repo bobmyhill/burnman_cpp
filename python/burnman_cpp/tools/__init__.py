@@ -14,6 +14,12 @@
 """Native numerical tools and optional plotting helpers."""
 
 from .contours import phase_diagram_contour_levels
+from .properties import (
+    phase_diagram_grid,
+    save_property_grid,
+    load_property_grid,
+    evaluate_property_grid,
+)
 from .phase_diagram import (
     calculate_phase_diagram_patch,
     merge_phase_diagrams,
@@ -37,6 +43,10 @@ from .phase_diagram_helpers import (
 )
 
 __all__ = [
+    "phase_diagram_grid",
+    "save_property_grid",
+    "load_property_grid",
+    "evaluate_property_grid",
     "calculate_phase_diagram_patch",
     "merge_phase_diagrams",
     "phase_diagram_field_regions",

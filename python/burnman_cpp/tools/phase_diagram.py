@@ -27,6 +27,28 @@ import warnings
 from .. import _core, constants
 
 
+def _normalize_saved_diagnostics(data):
+    if "diagnostics" not in data:
+        return data
+    diagnostics = _core._normalize_phase_diagram_diagnostics(data["diagnostics"])
+    spacing = list(data.get("spacing_diagnostics", []))
+    structural = []
+    for message in diagnostics:
+        if message.startswith("Boundary ") and (
+            ": requested line resolution was not reached on " in message
+        ):
+            if message not in spacing:
+                spacing.append(message)
+        else:
+            structural.append(message)
+    data["diagnostics"] = structural
+    if len(structural) != len(diagnostics):
+        data["spacing_diagnostics"] = spacing
+        data["spacing_resolved"] = not spacing
+        data["resolved"] = not structural
+    return data
+
+
 def save_phase_diagram(result, path, *, metadata=None):
     """Save the calculated equilibria and reaction network; return the JSON path.
 
@@ -47,11 +69,7 @@ def save_phase_diagram(result, path, *, metadata=None):
     from pathlib import Path
 
     data = dict(result) if isinstance(result, Mapping) else result.to_dict()
-    data = dict(metadata or {}) | data
-    if "diagnostics" in data:
-        data["diagnostics"] = _core._normalize_phase_diagram_diagnostics(
-            data["diagnostics"]
-        )
+    data = _normalize_saved_diagnostics(dict(metadata or {}) | data)
     text = json.dumps(data, indent=2, allow_nan=False, ensure_ascii=False) + "\n"
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -65,8 +83,9 @@ def load_phase_diagram(path):
     Return a dictionary usable for plotting, contours and refinement, with
     coordinates in native SI units. Candidate models are supplied separately
     when calculating new points. Legacy Region indices in diagnostics are
-    translated to the same one-based Field numbers used by plots and keys;
-    other entries are preserved.
+    translated to the same one-based Field numbers used by plots and keys.
+    Legacy spacing warnings move to ``spacing_diagnostics``; a diagram with
+    only these warnings is resolved. Other entries are preserved.
     Use ``PhaseDiagramResult.from_dict(data)`` if a native object is needed.
     """
     import json
@@ -76,11 +95,7 @@ def load_phase_diagram(path):
         data = json.load(source)
     if not isinstance(data, dict):
         raise ValueError("A saved phase diagram must be a JSON object.")
-    if "diagnostics" in data:
-        data["diagnostics"] = _core._normalize_phase_diagram_diagnostics(
-            data["diagnostics"]
-        )
-    return data
+    return _normalize_saved_diagnostics(data)
 
 
 def _value(record, name, default=None):
@@ -844,15 +859,21 @@ def refine_phase_diagram(
     (n - 1). Counts must be integers of at least 2. This is distinct from seed
     density: initial seeds discover assemblages, while resolution adds solved
     points along existing reaction curves. Added points are equilibrated and
-    validated in C++; unmet spacing is recorded in ``result.diagnostics``.
+    validated in C++; unmet spacing is recorded in ``result.spacing_diagnostics``.
+    ``result.spacing_resolved`` reports whether the requested spacing was met.
+    Spacing failures do not make an otherwise resolved diagram unresolved.
 
     ``region=((xmin, xmax), (ymin, ymax))`` restricts spacing refinement to
     segments meeting that window. Bounds use the chosen plot units and axis
     order, and counts subdivide the window's spans. Density units request uniform
     spacing in density rather than volume. A region requires ``resolution``.
 
-    Recovery can trim overshoots, reconcile duplicate traces and retrace suspect
-    arcs, including those around provisional fields in a requested window.
+    A resolved input retains its boundary IDs, connections, side labels, nodes,
+    field labels and original points. Refinement only inserts validated points;
+    without ``resolution``, it performs no further calculations.
+
+    For an unresolved input, recovery can trim overshoots, reconcile duplicate
+    traces and retrace suspect arcs, including those around provisional fields.
     ``max_recovery_passes`` controls recovery. With resolution supplied, additional
     interior equilibria test closed fields whose labels remain provisional or
     unknown. This differs from plotting, which only interprets saved evidence.

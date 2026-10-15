@@ -107,6 +107,11 @@ def report_phase_diagram(result, output_dir):
     print(f"Resolved: {_value(result, 'resolved')}. Outputs: {output_dir}", flush=True)
     for message in _value(result, "diagnostics", []):
         print(message, flush=True)
+    spacing = _value(result, "spacing_diagnostics", [])
+    if spacing:
+        print("Requested line spacing was not reached:", flush=True)
+        for message in spacing:
+            print(message, flush=True)
 
 
 def save_figure(figure, path, *, formats=("svg",), dpi=200, **options):

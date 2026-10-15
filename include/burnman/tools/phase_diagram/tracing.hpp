@@ -46,8 +46,10 @@ Result phase_diagram(const types::FormulaMap &composition,
 /// Continue and refine a saved calculation, returning a new Result.
 /// Reuse the original bulk, candidate order and max_phase_instances so saved
 /// phase IDs still identify the same minerals and coexisting solution copies.
-/// Recovery starts from accepted boundary states and revisits junction branches
-/// where needed. It can trim verified overshoots and remove duplicate traces.
+/// A resolved result retains all connections, labels, nodes and original
+/// points; only validated boundary points are added. An unresolved result also
+/// runs recovery from accepted states, revisiting junction branches where
+/// needed, trimming verified overshoots and removing duplicate traces.
 ///
 /// Optional resolution controls the spacing of solved boundary points, rather
 /// than the density of initial assemblage samples: 101 axis points means 100
@@ -57,8 +59,9 @@ Result phase_diagram(const types::FormulaMap &composition,
 /// equilibrium samples test closed fields that still lack a trusted label.
 ///
 /// Every inserted point is an equilibrium calculation, not a linear estimate
-/// of mineral compositions. Unmet spacing and unresolved fields are reported
-/// in diagnostics. Added points per line are limited by
+/// of mineral compositions. Unmet spacing is reported in spacing_diagnostics,
+/// separately from the structural diagnostics that determine resolved.
+/// Added points per line are limited by
 /// max_trace_steps*max_refinement_iterations.
 Result refine_phase_diagram(
     const types::FormulaMap &composition,

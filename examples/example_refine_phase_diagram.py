@@ -20,7 +20,9 @@ python examples/example_refine_phase_diagram.py metasediment_phase_diagram.json 
 
 Resolution counts axis points: here 100 divisions of x and 200 divisions of y.
 All new equilibrium points are calculated and validated in C++.
-Completed diagrams reuse saved lines; recovery runs where checks find problems.
+Resolved diagrams retain their connections and labels, adding only solved points.
+Unresolved diagrams also run recovery. Spacing failures are reported separately
+and do not invalidate a resolved diagram.
 Add --verbose to report line refinement and field-checking progress.
 """
 
