@@ -275,8 +275,28 @@ from .tools.phase_diagram import (
     refine_phase_diagram,
 )
 from .tools.contours import phase_diagram_contour_levels
+from .tools.properties import (
+    phase_diagram_grid,
+    save_property_grid,
+    load_property_grid,
+    evaluate_property_grid,
+)
+from ._core import (
+    assemblage_properties,
+    thermodynamic_property_names,
+    PhaseDiagramPropertyGrid,
+    GridSolution,
+)
 
 __all__ += [
+    "phase_diagram_grid",
+    "save_property_grid",
+    "load_property_grid",
+    "evaluate_property_grid",
+    "GridSolution",
+    "assemblage_properties",
+    "thermodynamic_property_names",
+    "PhaseDiagramPropertyGrid",
     "calculate_phase_diagram_patch",
     "merge_phase_diagrams",
     "phase_diagram_field_regions",

@@ -14,6 +14,7 @@
 #include "burnman/tools/phase_diagram.hpp"
 #include "bindings.hpp"
 #include "burnman/minerals/water.hpp"
+#include "burnman/tools/phase_diagram/refinement.hpp"
 #include <charconv>
 #include <set>
 namespace burnman::python {
@@ -154,7 +155,7 @@ py::dict boundary_point_dict(const phase_diagrams::BoundaryPoint &point) {
 }
 py::dict result_dict(const phase_diagrams::Result &result) {
   py::dict data;
-  data["schema_version"] = 3;
+  data["schema_version"] = 4;
   data["diagram_type"] = diagram_name(result.section.type);
   data["composition_start"] = py::cast(result.composition_start);
   data["composition_end"] = py::cast(result.section.composition_end);
@@ -171,6 +172,8 @@ py::dict result_dict(const phase_diagrams::Result &result) {
   SAVE(temperature_range)
   SAVE(phase_names)
   SAVE(diagnostics)
+  SAVE(spacing_diagnostics)
+  data["spacing_resolved"] = result.spacing_diagnostics.empty();
   SAVE(resolved)
   SAVE(equilibrium_solves)
   SAVE(minimization_calls)
@@ -324,6 +327,9 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
   if (data.contains("diagnostics"))
     result.diagnostics = normalize_field_diagnostics(
         data["diagnostics"].cast<std::vector<std::string>>());
+  if (data.contains("spacing_diagnostics"))
+    result.spacing_diagnostics =
+        data["spacing_diagnostics"].cast<std::vector<std::string>>();
   result.pressure_range =
       data.contains("pressure_range")
           ? data["pressure_range"].cast<std::array<double, 2>>()
@@ -480,7 +486,171 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
     if (data.contains("minimization_calls"))
       result.minimization_calls = data["minimization_calls"].cast<int>();
   }
+  detail::separate_spacing_diagnostics(result);
   return result;
+}
+py::dict grid_solution_dict(const phase_diagrams::GridSolution &solution) {
+  auto data = boundary_point_dict(solution.state);
+  data["n_moles"] = solution.n_moles;
+  data["molar_fractions"] = vector_list(solution.molar_fractions.matrix());
+  py::list bases, compositions;
+  for (const auto &basis : solution.phase_bases)
+    bases.append(matrix_list(basis));
+  for (const auto &composition : solution.phase_compositions)
+    compositions.append(vector_list(composition));
+  data["phase_bases"] = bases;
+  data["phase_compositions"] = compositions;
+  return data;
+}
+py::dict property_grid_dict(const phase_diagrams::PropertyGrid &grid) {
+  py::dict data;
+  data["format"] = "burnman_cpp.property_grid";
+  data["schema_version"] = 1;
+  data["context"] = result_dict(grid.context);
+  data["x"] = vector_list(grid.x);
+  data["y"] = vector_list(grid.y);
+  data["relaxed"] = grid.relaxed;
+  data["resolved"] = grid.resolved;
+  data["field_numbers"] = py::cast(grid.field_numbers).attr("tolist")();
+  data["success"] = py::cast(grid.success).attr("tolist")();
+  data["equilibrium_success"] =
+      py::cast(grid.equilibrium_success).attr("tolist")();
+  data["diagnostics"] = grid.diagnostics;
+  data["equilibrium_diagnostics"] = grid.equilibrium_diagnostics;
+  data["equilibrium_solves"] = grid.equilibrium_solves;
+  py::dict values;
+  for (const auto &[name, matrix] : grid.values) {
+    py::list rows;
+    for (Eigen::Index j = 0; j < matrix.rows(); ++j) {
+      py::list row;
+      for (Eigen::Index i = 0; i < matrix.cols(); ++i)
+        if (std::isfinite(matrix(j, i)))
+          row.append(matrix(j, i));
+        else
+          row.append(py::none());
+      rows.append(row);
+    }
+    values[py::str(name)] = rows;
+  }
+  data["values"] = values;
+  data["solutions"] = py::none();
+  if (!grid.solutions.empty()) {
+    py::list rows;
+    for (Eigen::Index j = 0; j < grid.y.size(); ++j) {
+      py::list row;
+      for (Eigen::Index i = 0; i < grid.x.size(); ++i) {
+        const auto &solution =
+            grid.solutions.at(static_cast<std::size_t>(j * grid.x.size() + i));
+        if (solution)
+          row.append(grid_solution_dict(*solution));
+        else
+          row.append(py::none());
+      }
+      rows.append(row);
+    }
+    data["solutions"] = rows;
+  }
+  return data;
+}
+phase_diagrams::PropertyGrid saved_property_grid(const py::dict &data) {
+  using namespace phase_diagrams;
+  if (!data.contains("format") ||
+      data["format"].cast<std::string>() != "burnman_cpp.property_grid" ||
+      !data.contains("schema_version") ||
+      data["schema_version"].cast<int>() != 1)
+    throw py::value_error(
+        "Unsupported property grid format or schema version.");
+  PropertyGrid grid;
+  grid.context = saved_result(data["context"].cast<py::dict>(), true);
+  grid.diagram_type = grid.context.section.type;
+  grid.x = data["x"].cast<Eigen::VectorXd>();
+  grid.y = data["y"].cast<Eigen::VectorXd>();
+  grid.relaxed = data["relaxed"].cast<bool>();
+  grid.resolved = data["resolved"].cast<bool>();
+  grid.field_numbers = data["field_numbers"].cast<Eigen::MatrixXi>();
+  grid.success = data["success"].cast<decltype(grid.success)>();
+  grid.equilibrium_success =
+      data["equilibrium_success"].cast<decltype(grid.equilibrium_success)>();
+  grid.diagnostics = data["diagnostics"].cast<std::vector<std::string>>();
+  grid.equilibrium_diagnostics =
+      data["equilibrium_diagnostics"].cast<std::vector<std::string>>();
+  grid.equilibrium_solves = data["equilibrium_solves"].cast<int>();
+  grid.values = data["values"].cast<std::map<std::string, Eigen::MatrixXd>>();
+  auto shape = [&](const auto &matrix) {
+    return matrix.rows() == grid.y.size() && matrix.cols() == grid.x.size();
+  };
+  if (!grid.x.size() || !grid.y.size() || !grid.x.allFinite() ||
+      !grid.y.allFinite() || !shape(grid.field_numbers) ||
+      !shape(grid.success) || !shape(grid.equilibrium_success))
+    throw py::value_error("Saved property grid arrays do not match its shape.");
+  for (const auto &axis : {grid.x, grid.y})
+    for (Eigen::Index i = 1; i < axis.size(); ++i)
+      if (axis[i] <= axis[i - 1])
+        throw py::value_error("Saved grid coordinates must be increasing.");
+  for (const auto &[name, matrix] : grid.values)
+    if (!shape(matrix))
+      throw py::value_error("Saved property array has an invalid shape: " +
+                            name);
+  if (!data["solutions"].is_none()) {
+    const auto rows = data["solutions"].cast<py::list>();
+    if (static_cast<Eigen::Index>(rows.size()) != grid.y.size())
+      throw py::value_error("Saved solutions do not match the grid shape.");
+    for (Eigen::Index j = 0; j < grid.y.size(); ++j) {
+      const auto row = rows[static_cast<py::ssize_t>(j)].cast<py::list>();
+      if (static_cast<Eigen::Index>(row.size()) != grid.x.size())
+        throw py::value_error("Saved solutions do not match the grid shape.");
+      for (Eigen::Index i = 0; i < grid.x.size(); ++i) {
+        const auto item = row[static_cast<py::ssize_t>(i)];
+        if (item.is_none()) {
+          if (grid.equilibrium_success(j, i))
+            throw py::value_error(
+                "A successful grid point is missing its solution.");
+          grid.solutions.push_back(std::nullopt);
+          continue;
+        }
+        if (!grid.equilibrium_success(j, i) || grid.field_numbers(j, i) <= 0)
+          throw py::value_error(
+              "A saved solution has no successful equilibrium or field.");
+        auto record = item.cast<py::dict>();
+        GridSolution solution;
+        solution.n_moles = record["n_moles"].cast<double>();
+        solution.molar_fractions =
+            record["molar_fractions"].cast<Eigen::ArrayXd>();
+        auto &point = solution.state;
+#define READ(name) point.name = record[#name].cast<decltype(point.name)>();
+        READ(pressure)
+        READ(temperature)
+        READ(entropy)
+        READ(volume)
+        READ(composition_coordinate) READ(mass_balance_error)
+            READ(minimum_affinity) READ(residual)
+#undef READ
+                for (auto entry : record["phases"].cast<py::list>()) {
+          auto p = entry.cast<py::dict>();
+          PhaseState phase;
+#define READ(name) phase.name = p[#name].cast<decltype(phase.name)>();
+          READ(id)
+          READ(candidate_index)
+          READ(name)
+          READ(amount)
+          READ(composition)
+#undef READ
+              point.phases.push_back(std::move(phase));
+        }
+        solution.phase_bases =
+            record["phase_bases"].cast<std::vector<Eigen::MatrixXd>>();
+        solution.phase_compositions =
+            record["phase_compositions"].cast<std::vector<Eigen::VectorXd>>();
+        if (point.phases.empty() ||
+            point.phases.size() != solution.phase_bases.size() ||
+            point.phases.size() != solution.phase_compositions.size())
+          throw py::value_error(
+              "Saved grid solution has inconsistent phase arrays.");
+        grid.solutions.push_back(std::move(solution));
+      }
+    }
+  }
+  return grid;
 }
 } // namespace
 void bind_phase_diagram(py::module_ &m) {
@@ -604,11 +774,14 @@ void bind_phase_diagram(py::module_ &m) {
               PROPERTY(composition_start) PROPERTY(phase_names)
                   PROPERTY(samples) PROPERTY(fields) PROPERTY(boundaries)
                       PROPERTY(nodes) PROPERTY(diagnostics) PROPERTY(resolved)
-                          PROPERTY(equilibrium_solves)
-                              PROPERTY(minimization_calls)
-                                  PROPERTY(excluded_regions)
+                          PROPERTY(spacing_diagnostics)
+                              PROPERTY(equilibrium_solves)
+                                  PROPERTY(minimization_calls)
+                                      PROPERTY(excluded_regions)
 #undef PROPERTY
-      ;
+      .def_property_readonly("spacing_resolved", [](const Result &r) {
+        return r.spacing_diagnostics.empty();
+      });
   py::class_<FieldPolygon>(m, "PhaseFieldPolygon",
                            "One plotted field: a closed outer coordinate ring "
                            "and any holes, with its inferred assemblage and "
@@ -690,6 +863,74 @@ void bind_phase_diagram(py::module_ &m) {
         data["lines"] = lines;
         return data;
       });
+  py::class_<GridSolution>(m, "GridSolution")
+      .def_readonly("state", &GridSolution::state)
+      .def_readonly("n_moles", &GridSolution::n_moles)
+      .def_readonly("molar_fractions", &GridSolution::molar_fractions)
+      .def_readonly("phase_bases", &GridSolution::phase_bases)
+      .def_readonly("phase_compositions", &GridSolution::phase_compositions)
+      .def("to_dict", &grid_solution_dict);
+  py::class_<PropertyGrid>(m, "PhaseDiagramPropertyGrid")
+      .def_property_readonly(
+          "diagram_type",
+          [](const PropertyGrid &r) { return diagram_name(r.diagram_type); })
+      .def_readonly("x", &PropertyGrid::x)
+      .def_readonly("y", &PropertyGrid::y)
+      .def_readonly("values", &PropertyGrid::values)
+      .def_readonly("field_numbers", &PropertyGrid::field_numbers)
+      .def_readonly("success", &PropertyGrid::success)
+      .def_readonly("equilibrium_success", &PropertyGrid::equilibrium_success)
+      .def_readonly("relaxed", &PropertyGrid::relaxed)
+      .def_readonly("resolved", &PropertyGrid::resolved)
+      .def_readonly("diagnostics", &PropertyGrid::diagnostics)
+      .def_readonly("equilibrium_diagnostics",
+                    &PropertyGrid::equilibrium_diagnostics)
+      .def_readonly("context", &PropertyGrid::context)
+      .def_property_readonly(
+          "has_solutions",
+          [](const PropertyGrid &r) { return !r.solutions.empty(); })
+      .def(
+          "solution_at",
+          [](const PropertyGrid &r, Eigen::Index row, Eigen::Index col) {
+            if (row < 0 || col < 0 || row >= r.y.size() || col >= r.x.size())
+              throw py::index_error("Grid index out of range.");
+            if (r.solutions.empty())
+              throw py::value_error("Grid has no saved solutions; calculate "
+                                    "with store_solutions=True.");
+            return r.solutions.at(
+                static_cast<std::size_t>(row * r.x.size() + col));
+          },
+          py::arg("row"), py::arg("col"))
+      .def("to_dict", &property_grid_dict)
+      .def_static("from_dict", &saved_property_grid, py::arg("data"))
+      .def_readonly("equilibrium_solves", &PropertyGrid::equilibrium_solves);
+  m.def("_evaluate_property_grid", &evaluate_property_grid, py::arg("grid"),
+        py::arg("phases"), py::arg("properties"), py::arg("relaxed"),
+        py::call_guard<py::gil_scoped_release>());
+  m.def("thermodynamic_property_names", &thermodynamic_property_names);
+  m.def("assemblage_properties", &assemblage_properties, py::arg("assemblage"),
+        py::arg("properties"), py::kw_only(), py::arg("relaxed") = true,
+        py::call_guard<py::gil_scoped_release>());
+  m.def(
+      "_phase_diagram_grid",
+      [](py::object previous,
+         const std::vector<std::shared_ptr<Material>> &phases,
+         const std::vector<std::string> &properties, const Eigen::VectorXd &x,
+         const Eigen::VectorXd &y, bool relaxed, bool store_solutions) {
+        Result saved;
+        if (py::isinstance<Result>(previous))
+          saved = previous.cast<Result>();
+        else if (py::isinstance<py::dict>(previous))
+          saved = saved_result(previous.cast<py::dict>(), true);
+        else
+          throw py::type_error(
+              "Supply a PhaseDiagramResult or saved JSON dictionary.");
+        py::gil_scoped_release release;
+        return phase_diagram_grid(saved, phases, properties, x, y, relaxed,
+                                  store_solutions);
+      },
+      py::arg("result"), py::arg("phases"), py::arg("properties"), py::arg("x"),
+      py::arg("y"), py::arg("relaxed"), py::arg("store_solutions") = false);
   m.def(
       "phase_diagram_contours",
       [](py::object previous,

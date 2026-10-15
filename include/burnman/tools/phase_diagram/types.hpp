@@ -262,12 +262,16 @@ struct Result {
   std::vector<Boundary> boundaries;
   std::vector<Node> nodes;
   std::vector<std::string> diagnostics;
+  // Unmet boundary-point spacing from the latest refinement request. These
+  // messages do not invalidate the saved connections or phase-field labels.
+  std::vector<std::string> spacing_diagnostics;
   // Closed diagram-coordinate rings outside the admissible EOS domain: either
   // remaining candidates cannot represent the bulk or a required EOS fails.
   // These are model limits, not equilibrium phase lines.
   std::vector<Eigen::MatrixXd> excluded_regions;
   // True when the implemented tracing and field-identification checks leave
-  // no diagnostics. This does not prove that finite seed sampling found every
+  // no structural diagnostics; spacing_diagnostics are reported separately.
+  // This does not prove that finite seed sampling found every
   // stability field or every lower-energy composition of the candidate models.
   bool resolved = false;
   // Cumulative work, including the previous result when refined.

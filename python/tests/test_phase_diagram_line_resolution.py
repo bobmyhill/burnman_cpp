@@ -14,6 +14,7 @@
 """Saved phase lines are refined to subdivisions of the full plotted axes."""
 
 import json
+from copy import deepcopy
 from pathlib import Path
 import runpy
 
@@ -113,6 +114,48 @@ def test_axis_counts_are_independent_of_linear_display_units(crossing):
     )
     assert default.resolved and changed_units.resolved
     assert default.to_dict() == changed_units.to_dict()
+
+
+@pytest.mark.parametrize("scope", ["none", "all", "region"])
+def test_resolved_refinement_preserves_graph_ids_labels_and_saved_evidence(
+    crossing, scope
+):
+    bulk, original = crossing
+    saved = deepcopy(original)
+    # Saved IDs are identities, even when no longer contiguous after editing.
+    ids = {b["id"]: 7 + 10 * i for i, b in enumerate(saved["boundaries"])}
+    for boundary in saved["boundaries"]:
+        boundary["id"] = ids[boundary["id"]]
+    for node in saved["nodes"]:
+        node["incident_lines"] = [ids[i] for i in node["incident_lines"]]
+    before = deepcopy(saved)
+    options = {} if scope == "none" else {"resolution": (25, 31)}
+    if scope == "region":
+        options["region"] = ((0.5e9, 1.5e9), (800.0, 900.0))
+    result = bm.refine_phase_diagram(
+        bulk,
+        crossing_phases(),
+        saved,
+        pressure_unit="Pa",
+        temperature_unit="K",
+        swap_axes=True,
+        **options,
+    )
+    after = result.to_dict()
+    assert result.resolved and result.spacing_resolved
+    assert not result.diagnostics and not result.spacing_diagnostics
+    for key in ("nodes", "fields", "samples", "excluded_regions", "phase_names"):
+        assert after[key] == saved[key]
+    for old, new in zip(saved["boundaries"], after["boundaries"]):
+        assert {k: v for k, v in new.items() if k != "points"} == {
+            k: v for k, v in old.items() if k != "points"
+        }
+        assert all(point in new["points"] for point in old["points"])
+    if scope == "none":
+        assert after == saved
+    else:
+        assert after["equilibrium_solves"] > saved["equilibrium_solves"]
+    assert saved == before
 
 
 @pytest.mark.parametrize(
@@ -264,6 +307,8 @@ def transform_saved_traces(data, transform):
 def test_pyrolite_reaction_extents_do_not_enclose_artificial_fields(name, transform):
     path = Path(__file__).parent / "data" / f"pyrolite_{name}.json"
     data = json.loads(path.read_text())
+    # This extracted network contains a known duplicate and requests repair.
+    data["resolved"] = False
     transform_saved_traces(data, transform)
     factory = runpy.run_path(
         str(
@@ -305,7 +350,7 @@ def refine_pyrolite_fixture(data):
     return bm.refine_phase_diagram(
         data["composition_start"],
         factory(),
-        data,
+        dict(data, resolved=False),  # These fixtures deliberately request repair.
         resolution=(2, 2),
         region=(data["temperature_range"], data["pressure_range"]),
         temperature_unit="K",
@@ -508,6 +553,7 @@ def test_nearby_univariant_junctions_keep_distinct_solution_compositions(transfo
 def test_crossed_pyrolite_chords_require_verified_connections():
     path = Path(__file__).parent / "data/pyrolite_crossed_loops.json"
     data = json.loads(path.read_text())
+    data["resolved"] = False  # Repair the known metastable crossing.
     factory = runpy.run_path(
         str(
             Path(__file__).parents[2] / "examples" / "example_pyrolite_phase_diagram.py"
@@ -688,7 +734,7 @@ def test_completed_refinement_skips_junction_search_and_repeated_solves(
     assert "Line 4/4" in messages
     assert "points added" in messages
     assert "equilibrium solves in this refinement" in messages
-    assert "Checking phase field consistency" in messages
+    assert "Checking phase field consistency" not in messages
     assert "Rejected boundary corrector" not in messages
     assert "seeds remaining" not in messages
     repeated = bm.refine_phase_diagram(
@@ -704,10 +750,12 @@ def test_missing_line_remains_diagnosed_with_provisional_field_labels(crossing):
     bulk, data = crossing
     saved = json.loads(json.dumps(data))
     saved["boundaries"].pop()
-    # The saved completion flag cannot replace the field consistency checks.
-    assert saved["resolved"]
+    # Removing a connection invalidates the original completion flag.
+    saved["resolved"] = False
+    opts = bm.PhaseDiagramSettings.from_dict(saved["settings"])
+    opts.max_lines = len(saved["boundaries"])  # Diagnose without tracing the gap.
     result = bm.refine_phase_diagram(
-        bulk, crossing_phases(), saved, resolution=(17, 21)
+        bulk, crossing_phases(), saved, opts, resolution=(17, 21)
     )
     assert not result.resolved
     assert len(result.boundaries) == 3
@@ -728,17 +776,19 @@ def test_completed_snapshot_recovers_a_dangling_internal_junction(crossing):
     saved["boundaries"] = saved["boundaries"][:1]
     saved["samples"] = []
     saved["fields"] = []
-    # Completed termination strings do not establish that all branches exist.
-    assert saved["resolved"]
+    # Deliberately removing branches requests recovery of an unresolved graph.
+    saved["resolved"] = False
     assert "junction" in saved["boundaries"][0]["termination"]
     opts = bm.PhaseDiagramSettings.from_dict(saved["settings"])
     opts.max_recovery_passes = 0
+    opts.max_lines = 1
     incomplete = bm.refine_phase_diagram(
         bulk, crossing_phases(), saved, opts, resolution=(17, 21)
     )
     assert not incomplete.resolved
     assert any("Unpaired internal junction" in d for d in incomplete.diagnostics)
     opts.max_recovery_passes = 2
+    opts.max_lines = 500
     repaired = bm.refine_phase_diagram(
         bulk, crossing_phases(), saved, opts, resolution=(17, 21)
     )
@@ -757,6 +807,7 @@ def test_saved_ordering_jump_recovers_the_intervening_two_ilmenite_fields(recove
     saved = json.loads(
         (Path(__file__).parent / "data/metasediment_ordering_segment.json").read_text()
     )
+    saved["resolved"] = False  # The known ordering jump requires recovery.
     if not recovery:
         saved["settings"]["max_recovery_passes"] = 0
     result = bm.refine_phase_diagram(
@@ -766,8 +817,11 @@ def test_saved_ordering_jump_recovers_the_intervening_two_ilmenite_fields(recove
         resolution=(21, 21),
     )
     if not recovery:
-        assert not result.resolved
-        assert any("equilibrium refinement failed" in d for d in result.diagnostics)
+        assert result.resolved and not result.diagnostics
+        assert not result.spacing_resolved
+        assert any(
+            "equilibrium refinement failed" in d for d in result.spacing_diagnostics
+        )
         return
     assert all(
         "label is provisional" in d for d in result.diagnostics
@@ -921,7 +975,7 @@ def test_pyrolite_refinement_crosses_pure_to_mixed_solution_compositions():
         resolution=(401, 401),
     )
     assert len(result.boundaries) == 1
-    assert not any("requested line resolution" in d for d in result.diagnostics)
+    assert not result.spacing_diagnostics
     check_spacing(result, (401, 401))
     points = result.boundaries[0].points
     assert any(32.0 < p.temperature < 47.0 for p in points)
@@ -1144,7 +1198,9 @@ def test_invalid_axis_counts_are_rejected(crossing, resolution):
         bm.refine_phase_diagram(bulk, crossing_phases(), saved, resolution=resolution)
 
 
-def test_unmet_resolution_is_reported_without_losing_verified_boundaries(crossing):
+def test_unmet_resolution_is_reported_without_losing_verified_boundaries(
+    crossing, tmp_path, capsys
+):
     bulk, saved = crossing
     opts = bm.PhaseDiagramSettings.from_dict(saved["settings"])
     opts.max_trace_steps = 2
@@ -1153,10 +1209,12 @@ def test_unmet_resolution_is_reported_without_losing_verified_boundaries(crossin
     result = bm.refine_phase_diagram(
         bulk, crossing_phases(), saved, opts, resolution=(801, 2001)
     )
-    assert not result.resolved
+    assert result.resolved
+    assert not result.diagnostics
+    assert not result.spacing_resolved
     assert any(
         "requested line resolution" in d and "limit reached" in d
-        for d in result.diagnostics
+        for d in result.spacing_diagnostics
     )
     boundaries = result.to_dict()["boundaries"]
     assert len(boundaries) == len(saved["boundaries"])
@@ -1169,6 +1227,61 @@ def test_unmet_resolution_is_reported_without_losing_verified_boundaries(crossin
             and all(point in line["points"] for point in old["points"])
         )
         assert retained["termination"] == old["termination"]
+    for key in ("nodes", "fields", "samples"):
+        assert result.to_dict()[key] == saved[key]
+
+    path = bm.save_phase_diagram(result, tmp_path / "spacing.json")
+    loaded = bm.load_phase_diagram(path)
+    assert loaded == result.to_dict()
+    assert loaded["resolved"] and not loaded["spacing_resolved"]
+    assert bm.PhaseDiagramResult.from_dict(loaded).to_dict() == loaded
+    from burnman_cpp.tools.phase_diagram_helpers import report_phase_diagram
+
+    report_phase_diagram(result, tmp_path)
+    output = capsys.readouterr().out
+    assert "Resolved: True" in output
+    assert "Requested line spacing was not reached:" in output
+    retried = bm.refine_phase_diagram(
+        bulk,
+        crossing_phases(),
+        loaded,
+        bm.PhaseDiagramSettings.from_dict(saved["settings"]),
+        resolution=(17, 21),
+    )
+    assert retried.resolved and retried.spacing_resolved
+    assert not retried.diagnostics and not retried.spacing_diagnostics
+
+
+@pytest.mark.parametrize("structural", [[], ["Field 1 label is provisional."]])
+def test_legacy_spacing_diagnostics_migrate_without_losing_metadata(
+    crossing, tmp_path, structural
+):
+    _, original = crossing
+    saved = deepcopy(original)
+    warning = (
+        "Boundary 0: requested line resolution was not reached on "
+        "1 segment(s) (refinement limit reached)."
+    )
+    saved.update(schema_version=3, resolved=False, diagnostics=structural + [warning])
+    del saved["spacing_diagnostics"], saved["spacing_resolved"]
+    expected_resolved = not structural
+    native = bm.PhaseDiagramResult.from_dict(saved)
+    assert native.resolved == expected_resolved
+    assert native.diagnostics == structural
+    assert not native.spacing_resolved
+    assert native.spacing_diagnostics == [warning]
+
+    saved["description"] = "Preserve extra saved metadata."
+    source = tmp_path / "legacy.json"
+    source.write_text(json.dumps(saved))
+    loaded = bm.load_phase_diagram(source)
+    assert loaded["resolved"] == expected_resolved
+    assert loaded["diagnostics"] == structural
+    assert loaded["spacing_diagnostics"] == [warning]
+    assert not loaded["spacing_resolved"]
+    assert loaded["description"] == saved["description"]
+    destination = bm.save_phase_diagram(saved, tmp_path / "updated.json")
+    assert bm.load_phase_diagram(destination) == loaded
 
 
 @pytest.mark.parametrize("swap_instances", [False, True])
@@ -1291,6 +1404,7 @@ def test_refinement_rejects_a_chord_joining_opposite_solvus_arms():
     result = bm.refine_phase_diagram(
         bulk, [phase], saved, opts, resolution=(21, 21), temperature_unit="K"
     )
-    assert not result.resolved
-    assert any("requested line resolution" in d for d in result.diagnostics)
+    assert result.resolved and not result.diagnostics
+    assert not result.spacing_resolved
+    assert any("requested line resolution" in d for d in result.spacing_diagnostics)
     assert result.to_dict()["boundaries"][0]["points"] == endpoints

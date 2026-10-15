@@ -2687,7 +2687,8 @@ class Tracer {
     reconcile_boundaries();
     index_boundaries();
     // Rebuild from surviving records; earlier failures may now be recovered.
-    result.diagnostics =
+    result.diagnostics.clear();
+    result.spacing_diagnostics =
         line_resolution
             ? detail::refine_line_spacing(result, engine, *line_resolution,
                                           [&](Boundary &line, std::size_t k) {
@@ -2862,11 +2863,7 @@ class Tracer {
   // Restore accepted states and reaction identities for a resumed calculation.
   // Return whether junction branches need searching as well as boundary
   // recovery.
-  bool prepare_previous(const Result &previous,
-                        const std::optional<LineResolution> &resolution) {
-    if (resolution)
-      validate_line_resolution(result, *resolution);
-    line_resolution = resolution;
+  void validate_previous_identity(const Result &previous) const {
     if (!previous.composition_start.empty() &&
         previous.composition_start != result.composition_start)
       throw std::invalid_argument(
@@ -2874,6 +2871,13 @@ class Tracer {
     if (previous.phase_names != result.phase_names)
       throw std::invalid_argument(
           "Resume with the same candidate names and max_phase_instances.");
+  }
+  bool prepare_previous(const Result &previous,
+                        const std::optional<LineResolution> &resolution) {
+    if (resolution)
+      validate_line_resolution(result, *resolution);
+    line_resolution = resolution;
+    validate_previous_identity(previous);
     result = previous;
     result.section = engine.section;
     result.settings = engine.settings;
@@ -3026,13 +3030,29 @@ public:
         result.phase_names.push_back(phase.material->get_name() +
                                      (j ? " #" + std::to_string(j + 1) : ""));
   }
-  // Master calculation for new and saved diagrams. A resumed run first extends
-  // accepted traces; a fresh run first discovers reactions from a seed grid.
-  // Both then use the same model-domain, repair and field-identification
-  // stages.
+  // Resolved diagrams only gain solved points. Unresolved saved diagrams and
+  // fresh calculations share recovery, repair and field-identification stages.
   Result
   calculate(const Result *previous = nullptr,
             const std::optional<LineResolution> &resolution = std::nullopt) {
+    if (previous && previous->resolved && previous->diagnostics.empty()) {
+      validate_previous_identity(*previous);
+      result = *previous;
+      result.settings = engine.settings;
+      line_resolution = resolution;
+      if (resolution) {
+        validate_line_resolution(result, *resolution);
+        result.spacing_diagnostics = detail::refine_line_spacing(
+            result, engine, *resolution, [&](Boundary &line, std::size_t k) {
+              return refine_segment(line, k);
+            });
+      }
+      // Preserve accepted connections, labels, original points, nodes, samples
+      // and exclusions; point insertion needs no recovery or recertification.
+      result.equilibrium_solves += engine.equilibrium_solves;
+      result.minimization_calls += engine.minimization_calls;
+      return result;
+    }
     if (previous) {
       const bool search_junctions = prepare_previous(*previous, resolution);
       recover();
@@ -3068,9 +3088,11 @@ refine_phase_diagram(const types::FormulaMap &bulk,
                      const std::vector<std::shared_ptr<Material>> &phases,
                      const Result &previous, const Settings &settings,
                      const std::optional<LineResolution> &resolution) {
-  return Tracer(bulk, phases, previous.pressure_range,
-                previous.temperature_range, settings, previous.section)
-      .calculate(&previous, resolution);
+  auto saved = previous;
+  detail::separate_spacing_diagnostics(saved);
+  return Tracer(bulk, phases, saved.pressure_range, saved.temperature_range,
+                settings, saved.section)
+      .calculate(&saved, resolution);
 }
 Result
 refine_phase_diagram(const types::FormulaMap &bulk,

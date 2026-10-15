@@ -17,6 +17,7 @@
 /// The component headers document numerical settings, units and saved records.
 #include "burnman/tools/phase_diagram/contours.hpp"
 #include "burnman/tools/phase_diagram/polygons.hpp"
+#include "burnman/tools/phase_diagram/properties.hpp"
 #include "burnman/tools/phase_diagram/stability.hpp"
 #include "burnman/tools/phase_diagram/tracing.hpp"
 #include "burnman/tools/phase_diagram/verification.hpp"

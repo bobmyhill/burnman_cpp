@@ -144,6 +144,7 @@ def test_two_phase_entries_between_seeds_retain_the_intermediate_field():
     # Its perimeter labels still agree, but a sampled assemblage has no
     # corresponding region. Report that gap without adding a new line.
     incomplete = result.to_dict()
+    incomplete["resolved"] = False  # Removing a boundary invalidates completion.
     incomplete["boundaries"] = [
         boundary
         for boundary in incomplete["boundaries"]
@@ -203,6 +204,7 @@ def test_boundary_probes_keep_a_narrow_field_between_equal_phase_counts():
     saved = result.to_dict()
     for line in saved["boundaries"]:
         line.update(side_a=[0, 6], side_b=[0, 3])
+    saved["resolved"] = False  # Deliberately stale labels require recovery.
     check_neighbours(bm.refine_phase_diagram(bulk, phases, saved))
 
 
@@ -330,6 +332,7 @@ def test_resume_removes_a_verified_retraced_part_of_a_curved_boundary():
         termination="junction; junction",
     )
     saved["boundaries"].append(duplicate)
+    saved["resolved"] = False  # Request repair of the injected retrace.
     assert not any(
         p.has_open_boundary for p in bm.phase_diagram_field_polygons(saved).polygons
     )
@@ -463,6 +466,7 @@ def test_label_recovery_still_merges_duplicate_two_point_boundaries(ambiguous_ed
     if ambiguous_edges == 2:
         line["side_a"] = line["side_b"] = []
     saved["boundaries"].append(duplicate)
+    saved["resolved"] = False  # Request repair of the injected duplicate.
     result = bm.refine_phase_diagram(bulk, crossing_phases(), saved, opts)
     assert result.resolved, result.diagnostics
     assert len(result.boundaries) == 4
@@ -658,6 +662,7 @@ def test_conflicting_loops_recheck_stale_edges_without_interior_samples():
     for line in previous["boundaries"]:
         line["side_a"], line["side_b"] = labels
     previous["samples"] = previous["fields"] = []
+    previous["resolved"] = False  # Recheck the deliberately corrupted labels.
     opts = settings()
     opts.max_lines = 8
     opts.max_recovery_passes = 0
@@ -815,6 +820,7 @@ def test_pyrolite_replacement_probe_does_not_skip_the_narrow_ak_field(
             Path(__file__).parent / "data" / "pyrolite_narrow_solution_replacement.json"
         ).read_text()
     )["previous"]
+    saved["resolved"] = False  # This fixture has an incorrect branch label.
     if not clear_labels:
         saved["boundaries"][0]["side_a"] = [6, 27, 39, 40, 45, 60, 78]
         saved["boundaries"][0]["side_b"] = [6, 18, 27, 39, 40, 45, 60, 78]
@@ -876,6 +882,7 @@ def test_resume_retains_conflicting_seed_assemblages_as_provisional_evidence(
     )
     saved = result.to_dict()
     saved["samples"] = saved["samples"][:2]
+    saved["resolved"] = False  # The altered sample evidence needs rechecking.
     first, second = saved["samples"]
     first.update(
         pressure=1.5e9,

@@ -43,6 +43,10 @@ std::vector<std::string> refine_line_spacing(
 /// windows.
 void validate_line_resolution(const Result &, const LineResolution &);
 
+/// Move legacy point-spacing messages out of structural diagnostics. A saved
+/// result whose only outstanding messages concerned spacing is resolved.
+void separate_spacing_diagnostics(Result &);
+
 /// Local continuation tolerances/steps scaled to a requested refinement window.
 Settings refinement_settings(const Result &, const LineResolution &,
                              const Settings &);
