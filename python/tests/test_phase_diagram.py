@@ -68,6 +68,90 @@ def settings():
     return s
 
 
+def test_pt_seed_grid_reuses_a_neighbour_without_repeating_phase_discovery(capfd):
+    phase = pure("MgO", {"Mg": 1.0, "O": 1.0})
+    opts = settings()
+    opts.verbose = True
+    result = bm.phase_diagram(
+        {"Mg": 1.0, "O": 1.0}, [phase], (0.9e9, 1.1e9), (995.0, 1005.0), opts
+    )
+    assert result.resolved, result.diagnostics
+    assert len(result.samples) == result.equilibrium_solves == 9
+    # The initial seed discovers its phases; the other eight reuse that result.
+    assert capfd.readouterr().err.count("LP 0 ") == 1
+    for sample in result.samples:
+        assert sample.success, sample.message
+        phase.set_state(sample.pressure, sample.temperature)
+        assert sample.gibbs == pytest.approx(phase.molar_gibbs, abs=1e-8)
+        assert sample.mass_balance_error <= opts.mass_balance_tolerance
+
+
+def test_pt_warm_seeds_discover_a_new_stable_polymorph(capfd):
+    first = pure("low pressure", {"Mg": 1.0, "O": 1.0})
+    dense = bm.CombinedMineral(
+        [first], [1.0], [1000.0, 0.0, -1e-6], name="high pressure"
+    )
+    phases = [first, dense]
+    opts = settings()
+    opts.verbose = True
+    result = bm.phase_diagram(
+        {"Mg": 1.0, "O": 1.0}, phases, (0.9e9, 1.1e9), (995.0, 1005.0), opts
+    )
+    assert result.resolved, result.diagnostics
+    capfd.readouterr()
+    seeds = result.samples[:9]
+    for sample in seeds:
+        assert sample.success, sample.message
+        for phase in phases:
+            phase.set_state(sample.pressure, sample.temperature)
+        assert sample.gibbs == pytest.approx(
+            min(p.molar_gibbs for p in phases), abs=1e-8
+        )
+        if sample.pressure != 1e9:
+            assert [p.candidate_index for p in sample.phases] == [
+                int(sample.pressure > 1e9)
+            ]
+    assert len(result.boundaries) == 1
+    assert all(
+        p.pressure == pytest.approx(1e9, abs=0.2) for p in result.boundaries[0].points
+    )
+
+
+def test_pyrolite_pt_warm_grid_matches_independent_phase_discovery(capfd):
+    from burnman_cpp.tools.phase_diagram_helpers import load_example
+
+    example = load_example(
+        Path(__file__).resolve().parents[2]
+        / "examples/example_pyrolite_phase_diagram.py"
+    )
+    bulk = example.PYROLITE_COMPOSITION.atomic_composition
+    opts = example.settings(3)
+    opts.verbose = True
+    result = bm.phase_diagram(
+        bulk, example.candidate_phases(), (20e9, 20.2e9), (1400.0, 1420.0), opts
+    )
+    assert result.resolved, result.diagnostics
+    assert len(result.samples) == 9
+    assert capfd.readouterr().err.count("LP 0 ") == 1
+    opts.verbose = False
+    for sample in result.samples:
+        reference = bm.stable_equilibrium(
+            bulk, example.candidate_phases(), sample.pressure, sample.temperature, opts
+        )
+        assert reference.success, reference.message
+        assert sample.gibbs == pytest.approx(reference.gibbs, abs=1e-5)
+        assert sample.mass_balance_error <= opts.mass_balance_tolerance
+        assert sample.minimum_affinity >= -opts.affinity_tolerance
+        assert [p.candidate_index for p in sample.phases] == [
+            p.candidate_index for p in reference.phases
+        ]
+        for actual, expected in zip(sample.phases, reference.phases):
+            assert actual.amount == pytest.approx(expected.amount, abs=1e-8)
+            np.testing.assert_allclose(
+                actual.composition, expected.composition, atol=1e-7, rtol=0.0
+            )
+
+
 def test_trace_phase_uses_configured_amount_tolerance_in_saved_samples():
     phases = [
         pure("MgO", {"Mg": 1.0, "O": 1.0}),

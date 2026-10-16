@@ -150,6 +150,10 @@ struct PhaseState {
   // Proportions in the candidate's original endmembers, summing to one.
   // Pure phases have [1]; ordering coefficients may be negative.
   Eigen::VectorXd composition;
+  // Rows express the accepted reduced composition basis in original
+  // endmembers. Missing means the full model or an older snapshot. Retain
+  // the actual basis: proportions alone cannot identify constrained sites.
+  std::optional<Eigen::MatrixXd> composition_basis;
 };
 
 /// One sampled equilibrium, or a failed attempt with its diagnostic message.

@@ -19,20 +19,37 @@
 #include "burnman/tools/phase_diagram/stability.hpp"
 #include "burnman/utils/index_utils.hpp"
 #include <iostream>
+#include <iterator>
 #include <set>
 
 namespace burnman::phase_diagrams::detail {
 namespace {
 PhaseStates junction_states(const std::vector<Boundary> &lines,
                             const Node &event, PhaseStates phases = {}) {
+  std::pair<std::size_t, std::size_t> best{};
   for (const auto &peer : lines)
-    if (!peer.points.empty() && peer.assemblage == event.assemblage &&
+    if (!peer.points.empty() &&
         (peer.start_node == event.id || peer.end_node == event.id)) {
-      phases = (peer.start_node == event.id ? peer.points.front()
-                                            : peer.points.back())
-                   .phases;
-      break;
+      const auto &states = (peer.start_node == event.id ? peer.points.front()
+                                                        : peer.points.back())
+                               .phases;
+      std::map<int, std::size_t> counts;
+      std::size_t size = 0, copies = 0;
+      for (const auto &state : states)
+        if (std::find(event.assemblage.begin(), event.assemblage.end(),
+                      state.id) != event.assemblage.end()) {
+          ++size;
+          copies += counts[state.candidate_index]++;
+        }
+      const auto score = std::make_pair(size, copies);
+      if (score > best) {
+        best = score;
+        phases = states;
+      }
     }
+  // Keep coexisting copies together. A single-copy arm may reuse the other
+  // copy's ID after canonicalisation; combining that arm first can otherwise
+  // reconstruct two identical compositions and lose the absent solution.
   for (const auto &peer : lines)
     if (!peer.points.empty() &&
         (peer.start_node == event.id || peer.end_node == event.id))
@@ -52,7 +69,7 @@ PhaseStates junction_states(const std::vector<Boundary> &lines,
 // Proximity proposes duplicate junctions; their independently constrained
 // equilibria must agree at the native solver's accuracy before joining them.
 void join_duplicate_junctions(Result &result, Engine &engine) {
-  if (result.section.type != DiagramType::PT)
+  if (has_composition_axis(result.section.type))
     return;
   const auto ranges = result.coordinate_ranges();
   const Eigen::Vector2d range(ranges[0][1] - ranges[0][0],
@@ -64,12 +81,9 @@ void join_duplicate_junctions(Result &result, Engine &engine) {
       id = aliases.at(id);
     return id;
   };
-  for (const auto &b : result.boundaries) {
-    if (b.start_node < 0 || b.end_node < 0 || b.start_node == b.end_node ||
-        b.points.size() < 2)
-      continue;
-    const auto &a = result.nodes.at(static_cast<std::size_t>(b.start_node)),
-               &z = result.nodes.at(static_cast<std::size_t>(b.end_node));
+  auto compare = [&](const Node &a, const Node &z,
+                     const PhaseStates &first_seed,
+                     const PhaseStates &last_seed) {
     if (a.kind != "junction" || z.kind != "junction" || a.pt_nullity != 0 ||
         z.pt_nullity != 0 ||
         engine.canonical_ids(a.assemblage) !=
@@ -78,32 +92,47 @@ void join_duplicate_junctions(Result &result, Engine &engine) {
           diagram_coordinates(z, result.section.type))
              .cwiseQuotient(range))
                 .norm() > engine.settings.node_tolerance)
-      continue;
+      return;
     if (!checked.emplace(std::min(a.id, z.id), std::max(a.id, z.id)).second)
-      continue;
+      return;
     if (node(a.id) == node(z.id))
-      continue;
+      return;
     try {
-      auto first =
-               junction_states(result.boundaries, a, b.points.front().phases),
-           last = junction_states(result.boundaries, z, b.points.back().phases);
+      auto first = junction_states(result.boundaries, a, first_seed),
+           last = junction_states(result.boundaries, z, last_seed);
       if (first.size() != a.assemblage.size() ||
           last.size() != z.assemblage.size())
-        continue;
-      auto left = junction_point_at(engine, a, first, first,
-                                    range * engine.settings.node_tolerance),
-           right = junction_point_at(engine, z, last, first,
-                                     range * engine.settings.node_tolerance);
-      if (!left || !right ||
-          ((diagram_coordinates(*left, result.section.type) -
-            diagram_coordinates(*right, result.section.type))
-               .cwiseAbs()
-               .array() > equilibrium_pt_tolerance().array())
-              .any() ||
-          !same_phase_compositions(left->phases, right->phases,
-                                   engine.settings.composition_tolerance,
-                                   engine.settings.amount_tolerance))
-        continue;
+        return;
+      auto equivalent = [&](const PhaseStates &reference) {
+        auto left = junction_point_at(engine, a, first, reference,
+                                      range * engine.settings.node_tolerance),
+             right = junction_point_at(engine, z, last, reference,
+                                       range * engine.settings.node_tolerance);
+        if (!left || !right ||
+            ((diagram_coordinates(*left, result.section.type) -
+              diagram_coordinates(*right, result.section.type))
+                 .cwiseAbs()
+                 .array() >
+             equilibrium_coordinate_tolerance(result.section.type, range)
+                 .array())
+                .any() ||
+            (Eigen::Vector2d(left->pressure - right->pressure,
+                             left->temperature - right->temperature)
+                 .cwiseAbs()
+                 .array() > equilibrium_pt_tolerance().array())
+                .any() ||
+            !same_phase_compositions(left->phases, right->phases,
+                                     engine.settings.composition_tolerance,
+                                     engine.settings.amount_tolerance))
+          return false;
+        return true;
+      };
+      // One saved representation may have already lost a positive trace
+      // site. Try both composition references so node ordering cannot decide
+      // whether two independently verified equilibria are joined.
+      if (!equivalent(first) &&
+          (engine.direct_coordinates() || !equivalent(last)))
+        return;
       const int x = node(a.id), y = node(z.id);
       if (x != y)
         aliases[std::max(x, y)] = std::min(x, y);
@@ -111,6 +140,34 @@ void join_duplicate_junctions(Result &result, Engine &engine) {
       if (engine.settings.verbose)
         std::cerr << "Junction comparison: " << error.what() << '\n';
     }
+  };
+  for (const auto &b : result.boundaries)
+    if (b.start_node >= 0 && b.end_node >= 0 && b.start_node != b.end_node &&
+        b.points.size() >= 2)
+      compare(result.nodes.at(static_cast<std::size_t>(b.start_node)),
+              result.nodes.at(static_cast<std::size_t>(b.end_node)),
+              b.points.front().phases, b.points.back().phases);
+  if (!engine.direct_coordinates()) {
+    // Two recovered arms can end at different records of one event without
+    // a connecting arc. Proximity and zero-candidate identity only propose
+    // a comparison; the independently solved P,T,S,V and compositions above
+    // must still agree before any connection changes.
+    const auto active = active_boundary_nodes(result);
+    auto zeros = [&](const Node &n) {
+      auto ids = n.zero_phases;
+      for (int &id : ids)
+        id /= engine.settings.max_phase_instances;
+      std::sort(ids.begin(), ids.end());
+      return ids;
+    };
+    for (auto first = active.begin(); first != active.end(); ++first)
+      for (auto last = std::next(first); last != active.end(); ++last) {
+        const auto &a = result.nodes.at(static_cast<std::size_t>(*first)),
+                   &z = result.nodes.at(static_cast<std::size_t>(*last));
+        if (a.kind == "junction" && z.kind == "junction" &&
+            zeros(a) == zeros(z))
+          compare(a, z, {}, {});
+      }
   }
   std::set<int> contracted;
   for (auto &b : result.boundaries) {
@@ -136,7 +193,7 @@ void join_duplicate_junctions(Result &result, Engine &engine) {
 // search bound. Different zero constraints can describe one univariant curve.
 std::set<int> split_at_stable_nodes(Result &result, Engine &engine) {
   std::set<int> changed;
-  if (result.section.type != DiagramType::PT)
+  if (has_composition_axis(result.section.type))
     return changed;
   const auto active = active_boundary_nodes(result);
   const auto ranges = result.coordinate_ranges();
@@ -175,8 +232,13 @@ std::set<int> split_at_stable_nodes(Result &result, Engine &engine) {
             delta.squaredNorm() == 0.)
           continue;
         const auto event = engine.canonical_ids(node.assemblage);
+        // A P-T invariant can span a latent S/V interval. Different zero
+        // amounts then describe overlapping parts of the same plotted edge.
+        // The constrained solve below, rather than the Gibbs phase count,
+        // establishes whether this node actually lies on the curve.
         const bool same_reaction =
-            node.gibbs_variance == 1 && variance == 1 && event == phases;
+            event == phases && (result.section.type != DiagramType::PT ||
+                                (node.gibbs_variance == 1 && variance == 1));
         const bool same_zero = std::any_of(
             node.zero_phases.begin(), node.zero_phases.end(), [&](int zero) {
               return zero / engine.settings.max_phase_instances ==
@@ -225,7 +287,7 @@ std::set<int> split_at_stable_nodes(Result &result, Engine &engine) {
                 engine, line, states,
                 diagram_coordinates(junction, result.section.type),
                 delta.normalized().cwiseQuotient(range),
-                equilibrium_pt_tolerance());
+                equilibrium_coordinate_tolerance(result.section.type, range));
             if (point &&
                 same_phase_compositions(point->phases, junction.phases,
                                         engine.settings.composition_tolerance,
@@ -242,7 +304,7 @@ std::set<int> split_at_stable_nodes(Result &result, Engine &engine) {
               (arc.start_node == line.start_node ? back : "junction") +
               "; junction";
           append();
-          if (variance == 1)
+          if (result.section.type != DiagramType::PT || variance == 1)
             changed.insert(arc.id);
           arc.start_node = node->id;
           arc.points = {std::move(*point)};
@@ -256,7 +318,8 @@ std::set<int> split_at_stable_nodes(Result &result, Engine &engine) {
                           ? line.termination
                           : "junction; " + boundary_statuses(line).second;
     append();
-    if (variance == 1 && arc.start_node != line.start_node)
+    if (arc.start_node != line.start_node &&
+        (result.section.type != DiagramType::PT || variance == 1))
       changed.insert(arc.id);
   }
   return changed;
@@ -266,7 +329,7 @@ std::set<int> split_at_stable_nodes(Result &result, Engine &engine) {
 // when its two curved sides use different chords. Sample both branches at
 // the same coordinate values only for these inconsistent two-arc loops.
 void retain_thin_loops(Result &result, Engine &engine) {
-  if (result.section.type != DiagramType::PT)
+  if (has_composition_axis(result.section.type))
     return;
   const auto ranges = result.coordinate_ranges();
   const Eigen::Vector2d origin(ranges[0][0], ranges[1][0]),
@@ -279,7 +342,9 @@ void retain_thin_loops(Result &result, Engine &engine) {
   for (std::size_t i = 0; i < result.boundaries.size(); ++i) {
     const auto &b = result.boundaries[i];
     if (b.start_node >= 0 && b.end_node >= 0 && b.start_node != b.end_node &&
-        b.points.size() > 1 && boundary_variance(b, result) >= 2)
+        b.points.size() > 1 &&
+        (result.section.type != DiagramType::PT ||
+         boundary_variance(b, result) >= 2))
       pairs[std::minmax(b.start_node, b.end_node)].push_back(i);
   }
   for (const auto &[ends, lines] : pairs)
@@ -309,7 +374,8 @@ void retain_thin_loops(Result &result, Engine &engine) {
           continue;
         Eigen::Index axis;
         (q(a.points.back()) - q(a.points.front())).cwiseAbs().maxCoeff(&axis);
-        const double tolerance = axis == 0 ? 1. : 1.e-6;
+        const double tolerance =
+            equilibrium_coordinate_tolerance(result.section.type, range)[axis];
         auto value = [&](const auto &p) {
           return diagram_coordinates(p, result.section.type)[axis];
         };
@@ -410,15 +476,48 @@ void repair_field_boundaries(
         {ranges[0][1] - ranges[0][0], ranges[1][1] - ranges[1][0]});
   join_duplicate_junctions(result, engine);
   auto selected = split_at_stable_nodes(result, engine);
+  if (!engine.direct_coordinates() && !selected.empty()) {
+    // Splitting a recovered arc can expose a short bridge between two
+    // representations of the same junction. Verify those new connections
+    // before interpreting them as separate entropy/volume vertices.
+    join_duplicate_junctions(result, engine);
+    std::set<int> renumbered;
+    for (std::size_t i = 0; i < result.boundaries.size(); ++i) {
+      auto &line = result.boundaries[i];
+      const int id = burnman::utils::checked_int(i);
+      if (selected.count(line.id))
+        renumbered.insert(id);
+      line.id = id;
+    }
+    selected = std::move(renumbered);
+  }
   retain_thin_loops(result, engine);
   // Verify suspect drawn loops locally. Correctors reuse the ordinary branch
   // validation; intersections themselves never create graph connections.
   std::set<int> curved;
   for (const auto &polygon : field_polygons(result).polygons) {
-    if (result.section.type != DiagramType::PT || !polygon.is_provisional ||
-        !polygon.phases.empty() || polygon.has_open_boundary ||
+    if (has_composition_axis(result.section.type) || !polygon.is_provisional ||
+        (!polygon.phases.empty() && result.section.type != DiagramType::PT) ||
+        polygon.has_open_boundary ||
         polygon.outside_model_domain)
       continue;
+    if (result.section.type == DiagramType::PT && !polygon.phases.empty()) {
+      curved.insert(polygon.boundary_ids.begin(), polygon.boundary_ids.end());
+      std::set<int> perimeter_nodes;
+      for (int id : polygon.boundary_ids) {
+        const auto &line = result.boundaries.at(static_cast<std::size_t>(id));
+        for (int node : {line.start_node, line.end_node})
+          if (node >= 0)
+            perimeter_nodes.insert(node);
+      }
+      // Coarse chords can turn a separating reaction into an apparent spur,
+      // which is then omitted from the polygon's perimeter. Include reactions
+      // joining its junctions when correcting the inconsistent drawing.
+      for (const auto &line : result.boundaries)
+        if (perimeter_nodes.count(line.start_node) &&
+            perimeter_nodes.count(line.end_node))
+          curved.insert(line.id);
+    }
     if (polygon.boundary_ids.size() == 2) {
       const auto &a = result.boundaries.at(
                      static_cast<std::size_t>(polygon.boundary_ids[0])),
@@ -489,6 +588,7 @@ void repair_field_boundaries(
 // between. Probe interior points of lines that share both nodes with another
 // line, and drop those that fail while a parallel line passes.
 std::size_t remove_metastable_parallel_lines(Result &result, Engine &engine) {
+  enum class Stability { stable, metastable, unresolved };
   const auto ranges = result.coordinate_ranges();
   const Eigen::Vector2d origin(ranges[0][0], ranges[1][0]),
       range(ranges[0][1] - origin[0], ranges[1][1] - origin[1]);
@@ -498,13 +598,16 @@ std::size_t remove_metastable_parallel_lines(Result &result, Engine &engine) {
   };
   auto stable_interior = [&](const Boundary &line) {
     if (line.points.size() < 2)
-      return true;
+      return engine.direct_coordinates() ? Stability::stable
+                                         : Stability::unresolved;
     std::vector<double> lengths{0.};
     for (std::size_t k = 1; k < line.points.size(); ++k)
       lengths.push_back(lengths.back() +
                         (q(line.points[k]) - q(line.points[k - 1])).norm());
     if (lengths.back() <= 0.)
-      return true;
+      return engine.direct_coordinates() ? Stability::stable
+                                         : Stability::unresolved;
+    bool verified = true;
     for (double fraction : {.25, .5, .75}) {
       const double s = fraction * lengths.back();
       std::size_t k = 1;
@@ -514,28 +617,52 @@ std::size_t remove_metastable_parallel_lines(Result &result, Engine &engine) {
       const double t = span > 0. ? (s - lengths[k - 1]) / span : 0.;
       const Eigen::Vector2d a = q(line.points[k - 1]), b = q(line.points[k]);
       const Eigen::Vector2d tangent = b - a;
-      if (tangent.norm() < 1.e-12)
+      if (tangent.norm() < 1.e-12) {
+        verified = verified && engine.direct_coordinates();
         continue;
+      }
       const Eigen::Vector2d target =
           origin + (a + t * tangent).cwiseProduct(range);
       try {
-        if (!boundary_point_at(engine, line, line.points[k - 1].phases, target,
-                               tangent.normalized().cwiseQuotient(range),
-                               range * lengths.back()))
-          return false;
+        // The small solvus-affinity threshold below requires a more accurate
+        // equilibrium than an ordinary continuation step. A failed corrector
+        // is unresolved evidence, not proof of metastability.
+        auto point = boundary_point_at(
+            engine, line, line.points[k - 1].phases, target,
+            tangent.normalized().cwiseQuotient(range), range * lengths.back(),
+            engine.direct_coordinates() ? 1. : 1.e-4, false);
+        // Competing arcs already share verified endpoints. Resolve small
+        // solvus affinities against the alternative stable arc, even when
+        // both lie inside the ordinary phase-discovery affinity tolerance.
+        const double tolerance =
+            engine.direct_coordinates()
+                ? engine.settings.affinity_tolerance
+                : std::min(engine.settings.affinity_tolerance, 1.e-5);
+        if (!point) {
+          // Preserve the established P-T chord repair. Inverse sections can
+          // fail because a trace composition face needs reopening instead.
+          if (engine.direct_coordinates())
+            return Stability::metastable;
+          verified = false;
+        } else if (point->minimum_affinity < -tolerance)
+          return Stability::metastable;
       } catch (const std::exception &) {
-        return false;
+        if (engine.direct_coordinates())
+          return Stability::metastable;
+        verified = false;
       }
     }
-    return true;
+    return verified ? Stability::stable : Stability::unresolved;
   };
-  std::vector<char> failed(result.boundaries.size(), 0), probed(failed);
+  std::vector<Stability> states(result.boundaries.size(),
+                                Stability::unresolved);
+  std::vector<char> probed(result.boundaries.size(), 0);
   auto status = [&](std::size_t i) {
     if (!probed[i]) {
       probed[i] = 1;
-      failed[i] = !stable_interior(result.boundaries[i]);
+      states[i] = stable_interior(result.boundaries[i]);
     }
-    return !failed[i];
+    return states[i];
   };
   std::set<std::size_t> drop;
   for (std::size_t i = 0; i < result.boundaries.size(); ++i) {
@@ -553,10 +680,11 @@ std::size_t remove_metastable_parallel_lines(Result &result, Engine &engine) {
             other.end_node == line.start_node)))
         peers.push_back(j);
     }
-    if (peers.empty() || status(i))
+    if (peers.empty() || status(i) != Stability::metastable)
       continue;
-    if (std::any_of(peers.begin(), peers.end(),
-                    [&](std::size_t j) { return status(j); }))
+    if (std::any_of(peers.begin(), peers.end(), [&](std::size_t j) {
+          return status(j) == Stability::stable;
+        }))
       drop.insert(i);
   }
   if (drop.empty())

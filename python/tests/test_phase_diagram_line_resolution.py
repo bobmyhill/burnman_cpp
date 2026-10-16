@@ -834,6 +834,89 @@ def test_saved_ordering_jump_recovers_the_intervening_two_ilmenite_fields(recove
     check_spacing(result, (21, 21))
 
 
+@pytest.mark.parametrize("reverse", [False, True])
+def test_metasediment_curved_mica_boundary_preserves_the_finite_nine_phase_field(
+    reverse,
+):
+    from burnman_cpp.minerals import model_sets
+
+    saved = json.loads(
+        (Path(__file__).parent / "data/metasediment_curved_mica_field.json").read_text()
+    )
+    if reverse:
+        for line in saved["boundaries"]:
+            line["points"].reverse()
+            line["start_node"], line["end_node"] = (
+                line["end_node"],
+                line["start_node"],
+            )
+            line["side_a"], line["side_b"] = line["side_b"], line["side_a"]
+            line["termination"] = "; ".join(reversed(line["termination"].split("; ")))
+    original = deepcopy(saved)
+    assert any(
+        p.is_provisional and not p.has_open_boundary
+        for p in bm.phase_diagram_field_polygons(saved).polygons
+    )
+    result = bm.refine_phase_diagram(
+        saved["composition_start"],
+        model_sets.metapelite().phases,
+        saved,
+        resolution=(2, 2),
+        region=((645.0, 675.0), (1.4e6, 2.6e6)),
+        pressure_unit="Pa",
+        temperature_unit="K",
+    )
+    # The extracted exterior is intentionally open. The interior fields must
+    # close consistently, including the narrow ms + two-feldspar strip.
+    closed = [
+        p
+        for p in bm.phase_diagram_field_polygons(result).polygons
+        if not p.has_open_boundary
+    ]
+    assert closed and all(p.phases and not p.is_provisional for p in closed)
+    assert any(p.phases == [0, 3, 21, 22, 33, 45, 48, 60, 63] for p in closed)
+    assert len(result.boundaries) == len(saved["boundaries"])
+    for old, line in zip(saved["boundaries"], result.boundaries):
+        assert (line.start_node, line.end_node) == (old["start_node"], old["end_node"])
+        for point in line.points:
+            assert point.mass_balance_error <= result.settings.mass_balance_tolerance
+            assert point.minimum_affinity >= -result.settings.affinity_tolerance
+            assert point.residual < 0.01
+    assert saved == original
+
+
+def test_metasediment_neighbour_probes_reuse_phase_discovery_and_stop_at_accuracy(
+    capfd,
+):
+    from burnman_cpp.minerals import model_sets
+
+    # This ordering jump cannot supply a valid reaction midpoint. Its side
+    # probes used to repeat 96 full LP searches while shrinking to one point.
+    saved = json.loads(
+        (Path(__file__).parent / "data/metasediment_ordering_segment.json").read_text()
+    )
+    saved["resolved"] = False
+    saved["settings"].update(verbose=True, max_recovery_passes=0)
+    saved["boundaries"][0].update(side_a=[], side_b=[])
+    original = deepcopy(saved)
+    result = bm.refine_phase_diagram(
+        saved["composition_start"],
+        model_sets.metapelite().phases,
+        saved,
+        resolution=(2, 2),
+        region=((910.0, 926.0), (1.06e9, 1.07e9)),
+        pressure_unit="Pa",
+        temperature_unit="K",
+    )
+    output = capfd.readouterr().err
+    assert sum(line.startswith("LP 0 ") for line in output.splitlines()) <= 4
+    assert "neighbour probes reached native coordinate accuracy" in output
+    assert result.equilibrium_solves - saved["equilibrium_solves"] < 250
+    assert not result.resolved
+    assert any("neighbouring fields" in d for d in result.diagnostics)
+    assert saved == original
+
+
 @pytest.mark.parametrize("crowded", [False, True])
 @pytest.mark.parametrize("previously_verified", [False, True])
 def test_perimeter_labels_survive_crowded_or_previously_verified_warm_roots(

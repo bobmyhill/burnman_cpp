@@ -98,7 +98,7 @@ std::vector<int> regional_retrace_lines(const Result &result,
     if (polygon.is_provisional && !polygon.outside_model_domain) {
       selected.insert(selected.end(), polygon.boundary_ids.begin(),
                       polygon.boundary_ids.end());
-      if (result.section.type == DiagramType::PT) {
+      if (!has_composition_axis(result.section.type)) {
         const auto inside = interior_boundaries(result, polygon);
         selected.insert(selected.end(), inside.begin(), inside.end());
       }

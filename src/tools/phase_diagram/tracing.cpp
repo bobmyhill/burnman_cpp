@@ -23,9 +23,12 @@
 #include "burnman/tools/polytope.hpp"
 #include "burnman/utils/index_utils.hpp"
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <deque>
+#include <iomanip>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <set>
 #include <sstream>
@@ -42,6 +45,8 @@ struct Seed {
   Eigen::Vector2d position, direction;
   std::vector<BoundaryPoint> prefix{};
   int bridge_node = -1;
+  // Retain the physical state even when P/T are not selected diagram axes.
+  std::optional<Eigen::Vector2d> physical = std::nullopt;
 };
 // Own one diagram calculation. calculate() gives the overall sequence;
 // Engine supplies thermodynamic solves, while field_polygons() interprets
@@ -166,7 +171,17 @@ class Tracer {
   // separately.
   bool valid(const Assemblage &a, const EquilibriumSolve &s) const {
     return s.success && s.x.allFinite() && inside(normalised_coordinates(a)) &&
-           engine.mass_error(a) <= engine.settings.mass_balance_tolerance;
+           engine.mass_error(a) <= engine.settings.mass_balance_tolerance &&
+           (engine.direct_coordinates() || engine.locally_stable(a));
+  }
+  bool needs_face_refit(double affinity, bool composition = false) const {
+    // A trace site can lower the energy by much less than the phase-entry
+    // tolerance. Releasing its face changes a composition, not the assemblage.
+    const double tolerance =
+        engine.settings.affinity_tolerance * (composition ? .05 : 1.);
+    return affinity < -(engine.direct_coordinates()
+                            ? tolerance
+                            : std::min(tolerance, 1.e-5));
   }
   // Keep coexisting solution compositions on the same branches during a step;
   // exchanging or coalescing them needs a separate critical/junction treatment.
@@ -180,6 +195,24 @@ class Tracer {
                     .dot(next[i].composition - next[j].composition) <= 0.)
           return false;
     return true;
+  }
+  bool near_third_copy_event(const std::vector<int> &ids, int zero, int other,
+                             const PhaseStates &states) const {
+    const int base = zero / engine.settings.max_phase_instances;
+    if (engine.direct_coordinates() ||
+        base != other / engine.settings.max_phase_instances ||
+        !engine.phases[static_cast<std::size_t>(base)].solution ||
+        std::count_if(ids.begin(), ids.end(), [&](int id) {
+          return id / engine.settings.max_phase_instances == base;
+        }) < 3)
+      return false;
+    for (std::size_t i = 0; i < states.size(); ++i)
+      for (std::size_t j = i + 1; j < states.size(); ++j)
+        if (states[i].candidate_index == base &&
+            states[j].candidate_index == base &&
+            (states[i].composition - states[j].composition).norm() < .01)
+          return true;
+    return false;
   }
   bool closing_solvus(const Assemblage &a, const std::vector<int> &ids,
                       int zero, const Eigen::VectorXd &direction,
@@ -409,9 +442,19 @@ class Tracer {
   }
   bool same_event(const Node &previous, const std::vector<int> &ids,
                   const std::vector<int> &zero) const {
+    if (!engine.direct_coordinates() && previous.kind == "junction") {
+      // Replacing equal-formula polymorphs, or different solution copies,
+      // changes latent entropy/volume. Their zero-amount choices can be
+      // distinct nearby vertices even at identical P,T.
+      auto old_zero = previous.zero_phases, next_zero = zero;
+      std::sort(old_zero.begin(), old_zero.end());
+      std::sort(next_zero.begin(), next_zero.end());
+      if (old_zero != next_zero)
+        return false;
+    }
     return event_signature(previous.assemblage) == event_signature(ids) &&
-           event_signature(previous.zero_phases, true) ==
-               event_signature(zero, true);
+           event_signature(previous.zero_phases, engine.direct_coordinates()) ==
+               event_signature(zero, engine.direct_coordinates());
   }
   int node(Assemblage &a, const std::vector<int> &ids,
            const std::vector<int> &zero, const std::string &kind,
@@ -529,7 +572,8 @@ class Tracer {
           n.assemblage = ids;
           n.zero_phases = zeros;
           auto a = engine.make_at(ids, p.phases,
-                                  diagram_coordinates(p, result.section.type));
+                                  diagram_coordinates(p, result.section.type),
+                                  Eigen::Vector2d(p.pressure, p.temperature));
           n.gibbs_variance = field_variance(*a, ids.size());
           result.nodes.push_back(n);
           found = n.id;
@@ -873,6 +917,8 @@ class Tracer {
                     (normalised_coordinates(*trial) - previous).normalized()};
                 seed.prefix = std::move(prefix);
                 seed.bridge_node = index;
+                seed.physical = Eigen::Vector2d(trial->get_pressure(),
+                                                trial->get_temperature());
                 queue.push_back(std::move(seed));
                 break;
               }
@@ -919,9 +965,12 @@ class Tracer {
     for (int z : zeros) {
       // A P-T invariant can project to a finite latent S/V edge. The tangent
       // projection below rejects any branch invisible in the chosen axes.
-      if (gibbs_variance >= 0)
+      if (gibbs_variance >= 0) {
         queue.push_back({ids, z, index, states, normalised_coordinates(a),
                          Eigen::Vector2d::Zero()});
+        queue.back().physical =
+            Eigen::Vector2d(a.get_pressure(), a.get_temperature());
+      }
       for (int removed : ids)
         if (removed != z &&
             (reduced_amount_variance ||
@@ -930,6 +979,8 @@ class Tracer {
           subset.erase(std::find(subset.begin(), subset.end(), removed));
           queue.push_back({subset, z, index, states, normalised_coordinates(a),
                            Eigen::Vector2d::Zero()});
+          queue.back().physical =
+              Eigen::Vector2d(a.get_pressure(), a.get_temperature());
         }
     }
   }
@@ -939,24 +990,27 @@ class Tracer {
   void bracket(WorkState left, WorkState right, int depth = 0) {
     if (!left.state.success || !right.state.success)
       return;
+    // Match copy IDs only in reaction seeds. Keep the endpoint WorkStates
+    // consistent with their assemblages for midpoint continuation.
+    auto left_phases = left.state.phases, right_phases = right.state.phases;
     // Copy IDs are local to an assemblage. On entering a solvus the sole
     // existing composition may become copy #2: match compositions before
     // assigning the zero amount, rather than averaging different branches.
-    auto indices = [&](const State &state) {
+    auto indices = [&](const PhaseStates &phases) {
       std::map<int, std::vector<std::size_t>> groups;
-      const double total = total_amount(state.phases);
-      for (std::size_t i = 0; i < state.phases.size(); ++i)
-        if (state.phases[i].amount > engine.settings.amount_tolerance * total)
-          groups[state.phases[i].candidate_index].push_back(i);
+      const double total = total_amount(phases);
+      for (std::size_t i = 0; i < phases.size(); ++i)
+        if (phases[i].amount > engine.settings.amount_tolerance * total)
+          groups[phases[i].candidate_index].push_back(i);
       return groups;
     };
-    auto first = indices(left.state), second = indices(right.state);
+    auto first = indices(left_phases), second = indices(right_phases);
     for (const auto &[candidate, one] : first) {
       const auto &two = second[candidate];
       if (two.empty() || one.size() == two.size())
         continue;
-      auto &smaller = one.size() < two.size() ? left.state : right.state;
-      const auto &larger = one.size() < two.size() ? right.state : left.state;
+      auto &smaller = one.size() < two.size() ? left_phases : right_phases;
+      const auto &larger = one.size() < two.size() ? right_phases : left_phases;
       const auto &small = one.size() < two.size() ? one : two;
       const auto &large = one.size() < two.size() ? two : one;
       std::vector<std::size_t> order(large.size()), best;
@@ -966,8 +1020,8 @@ class Tracer {
       do {
         double distance = 0.;
         for (std::size_t i = 0; i < small.size(); ++i)
-          distance += (smaller.phases[small[i]].composition -
-                       larger.phases[large[order[i]]].composition)
+          distance += (smaller[small[i]].composition -
+                       larger[large[order[i]]].composition)
                           .squaredNorm();
         if (distance < minimum) {
           minimum = distance;
@@ -975,17 +1029,17 @@ class Tracer {
         }
       } while (std::next_permutation(order.begin(), order.end()));
       for (std::size_t i = 0; i < small.size(); ++i)
-        smaller.phases[small[i]].id = larger.phases[large[best[i]]].id;
+        smaller[small[i]].id = larger[large[best[i]]].id;
     }
-    auto ids = [&](const State &state) {
+    auto ids = [&](const PhaseStates &phases) {
       std::vector<int> values;
-      for (const auto &[candidate, group] : indices(state))
+      for (const auto &[candidate, group] : indices(phases))
         for (auto index : group)
-          values.push_back(state.phases[index].id);
+          values.push_back(phases[index].id);
       std::sort(values.begin(), values.end());
       return values;
     };
-    auto a = ids(left.state), b = ids(right.state);
+    auto a = ids(left_phases), b = ids(right_phases);
     if (a == b)
       return;
     std::vector<int> joined, changed;
@@ -1002,7 +1056,7 @@ class Tracer {
             engine.settings.min_step * 2.) {
       auto u = (.5 * (normalise(left.state) + normalise(right.state))).eval();
       auto actual = (origin + u.cwiseProduct(range)).eval();
-      auto mid = engine.stable_at(actual);
+      auto mid = engine.stable_at(actual, &left, &right);
       add_sample(mid.state);
       bracket(left, mid, depth + 1);
       bracket(mid, right, depth + 1);
@@ -1011,10 +1065,10 @@ class Tracer {
     PhaseStates states, other;
     for (const auto &[candidate, group] : first)
       for (auto index : group)
-        states.push_back(left.state.phases[index]);
+        states.push_back(left_phases[index]);
     for (const auto &[candidate, group] : second)
       for (auto index : group)
-        other.push_back(right.state.phases[index]);
+        other.push_back(right_phases[index]);
     for (auto &s : other) {
       auto it = find_phase(states, s.id);
       if (it == states.end())
@@ -1027,9 +1081,13 @@ class Tracer {
     auto u = (.5 * (normalise(left.state) + normalise(right.state))).eval();
     auto direction =
         (normalise(right.state) - normalise(left.state)).normalized().eval();
-    for (int z : changed)
+    for (int z : changed) {
       queue.push_back({joined, z, -1, states, u,
                        Eigen::Vector2d(-direction[1], direction[0])});
+      queue.back().physical = Eigen::Vector2d(
+          .5 * (left.state.pressure + right.state.pressure),
+          .5 * (left.state.temperature + right.state.temperature));
+    }
   }
   // Set output affinity/solution only on acceptance. A rejected trial can still
   // change a, so preserve the last accepted assemblage before trying the solve.
@@ -1048,8 +1106,7 @@ class Tracer {
     bool verified = valid(a, s), separate = engine.distinct(a, ids);
     std::vector<Minimum> minima;
     double affinity = verified ? engine.stability(a, &minima) : 0.;
-    if (verified && separate &&
-        affinity < -engine.settings.affinity_tolerance &&
+    if (verified && separate && needs_face_refit(affinity) &&
         engine.settings.active_solution_faces) {
       // A new trace site can become active at a double-zero junction too.
       // Preserve both phase-fraction constraints while releasing that face.
@@ -1065,7 +1122,19 @@ class Tracer {
     }
     const auto offset = (normalised_coordinates(a) - previous).eval();
     double displacement = offset.norm();
-    if (!verified || !separate ||
+    bool singular_copy_event = false;
+    if (verified && separate &&
+        near_third_copy_event(ids, z, other, engine.snapshot(a, ids))) {
+      Eigen::MatrixXd j =
+          s.J * engine.parameter_scales(a, s.J.cols(), range).asDiagonal();
+      for (Eigen::Index row = 0; row < j.rows(); ++row)
+        if (j.row(row).norm() > 0.)
+          j.row(row) /= j.row(row).norm();
+      Eigen::JacobiSVD<Eigen::MatrixXd> svd(j);
+      singular_copy_event =
+          (svd.singularValues().array() > 1.e-9).count() < j.cols();
+    }
+    if (!verified || !separate || singular_copy_event ||
         affinity < -engine.settings.affinity_tolerance ||
         displacement > maximum_distance ||
         offset.dot(direction) <
@@ -1073,6 +1142,7 @@ class Tracer {
       if (engine.settings.verbose)
         std::cerr << "Rejected junction zeros=" << z << ',' << other
                   << " verified=" << verified << " distinct=" << separate
+                  << " isolated=" << !singular_copy_event
                   << " affinity=" << affinity
                   << " displacement=" << displacement
                   << " maximum=" << maximum_distance
@@ -1109,7 +1179,9 @@ class Tracer {
         return false;
       auto location = (origin + u.cwiseProduct(range)).eval();
       try {
-        trial.a = engine.make_at(ids, warm, location);
+        trial.a = engine.make_at(ids, warm, location,
+                                 Eigen::Vector2d(previous.get_pressure(),
+                                                 previous.get_temperature()));
 
         auto s = solve_boundary(*trial.a, ids, zero, u, unit);
         if (!valid(*trial.a, s) || !engine.distinct(*trial.a, ids) ||
@@ -1214,8 +1286,8 @@ class Tracer {
           int base = states[k].candidate_index;
           auto basis = engine.composition_basis(*current->get_phase(k), base);
           if (basis.rows() == basis.cols() || candidates.empty() ||
-              candidates[static_cast<std::size_t>(base)].affinity >=
-                  -engine.settings.affinity_tolerance * .05)
+              !needs_face_refit(
+                  candidates[static_cast<std::size_t>(base)].affinity, true))
             continue;
           auto minimum = candidates[static_cast<std::size_t>(base)];
           if ((minimum.p - states[k].composition).norm() >= .05)
@@ -1480,13 +1552,33 @@ class Tracer {
         refit_composition_faces(next, ids, seed.zero, target, normal, next_s,
                                 affinity, &ms);
       }
-      if (affinity < -engine.settings.affinity_tolerance) {
+      const auto current_states = engine.snapshot(*next, ids);
+      auto entry_tolerance = [&](std::size_t base) {
+        double tolerance = engine.settings.affinity_tolerance;
+        double separation = std::numeric_limits<double>::infinity();
+        for (const auto &phase : current_states)
+          if (phase.candidate_index == static_cast<int>(base))
+            separation =
+                std::min(separation, (phase.composition - ms[base].p).norm());
+        // A weak solvus can lose local stability before its affinity reaches
+        // the ordinary discovery tolerance. Distinct minima of an already
+        // present solution need their binodal located before that spinodal.
+        if (!engine.direct_coordinates() && engine.phases[base].solution &&
+            std::isfinite(separation) &&
+            separation > engine.settings.composition_tolerance * 10.)
+          tolerance = std::min(tolerance, 1.e-5);
+        return tolerance;
+      };
+      bool entering = false;
+      for (std::size_t base = 0; base < ms.size(); ++base)
+        entering = entering || ms[base].affinity < -entry_tolerance(base);
+      if (entering) {
         // A previously absent phase becomes stable: add it at zero amount and
         // solve the two zero constraints to locate the node, then spawn
         // branches.
         bool located = false;
         for (std::size_t base = 0; base < ms.size(); ++base)
-          if (ms[base].affinity < -engine.settings.affinity_tolerance) {
+          if (ms[base].affinity < -entry_tolerance(base)) {
             int added = burnman::utils::checked_int(
                 base *
                 static_cast<std::size_t>(engine.settings.max_phase_instances));
@@ -1520,7 +1612,9 @@ class Tracer {
               double event_affinity = 0.;
               int n = endpoint(
                   *junction, joined, seed.zero, added, old_u,
-                  std::max(used * 3., engine.settings.node_tolerance * 2.),
+                  std::max((engine.direct_coordinates() ? used : requested) *
+                               3.,
+                           engine.settings.node_tolerance * 2.),
                   event_affinity, &event_s);
               if (n >= 0) {
                 auto p = point(*junction, joined, event_s, event_affinity);
@@ -1540,7 +1634,9 @@ class Tracer {
               double event_affinity = 0.;
               auto junction = phase_entry(
                   *a, *next, ids, seed.zero, added, ms[base], unit,
-                  std::max(used * 3., engine.settings.node_tolerance * 2.),
+                  std::max((engine.direct_coordinates() ? used : requested) *
+                               3.,
+                           engine.settings.node_tolerance * 2.),
                   event_affinity, n, event_s);
               if (junction) {
                 points.push_back(
@@ -1667,7 +1763,11 @@ class Tracer {
         if (attempt == 2)
           states = average_phase_states(std::move(states),
                                         line.points[segment].phases);
-        auto a = engine.make_at(line.assemblage, states, location);
+        const auto &warm =
+            line.points[segment - 1 + static_cast<std::size_t>(attempt == 1)];
+        auto a =
+            engine.make_at(line.assemblage, states, location,
+                           Eigen::Vector2d(warm.pressure, warm.temperature));
 
         auto s =
             solve_boundary(*a, line.assemblage, line.zero_phase, centre, along);
@@ -1675,7 +1775,7 @@ class Tracer {
           continue;
         std::vector<Minimum> minima;
         double affinity = engine.stability(*a, &minima);
-        if (affinity < -engine.settings.affinity_tolerance)
+        if (needs_face_refit(affinity))
           refit_composition_faces(a, line.assemblage, line.zero_phase, centre,
                                   along, s, affinity, &minima);
         if (affinity < -engine.settings.affinity_tolerance ||
@@ -1748,6 +1848,7 @@ class Tracer {
         }
     std::array<State, 2> side_states;
     std::array<State, 2> previous_sides;
+    std::array<WorkState, 2> warm_sides;
     line.is_solution_replacement = false;
     const int base = line.zero_phase / engine.settings.max_phase_instances;
     const bool replaces_solution =
@@ -1825,9 +1926,40 @@ class Tracer {
       return engine.active_phases(side_states[0]) !=
              engine.active_phases(side_states[1]);
     };
+    const auto probe_accuracy =
+        equilibrium_coordinate_tolerance(result.section.type, range);
     for (int retry = 0; retry < 24; ++retry) {
       const double offset = next_offset;
       next_offset *= .5;
+      // Below native coordinate accuracy these are effectively the same
+      // equilibrium, even when floating-point coordinates still differ.
+      const Eigen::Vector2d displacement =
+          offset * side.cwiseAbs().cwiseProduct(range);
+      if (result.section.type == DiagramType::PT &&
+          (displacement.array() <= probe_accuracy.array()).all()) {
+        if (engine.settings.verbose)
+          std::cerr
+              << "Boundary " << line.id
+              << ": neighbour probes reached native coordinate accuracy.\n";
+        break;
+      }
+      std::array<std::optional<State>, 2> discovered;
+      auto discover = [&](std::size_t slot, const Eigen::Vector2d &actual) {
+        // Inverse-section discovery can change the unplotted P/T and active
+        // faces between attempts. Retain its independent constrained searches;
+        // the neighbouring-state optimisation here is for P-T probes.
+        if (result.section.type != DiagramType::PT)
+          return engine.stable_at(actual).state;
+        if (!discovered[slot]) {
+          auto work = engine.stable_at(actual, warm_sides[slot].state.success
+                                                   ? &warm_sides[slot]
+                                                   : nullptr);
+          discovered[slot] = work.state;
+          if (work.state.success)
+            warm_sides[slot] = std::move(work);
+        }
+        return *discovered[slot];
+      };
       double unresolved_fraction = 0.;
       for (int sign : {-1, 1}) {
         auto u = (centre + sign * offset * side).eval();
@@ -1838,13 +1970,15 @@ class Tracer {
         auto actual = (origin + u.cwiseProduct(range)).eval();
         for (auto &subset : side_assemblages)
           try {
-            auto work = engine.fixed_at(subset, anchor.phases, actual);
+            auto work = engine.fixed_at(
+                subset, anchor.phases, actual,
+                Eigen::Vector2d(anchor.pressure, anchor.temperature));
             // A real entering phase can still lie below the reporting cutoff
             // on this probe. Shrinking then makes both labels identical
             // forever. Retain its unrounded fraction to choose one more distant
             // probe.
-            if (result.section.type == DiagramType::PT && !replaces_solution &&
-                variance.rank() == formulae.rows() &&
+            if (!has_composition_axis(result.section.type) &&
+                !replaces_solution && variance.rank() == formulae.rows() &&
                 subset == line.assemblage && work.state.success) {
               const double total = total_amount(work.state.phases);
               for (const auto &phase : work.state.phases)
@@ -1860,7 +1994,9 @@ class Tracer {
                    engine.active_phases(work.state).size() < work.ids.size()) {
               auto surviving = present_phase_ids(
                   work.state.phases, engine.settings.amount_tolerance);
-              work = engine.fixed_at(surviving, work.state.phases, actual);
+              work = engine.fixed_at(
+                  surviving, work.state.phases, actual,
+                  Eigen::Vector2d(work.state.pressure, work.state.temperature));
             }
             if (!work.state.success ||
                 !engine.distinct(*work.assemblage, work.ids) ||
@@ -1871,12 +2007,13 @@ class Tracer {
               continue;
             work.state.message = "Stable neighbouring field";
             side_states[static_cast<std::size_t>(slot)] = work.state;
+            warm_sides[static_cast<std::size_t>(slot)] = std::move(work);
             break;
           } catch (const std::exception &) {
           }
         if (!side_states[static_cast<std::size_t>(slot)].success)
           side_states[static_cast<std::size_t>(slot)] =
-              engine.stable_at(actual).state;
+              discover(static_cast<std::size_t>(slot), actual);
       }
       // Grow only for measured positive phase entry, bounded away from the
       // line's endpoints. The usual immediate-neighbour checks still reject
@@ -1909,7 +2046,7 @@ class Tracer {
           auto u = (centre + sign * offset * side).eval();
           if (inside(u)) {
             auto actual = (origin + u.cwiseProduct(range)).eval();
-            side_states[sign < 0 ? 0 : 1] = engine.stable_at(actual).state;
+            side_states[sign < 0 ? 0 : 1] = discover(sign < 0 ? 0 : 1, actual);
           }
         }
       // A normal probe can cross an entire thin neighbouring field. Its
@@ -2043,7 +2180,7 @@ class Tracer {
       // example fixing T on a horizontal edge), leaving a singular corrector.
       for (auto &normal : normals)
         try {
-          a = engine.make_at(seed.ids, seed.phases, actual);
+          a = engine.make_at(seed.ids, seed.phases, actual, seed.physical);
           if (!valid_amount_edge(*a, seed.ids, seed.zero))
             return;
           s = solve_boundary(*a, seed.ids, seed.zero, seed.position, normal);
@@ -2054,7 +2191,7 @@ class Tracer {
             continue;
           std::vector<Minimum> minima;
           affinity = engine.stability(*a, &minima);
-          if (affinity < -engine.settings.affinity_tolerance)
+          if (needs_face_refit(affinity))
             refit_composition_faces(a, seed.ids, seed.zero, seed.position,
                                     normal, s, affinity, &minima);
           if (affinity < -engine.settings.affinity_tolerance)
@@ -2090,6 +2227,8 @@ class Tracer {
       Seed corrected = seed;
       corrected.position = normalised_coordinates(*a);
       corrected.phases = engine.snapshot(*a, seed.ids);
+      corrected.physical =
+          Eigen::Vector2d(a->get_pressure(), a->get_temperature());
       if (covered(corrected))
         return;
       // Near a known critical point, nearly identical-copy roots can satisfy
@@ -2286,9 +2425,10 @@ class Tracer {
           if (unfinished_boundary(status))
             (back ? line.start_node : line.end_node) = -1;
           try {
-            auto a =
-                engine.make_at(line.assemblage, saved.phases,
-                               diagram_coordinates(saved, result.section.type));
+            auto a = engine.make_at(
+                line.assemblage, saved.phases,
+                diagram_coordinates(saved, result.section.type),
+                Eigen::Vector2d(saved.pressure, saved.temperature));
 
             auto s =
                 solve_boundary(*a, line.assemblage, line.zero_phase, u, along);
@@ -2296,7 +2436,7 @@ class Tracer {
               continue;
             std::vector<Minimum> minima;
             double affinity = engine.stability(*a, &minima);
-            if (affinity < -engine.settings.affinity_tolerance)
+            if (needs_face_refit(affinity))
               refit_composition_faces(a, line.assemblage, line.zero_phase, u,
                                       along, s, affinity, &minima);
             if (affinity < -engine.settings.affinity_tolerance)
@@ -2389,7 +2529,16 @@ class Tracer {
     const auto left = normalise(line.points[right_index - 1]);
     const auto right = normalise(line.points[right_index]);
     double length = (right - left).norm();
-    if (length < 64. * std::numeric_limits<double>::epsilon())
+    // Inverse coordinates can leave duplicate endpoints at the native solve
+    // accuracy. Direct P-T repairs still need to resolve short reaction arcs.
+    const double coordinate_accuracy =
+        engine.direct_coordinates()
+            ? 0.
+            : equilibrium_coordinate_tolerance(result.section.type, range)
+                  .cwiseQuotient(range)
+                  .norm();
+    if (length < std::max(64. * std::numeric_limits<double>::epsilon(),
+                          coordinate_accuracy))
       return false;
     // At a critical endpoint the two compositions coincide. The other endpoint
     // can supply a distinct starting pair for the inserted state.
@@ -2410,8 +2559,12 @@ class Tracer {
         if (side == 2)
           states = average_phase_states(std::move(states),
                                         line.points[right_index].phases);
-        auto a = engine.make_at(line.assemblage, states,
-                                origin + middle.cwiseProduct(range));
+        auto a = engine.make_at(
+            line.assemblage, states, origin + middle.cwiseProduct(range),
+            Eigen::Vector2d(.5 * (line.points[right_index - 1].pressure +
+                                  line.points[right_index].pressure),
+                            .5 * (line.points[right_index - 1].temperature +
+                                  line.points[right_index].temperature)));
 
         const Eigen::Vector2d normal = (right - left).normalized();
         auto s = solve_boundary(*a, line.assemblage, line.zero_phase, middle,
@@ -2429,7 +2582,7 @@ class Tracer {
         }
         std::vector<Minimum> minima;
         double affinity = engine.stability(*a, &minima);
-        if (affinity < -engine.settings.affinity_tolerance)
+        if (needs_face_refit(affinity))
           refit_composition_faces(a, line.assemblage, line.zero_phase, middle,
                                   normal, s, affinity, &minima);
         if (affinity < -engine.settings.affinity_tolerance || !acceptable()) {
@@ -2452,10 +2605,35 @@ class Tracer {
     if (engine.settings.verbose) {
       const auto &p = line.points[right_index - 1];
       const auto &q = line.points[right_index];
-      std::cerr << "Boundary " << line.id << ": could not refine segment "
-                << right_index << " between P=" << p.pressure
-                << " Pa, T=" << p.temperature << " K and P=" << q.pressure
-                << " Pa, T=" << q.temperature << " K: " << failures << '\n';
+      std::ostringstream message;
+      message << std::setprecision(std::numeric_limits<double>::max_digits10)
+              << "Boundary " << line.id << ": could not refine segment "
+              << right_index << " between ";
+      auto endpoint = [&](const auto &point) {
+        message << "(P=" << point.pressure << " Pa, T=" << point.temperature
+                << " K";
+        for (auto axis : diagram_axes(result.section.type))
+          switch (axis) {
+          case Coordinate::S:
+            message << ", S=" << point.entropy << " J/K";
+            break;
+          case Coordinate::V:
+            message << ", V=" << point.volume << " m^3";
+            break;
+          case Coordinate::X:
+            message << ", X=" << point.composition_coordinate;
+            break;
+          default:
+            break;
+          }
+        message << ')';
+      };
+      endpoint(p);
+      message << " and ";
+      endpoint(q);
+      message << "; normalised segment length=" << length << ": " << failures
+              << '\n';
+      std::cerr << message.str();
     }
     return false;
   }
@@ -2472,7 +2650,9 @@ class Tracer {
       try {
         const auto &previous = result.samples[nearby[i].second];
         auto ids = phase_ids(previous.phases);
-        auto work = engine.fixed_at(ids, previous.phases, location);
+        auto work = engine.fixed_at(
+            ids, previous.phases, location,
+            Eigen::Vector2d(previous.pressure, previous.temperature));
         if (work.state.success && engine.distinct(*work.assemblage, work.ids)) {
           work.state.message =
               "Closed field verified from a neighbouring equilibrium state";
@@ -2667,8 +2847,40 @@ class Tracer {
       if (!result.samples[i].success &&
           !result.samples[i].outside_model_domain) {
         auto &old = result.samples[i];
-        auto verified =
-            field_state(diagram_coordinates(old, result.section.type));
+        const auto location = diagram_coordinates(old, result.section.type);
+        auto verified = field_state(location);
+        // An inverse Newton walk can hit a bound from one rounded target yet
+        // converge at a neighbouring target. Use that nearby equilibrium only
+        // as a starting point, then solve and validate the original request.
+        if (!verified.success && !engine.direct_coordinates()) {
+          const auto axes = diagram_axes(result.section.type);
+          const auto accuracy =
+              equilibrium_coordinate_tolerance(result.section.type, range);
+          for (std::size_t axis = 0; axis < axes.size() && !verified.success;
+               ++axis) {
+            if (axes[axis] != Coordinate::S && axes[axis] != Coordinate::V)
+              continue;
+            for (double sign : {1., -1.}) {
+              auto nearby = location;
+              nearby[static_cast<Eigen::Index>(axis)] +=
+                  sign * accuracy[static_cast<Eigen::Index>(axis)];
+              if (!inside(normalise(nearby)))
+                continue;
+              auto warm = field_state(nearby);
+              if (!warm.success)
+                continue;
+              auto work = engine.fixed_at(
+                  phase_ids(warm.phases), warm.phases, location,
+                  Eigen::Vector2d(warm.pressure, warm.temperature));
+              if (work.state.success &&
+                  engine.locally_stable(*work.assemblage) &&
+                  engine.distinct(*work.assemblage, work.ids)) {
+                verified = std::move(work.state);
+                break;
+              }
+            }
+          }
+        }
         if (verified.success)
           add_sample(verified, burnman::utils::checked_int(i));
       }
@@ -2717,6 +2929,7 @@ class Tracer {
                              start ? line.start_node : line.end_node, p.phases,
                              normalise(p),
                              (normalise(q) - normalise(p)).normalized()});
+            queue.back().physical = Eigen::Vector2d(p.pressure, p.temperature);
           }
         } else
           result.boundaries.push_back(std::move(line));
@@ -2835,20 +3048,42 @@ class Tracer {
     const auto axes = diagram_axes(result.section.type);
     const int first_seeds = seed_count(axes[0]),
               second_seeds = seed_count(axes[1]);
+    const auto grid_start = std::chrono::steady_clock::now();
     for (int i = 0; i < first_seeds; ++i)
       for (int j = 0; j < second_seeds; ++j) {
         auto actual = (origin + Eigen::Vector2d(double(i) / (first_seeds - 1),
                                                 double(j) / (second_seeds - 1))
                                     .cwiseProduct(range))
                           .eval();
-        auto state = engine.stable_at(actual);
+        // Reuse the same second coordinate in the preceding row, including
+        // the cold start after each hot end-of-row seed. Use the preceding
+        // column when that row's seed was unsuccessful.
+        const WorkState *warm = nullptr;
+        const auto columns = static_cast<std::size_t>(second_seeds);
+        if (i > 0 && grid[grid.size() - columns].state.success)
+          warm = &grid[grid.size() - columns];
+        else if (j > 0 && grid.back().state.success)
+          warm = &grid.back();
+        const auto start = std::chrono::steady_clock::now();
+        auto state = engine.stable_at(actual, warm);
         add_sample(state.state);
         grid.push_back(std::move(state));
         if (opts.verbose)
           std::cerr << "Seed " << grid.size() << '/'
                     << first_seeds * second_seeds << " "
-                    << grid.back().state.message << '\n';
+                    << grid.back().state.message << " ("
+                    << std::chrono::duration<double>(
+                           std::chrono::steady_clock::now() - start)
+                           .count()
+                    << " s)\n";
       }
+    if (opts.verbose)
+      std::cerr << "Seed grid completed in "
+                << std::chrono::duration<double>(
+                       std::chrono::steady_clock::now() - grid_start)
+                       .count()
+                << " s. Discovering boundaries between neighbouring seeds.\n";
+    const auto bracket_start = std::chrono::steady_clock::now();
     for (int i = 0; i < first_seeds; ++i)
       for (int j = 0; j < second_seeds; ++j) {
         int k = i * second_seeds + j;
@@ -2859,6 +3094,12 @@ class Tracer {
           bracket(grid[static_cast<std::size_t>(k)],
                   grid[static_cast<std::size_t>(k + 1)]);
       }
+    if (opts.verbose)
+      std::cerr << "Boundary bracketing completed in "
+                << std::chrono::duration<double>(
+                       std::chrono::steady_clock::now() - bracket_start)
+                       .count()
+                << " s.\n";
   }
   // Restore accepted states and reaction identities for a resumed calculation.
   // Return whether junction branches need searching as well as boundary
@@ -2881,6 +3122,72 @@ class Tracer {
     result = previous;
     result.section = engine.section;
     result.settings = engine.settings;
+    // Older files can contain an entire saddle branch near a solvus. Such
+    // compositions pass finite affinity tolerance but cannot bound stable
+    // fields. Retain every arc with any locally stable saved state.
+    erase_if(result.boundaries, [&](const Boundary &line) {
+      return !engine.direct_coordinates() && !line.points.empty() &&
+             std::all_of(
+                 line.points.begin(), line.points.end(), [&](const auto &p) {
+                   auto a = engine.make_assemblage(line.assemblage, p.phases,
+                                                   p.pressure, p.temperature);
+                   return !engine.locally_stable(*a) ||
+                          !engine.distinct(*a, line.assemblage);
+                 });
+    });
+    // An old phase-entry endpoint can contain an additional stationary copy
+    // that is a saddle or belongs to the same mixing basin. It is not a
+    // junction: reopen the original reaction from its last accepted state.
+    for (auto &line : result.boundaries) {
+      if (engine.direct_coordinates() || line.points.empty())
+        continue;
+      auto [back, forward] = boundary_statuses(line);
+      for (bool start : {true, false}) {
+        auto &status = start ? back : forward;
+        const auto &p = start ? line.points.front() : line.points.back();
+        const auto ids = phase_ids(p.phases);
+        if (status != "junction" || ids.size() <= line.assemblage.size())
+          continue;
+        auto a =
+            engine.make_assemblage(ids, p.phases, p.pressure, p.temperature);
+        const int node_id = start ? line.start_node : line.end_node;
+        const Node *event =
+            node_id >= 0 ? &result.nodes.at(static_cast<std::size_t>(node_id))
+                         : nullptr;
+        // A near-critical third-copy root can pass finite reaction tolerances
+        // while its double-zero constraints fail to isolate a junction.
+        // Reopen it for native recovery rather than retaining that connection.
+        const bool nonisolated_copy =
+            event && event->pt_nullity > 0 && event->zero_phases.size() == 2 &&
+            near_third_copy_event(ids, event->zero_phases[0],
+                                  event->zero_phases[1], p.phases);
+        if (nonisolated_copy || !engine.locally_stable(*a) ||
+            !engine.distinct(*a, ids)) {
+          (start ? line.start_node : line.end_node) = -1;
+          status = "unresolved phase-in event";
+          while (line.points.size() > 1) {
+            const auto &last = start ? line.points.front() : line.points.back();
+            auto original = engine.make_assemblage(
+                line.assemblage, last.phases, last.pressure, last.temperature);
+            if (engine.locally_stable(*original) &&
+                engine.distinct(*original, line.assemblage))
+              break;
+            if (start)
+              line.points.erase(line.points.begin());
+            else
+              line.points.pop_back();
+          }
+          auto &last = start ? line.points.front() : line.points.back();
+          erase_if(last.phases, [&](const auto &phase) {
+            return std::find(line.assemblage.begin(), line.assemblage.end(),
+                             phase.id) == line.assemblage.end();
+          });
+        }
+      }
+      line.termination = back + "; " + forward;
+    }
+    if (!engine.direct_coordinates())
+      index_boundaries();
     separate_junctions();
     if (!engine.settings.required_eos_phases.empty())
       result.excluded_regions.clear();
@@ -2890,8 +3197,19 @@ class Tracer {
     auto samples = std::move(result.samples);
     result.samples.clear();
     result.fields.clear();
-    for (auto &state : samples)
+    for (auto &state : samples) {
+      if (state.success && !engine.direct_coordinates()) {
+        const auto ids = phase_ids(state.phases);
+        auto a = engine.make_assemblage(ids, state.phases, state.pressure,
+                                        state.temperature);
+        if (!engine.locally_stable(*a) || !engine.distinct(*a, ids)) {
+          state.success = false;
+          state.message =
+              "Saved solution compositions are not stable Gibbs minima.";
+        }
+      }
       add_sample(state);
+    }
     for (std::size_t i = 0; i < result.nodes.size(); ++i)
       if (result.nodes[i].id != static_cast<int>(i))
         throw std::invalid_argument("Saved node IDs must be contiguous.");
@@ -2919,8 +3237,10 @@ class Tracer {
           auto ids = engine.active_phases(state);
           grid.push_back(
               {state,
-               engine.make_at(ids, state.phases,
-                              diagram_coordinates(state, result.section.type)),
+               engine.make_at(
+                   ids, state.phases,
+                   diagram_coordinates(state, result.section.type),
+                   Eigen::Vector2d(state.pressure, state.temperature)),
                ids});
         }
       for (std::size_t i = 1; i < grid.size(); ++i)
@@ -2948,8 +3268,9 @@ class Tracer {
         auto ids = phase_ids(point.phases);
         const auto zeros = zero_phases_at(n, point.phases,
                                           engine.settings.max_phase_instances);
-        auto a = engine.make_at(ids, point.phases,
-                                diagram_coordinates(n, result.section.type));
+        auto a = engine.make_at(
+            ids, point.phases, diagram_coordinates(n, result.section.type),
+            Eigen::Vector2d(point.pressure, point.temperature));
         if (status == "junction")
           expand(*a, ids, zeros, id);
         // Critical endpoints are first approached from both arms in recover().

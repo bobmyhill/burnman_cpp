@@ -31,7 +31,12 @@ State stable_equilibrium(
 /// Uses exactly the phase-discovery routine used for the initial diagram grid.
 /// S (J/K) and V (m^3) are totals on the supplied elemental mole scale.
 /// Select PT, PS, PV, TS, TV or SV; P/T ranges guide inverse searches and
-/// provide the initial physical seed.
+/// provide the initial physical seed. PS, TV and SV start from mass-balanced
+/// phase amounts and use constrained total enthalpy, Helmholtz energy and
+/// internal energy minimisation when the assemblage must change. Physical P-T
+/// phase discovery is a fallback. Competing phases can enter the minimisations;
+/// accepted states still pass reaction, mass-balance and candidate-affinity
+/// checks.
 State stable_equilibrium_at(
     const types::FormulaMap &composition,
     const std::vector<std::shared_ptr<Material>> &candidates,
@@ -123,7 +128,9 @@ struct Engine {
   /// section.
   Eigen::Vector2d coordinates(const Assemblage &) const;
   /// P,T starting guess consistent with plotted/fixed P or T where supplied.
-  Eigen::Vector2d physical_coordinates(const Eigen::Vector2d &) const;
+  Eigen::Vector2d physical_coordinates(
+      const Eigen::Vector2d &,
+      const std::optional<Eigen::Vector2d> & = std::nullopt) const;
   /// Equation fixing one physical coordinate; base_x anchors the free X change.
   std::unique_ptr<EqualityConstraint>
   coordinate_constraint(Coordinate, double, Eigen::Index, double base_x = 0.,
@@ -157,17 +164,30 @@ struct Engine {
   EquilibrationParameters parameters(const Assemblage &) const;
   /// Discover an equilibrium at diagram coordinates in native units. S/V
   /// sections also solve for the unplotted P and/or T using physical seed
-  /// bounds.
-  WorkState stable_at(const Eigen::Vector2d &);
+  /// bounds. A successful neighbour supplies starting phases, compositions
+  /// and amounts. Try both supplied neighbours before potential minimisation
+  /// or phase discovery, retaining competing-phase and curvature checks.
+  WorkState stable_at(const Eigen::Vector2d &, const WorkState *warm = nullptr,
+                      const WorkState *alternative = nullptr);
+  /// A mass-balanced starting assemblage from one linear balance solve.
+  /// This does not solve a separate P-T phase equilibrium.
+  WorkState feasible_start(double pressure, double temperature);
+  /// Minimise total H (P,S), F (T,V), or U (S,V), with bulk and selected
+  /// coordinates constrained. Add negative-affinity candidates between
+  /// minimisations, then polish and validate with the equilibrium solver.
+  WorkState minimize_potential(const WorkState &, const Eigen::Vector2d &);
   /// Equilibrate supplied phase IDs at a diagram position, using saved amounts
   /// and compositions as starting estimates, then test alternative candidates.
   WorkState fixed_at(const std::vector<int> &, const PhaseStates &,
-                     const Eigen::Vector2d &);
+                     const Eigen::Vector2d &,
+                     const std::optional<Eigen::Vector2d> & = std::nullopt);
 
   /// Build a trial assemblage at a diagram position; no equilibrium is implied.
-  std::shared_ptr<Assemblage> make_at(const std::vector<int> &,
-                                      const PhaseStates &,
-                                      const Eigen::Vector2d &);
+  /// Optional saved physical P,T supply unplotted coordinates and active faces.
+  std::shared_ptr<Assemblage>
+  make_at(const std::vector<int> &, const PhaseStates &,
+          const Eigen::Vector2d &,
+          const std::optional<Eigen::Vector2d> & = std::nullopt);
   /// Whether available EOS models can represent the bulk at a diagram position.
   bool eos_bulk_feasible_at(const Eigen::Vector2d &);
   /// Set all candidate P,T states and record diagnosed EOS-domain exclusions.
@@ -193,24 +213,28 @@ struct Engine {
   WorkState stable(double, double);
   /// Refine a specified assemblage at P,T, or at requested diagram coordinates.
   /// Remove phases driven to zero amount and check against other candidates.
-  WorkState
-  equilibrate_phase_set(const std::vector<int> &, const PhaseStates &, double,
-                        double, std::optional<Eigen::Vector2d> = std::nullopt);
+  WorkState equilibrate_phase_set(const std::vector<int> &, const PhaseStates &,
+                                  double, double,
+                                  std::optional<Eigen::Vector2d> = std::nullopt,
+                                  bool preserve_composition = false);
   /// Construct trial phases, reducing to occupied solution sites where needed.
   /// Saved zero-amount phases retain compositions to initialise reaction
-  /// solves.
-  std::shared_ptr<Assemblage> make_assemblage(const std::vector<int> &,
-                                              const PhaseStates &, double,
-                                              double,
-                                              double face_tolerance = 1.e-7);
+  /// solves. preserve_composition prevents reduction from discarding positive
+  /// trace constituents in an accepted state.
+  std::shared_ptr<Assemblage>
+  make_assemblage(const std::vector<int> &, const PhaseStates &, double, double,
+                  double face_tolerance = 1.e-7,
+                  bool preserve_composition = false);
   /// Clone a trial assemblage, including its reduced composition bases and X.
   std::shared_ptr<Assemblage> copy_assemblage(const Assemblage &) const;
   /// Solve reaction equilibrium, bulk balance and the supplied constraints.
   /// Changes the trial assemblage even on failure. Success checks those
   /// equations; stability against competing phases requires a separate
-  /// stability() call.
+  /// stability() call. tolerance_scale tightens parameter and reaction
+  /// tolerances for comparisons below ordinary phase-discovery accuracy.
   EquilibriumSolve solve(Assemblage &, ConstraintList &,
-                         bool vary_composition = true);
+                         bool vary_composition = true,
+                         double tolerance_scale = 1.);
   /// Elemental chemical potentials defining this assemblage's tangent plane.
   Eigen::VectorXd potentials(const Assemblage &) const;
   /// Search candidate compositions for negative tangent-plane affinities.
@@ -232,6 +256,9 @@ struct Engine {
   std::vector<int> canonical_ids(const std::vector<int> &) const;
   /// Reject near-identical copies of the same solution as distinct phases.
   bool distinct(const Assemblage &, const std::vector<int> &) const;
+  /// Each solution composition must be a local Gibbs minimum on its occupied
+  /// site face. Affinity tolerance alone cannot reject near-critical saddles.
+  bool locally_stable(const Assemblage &) const;
 };
 
 /// Copy a mineral/solution model, including any reduced active-site basis.

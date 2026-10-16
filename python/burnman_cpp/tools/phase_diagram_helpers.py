@@ -22,8 +22,10 @@ caller's Python import path permanently.
 import argparse
 import importlib
 import importlib.util
+from contextlib import contextmanager
 from pathlib import Path
 import sys
+from time import perf_counter
 
 import burnman_cpp as bm
 from .phase_diagram import _value
@@ -31,6 +33,7 @@ from .phase_diagram import _value
 __all__ = [
     "example_parser",
     "load_example",
+    "phase_diagram_timer",
     "plot_phase_diagram_example",
     "refine_saved",
     "report_phase_diagram",
@@ -205,6 +208,15 @@ def refine_saved(
     )
 
 
+@contextmanager
+def phase_diagram_timer(verbose):
+    """Report a complete example run's elapsed time when verbose is enabled."""
+    start = perf_counter()
+    yield
+    if verbose:
+        print(f"Total time taken: {perf_counter() - start:.3f} s.", flush=True)
+
+
 def write_phase_diagram(
     result, stem, *, metadata=None, plot=None, label_fontsize=7.0, save_json=None
 ):
@@ -230,6 +242,7 @@ def run_phase_diagram_example(
     functions keep their familiar source/verbose and result/path/fontsize arguments,
     so examples can also be used directly from Python or by the patching script.
     Pass args when a specialised example has already parsed additional options.
+    Verbose mode reports total elapsed time after writing and plotting outputs.
     """
     if args is None:
         args = parser.parse_args()
@@ -239,20 +252,21 @@ def run_phase_diagram_example(
             parser.error("--resolution requires --refine-json.")
         if min(resolution) < 2:
             parser.error("--resolution counts must be at least 2.")
-    if getattr(args, "plot_json", None):
-        result = bm.load_phase_diagram(args.plot_json)
-        save_json = None  # Retain the saved metadata when only replotting.
-    elif getattr(args, "refine_json", None):
-        options = dict(verbose=args.verbose)
-        if resolution is not None:
-            options["resolution"] = resolution
-        result = refine(args.refine_json, **options)
-    else:
-        result = calculate(args)
-    return write_phase_diagram(
-        result,
-        args.output_dir / stem,
-        save_json=save_json,
-        plot=None if args.no_plots else plot,
-        label_fontsize=args.label_fontsize,
-    )
+    with phase_diagram_timer(args.verbose):
+        if getattr(args, "plot_json", None):
+            result = bm.load_phase_diagram(args.plot_json)
+            save_json = None  # Retain the saved metadata when only replotting.
+        elif getattr(args, "refine_json", None):
+            options = dict(verbose=args.verbose)
+            if resolution is not None:
+                options["resolution"] = resolution
+            result = refine(args.refine_json, **options)
+        else:
+            result = calculate(args)
+        return write_phase_diagram(
+            result,
+            args.output_dir / stem,
+            save_json=save_json,
+            plot=None if args.no_plots else plot,
+            label_fontsize=args.label_fontsize,
+        )

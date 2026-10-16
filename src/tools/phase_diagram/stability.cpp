@@ -29,8 +29,10 @@
 #include <stdexcept>
 namespace burnman::phase_diagrams::detail {
 namespace {
-bool flat_mixing(const Solution &solution, double pressure, double temperature,
-                 const Eigen::VectorXd &left, const Eigen::VectorXd &right) {
+bool homogeneous_mixing(const Solution &solution, double pressure,
+                        double temperature, const Eigen::VectorXd &left,
+                        const Eigen::VectorXd &right,
+                        bool require_flat = false) {
   // Endmember energies are affine in composition. Only the excess term can
   // distinguish separate copies from their homogeneous mixture.
   const auto &model = solution.get_solution_model();
@@ -47,10 +49,14 @@ bool flat_mixing(const Solution &solution, double pressure, double temperature,
     double tolerance =
         32. * std::numeric_limits<double>::epsilon() *
         std::max({1., std::abs(gl), std::abs(gr), std::abs(mixed)});
-    if (!std::isfinite(mixed) || std::abs(mixed - linear) > tolerance)
+    if (!std::isfinite(mixed))
+      return false;
+    if (!require_flat && mixed < linear - tolerance)
+      return true;
+    if (require_flat && std::abs(mixed - linear) > tolerance)
       return false;
   }
-  return true;
+  return require_flat;
 }
 } // namespace
 std::shared_ptr<Material> clone(const std::shared_ptr<Material> &phase) {
@@ -308,8 +314,10 @@ bool Engine::direct_coordinates() const {
           (axes[1] == Coordinate::X && section.fixed_coordinate &&
            direct(*section.fixed_coordinate)));
 }
-Eigen::Vector2d Engine::physical_coordinates(const Eigen::Vector2d &q) const {
-  auto physical = physical_seed;
+Eigen::Vector2d
+Engine::physical_coordinates(const Eigen::Vector2d &q,
+                             const std::optional<Eigen::Vector2d> &warm) const {
+  auto physical = warm.value_or(physical_seed);
   const auto axes = diagram_axes(section.type);
   auto set = [&](Coordinate axis, double value) {
     if (axis == Coordinate::P)
@@ -399,16 +407,100 @@ EquilibrationParameters Engine::parameters(const Assemblage &a) const {
       free_vectors.empty() ? bulk : composition_at(composition_coordinate(a)),
       free_vectors);
 }
-// In P-T sections the plotted coordinates specify a direct Gibbs search. For
-// S/V sections, first obtain plausible P,T assemblages, then solve the selected
-// extensive-coordinate constraints, searching physical seed bounds if
-// necessary.
-WorkState Engine::stable_at(const Eigen::Vector2d &q) {
+// Reuse neighbouring equilibria before phase discovery. Natural P-S, T-V and
+// S-V sections start their constrained problem directly, with physical-
+// coordinate phase discovery reserved for fallback.
+WorkState Engine::stable_at(const Eigen::Vector2d &q, const WorkState *warm,
+                            const WorkState *alternative_warm) {
   if (!free_vectors.empty())
     set_bulk(q[1]);
-  const auto physical = physical_coordinates(q);
-  if (direct_coordinates())
+  if ((!warm || !warm->state.success) && alternative_warm &&
+      alternative_warm->state.success)
+    std::swap(warm, alternative_warm);
+  const std::array<const WorkState *, 2> neighbours = {warm, alternative_warm};
+  auto neighbour_physical = [](const WorkState &state) {
+    return Eigen::Vector2d(state.state.pressure, state.state.temperature);
+  };
+  const auto physical = physical_coordinates(
+      q, warm && warm->state.success
+             ? std::optional<Eigen::Vector2d>(neighbour_physical(*warm))
+             : std::nullopt);
+  if (direct_coordinates()) {
+    if (section.type == DiagramType::PT)
+      for (const auto *neighbour : neighbours)
+        if (neighbour && neighbour->state.success) {
+          auto continued = fixed_at(neighbour->ids, neighbour->state.phases, q,
+                                    neighbour_physical(*neighbour));
+          // Affinities alone can miss a weak solvus within the discovery
+          // tolerance. Reject a saddle before accepting continuation.
+          if (continued.state.success &&
+              locally_stable(*continued.assemblage) &&
+              distinct(*continued.assemblage, continued.ids))
+            return continued;
+        }
     return stable(physical[0], physical[1]);
+  }
+  const auto selected = diagram_axes(section.type);
+  const auto second = selected[1] == Coordinate::X
+  ? *section.fixed_coordinate : selected[1];
+  const bool pressure_entropy =
+      (selected[0] == Coordinate::P && second == Coordinate::S) ||
+      (selected[0] == Coordinate::S && second == Coordinate::P);
+  const bool temperature_volume =
+      (selected[0] == Coordinate::T && second == Coordinate::V) ||
+      (selected[0] == Coordinate::V && second == Coordinate::T);
+  const bool entropy_volume =
+      (selected[0] == Coordinate::S && second == Coordinate::V) ||
+      (selected[0] == Coordinate::V && second == Coordinate::S);
+  const bool natural = pressure_entropy || temperature_volume || entropy_volume;
+  auto accept = [&](WorkState &state) {
+    if (!state.state.success)
+      return false;
+    physical_seed << state.state.pressure, state.state.temperature;
+    return true;
+  };
+  std::array<WorkState, 2> continued;
+  for (std::size_t k = 0; k < neighbours.size(); ++k)
+    if (const auto *neighbour = neighbours[k];
+        neighbour && neighbour->state.success) {
+      continued[k] = fixed_at(neighbour->ids, neighbour->state.phases, q,
+                              neighbour_physical(*neighbour));
+      if (continued[k].state.success &&
+          locally_stable(*continued[k].assemblage) &&
+          distinct(*continued[k].assemblage, continued[k].ids) &&
+          accept(continued[k]))
+        return continued[k];
+    }
+  // The other endpoint may already contain an entering phase. Try both
+  // ordinary constrained equilibrations before expanding either assemblage
+  // with a more expensive potential minimisation.
+  if (natural)
+    for (const auto &trial : continued)
+      if (trial.assemblage) {
+        auto minimum = minimize_potential(trial, q);
+        if (accept(minimum))
+          return minimum;
+      }
+  if (natural) {
+    // Start the selected thermodynamic problem directly. The one-shot linear
+    // balance only supplies feasible phase amounts, without converging G(P,T).
+    auto initial = feasible_start(physical[0], physical[1]);
+    if (initial.assemblage) {
+      auto constrained = equilibrate_phase_set(
+          initial.ids, initial.state.phases, physical[0], physical[1], q);
+      if (accept(constrained))
+        return constrained;
+      auto minimum = minimize_potential(
+          constrained.assemblage && !constrained.state.phases.empty()
+              ? constrained
+              : initial,
+          q);
+      if (accept(minimum))
+        return minimum;
+    }
+  }
+  // Retain physical-coordinate discovery as a fallback for difficult seeds
+  // and for non-natural P-V/T-S sections.
   auto seed = stable(physical[0], physical[1]);
   auto best = seed;
   auto attempt = [&](const WorkState &first, const WorkState &second,
@@ -436,6 +528,15 @@ WorkState Engine::stable_at(const Eigen::Vector2d &q) {
   };
   if (attempt(seed, WorkState{}, physical))
     return best;
+  auto minimize_selected = [&]() {
+    if (pressure_entropy || temperature_volume || entropy_volume)
+      best = minimize_potential(best, q);
+    if (best.state.success)
+      physical_seed << best.state.pressure, best.state.temperature;
+    return best.state.success;
+  };
+  if (minimize_selected())
+    return best;
   const auto axes = diagram_axes(section.type);
   const bool unknown_p = axes[0] != Coordinate::P && axes[1] != Coordinate::P &&
                          section.fixed_coordinate != Coordinate::P;
@@ -461,6 +562,15 @@ WorkState Engine::stable_at(const Eigen::Vector2d &q) {
       return stable(pt[0], pt[1]);
     };
     auto low = at(bounds[0]), high = at(bounds[1]);
+    // A failed high-temperature EOS must not suppress a valid entropy solve
+    // from a lower-temperature assemblage (and conversely for pressure).
+    for (const auto *endpoint : {&low, &high})
+      if (endpoint->state.success) {
+        const Eigen::Vector2d guess(endpoint->state.pressure,
+                                    endpoint->state.temperature);
+        if (attempt(*endpoint, WorkState{}, guess) || minimize_selected())
+          return best;
+      }
     auto residual = [&](const WorkState &w) {
       return coordinate_value(w.state, target_axis) - target;
     };
@@ -472,7 +582,8 @@ WorkState Engine::stable_at(const Eigen::Vector2d &q) {
         auto middle = at(guess[index]);
         if (!middle.state.success)
           break;
-        if (attempt(middle, WorkState{}, guess) || attempt(low, high, guess))
+        if (attempt(middle, WorkState{}, guess) || attempt(low, high, guess) ||
+            minimize_selected())
           return best;
         if (residual(low) * residual(middle) <= 0.) {
           high = middle;
@@ -487,6 +598,14 @@ WorkState Engine::stable_at(const Eigen::Vector2d &q) {
     // S-V and X sections with a fixed S/V solve both physical coordinates.
     // Alternate constrained equilibration with the existing phase stability
     // search, retaining only the latest two assemblages at each iteration.
+    const std::array<double, 3> pressures = {
+        .5 * (pressure_bounds[0] + pressure_bounds[1]), pressure_bounds[0],
+        pressure_bounds[1]};
+    const std::array<double, 3> temperatures = {
+        temperature_bounds[0], temperature_bounds[1],
+        .5 * (temperature_bounds[0] + temperature_bounds[1])};
+    Eigen::Vector2d last_guess = Eigen::Vector2d::Constant(-1.);
+    std::size_t alternative = 0;
     for (int iteration = 0; iteration < 20; ++iteration) {
       auto guess = physical;
       if (best.assemblage)
@@ -494,9 +613,19 @@ WorkState Engine::stable_at(const Eigen::Vector2d &q) {
             best.assemblage->get_temperature();
       if (!guess.allFinite() || guess[0] < 0. || guess[1] <= 0.)
         guess = physical;
+      if (iteration > 0 && (guess - last_guess).cwiseAbs().maxCoeff() < 1.e-7) {
+        if (alternative == pressures.size() * temperatures.size())
+          break;
+        guess << pressures[alternative / temperatures.size()],
+            temperatures[alternative % temperatures.size()];
+        ++alternative;
+      }
+      last_guess = guess;
       auto previous = best;
       auto next = stable(guess[0], guess[1]);
-      if (attempt(next, previous, guess))
+      if (!next.state.success)
+        continue;
+      if (attempt(next, previous, guess) || minimize_selected())
         return best;
     }
   }
@@ -504,18 +633,45 @@ WorkState Engine::stable_at(const Eigen::Vector2d &q) {
   best.state.message =
       "No stable equilibrium in the requested thermodynamic section: " +
       best.state.message;
+  // A failed inverse solve still represents the requested location. In
+  // particular S/V may otherwise remain zero when no assemblage was built,
+  // sending later recovery to an unrelated point outside the diagram.
+  auto retain_coordinate = [&](Coordinate axis, double value) {
+    switch (axis) {
+    case Coordinate::P:
+      best.state.pressure = value;
+      break;
+    case Coordinate::T:
+      best.state.temperature = value;
+      break;
+    case Coordinate::S:
+      best.state.entropy = value;
+      break;
+    case Coordinate::V:
+      best.state.volume = value;
+      break;
+    case Coordinate::X:
+      best.state.composition_coordinate = value;
+      break;
+    }
+  };
+  for (std::size_t i = 0; i < axes.size(); ++i)
+    retain_coordinate(axes[i], q[static_cast<Eigen::Index>(i)]);
+  if (section.fixed_coordinate)
+    retain_coordinate(*section.fixed_coordinate, section.fixed_value);
   return best;
 }
 
 WorkState Engine::fixed_at(const std::vector<int> &ids,
-                           const PhaseStates &states,
-                           const Eigen::Vector2d &q) {
+                           const PhaseStates &states, const Eigen::Vector2d &q,
+                           const std::optional<Eigen::Vector2d> &warm) {
   if (!free_vectors.empty())
     set_bulk(q[1]);
-  const auto physical = physical_coordinates(q);
+  const auto physical = physical_coordinates(q, warm);
   auto out = equilibrate_phase_set(
       ids, states, physical[0], physical[1],
-      direct_coordinates() ? std::nullopt : std::optional<Eigen::Vector2d>(q));
+      direct_coordinates() ? std::nullopt : std::optional<Eigen::Vector2d>(q),
+      !direct_coordinates());
   if (out.state.success)
     physical_seed << out.state.pressure, out.state.temperature;
   return out;
@@ -529,10 +685,11 @@ bool Engine::eos_bulk_feasible_at(const Eigen::Vector2d &q) {
   const auto physical = physical_coordinates(q);
   return eos_bulk_feasible(physical[0], physical[1]);
 }
-std::shared_ptr<Assemblage> Engine::make_at(const std::vector<int> &ids,
-                                            const PhaseStates &states,
-                                            const Eigen::Vector2d &q) {
-  const auto physical = physical_coordinates(q);
+std::shared_ptr<Assemblage>
+Engine::make_at(const std::vector<int> &ids, const PhaseStates &states,
+                const Eigen::Vector2d &q,
+                const std::optional<Eigen::Vector2d> &warm) {
+  const auto physical = physical_coordinates(q, warm);
   auto initial = states;
   if (!free_vectors.empty() && settings.active_solution_faces) {
     set_bulk(q[1]);
@@ -559,7 +716,8 @@ std::shared_ptr<Assemblage> Engine::make_at(const std::vector<int> &ids,
       state.composition = projected;
     }
   }
-  auto a = make_assemblage(ids, initial, physical[0], physical[1]);
+  auto a = make_assemblage(ids, initial, physical[0], physical[1], 1.e-7,
+                           !direct_coordinates());
   if (!free_vectors.empty())
     set_coordinate(*a, q[1]);
   return a;
@@ -882,7 +1040,8 @@ std::vector<Minimum> Engine::minima(int index, const Eigen::VectorXd &mu,
 std::shared_ptr<Assemblage> Engine::make_assemblage(const std::vector<int> &ids,
                                                     const PhaseStates &states,
                                                     double p, double t,
-                                                    double face_tolerance) {
+                                                    double face_tolerance,
+                                                    bool preserve_composition) {
   std::shared_ptr<Assemblage> a = free_vectors.empty()
                                       ? std::make_shared<Assemblage>()
                                       : std::make_shared<SectionAssemblage>();
@@ -905,7 +1064,30 @@ std::shared_ptr<Assemblage> Engine::make_assemblage(const std::vector<int> &ids,
                                      .transpose()
                                      .eval();
       s->set_composition(x.array());
-      if (settings.active_solution_faces && init) {
+      bool restored_face = false;
+      if (settings.active_solution_faces && preserve_composition && init &&
+          init->composition_basis) {
+        const auto &basis = *init->composition_basis;
+        if (basis.rows() > 0 && basis.rows() < x.size() &&
+            basis.cols() == x.size() && basis.allFinite()) {
+          Eigen::VectorXd q =
+              basis.transpose().completeOrthogonalDecomposition().solve(x);
+          if (std::abs(q.sum()) > 1.e-12) {
+            q /= q.sum();
+            if ((basis.transpose() * q - x).norm() < 1.e-10) {
+              auto reduced = polytope::transform_solution_to_new_basis(
+                  *s, basis, q.array(), m->get_name());
+              if (auto rs = std::dynamic_pointer_cast<Solution>(reduced))
+                m = std::make_shared<FaceSolution>(*rs, basis);
+              else
+                m = std::make_shared<FaceMineral>(
+                    *std::dynamic_pointer_cast<Mineral>(reduced), basis);
+              restored_face = true;
+            }
+          }
+        }
+      }
+      if (settings.active_solution_faces && init && !restored_face) {
         auto &ph = phases[static_cast<std::size_t>(base)];
         auto sites = (ph.occupancies.transpose() * x).eval();
         std::vector<int> vertices;
@@ -933,7 +1115,12 @@ std::shared_ptr<Assemblage> Engine::make_assemblage(const std::vector<int> &ids,
             Eigen::VectorXd q =
                 basis.transpose().completeOrthogonalDecomposition().solve(x);
             q /= q.sum();
-            if ((basis.transpose() * q - x).norm() < 1.e-6) {
+            // An inverse-section restart must retain positive trace sites.
+            // A small bulk error can still change their chemical potentials
+            // enough to destroy a saved reaction equilibrium.
+            const double reconstruction_tolerance =
+                preserve_composition ? 1.e-10 : 1.e-6;
+            if ((basis.transpose() * q - x).norm() < reconstruction_tolerance) {
               auto reduced = polytope::transform_solution_to_new_basis(
                   *s, basis, q.array(), m->get_name());
               if (auto rs = std::dynamic_pointer_cast<Solution>(reduced))
@@ -975,7 +1162,7 @@ Engine::copy_assemblage(const Assemblage &input) const {
   return out;
 }
 EquilibriumSolve Engine::solve(Assemblage &a, ConstraintList &c,
-                               bool vary_composition) {
+                               bool vary_composition, double tolerance_scale) {
   const bool varying = vary_composition && !free_vectors.empty();
   const double base_x = composition_coordinate(a);
   const auto composition =
@@ -1003,6 +1190,7 @@ EquilibriumSolve Engine::solve(Assemblage &a, ConstraintList &c,
   for (int k = 0; k < prm.phase_amount_indices.size(); ++k)
     tol[prm.phase_amount_indices[k]] = 1.e-9;
   tol.head<2>() = equilibrium_pt_tolerance();
+  tol *= tolerance_scale;
   Eigen::VectorXd scales = Eigen::VectorXd::Ones(prm.n_parameters);
   scales[0] = 1.e9;
   scales[1] = 1000.;
@@ -1016,8 +1204,9 @@ EquilibriumSolve Engine::solve(Assemblage &a, ConstraintList &c,
                                   : bulk_direction.dot(full_bulk - full_start) /
                                         bulk_direction.squaredNorm());
       double reactions = reaction_residual(a);
-      bool verified = reactions <= settings.affinity_tolerance * .1 &&
-                      mass_error(a, varying) <= settings.mass_balance_tolerance;
+      bool verified =
+          reactions <= settings.affinity_tolerance * .1 * tolerance_scale &&
+          mass_error(a, varying) <= settings.mass_balance_tolerance;
       auto inequalities = calculate_constraints(a, varying ? 1 : 0);
       verified =
           verified &&
@@ -1142,9 +1331,10 @@ PhaseStates Engine::snapshot(const Assemblage &a,
       state.composition = s->get_molar_fractions().matrix();
     else
       state.composition = Eigen::VectorXd::Ones(1);
-    state.composition =
-        composition_basis(*m, state.candidate_index).transpose() *
-        state.composition;
+    const auto basis = composition_basis(*m, state.candidate_index);
+    state.composition = basis.transpose() * state.composition;
+    if (basis.rows() < basis.cols())
+      state.composition_basis = basis;
     out.push_back(state);
   }
   return out;
@@ -1158,17 +1348,17 @@ Eigen::MatrixXd Engine::composition_basis(const Material &m, int index) const {
       phases[static_cast<std::size_t>(index)].vertices.cols(),
       phases[static_cast<std::size_t>(index)].vertices.cols());
 }
-WorkState
-Engine::equilibrate_phase_set(const std::vector<int> &ids,
-                              const PhaseStates &states, double p, double t,
-                              std::optional<Eigen::Vector2d> requested) {
+WorkState Engine::equilibrate_phase_set(
+    const std::vector<int> &ids, const PhaseStates &states, double p, double t,
+    std::optional<Eigen::Vector2d> requested, bool preserve_composition) {
   const double fixed_pressure = p, fixed_temperature = t;
   WorkState out;
   out.ids = ids;
   out.state.pressure = p;
   out.state.temperature = t;
   try {
-    out.assemblage = make_assemblage(ids, states, p, t);
+    out.assemblage =
+        make_assemblage(ids, states, p, t, 1.e-7, preserve_composition);
     EquilibriumSolve sol;
     for (std::size_t pass = 0; pass < ids.size(); ++pass) {
       auto c =
@@ -1194,10 +1384,10 @@ Engine::equilibrate_phase_set(const std::vector<int> &ids,
                (settings.active_solution_faces &&
                 phases[static_cast<std::size_t>(first.candidate_index)]
                     .solution &&
-                flat_mixing(
+                homogeneous_mixing(
                     *phases[static_cast<std::size_t>(first.candidate_index)]
                          .solution,
-                    p, t, first.composition, second.composition)))) {
+                    p, t, first.composition, second.composition, true)))) {
             first.composition = (first.amount * first.composition +
                                  second.amount * second.composition) /
                                 amount;
@@ -1215,7 +1405,8 @@ Engine::equilibrate_phase_set(const std::vector<int> &ids,
         // of an ideal mixing face. Their weighted mean preserves both the
         // bulk and Gibbs energy; a genuine miscibility gap has a mixing
         // barrier.
-        out.assemblage = make_assemblage(out.ids, out.state.phases, p, t);
+        out.assemblage = make_assemblage(out.ids, out.state.phases, p, t, 1.e-7,
+                                         preserve_composition);
         continue;
       }
       out.state.mass_balance_error = mass_error(*out.assemblage, false);
@@ -1257,7 +1448,8 @@ Engine::equilibrate_phase_set(const std::vector<int> &ids,
       if (surviving.empty() || surviving.size() == out.ids.size())
         break;
       out.ids = std::move(surviving);
-      out.assemblage = make_assemblage(out.ids, out.state.phases, p, t);
+      out.assemblage = make_assemblage(out.ids, out.state.phases, p, t, 1.e-7,
+                                       preserve_composition);
     }
     std::ostringstream message;
     message << "Equilibrium validation failed: reaction residual="
@@ -1529,8 +1721,59 @@ std::vector<int> Engine::canonical_ids(const std::vector<int> &ids) const {
   return canonical_phase_ids(ids, settings.max_phase_instances);
 }
 bool Engine::distinct(const Assemblage &a, const std::vector<int> &ids) const {
-  return solution_separation(snapshot(a, ids)) >
-         settings.composition_tolerance * 10.;
+  const auto states = snapshot(a, ids);
+  if (solution_separation(states) <= settings.composition_tolerance * 10.)
+    return false;
+  if (direct_coordinates())
+    return true;
+  for (std::size_t i = 0; i < states.size(); ++i)
+    for (std::size_t j = i + 1; j < states.size(); ++j)
+      if (states[i].candidate_index == states[j].candidate_index) {
+        const auto solution =
+            phases[static_cast<std::size_t>(states[i].candidate_index)]
+                .solution;
+        if (!solution ||
+            homogeneous_mixing(*solution, a.get_pressure(), a.get_temperature(),
+                               states[i].composition, states[j].composition))
+          return false;
+      }
+  return true;
+}
+bool Engine::locally_stable(const Assemblage &a) const {
+  for (Eigen::Index k = 0; k < a.get_n_phases(); ++k) {
+    auto solution = std::dynamic_pointer_cast<Solution>(
+        a.get_phase(static_cast<std::size_t>(k)));
+    if (!solution || solution->get_n_endmembers() < 2)
+      continue;
+    const Eigen::VectorXd p = solution->get_molar_fractions().matrix();
+    const Eigen::MatrixXd occupancies = solution->get_endmember_occupancies();
+    const Eigen::VectorXd sites = occupancies.transpose() * p;
+    Eigen::MatrixXd faces(1 + sites.size(), p.size());
+    faces.row(0).setOnes();
+    Eigen::Index rows = 1;
+    for (Eigen::Index i = 0; i < sites.size(); ++i)
+      if (std::abs(sites[i]) < 1.e-9)
+        faces.row(rows++) = occupancies.col(i).transpose();
+    faces.conservativeResize(rows, p.size());
+    Eigen::FullPivLU<Eigen::MatrixXd> lu(faces);
+    lu.setThreshold(1.e-10);
+    const Eigen::MatrixXd kernel = lu.kernel();
+    if (kernel.isZero())
+      continue;
+    Eigen::HouseholderQR<Eigen::MatrixXd> qr(kernel);
+    const Eigen::MatrixXd basis =
+        qr.householderQ() * Eigen::MatrixXd::Identity(p.size(), kernel.cols());
+    const Eigen::MatrixXd h =
+        basis.transpose() * solution->get_gibbs_hessian().matrix() * basis;
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eig((h + h.transpose()) *
+                                                       .5);
+    const double tolerance = std::max(
+        1.e-5, 64. * std::numeric_limits<double>::epsilon() * h.norm());
+    if (eig.info() != Eigen::Success ||
+        eig.eigenvalues().minCoeff() < -tolerance)
+      return false;
+  }
+  return true;
 }
 } // namespace burnman::phase_diagrams::detail
 namespace burnman::phase_diagrams {
