@@ -11,6 +11,9 @@
 //
 // ------------------------------------------------------
 
+#include "burnman/core/combined_mineral.hpp"
+#include "burnman/core/solution.hpp"
+#include "burnman/core/solution_models/symmetric_regular_solution.hpp"
 #include "burnman/minerals/datasets.hpp"
 #include "burnman/tools/equilibration/equality_constraint_variants.hpp"
 #include "burnman/tools/equilibration/equilibrate_utils.hpp"
@@ -20,10 +23,154 @@
 #include "burnman/tools/phase_diagram/refinement.hpp"
 #include "burnman/tools/phase_diagram/stability.hpp"
 #include "burnman/tools/polytope.hpp"
+#include "burnman/utils/constants.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <cmath>
 using namespace burnman;
+
+TEST_CASE("Midpoint equilibrium tries both bracket ends before phase discovery",
+          "[phase_diagram]") {
+  namespace ps = phase_diagrams;
+  const auto type = GENERATE(ps::DiagramType::PT, ps::DiagramType::PS,
+                             ps::DiagramType::TV, ps::DiagramType::SV);
+  auto first = minerals::HGP18::per();
+  auto hot = std::make_shared<Mineral>(make_combined_mineral(
+      {*first}, Eigen::ArrayXd::Ones(1), {22500., 20., -.5e-6}, "hot"));
+  auto state_at = [](Material &phase, double pressure, double temperature) {
+    phase.set_state(pressure, temperature);
+    ps::State state;
+    state.pressure = pressure;
+    state.temperature = temperature;
+    state.entropy = phase.get_molar_entropy();
+    state.volume = phase.get_molar_volume();
+    return state;
+  };
+  const auto left_state = state_at(*first, 4.e9, 900.);
+  const auto right_state = state_at(*hot, 8.e9, 1200.);
+  const auto target = state_at(*hot, 7.e9, 1150.);
+  ps::Settings settings;
+  settings.max_phase_instances = 1;
+  ps::CompositionSection section;
+  section.type = type;
+  ps::detail::Engine engine({{"Mg", 1.}, {"O", 1.}}, {first, hot}, settings,
+                            section);
+  ps::PhaseState initial;
+  initial.amount = 1.;
+  initial.composition = Eigen::VectorXd::Ones(1);
+  initial.id = initial.candidate_index = 0;
+  auto left = engine.fixed_at(
+      {0}, {initial}, ps::diagram_coordinates(left_state, type),
+      Eigen::Vector2d(left_state.pressure, left_state.temperature));
+  initial.id = initial.candidate_index = 1;
+  auto right = engine.fixed_at(
+      {1}, {initial}, ps::diagram_coordinates(right_state, type),
+      Eigen::Vector2d(right_state.pressure, right_state.temperature));
+  REQUIRE(left.state.success);
+  REQUIRE(right.state.success);
+  const auto solves = engine.equilibrium_solves;
+  // The first endpoint is unstable here. The other endpoint already contains
+  // the stable phase, so no potential optimisation or cold phase search is
+  // needed to establish the midpoint equilibrium.
+  auto middle =
+      engine.stable_at(ps::diagram_coordinates(target, type), &left, &right);
+  REQUIRE(middle.state.success);
+  CHECK(middle.ids == std::vector<int>{1});
+  CHECK(engine.equilibrium_solves - solves == 2);
+  CHECK(middle.state.mass_balance_error <= settings.mass_balance_tolerance);
+  CHECK(middle.state.minimum_affinity >= -settings.affinity_tolerance);
+  CHECK_THAT(middle.state.pressure,
+             Catch::Matchers::WithinAbs(target.pressure, 1.));
+  CHECK_THAT(middle.state.temperature,
+             Catch::Matchers::WithinAbs(target.temperature, 1.e-6));
+  CHECK_THAT(middle.state.entropy,
+             Catch::Matchers::WithinAbs(target.entropy, 1.e-7));
+  CHECK(left.ids == std::vector<int>{0});
+  CHECK(right.ids == std::vector<int>{1});
+  CHECK_THAT(left.state.entropy,
+             Catch::Matchers::WithinAbs(left_state.entropy, 1.e-7));
+  CHECK_THAT(right.state.entropy,
+             Catch::Matchers::WithinAbs(right_state.entropy, 1.e-7));
+}
+
+TEST_CASE("P-T warm seeds reject a weak solution saddle before phase discovery",
+          "[phase_diagram]") {
+  namespace ps = phase_diagrams;
+  const double rt = constants::physics::gas_constant * 1000.;
+  auto phase = std::make_shared<Solution>();
+  phase->set_solution_model(
+      std::make_shared<solution_models::SymmetricRegularSolution>(
+          types::PairedEndmemberList{{*minerals::HGP18::per(), "[Mg]O"},
+                                     {*minerals::HGP18::wu(), "[Fe]O"}},
+          std::vector<std::vector<double>>{{2. * rt - 1000.}},
+          std::vector<std::vector<double>>{{1.e-6}}));
+  phase->set_composition(Eigen::Array2d(.5, .5));
+  ps::Settings settings;
+  ps::detail::Engine engine({{"Mg", .5}, {"Fe", .5}, {"O", 1.}}, {phase},
+                            settings);
+  auto warm = engine.stable_at({.9e9, 1000.});
+  REQUIRE(warm.state.success);
+  REQUIRE(warm.ids.size() == 1);
+  auto saddle = engine.fixed_at(warm.ids, warm.state.phases, {1.08e9, 1000.});
+  INFO(saddle.state.message);
+  REQUIRE(saddle.state.success);
+  CHECK(saddle.state.minimum_affinity >= -settings.affinity_tolerance);
+  CHECK_FALSE(engine.locally_stable(*saddle.assemblage));
+  auto result = engine.stable_at({1.08e9, 1000.}, &warm);
+  REQUIRE(result.state.success);
+  REQUIRE(result.ids.size() == 2);
+  CHECK(engine.locally_stable(*result.assemblage));
+  CHECK(result.state.mass_balance_error <= settings.mass_balance_tolerance);
+  for (const auto &state : result.state.phases) {
+    const double x = state.composition[0];
+    CHECK_THAT(rt * std::log(x / (1. - x)) + (2. * rt + 80.) * (1. - 2. * x),
+               Catch::Matchers::WithinAbs(0., 1.e-5));
+  }
+  CHECK((warm.state.phases[0].composition - Eigen::Vector2d(.5, .5)).norm() <
+        1.e-12);
+}
+
+TEST_CASE("Inverse assemblage reconstruction retains positive trace sites",
+          "[phase_diagram]") {
+  namespace ps = phase_diagrams;
+  auto phase = std::make_shared<Solution>();
+  phase->set_solution_model(std::make_shared<solution_models::IdealSolution>(
+      types::PairedEndmemberList{{*minerals::HGP18::per(), "[Mg]O"},
+                                 {*minerals::HGP18::wu(), "[Fe]O"}}));
+  const double trace = 5.e-8;
+  ps::CompositionSection section;
+  section.type = ps::DiagramType::PS;
+  ps::detail::Engine engine({{"Mg", 1. - trace}, {"Fe", trace}, {"O", 1.}},
+                            {phase}, {}, section);
+  ps::PhaseState state;
+  state.id = state.candidate_index = 0;
+  state.amount = 1.;
+  state.composition = Eigen::Vector2d(1. - trace, trace);
+  auto assembly =
+      engine.make_at({0}, {state}, {1.e9, 100.}, Eigen::Vector2d(1.e9, 500.));
+  REQUIRE(assembly->get_phase<Solution>(0));
+  CHECK((engine.snapshot(*assembly, {0})[0].composition - state.composition)
+            .norm() < 1.e-14);
+  CHECK(engine.mass_error(*assembly) < 1.e-14);
+  // A known constrained face can itself contain positive trace proportions.
+  // Its allowed composition directions cannot be recovered from x alone.
+  state.composition_basis = state.composition.transpose();
+  assembly =
+      engine.make_at({0}, {state}, {1.e9, 100.}, Eigen::Vector2d(1.e9, 500.));
+  CHECK_FALSE(assembly->get_phase<Solution>(0));
+  const auto saved = engine.snapshot(*assembly, {0})[0];
+  REQUIRE(saved.composition_basis);
+  CHECK((*saved.composition_basis - *state.composition_basis).norm() < 1.e-14);
+  CHECK((saved.composition - state.composition).norm() < 1.e-14);
+  CHECK(engine.mass_error(*assembly) < 1.e-14);
+  // Exactly inactive sites can still use a reduced face.
+  state.composition_basis.reset();
+  state.composition = Eigen::Vector2d(1., 0.);
+  assembly = engine.make_assemblage({0}, {state}, 1.e9, 500.);
+  CHECK_FALSE(assembly->get_phase<Solution>(0));
+  CHECK(engine.composition_basis(*assembly->get_phase(0), 0).rows() == 1);
+}
 
 TEST_CASE("Drawn interior boundaries are candidates without inventing nodes",
           "[phase_diagram]") {

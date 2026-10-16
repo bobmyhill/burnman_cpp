@@ -134,6 +134,8 @@ phase_states_dict(const std::vector<phase_diagrams::PhaseState> &states) {
     SAVE(amount)
 #undef SAVE
     record["composition"] = vector_list(state.composition);
+    if (state.composition_basis)
+      record["composition_basis"] = matrix_list(*state.composition_basis);
     records.append(record);
   }
   return records;
@@ -358,6 +360,9 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
                                 "and candidate_index.");
         phase.candidate_index = value["candidate_index"].cast<int>();
         phase.composition = value["composition"].cast<Eigen::VectorXd>();
+        if (value.contains("composition_basis"))
+          phase.composition_basis =
+              value["composition_basis"].cast<Eigen::MatrixXd>();
         if (value.contains("name"))
           phase.name = value["name"].cast<std::string>();
       }
@@ -635,7 +640,10 @@ phase_diagrams::PropertyGrid saved_property_grid(const py::dict &data) {
           READ(amount)
           READ(composition)
 #undef READ
-              point.phases.push_back(std::move(phase));
+          if (p.contains("composition_basis"))
+            phase.composition_basis =
+                p["composition_basis"].cast<Eigen::MatrixXd>();
+          point.phases.push_back(std::move(phase));
         }
         solution.phase_bases =
             record["phase_bases"].cast<std::vector<Eigen::MatrixXd>>();
@@ -678,7 +686,10 @@ void bind_phase_diagram(py::module_ &m) {
       .def_readonly("name", &PhaseState::name)
       .def_readonly("amount", &PhaseState::amount)
       .def_property_readonly("composition",
-                             [](const PhaseState &s) { return s.composition; });
+                             [](const PhaseState &s) { return s.composition; })
+      .def_property_readonly("composition_basis", [](const PhaseState &s) {
+        return s.composition_basis;
+      });
   py::class_<State>(m, "EquilibriumState")
 #define PROPERTY(name) .def_readonly(#name, &State::name)
       PROPERTY(pressure) PROPERTY(temperature) PROPERTY(entropy)
@@ -1098,6 +1109,13 @@ This is the full phase-discovery calculation used for initial diagram grid
 points: the candidate assemblage is not prescribed. P/T search ranges guide
 inverse S/V solves and supply the initial physical seed. Return an EquilibriumState
 with success, phase amounts/compositions and validation diagnostics.
+
+P-S, T-V and S-V searches start from mass-balanced phase amounts and minimise
+total enthalpy, Helmholtz energy and internal energy respectively when phases
+need to change. A full P-T equilibrium search is a fallback. Bulk and the selected
+coordinates stay constrained while competing phases enter. A failed EOS endpoint
+does not suppress attempts from a valid endpoint. Every accepted state must still
+pass reaction, mass-balance, site-bound and candidate-affinity validation.
 )doc");
   m.def(
       "phase_diagram",

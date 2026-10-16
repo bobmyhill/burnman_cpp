@@ -225,9 +225,63 @@ std::vector<std::string> field_diagnostics(const Result &result,
     }
     return true;
   };
+  auto only_on_latent_edges = [&](const Field &field) {
+    if (engine.direct_coordinates() || field.sample_indices.empty())
+      return false;
+    const auto ranges = result.coordinate_ranges();
+    const Eigen::Vector2d range(ranges[0][1] - ranges[0][0],
+                                ranges[1][1] - ranges[1][0]);
+    for (int index : field.sample_indices) {
+      const auto &sample = result.samples.at(static_cast<std::size_t>(index));
+      const auto target = diagram_coordinates(sample, result.section.type);
+      bool found = false;
+      for (const auto &line : result.boundaries) {
+        if (engine.canonical_ids(line.assemblage) != field.phases)
+          continue;
+        for (std::size_t k = 1; k < line.points.size(); ++k) {
+          const auto a = diagram_coordinates(line.points[k - 1],
+                                             result.section.type),
+                     b = diagram_coordinates(line.points[k],
+                                             result.section.type);
+          const Eigen::Vector2d along = (b - a).cwiseQuotient(range);
+          if (along.norm() == 0. ||
+              segment_distance(Eigen::Vector2d::Zero(),
+                               (a - target).cwiseQuotient(range),
+                               (b - target).cwiseQuotient(range)) >
+                  result.settings.node_tolerance)
+            continue;
+          try {
+            auto point = boundary_point_at(
+                engine, line, sample.phases, target,
+                along.normalized().cwiseQuotient(range),
+                equilibrium_coordinate_tolerance(result.section.type, range));
+            if (point &&
+                (Eigen::Vector2d(point->pressure - sample.pressure,
+                                 point->temperature - sample.temperature)
+                     .cwiseAbs()
+                     .array() <= equilibrium_pt_tolerance().array())
+                    .all() &&
+                same_phase_compositions(point->phases, sample.phases,
+                                        result.settings.composition_tolerance,
+                                        result.settings.amount_tolerance)) {
+              found = true;
+              break;
+            }
+          } catch (const std::exception &) {
+          }
+        }
+        if (found)
+          break;
+      }
+      if (!found)
+        return false;
+    }
+    return true;
+  };
   if (result.fields.size() > 1)
     for (const auto &field : result.fields)
-      if (!bordered.count(field.phases) && !only_at_nodes(field)) {
+      if (!bordered.count(field.phases) && !only_at_nodes(field) &&
+          !only_on_latent_edges(field)) {
         if (!engine.free_vectors.empty()) {
           Eigen::MatrixXd span(0, engine.bulk_direction.size());
           for (int id : field.phases) {

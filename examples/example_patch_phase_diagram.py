@@ -42,6 +42,7 @@ from pathlib import Path
 import burnman_cpp as bm
 from burnman_cpp.tools.phase_diagram_helpers import (
     load_example,
+    phase_diagram_timer,
     plot_phase_diagram_example,
     write_phase_diagram,
 )
@@ -92,6 +93,7 @@ def main():
             "--output-dir", type=Path, default=Path("patched_phase_diagram_output")
         )
         command.add_argument("--no-plots", action="store_true")
+        command.add_argument("--verbose", action="store_true")
         if mode == "patch":
             command.add_argument(
                 "patches",
@@ -114,7 +116,6 @@ def main():
                 default=5.0,
                 help="Window padding per side in percent (default 5).",
             )
-            command.add_argument("--verbose", action="store_true")
             if mode != "make-for-problems":
                 command.add_argument(
                     "--fields",
@@ -124,61 +125,68 @@ def main():
                     help="One-based Field numbers; make-and-patch defaults to problematic fields and boundaries.",
                 )
     args = parser.parse_args()
-    source = bm.load_phase_diagram(args.source)
-    if args.mode == "patch":
-        phases = candidate_phases(args.models) if args.models else None
-        patches = [(str(path), bm.load_phase_diagram(path)) for path in args.patches]
-    else:
-        if min(args.seeds) < 2:
-            parser.error("--seeds counts must each be at least 2.")
-        fields = getattr(args, "fields", None)
-        windows = (
-            {
-                f"Field {n}": region
-                for n, region in bm.phase_diagram_field_regions(
-                    source, fields, padding=args.padding / 100
-                ).items()
-            }
-            if fields is not None
-            else bm.phase_diagram_problem_regions(source, padding=args.padding / 100)
-        )
-        if not windows:
-            print(
-                "No problematic fields or boundaries found; no patches were calculated."
+    with phase_diagram_timer(args.verbose):
+        source = bm.load_phase_diagram(args.source)
+        if args.mode == "patch":
+            phases = candidate_phases(args.models) if args.models else None
+            patches = [
+                (str(path), bm.load_phase_diagram(path)) for path in args.patches
+            ]
+        else:
+            if min(args.seeds) < 2:
+                parser.error("--seeds counts must each be at least 2.")
+            fields = getattr(args, "fields", None)
+            windows = (
+                {
+                    f"Field {n}": region
+                    for n, region in bm.phase_diagram_field_regions(
+                        source, fields, padding=args.padding / 100
+                    ).items()
+                }
+                if fields is not None
+                else bm.phase_diagram_problem_regions(
+                    source, padding=args.padding / 100
+                )
             )
-            return
-        phases = candidate_phases(args.models)
-        settings = bm.PhaseDiagramSettings.from_dict(source.get("settings", {}))
-        names = dict(
-            P="pressure", T="temperature", S="entropy", V="volume", X="composition"
-        )
-        for axis, count in zip(source.get("diagram_type", "PT")[::-1], args.seeds):
-            setattr(settings, names[axis] + "_seeds", count)
-        settings.verbose = args.verbose
-        patches = []
-        for label, region in windows.items():
-            print(f"Calculating {label}: x={region[0]}, y={region[1]}", flush=True)
-            patch = bm.calculate_phase_diagram_patch(source, phases, region, settings)
-            patch = save(
-                patch,
-                args.output_dir / (label.lower().replace(" ", "_") + "_patch"),
-                not args.no_plots,
-                metadata=source,
+            if not windows:
+                print(
+                    "No problematic fields or boundaries found; no patches were calculated."
+                )
+                return
+            phases = candidate_phases(args.models)
+            settings = bm.PhaseDiagramSettings.from_dict(source.get("settings", {}))
+            names = dict(
+                P="pressure", T="temperature", S="entropy", V="volume", X="composition"
             )
-            patches.append((label, patch))
-        if args.mode != "make-and-patch":
-            return
-    merged, reports = source, []
-    for label, patch in patches:
-        merged, report = bm.merge_phase_diagrams(merged, patch, phases=phases)
-        for message in report:
-            message = f"{label}: {message}"
-            reports.append(message)
-            print(message, flush=True)
-    save(merged, args.output_dir / "final", not args.no_plots)
-    (args.output_dir / "merge_report.txt").write_text(
-        "\n".join(reports) + "\n", encoding="utf-8"
-    )
+            for axis, count in zip(source.get("diagram_type", "PT")[::-1], args.seeds):
+                setattr(settings, names[axis] + "_seeds", count)
+            settings.verbose = args.verbose
+            patches = []
+            for label, region in windows.items():
+                print(f"Calculating {label}: x={region[0]}, y={region[1]}", flush=True)
+                patch = bm.calculate_phase_diagram_patch(
+                    source, phases, region, settings
+                )
+                patch = save(
+                    patch,
+                    args.output_dir / (label.lower().replace(" ", "_") + "_patch"),
+                    not args.no_plots,
+                    metadata=source,
+                )
+                patches.append((label, patch))
+            if args.mode != "make-and-patch":
+                return
+        merged, reports = source, []
+        for label, patch in patches:
+            merged, report = bm.merge_phase_diagrams(merged, patch, phases=phases)
+            for message in report:
+                message = f"{label}: {message}"
+                reports.append(message)
+                print(message, flush=True)
+        save(merged, args.output_dir / "final", not args.no_plots)
+        (args.output_dir / "merge_report.txt").write_text(
+            "\n".join(reports) + "\n", encoding="utf-8"
+        )
 
 
 if __name__ == "__main__":

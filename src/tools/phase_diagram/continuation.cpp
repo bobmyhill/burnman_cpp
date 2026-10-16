@@ -20,6 +20,28 @@
 #include "burnman/utils/index_utils.hpp"
 
 namespace burnman::phase_diagrams::detail {
+Eigen::Vector2d equilibrium_coordinate_tolerance(DiagramType type,
+                                                 const Eigen::Vector2d &range) {
+  Eigen::Vector2d tolerance;
+  const auto axes = diagram_axes(type);
+  for (int i = 0; i < 2; ++i)
+    switch (axes[static_cast<std::size_t>(i)]) {
+    case Coordinate::P:
+      tolerance[i] = equilibrium_pt_tolerance()[0];
+      break;
+    case Coordinate::T:
+      tolerance[i] = equilibrium_pt_tolerance()[1];
+      break;
+    case Coordinate::S:
+    case Coordinate::V:
+      tolerance[i] = std::max(1.e-18, std::abs(range[i]) * 1.e-9);
+      break;
+    case Coordinate::X:
+      tolerance[i] = 1.e-10;
+      break;
+    }
+  return tolerance;
+}
 namespace {
 // Differentiate a field branch with respect to a normal displacement in the
 // rescaled diagram. The other equations retain reaction and mass balance.
@@ -53,7 +75,11 @@ Eigen::VectorXd field_response(const Engine &engine, const Assemblage &a,
   }
   Eigen::JacobiSVD<Eigen::MatrixXd> svd(j, Eigen::ComputeThinU |
                                                Eigen::ComputeThinV);
-  svd.setThreshold(1.e-10);
+  // Latent S/V intervals can couple phase amounts to the intensive variables
+  // through a small but nonzero singular direction. Dropping it turns a
+  // regular field into a spurious reaction replacement. Use the same inverse
+  // rank accuracy as continuation_tangent and retain the residual check below.
+  svd.setThreshold(engine.direct_coordinates() ? 1.e-10 : 1.e-12);
   if (svd.rank() != j.cols())
     return {};
   Eigen::VectorXd response = svd.solve(rhs);
@@ -89,7 +115,9 @@ int phase_entry_side(Engine &engine, Assemblage &a, const std::vector<int> &ids,
   // deleting a phase can leave a branch that exists only on the line itself.
   auto absent = ids;
   absent.erase(absent.begin() + (entry - ids.begin()));
-  auto other = engine.make_at(absent, states, engine.coordinates(a));
+  auto other =
+      engine.make_at(absent, states, engine.coordinates(a),
+                     Eigen::Vector2d(a.get_pressure(), a.get_temperature()));
   auto other_prm = engine.parameters(*other);
   auto x = get_parameter_vector(*other, engine.free_vectors.empty() ? 0 : 1);
   ConstraintGroup fixed;
@@ -135,6 +163,93 @@ int phase_entry_side(Engine &engine, Assemblage &a, const std::vector<int> &ids,
   return std::isfinite(derivative) && derivative > 1.e-5 ? sign : 0;
 }
 
+// At an intensive invariant, changing reaction extents gives a latent S/V
+// edge. Its full assemblage need not be an areal field in the selected axes.
+// Test its limiting assemblages' coordinate responses and the affinity of
+// each omitted phase, instead of assigning a field by phase count or by a
+// finite probe that can jump across a very narrow neighbour.
+std::array<std::vector<int>, 2>
+latent_boundary_sides(Engine &engine, const Assemblage &a,
+                      const std::vector<int> &ids, const Eigen::Vector2d &range,
+                      const Eigen::Vector2d &normal) {
+  std::array<std::vector<int>, 2> sides;
+  std::array<bool, 2> conflict{};
+  const auto states = engine.snapshot(a, ids);
+  for (std::size_t removed = 0; removed < ids.size(); ++removed) {
+    auto subset = ids;
+    subset.erase(subset.begin() + static_cast<std::ptrdiff_t>(removed));
+    try {
+      auto work = engine.fixed_at(
+          subset, states, engine.coordinates(a),
+          Eigen::Vector2d(a.get_pressure(), a.get_temperature()));
+      if (!work.state.success || work.ids.size() != subset.size())
+        continue;
+      auto &field = *work.assemblage;
+      const auto prm = engine.parameters(field);
+      const auto x =
+          get_parameter_vector(field, engine.free_vectors.empty() ? 0 : 1);
+      ConstraintGroup fixed;
+      for (Coordinate axis : diagram_axes(engine.section.type))
+        fixed.push_back(engine.coordinate_constraint(axis, 0., x.size()));
+      if (!engine.free_vectors.empty())
+        fixed.push_back(engine.coordinate_constraint(
+            *engine.section.fixed_coordinate, 0., x.size()));
+      const auto jacobian =
+          J(x, field, fixed, prm.reduced_free_composition_vectors);
+      auto response = field_response(engine, field, jacobian, range, normal);
+      if (!response.size())
+        continue;
+      auto material = clone(a.get_phase(removed));
+      const auto formula =
+          engine.phase_formulae({ids[removed]}, states).row(0).eval();
+      auto affinity = [&]() {
+        material->set_state(field.get_pressure(), field.get_temperature());
+        const auto mu = engine.potentials(field);
+        double value = material->get_molar_gibbs();
+        for (std::size_t k = 0; k < engine.components.size(); ++k)
+          value -=
+              formula[engine.components[k]] * mu[static_cast<Eigen::Index>(k)];
+        return value;
+      };
+      const double initial = affinity();
+      for (int sign : {-1, 1}) {
+        set_composition_and_state_from_parameters(field, x);
+        const auto direction = (sign * response).eval();
+        const auto slack =
+            (prm.constraint_matrix * x + prm.constraint_vector).eval();
+        const auto rate = (prm.constraint_matrix * direction).eval();
+        bool feasible = true;
+        double step = 1.e-6;
+        for (Eigen::Index row = 0; row < slack.size(); ++row)
+          if (rate[row] > 1.e-12) {
+            if (slack[row] >= -1.e-12) {
+              feasible = false;
+              break;
+            }
+            step = std::min(step, -.1 * slack[row] / rate[row]);
+          }
+        if (!feasible || step < 1.e-10)
+          continue;
+        set_composition_and_state_from_parameters(field, x + step * direction);
+        const double derivative = (affinity() - initial) / step;
+        if (!std::isfinite(derivative) || derivative <= 1.e-5)
+          continue;
+        const auto branch = engine.canonical_ids(subset);
+        const std::size_t slot = sign > 0 ? 1 : 0;
+        if (!sides[slot].empty() && sides[slot] != branch)
+          conflict[slot] = true;
+        else
+          sides[slot] = branch;
+      }
+    } catch (const std::exception &) {
+    }
+  }
+  for (std::size_t slot = 0; slot < sides.size(); ++slot)
+    if (conflict[slot])
+      sides[slot].clear();
+  return sides;
+}
+
 } // namespace
 
 std::array<std::vector<int>, 2>
@@ -161,6 +276,8 @@ boundary_sides(Engine &engine, Assemblage &a, const std::vector<int> &ids,
     std::array<std::vector<int>, 2> partial;
     if (full_side)
       partial[full_side > 0 ? 1 : 0] = engine.canonical_ids(ids);
+    else if (!has_composition_axis(engine.section.type))
+      partial = latent_boundary_sides(engine, a, ids, range, normal);
     return partial;
   }
   // A compound reaction has dependent phase amounts. Its two limiting
@@ -284,11 +401,11 @@ Eigen::VectorXd continuation_tangent(const Engine &engine,
   // Changing phase amounts can move S/V at constant P,T; other changes may
   // leave both plotted coordinates unchanged. Exactly one direction defines a
   // line.
+  const Eigen::MatrixXd projected = range.cwiseInverse().asDiagonal() *
+                                    engine.coordinate_jacobian(a, s.x.size()) *
+                                    scales.asDiagonal() * null;
   Eigen::JacobiSVD<Eigen::MatrixXd> projection(
-      range.cwiseInverse().asDiagonal() *
-          engine.coordinate_jacobian(a, s.x.size()) * scales.asDiagonal() *
-          null,
-      Eigen::ComputeThinU | Eigen::ComputeThinV);
+      projected, Eigen::ComputeThinU | Eigen::ComputeThinV);
   int dim = burnman::utils::checked_int(
       (projection.singularValues().array() > 1.e-7).count());
   if (coordinate_rank)
@@ -341,8 +458,10 @@ bool seed_phase_compositions(PhaseStates &warm, const PhaseStates &seed,
         (warm[i].composition - other.composition).norm() > tolerance)
       return false;
   }
-  for (std::size_t i = 0; i < warm.size(); ++i)
+  for (std::size_t i = 0; i < warm.size(); ++i) {
     warm[i].composition = seed[(*matches)[i]].composition;
+    warm[i].composition_basis = seed[(*matches)[i]].composition_basis;
+  }
   return true;
 }
 
@@ -388,20 +507,21 @@ std::vector<int> zero_phases_at(const Node &node, const PhaseStates &states,
   return zeros;
 }
 
-std::optional<BoundaryPoint> corrected_point(Engine &engine, Assemblage &a,
-                                             const std::vector<int> &ids,
-                                             ConstraintList &c,
-                                             const Eigen::Vector2d &target,
-                                             const Eigen::Vector2d &allowance) {
-  auto solved = engine.solve(a, c);
+std::optional<BoundaryPoint>
+corrected_point(Engine &engine, Assemblage &a, const std::vector<int> &ids,
+                ConstraintList &c, const Eigen::Vector2d &target,
+                const Eigen::Vector2d &allowance, double tolerance_scale,
+                bool require_stability) {
+  auto solved = engine.solve(a, c, true, tolerance_scale);
   if (!solved.success || !solved.x.allFinite() ||
       engine.mass_error(a) > engine.settings.mass_balance_tolerance ||
+      (!engine.direct_coordinates() && !engine.locally_stable(a)) ||
       !engine.distinct(a, ids) ||
       ((engine.coordinates(a) - target).cwiseAbs().array() > allowance.array())
           .any())
     return std::nullopt;
   const double affinity = engine.stability(a);
-  if (affinity < -engine.settings.affinity_tolerance)
+  if (require_stability && affinity < -engine.settings.affinity_tolerance)
     return std::nullopt;
   BoundaryPoint point;
   engine.record_coordinates(point, a);
@@ -416,19 +536,75 @@ std::optional<BoundaryPoint> corrected_point(Engine &engine, Assemblage &a,
 std::optional<BoundaryPoint>
 boundary_point_at(Engine &engine, const Boundary &line, const PhaseStates &warm,
                   const Eigen::Vector2d &target, const Eigen::Vector2d &weights,
-                  const Eigen::Vector2d &allowance) {
-  auto assembly = engine.make_at(line.assemblage, warm, target);
-  const auto prm = engine.parameters(*assembly);
+                  const Eigen::Vector2d &allowance, double tolerance_scale,
+                  bool require_stability) {
+  // S/V do not determine a physical starting P,T without an inverse solve.
+  // The nearest accepted boundary state supplies both, including active faces.
+  const auto nearest = std::min_element(
+      line.points.begin(), line.points.end(),
+      [&](const auto &a, const auto &b) {
+        return ((diagram_coordinates(a, engine.section.type) - target)
+                    .cwiseProduct(weights))
+                   .squaredNorm() <
+               ((diagram_coordinates(b, engine.section.type) - target)
+                    .cwiseProduct(weights))
+                   .squaredNorm();
+      });
+  std::optional<Eigen::Vector2d> physical;
+  if (nearest != line.points.end())
+    physical = Eigen::Vector2d(nearest->pressure, nearest->temperature);
+  auto assembly = engine.make_at(line.assemblage, warm, target, physical);
   const auto zero = std::find(line.assemblage.begin(), line.assemblage.end(),
                               line.zero_phase);
   if (zero == line.assemblage.end())
     return std::nullopt;
-  auto c = constraints(
-      std::make_unique<PhaseFractionConstraint>(zero - line.assemblage.begin(),
-                                                0., prm),
-      continuation_plane(engine, *assembly, prm.n_parameters, target, weights));
-  return corrected_point(engine, *assembly, line.assemblage, c, target,
-                         allowance);
+  std::optional<BoundaryPoint> point;
+  for (int pass = 0; pass < 3; ++pass) {
+    const auto prm = engine.parameters(*assembly);
+    auto c = constraints(std::make_unique<PhaseFractionConstraint>(
+                             zero - line.assemblage.begin(), 0., prm),
+                         continuation_plane(engine, *assembly, prm.n_parameters,
+                                            target, weights));
+    point = corrected_point(engine, *assembly, line.assemblage, c, target,
+                            allowance, tolerance_scale, require_stability);
+    if (!point || tolerance_scale == 1. ||
+        !engine.settings.active_solution_faces ||
+        point->minimum_affinity >=
+            -std::min(engine.settings.affinity_tolerance, 1.e-5))
+      return point;
+    // Before rejecting a weakly unstable arc, release a trace composition
+    // that the ordinary continuation face may have pinned to zero.
+    std::vector<Minimum> minima;
+    engine.stability(*assembly, &minima);
+    auto states = engine.snapshot(*assembly, line.assemblage);
+    for (auto &phase : states) {
+      const auto &minimum =
+          minima[static_cast<std::size_t>(phase.candidate_index)];
+      if (minimum.affinity <
+              -std::min(engine.settings.affinity_tolerance, 1.e-5) &&
+          (minimum.p - phase.composition).norm() < .05)
+        phase.composition = minimum.p;
+    }
+    auto trial = engine.make_assemblage(line.assemblage, states,
+                                        assembly->get_pressure(),
+                                        assembly->get_temperature(), 1.e-9);
+    bool changed = false;
+    for (std::size_t k = 0; k < line.assemblage.size(); ++k) {
+      auto old = engine.composition_basis(*assembly->get_phase(k),
+                                          states[k].candidate_index),
+           next = engine.composition_basis(*trial->get_phase(k),
+                                           states[k].candidate_index);
+      changed = changed || old.rows() != next.rows() ||
+                old.cols() != next.cols() ||
+                (old.rows() == next.rows() && old.cols() == next.cols() &&
+                 (old - next).norm() > 1.e-8);
+    }
+    if (!changed)
+      return point;
+    engine.set_coordinate(*trial, engine.composition_coordinate(*assembly));
+    assembly = trial;
+  }
+  return point;
 }
 
 // Use the same intensive seed (and active solution faces) for both events,
@@ -449,7 +625,9 @@ junction_point_at(Engine &engine, const Node &node, PhaseStates warm,
       phase.amount = 0.;
   }
   const auto target = diagram_coordinates(node, engine.section.type);
-  auto assembly = engine.make_at(node.assemblage, warm, target);
+  auto assembly =
+      engine.make_at(node.assemblage, warm, target,
+                     Eigen::Vector2d(node.pressure, node.temperature));
   const auto prm = engine.parameters(*assembly);
   auto zero = [&](int id) -> std::unique_ptr<EqualityConstraint> {
     const auto entry =
@@ -462,7 +640,7 @@ junction_point_at(Engine &engine, const Node &node, PhaseStates warm,
   };
   auto c = constraints(zero(zeros[0]), zero(zeros[1]));
   return corrected_point(engine, *assembly, node.assemblage, c, target,
-                         allowance);
+                         allowance, engine.direct_coordinates() ? 1. : 1.e-4);
 }
 
 // An event found behind a point accepted within the affinity tolerance must
@@ -470,7 +648,7 @@ junction_point_at(Engine &engine, const Node &node, PhaseStates warm,
 // trimming; coordinate order alone is insufficient for curved traces.
 void trim_boundary_endpoints(Boundary &line, Engine &engine,
                              const Eigen::Vector2d &range) {
-  if (engine.section.type != DiagramType::PT || line.points.size() < 3 ||
+  if (has_composition_axis(engine.section.type) || line.points.size() < 3 ||
       line.zero_phase < 0 ||
       (line.start_node >= 0 && line.start_node == line.end_node))
     return;
@@ -488,7 +666,8 @@ void trim_boundary_endpoints(Boundary &line, Engine &engine,
           .cwiseQuotient(range);
     };
     std::size_t tail = line.points.size() - 2;
-    const auto accuracy = equilibrium_pt_tolerance();
+    const auto accuracy =
+        equilibrium_coordinate_tolerance(engine.section.type, range);
     while (
         tail > 0 &&
         ((diagram_coordinates(line.points[tail], engine.section.type) - target)
@@ -517,10 +696,9 @@ void trim_boundary_endpoints(Boundary &line, Engine &engine,
               std::max(engine.settings.node_tolerance, .5 * delta.norm()))
         continue;
       try {
-        auto point =
-            boundary_point_at(engine, line, line.points[k - 1].phases, target,
-                              delta.normalized().cwiseQuotient(range),
-                              equilibrium_pt_tolerance());
+        auto point = boundary_point_at(
+            engine, line, line.points[k - 1].phases, target,
+            delta.normalized().cwiseQuotient(range), accuracy);
         if (!point ||
             !same_phase_compositions(point->phases, endpoint.phases,
                                      engine.settings.composition_tolerance,

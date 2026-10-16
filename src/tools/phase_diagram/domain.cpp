@@ -14,6 +14,7 @@
 #include "burnman/tools/phase_diagram/domain.hpp"
 #include "burnman/tools/phase_diagram/stability.hpp"
 #include "burnman/utils/index_utils.hpp"
+#include <iostream>
 
 namespace burnman::phase_diagrams::detail {
 bool unfinished_boundary(const std::string &status) {
@@ -119,7 +120,16 @@ excluded_model_regions(Engine &engine, const Eigen::Vector2d &origin,
   std::vector<Eigen::MatrixXd> regions;
   if (!engine.settings.exclude_invalid_eos)
     return regions;
+  const bool entropy_section = engine.section.type == DiagramType::PS;
+  // Locate EOS failures in physical P,T. An unsuccessful entropy-constrained
+  // equilibrium is not a certificate of EOS failure. Transform the verified
+  // physical limit using the entropy of stable equilibria on its valid side.
+  const auto temperature = engine.temperature_bounds;
   auto feasible = [&](double pn, double tn) {
+    if (entropy_section)
+      return engine.eos_bulk_feasible(
+          origin[0] + pn * range[0],
+          temperature[0] + tn * (temperature[1] - temperature[0]));
     return engine.eos_bulk_feasible_at(
         origin + Eigen::Vector2d(pn, tn).cwiseProduct(range));
   };
@@ -139,9 +149,90 @@ excluded_model_regions(Engine &engine, const Eigen::Vector2d &origin,
     return .5 * (low + high);
   };
   std::vector<Eigen::Vector2d> curve;
+  WorkState warm_limit;
+  auto mapped = [&](double pn, double tn) -> std::optional<Eigen::Vector2d> {
+    if (!entropy_section)
+      return Eigen::Vector2d(pn, tn);
+    const double t = temperature[0] + tn * (temperature[1] - temperature[0]);
+    // Bisection brackets the EOS root to finite accuracy. Approach from the
+    // admissible side, retaining actual solved P,T and entropy.
+    for (double offset : {1.e-9, 1.e-8, 1.e-7, 1.e-6}) {
+      const double p = origin[0] + std::min(1., pn + offset) * range[0];
+      WorkState state;
+      if (warm_limit.state.success)
+        state = engine.equilibrate_phase_set(warm_limit.ids,
+                                             warm_limit.state.phases, p, t);
+      if (!state.state.success)
+        state = engine.stable(p, t);
+      if (state.state.success) {
+        warm_limit = state;
+        return Eigen::Vector2d((p - origin[0]) / range[0],
+                               (state.state.entropy - origin[1]) / range[1]);
+      }
+    }
+    return std::nullopt;
+  };
+  std::function<void(double, double, const Eigen::Vector2d &,
+                     const Eigen::Vector2d &, int)>
+      subdivide;
+  subdivide = [&](double ta, double tb, const Eigen::Vector2d &a,
+                  const Eigen::Vector2d &b, int depth) {
+    const double tm = .5 * (ta + tb);
+    auto middle = mapped(lower_pressure(tm), tm);
+    if (middle && depth < 12 &&
+        segment_distance(*middle, a, b) > engine.settings.node_tolerance * .1) {
+      subdivide(ta, tm, a, *middle, depth + 1);
+      subdivide(tm, tb, *middle, b, depth + 1);
+    } else
+      curve.push_back(b);
+  };
+  double last_temperature = 0.;
+  auto append = [&](double pn, double tn) {
+    auto point = mapped(pn, tn);
+    if (!point) {
+      if (engine.settings.verbose)
+        std::cerr << "Could not transform the EOS limit to entropy at T="
+                  << temperature[0] + tn * (temperature[1] - temperature[0])
+                  << " K.\n";
+      return;
+    }
+    if (entropy_section && !curve.empty())
+      subdivide(last_temperature, tn, curve.back(), *point, 0);
+    else
+      curve.push_back(*point);
+    last_temperature = tn;
+  };
   auto flush = [&]() {
     if (curve.empty())
       return;
+    if (entropy_section) {
+      // Intersect the mapped curve with the requested entropy interval. The
+      // adaptive physical solves bound the chord error before clipping.
+      std::vector<Eigen::Vector2d> clipped;
+      for (std::size_t i = 1; i < curve.size(); ++i) {
+        const auto a = curve[i - 1], b = curve[i];
+        const Eigen::Vector2d delta = b - a;
+        double low = 0., high = 1.;
+        if (std::abs(delta[1]) < 1.e-14) {
+          if (a[1] < 0. || a[1] > 1.)
+            continue;
+        } else {
+          const double first = -a[1] / delta[1],
+                       second = (1. - a[1]) / delta[1];
+          low = std::max(low, std::min(first, second));
+          high = std::min(high, std::max(first, second));
+        }
+        if (low > high)
+          continue;
+        const Eigen::Vector2d first = a + low * delta, last = a + high * delta;
+        if (clipped.empty() || (clipped.back() - first).norm() > 1.e-12)
+          clipped.push_back(first);
+        clipped.push_back(last);
+      }
+      curve = std::move(clipped);
+      if (curve.empty())
+        return;
+    }
     std::vector<Eigen::Vector2d> ring{{0., curve.front()[1]}};
     ring.insert(ring.end(), curve.begin(), curve.end());
     ring.push_back({0., curve.back()[1]});
@@ -155,7 +246,7 @@ excluded_model_regions(Engine &engine, const Eigen::Vector2d &origin,
   };
   double previous = lower_pressure(0.);
   if (previous > 0.)
-    curve.push_back({previous, 0.});
+    append(previous, 0.);
   for (int j = 1; j <= 64; ++j) {
     double t = double(j) / 64., left = double(j - 1) / 64.,
            p = lower_pressure(t);
@@ -171,14 +262,14 @@ excluded_model_regions(Engine &engine, const Eigen::Vector2d &origin,
       }
       Eigen::Vector2d edge(0., .5 * (low + high));
       if (p > 0.)
-        curve.push_back(edge);
+        append(edge[0], edge[1]);
       else {
-        curve.push_back(edge);
+        append(edge[0], edge[1]);
         flush();
       }
     }
     if (p > 0.)
-      curve.push_back({p, t});
+      append(p, t);
     previous = p;
   }
   flush();
@@ -245,7 +336,8 @@ void join_frame_limits(Result &result, Engine &engine) {
         n.zero_phases = {line.zero_phase};
         auto a =
             engine.make_at(line.assemblage, point.phases,
-                           diagram_coordinates(point, result.section.type));
+                           diagram_coordinates(point, result.section.type),
+                           Eigen::Vector2d(point.pressure, point.temperature));
         n.gibbs_variance = field_variance(*a, line.assemblage.size());
         result.nodes.push_back(n);
         id = n.id;

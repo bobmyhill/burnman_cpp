@@ -27,7 +27,9 @@ int boundary_variance(const Boundary &, const Result &);
 std::set<int> active_boundary_nodes(const Result &);
 
 /// Re-solve interior points of alternative traces joining the same two nodes.
-/// Remove a failing trace only when a competing trace passes the checks;
+/// Remove a failing trace only when a competing trace passes the checks.
+/// Inverse sections require verified metastability; a failed corrector
+/// leaves stability unresolved.
 /// sharing endpoints does not by itself make two curves duplicates.
 /// Return the number of removed records.
 std::size_t remove_metastable_parallel_lines(Result &, Engine &);

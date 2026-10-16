@@ -33,6 +33,7 @@ from pathlib import Path
 import burnman_cpp as bm
 from burnman_cpp.tools.phase_diagram_helpers import (
     load_example,
+    phase_diagram_timer,
     plot_phase_diagram_example,
     refine_saved,
     write_phase_diagram,
@@ -72,46 +73,47 @@ def main():
         "--verbose", action="store_true", help="Print refinement progress."
     )
     args = parser.parse_args()
-    saved = bm.load_phase_diagram(args.source)
-    candidates = load_example(args.models).candidate_phases()
-    settings = bm.PhaseDiagramSettings.from_dict(saved.get("settings", {}))
-    settings.verbose = args.verbose
-    if args.verbose:
-        print(f"Loaded {args.source}. Starting refinement.", flush=True)
-    display = {
-        key: getattr(args, key)
-        for key in (
-            "pressure_unit",
-            "temperature_unit",
-            "entropy_unit",
-            "volume_unit",
-            "swap_axes",
-        )
-    }
-    result = refine_saved(
-        saved,
-        candidates,
-        settings=settings,
-        verbose=args.verbose,
-        resolution=args.resolution,
-        **display,
-    )
-    write_phase_diagram(
-        result,
-        args.output_dir / "phase_diagram",
-        metadata=saved,
-        label_fontsize=args.label_fontsize,
-        plot=(
-            None
-            if args.no_plots
-            else partial(
-                plot_phase_diagram_example,
-                **display,
-                key_path=args.output_dir / "assemblages.md",
-                bbox_inches=None,
+    with phase_diagram_timer(args.verbose):
+        saved = bm.load_phase_diagram(args.source)
+        candidates = load_example(args.models).candidate_phases()
+        settings = bm.PhaseDiagramSettings.from_dict(saved.get("settings", {}))
+        settings.verbose = args.verbose
+        if args.verbose:
+            print(f"Loaded {args.source}. Starting refinement.", flush=True)
+        display = {
+            key: getattr(args, key)
+            for key in (
+                "pressure_unit",
+                "temperature_unit",
+                "entropy_unit",
+                "volume_unit",
+                "swap_axes",
             )
-        ),
-    )
+        }
+        result = refine_saved(
+            saved,
+            candidates,
+            settings=settings,
+            verbose=args.verbose,
+            resolution=args.resolution,
+            **display,
+        )
+        write_phase_diagram(
+            result,
+            args.output_dir / "phase_diagram",
+            metadata=saved,
+            label_fontsize=args.label_fontsize,
+            plot=(
+                None
+                if args.no_plots
+                else partial(
+                    plot_phase_diagram_example,
+                    **display,
+                    key_path=args.output_dir / "assemblages.md",
+                    bbox_inches=None,
+                )
+            ),
+        )
 
 
 if __name__ == "__main__":

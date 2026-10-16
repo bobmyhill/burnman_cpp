@@ -17,6 +17,10 @@
 
 namespace burnman::phase_diagrams::detail {
 struct Engine;
+/// Coordinate tolerances for comparing independently corrected equilibria.
+/// Extensive coordinates scale with the supplied diagram/bulk amount.
+Eigen::Vector2d equilibrium_coordinate_tolerance(DiagramType,
+                                                 const Eigen::Vector2d &range);
 // Weighted sum of two equality constraints. Keep weights constant while solving
 // so the combined value and its derivatives remain consistent.
 class SectionConstraint : public EqualityConstraint {
@@ -76,20 +80,24 @@ std::vector<int> zero_phases_at(const Node &, const PhaseStates &, int copies);
 /// stability, mass balance, distinct solution copies and proximity to target.
 /// target/allowance use native diagram units. Returns no point on failure;
 /// the trial assemblage can still have changed during the attempted solve.
-std::optional<BoundaryPoint> corrected_point(Engine &, Assemblage &,
-                                             const std::vector<int> &,
-                                             ConstraintList &,
-                                             const Eigen::Vector2d &target,
-                                             const Eigen::Vector2d &allowance);
+/// require_stability=false retains a converged root's negative affinity for
+/// classification, while preserving root, mass and local-curvature checks.
+std::optional<BoundaryPoint>
+corrected_point(Engine &, Assemblage &, const std::vector<int> &,
+                ConstraintList &, const Eigen::Vector2d &target,
+                const Eigen::Vector2d &allowance, double tolerance_scale = 1.,
+                bool require_stability = true);
 
 /// Solve the same reaction near target, using warm phase amounts/compositions.
 /// Impose zero amount of line.zero_phase and a weighted plane through target.
 /// This follows an existing branch; it does not discover a new phase
-/// assemblage.
+/// assemblage. A tolerance_scale below one also refits active composition
+/// faces before testing affinities below ordinary continuation accuracy.
 std::optional<BoundaryPoint>
 boundary_point_at(Engine &, const Boundary &, const PhaseStates &warm,
                   const Eigen::Vector2d &target, const Eigen::Vector2d &weights,
-                  const Eigen::Vector2d &allowance);
+                  const Eigen::Vector2d &allowance, double tolerance_scale = 1.,
+                  bool require_stability = true);
 
 /// Verify a saved double-zero junction using compositions from a reference
 /// equilibrium. Preserve the junction's own phase IDs and zero constraints.
