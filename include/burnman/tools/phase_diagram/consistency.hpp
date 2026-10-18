@@ -16,6 +16,24 @@
 #include <functional>
 
 namespace burnman::phase_diagrams::detail {
+/// Compact thermodynamic evidence for auditing without retaining phase models.
+struct ThermodynamicSample {
+  Eigen::Vector2d position = Eigen::Vector2d::Zero(),
+                  gradient = Eigen::Vector2d::Zero();
+  double energy = 0., uncertainty = 0., bulk_coordinate = 0.;
+  bool available = false;
+  std::array<bool, 2> applicable{false, false}, convex{false, false};
+};
+ThermodynamicSample thermodynamic_sample(const State &,
+                                         const CompositionSection &);
+/// Check one final pair and accumulate explicit coverage; performs no solves.
+double audit_thermodynamic_pair(const ThermodynamicSample &,
+                                const ThermodynamicSample &, std::size_t axis,
+                                ThermodynamicValidation &);
+/// Audit all aligned saved samples, including later additions and resumed data.
+/// Preserve non-thermodynamic diagnostics; never retrace or solve new states.
+void audit_thermodynamic_samples(Result &);
+
 /// Total G(P,T), H(P,S), F(T,V) or U(S,V), on the supplied bulk scale.
 /// Return NaN for non-natural P-V/T-S sections. X is held fixed when comparing
 /// states along the other axis; compositions with different X are not compared.

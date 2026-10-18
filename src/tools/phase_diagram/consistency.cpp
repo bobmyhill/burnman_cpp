@@ -81,26 +81,116 @@ double thermodynamic_energy_tolerance(const State &a, const State &b) {
   }
   return tolerance;
 }
+ThermodynamicSample thermodynamic_sample(const State &state,
+                                         const CompositionSection &section) {
+  ThermodynamicSample sample;
+  sample.position = diagram_coordinates(state, section.type);
+  sample.energy = thermodynamic_potential(state, section);
+  sample.uncertainty = thermodynamic_energy_tolerance(state, State{});
+  sample.bulk_coordinate = state.composition_coordinate;
+  sample.available = state.success && !state.outside_model_domain;
+  const auto axes = diagram_axes(section.type);
+  for (std::size_t axis = 0; axis < 2; ++axis) {
+    sample.gradient[static_cast<Eigen::Index>(axis)] =
+        conjugate(state, axes[axis]);
+    sample.applicable[axis] =
+        natural_diagram(section).has_value() && axes[axis] != Coordinate::X;
+    sample.convex[axis] =
+        axes[axis] == Coordinate::S || axes[axis] == Coordinate::V;
+  }
+  return sample;
+}
+double audit_thermodynamic_pair(const ThermodynamicSample &a,
+                                const ThermodynamicSample &b, std::size_t axis,
+                                ThermodynamicValidation &coverage) {
+  if (!a.available || !b.available || !a.applicable[axis] ||
+      !b.applicable[axis] || a.bulk_coordinate != b.bulk_coordinate) {
+    ++coverage.skipped_pairs;
+    return 0.;
+  }
+  ++coverage.checked_pairs;
+  const auto k = static_cast<Eigen::Index>(axis), other = 1 - k;
+  double excess = std::numeric_limits<double>::infinity();
+  if (std::isfinite(a.energy) && std::isfinite(b.energy) &&
+      a.position.allFinite() && b.position.allFinite() &&
+      std::isfinite(a.gradient[k]) && std::isfinite(b.gradient[k]) &&
+      std::isfinite(a.uncertainty) && std::isfinite(b.uncertainty)) {
+    const double delta = b.position[k] - a.position[k],
+                 change = b.energy - a.energy;
+    const double sign = a.convex[axis] ? 1. : -1.;
+    // Allow roundoff in the nominally fixed orthogonal coordinate. Diagram
+    // sampling below only groups coordinates that agree to roundoff.
+    double tolerance = a.uncertainty + b.uncertainty;
+    if (a.applicable[static_cast<std::size_t>(other)] &&
+        a.position[other] != b.position[other])
+      tolerance +=
+          std::abs(b.position[other] - a.position[other]) *
+          std::max(std::abs(a.gradient[other]), std::abs(b.gradient[other]));
+    excess = std::max(
+        0.,
+        (delta == 0. ? std::abs(change)
+                     : std::max({0., sign * (a.gradient[k] * delta - change),
+                                 sign * (change - b.gradient[k] * delta)})) -
+            tolerance);
+  }
+  if (excess > 0.)
+    ++coverage.violations;
+  return excess;
+}
 double thermodynamic_violation(const State &a, const State &b,
                                const CompositionSection &section,
                                std::size_t axis) {
-  const auto coordinate = diagram_axes(section.type)[axis];
-  if (!a.success || !b.success || !natural_diagram(section) ||
-      coordinate == Coordinate::X ||
-      a.composition_coordinate != b.composition_coordinate)
-    return 0.;
-  const double delta =
-      coordinate_value(b, coordinate) - coordinate_value(a, coordinate);
-  if (delta == 0.)
-    return 0.;
-  const double change =
-      thermodynamic_potential(b, section) - thermodynamic_potential(a, section);
-  const double sign =
-      coordinate == Coordinate::S || coordinate == Coordinate::V ? 1. : -1.;
-  const double excess =
-      std::max({0., sign * (conjugate(a, coordinate) * delta - change),
-                sign * (change - conjugate(b, coordinate) * delta)});
-  return std::max(0., excess - thermodynamic_energy_tolerance(a, b));
+  ThermodynamicValidation coverage;
+  return audit_thermodynamic_pair(thermodynamic_sample(a, section),
+                                  thermodynamic_sample(b, section), axis,
+                                  coverage);
+}
+
+void audit_thermodynamic_samples(Result &result) {
+  auto &coverage = result.thermodynamic_validation;
+  coverage = {"aligned_samples", 0, 0, 0};
+  erase_if(result.diagnostics, [](const auto &message) {
+    return message.rfind("Thermodynamic audit: ", 0) == 0;
+  });
+  std::vector<ThermodynamicSample> samples;
+  for (const auto &state : result.samples)
+    samples.push_back(thermodynamic_sample(state, result.section));
+  for (std::size_t axis = 0; axis < 2; ++axis) {
+    const auto other = static_cast<Eigen::Index>(1 - axis);
+    std::vector<std::size_t> order;
+    for (std::size_t i = 0; i < samples.size(); ++i)
+      if (samples[i].position.allFinite())
+        order.push_back(i);
+    std::sort(order.begin(), order.end(), [&](auto a, auto b) {
+      return samples[a].position[other] < samples[b].position[other];
+    });
+    for (std::size_t first = 0; first < order.size();) {
+      std::size_t last = first + 1;
+      const double fixed = samples[order[first]].position[other];
+      const double tolerance =
+          64. * std::numeric_limits<double>::epsilon() * std::abs(fixed);
+      while (last < order.size() &&
+             samples[order[last]].position[other] - fixed <= tolerance)
+        ++last;
+      std::sort(order.begin() + static_cast<std::ptrdiff_t>(first),
+                order.begin() + static_cast<std::ptrdiff_t>(last),
+                [&](auto a, auto b) {
+                  return samples[a].position[static_cast<Eigen::Index>(axis)] <
+                         samples[b].position[static_cast<Eigen::Index>(axis)];
+                });
+      for (auto i = first + 1; i < last; ++i)
+        if (audit_thermodynamic_pair(samples[order[i - 1]], samples[order[i]],
+                                     axis, coverage) > 0.)
+          result.diagnostics.push_back(
+              "Thermodynamic audit: inconsistent saved samples " +
+              std::to_string(order[i - 1]) + " and " +
+              std::to_string(order[i]) + ".");
+      first = last;
+    }
+  }
+  if (!natural_diagram(result.section))
+    coverage.scope = "not_applicable";
+  result.resolved = result.resolved && result.diagnostics.empty();
 }
 
 State equilibrium_state(const BoundaryPoint &point, double gibbs) {

@@ -623,6 +623,8 @@ def merge_phase_diagrams(base, patch, *, join_tolerance=None, phases=None):
 
     merged = deepcopy(base)
     merged.update(nodes=new_nodes, boundaries=lines, samples=samples, fields=fields)
+    # Changed samples and indices invalidate the source audit's coverage.
+    merged.pop("thermodynamic_validation", None)
 
     # Partition each old excluded ring into the four strips outside the patch.
     # Only coordinates are clipped here; accepted equilibrium states above
@@ -662,7 +664,9 @@ def merge_phase_diagrams(base, patch, *, join_tolerance=None, phases=None):
         merged[key] = base.get(key, 0) + patch.get(key, 0)
     # These messages refer to the old graph. Regenerate them below rather than
     # retaining obsolete Field/Boundary/Node numbers after clipping.
-    graph_message = re.compile(r"^(Field |Region |Unpaired |No closed region )")
+    graph_message = re.compile(
+        r"^(Field |Region |Unpaired |No closed region |Thermodynamic audit: )"
+    )
     for source, data in enumerate((base, patch)):
         if source == 0 and np.array_equal(box, domain):
             continue
@@ -870,7 +874,13 @@ def refine_phase_diagram(
 
     A resolved input retains its boundary IDs, connections, side labels, nodes,
     field labels and original points. Refinement only inserts validated points;
-    without ``resolution``, it performs no further calculations.
+    without ``resolution``, it performs no further equilibrium solves. A final
+    read-only thermodynamic audit compares saved samples aligned along each
+    diagram axis, including later samples. ``thermodynamic_validation`` records
+    checked/skipped pair counts and remaining violations; ``scope`` is
+    ``aligned_samples`` or ``not_applicable`` for non-natural coordinates.
+    Older files report ``not_checked`` until audited. These comparisons do not
+    certify unsampled interiors or global stability.
 
     For an unresolved input, recovery can trim overshoots, reconcile duplicate
     traces and retrace suspect arcs, including those around provisional fields.

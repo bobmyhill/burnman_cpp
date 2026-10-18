@@ -229,6 +229,12 @@ struct Field {
   std::vector<int> phases, sample_indices;
 };
 
+/// Coverage of energy comparisons, rather than a global-minimum certificate.
+struct ThermodynamicValidation {
+  std::string scope = "not_checked";
+  std::size_t checked_pairs = 0, skipped_pairs = 0, violations = 0;
+};
+
 /// Saved thermodynamic states and boundary connectivity for the whole diagram.
 /// fields groups samples by assemblage; field_polygons() finds the actual
 /// areas.
@@ -266,6 +272,7 @@ struct Result {
   std::vector<Boundary> boundaries;
   std::vector<Node> nodes;
   std::vector<std::string> diagnostics;
+  ThermodynamicValidation thermodynamic_validation;
   // Unmet boundary-point spacing from the latest refinement request. These
   // messages do not invalidate the saved connections or phase-field labels.
   std::vector<std::string> spacing_diagnostics;

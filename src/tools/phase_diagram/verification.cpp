@@ -12,6 +12,7 @@
 // ------------------------------------------------------
 
 #include "burnman/tools/phase_diagram/verification.hpp"
+#include "burnman/tools/phase_diagram/consistency.hpp"
 #include "burnman/tools/phase_diagram/continuation.hpp"
 #include "burnman/tools/phase_diagram/critical.hpp"
 #include "burnman/tools/phase_diagram/domain.hpp"
@@ -330,6 +331,7 @@ Result verify_critical_endpoints(
   result.equilibrium_solves += engine.equilibrium_solves;
   result.minimization_calls += engine.minimization_calls;
   result.resolved = result.diagnostics.empty();
+  detail::audit_thermodynamic_samples(result);
   return result;
 }
 } // namespace burnman::phase_diagrams

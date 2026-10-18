@@ -3106,6 +3106,7 @@ class Tracer {
     result.equilibrium_solves += engine.equilibrium_solves;
     result.minimization_calls += engine.minimization_calls;
     result.resolved = result.diagnostics.empty();
+    audit_thermodynamic_samples(result);
     return result;
   }
   // Evaluate the initial assemblage grid and bracket changes between
@@ -3459,6 +3460,7 @@ public:
       // and exclusions; point insertion needs no recovery or recertification.
       result.equilibrium_solves += engine.equilibrium_solves;
       result.minimization_calls += engine.minimization_calls;
+      audit_thermodynamic_samples(result);
       return result;
     }
     if (previous) {

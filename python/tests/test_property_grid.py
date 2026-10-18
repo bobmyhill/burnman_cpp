@@ -134,6 +134,132 @@ def single_phase():
     return result, phase
 
 
+def test_resumed_diagram_audits_saved_states_without_new_solves(single_phase):
+    source, phase = single_phase
+    data = source.to_dict()
+    assert data.pop("thermodynamic_validation")["checked_pairs"] > 0
+    legacy = bm.PhaseDiagramResult.from_dict(data)
+    assert legacy.thermodynamic_validation["scope"] == "not_checked"
+    assert legacy.to_dict() == data
+    # Keep a previously resolved diagram but give one accepted root bad energy.
+    data["samples"][0]["gibbs"] += 1.0e6
+    resumed = bm.refine_phase_diagram(data["composition_start"], [phase], data)
+    assert not resumed.resolved
+    assert resumed.thermodynamic_validation["scope"] == "aligned_samples"
+    assert resumed.thermodynamic_validation["violations"] > 0
+    saved = resumed.to_dict()
+    for key in ("samples", "boundaries", "nodes", "equilibrium_solves"):
+        assert saved[key] == data[key]
+    restored = bm.PhaseDiagramResult.from_dict(saved)
+    assert restored.thermodynamic_validation == resumed.thermodynamic_validation
+
+
+def test_final_grid_audit_replaces_stale_messages_without_equilibrating(single_phase):
+    source, phase = single_phase
+    original = bm.phase_diagram_grid(
+        source, [phase], "density", resolution=(2, 2), store_solutions=True
+    ).to_dict()
+    data = dict(original)
+    data.pop("thermodynamic_validation")
+    # Legacy snapshots can reconstruct energy from their phase compositions.
+    for row in data["solutions"]:
+        for state in row:
+            state.pop("gibbs")
+    stale = (
+        "grid [0, 0]: Thermodynamic inconsistency with a neighbouring "
+        "equilibrium remains after recovery."
+    )
+    data.update(resolved=False, diagnostics=[stale], equilibrium_diagnostics=[stale])
+    grid = bm.PhaseDiagramPropertyGrid.from_dict(data)
+    prepared = bm._core._PropertyGridder(source, [phase], grid.x, grid.y)
+    prepared.audit(grid, reset=True)
+    assert grid.resolved and not grid.equilibrium_diagnostics
+    assert grid.thermodynamic_validation == dict(
+        scope="grid_and_joins", checked_pairs=4, skipped_pairs=0, violations=0
+    )
+    assert grid.equilibrium_solves == original["equilibrium_solves"]
+    np.testing.assert_array_equal(grid.values["density"], original["values"]["density"])
+    for j in range(2):
+        for i in range(2):
+            assert np.isfinite(grid.solution_at(j, i).gibbs)
+
+
+@pytest.mark.parametrize("chunk_size", [1, 2, 4])
+@pytest.mark.parametrize("bad_energy", [False, True])
+def test_chunk_final_audit_waits_for_repairs_and_covers_all_joins(
+    single_phase, tmp_path, monkeypatch, chunk_size, bad_energy
+):
+    import json
+
+    source, phase = single_phase
+    records = []
+    originals = {}
+    for n, (rows, cols, grid) in enumerate(
+        bm.phase_diagram_grid_chunks(
+            source, [phase], "density", resolution=(3, 3), chunk_size=chunk_size
+        )
+    ):
+        data = grid.to_dict()
+        data.pop("thermodynamic_validation")  # An older saved batch.
+        if bad_energy and rows.start <= 1 < rows.stop and cols.start <= 1 < cols.stop:
+            data["solutions"][1 - rows.start][1 - cols.start]["gibbs"] += 1.0e6
+        filename = f"chunk_{n}.json"
+        bm.save_property_grid(
+            bm.PhaseDiagramPropertyGrid.from_dict(data), tmp_path / filename
+        )
+        originals[filename] = data
+        records.append(
+            dict(
+                file=filename,
+                rows=[rows.start, rows.stop],
+                columns=[cols.start, cols.stop],
+            )
+        )
+    (tmp_path / "manifest.json").write_text(
+        json.dumps(
+            dict(
+                format="burnman_cpp.property_grid_chunks",
+                schema_version=1,
+                x=[3e9, 4e9, 5e9],
+                y=[800.0, 1000.0, 1200.0],
+                chunks=records,
+            )
+        )
+    )
+    native = bm._core._PropertyGridder
+    repaired = []
+
+    class CappedRecovery:
+        """Leave states as they are; exercise the real final audit after retry."""
+
+        def __init__(self, *args):
+            self.prepared = native(*args)
+
+        def retry(self, grid):
+            repaired.append((grid.x[0], grid.y[0]))
+
+        def audit(self, *args, **kwargs):
+            return self.prepared.audit(*args, **kwargs)
+
+    monkeypatch.setattr(bm._core, "_PropertyGridder", CappedRecovery)
+    checked = violations = 0
+    for _, _, grid in bm.retry_property_grid_chunks(source, [phase], tmp_path):
+        assert len(repaired) == len(records)  # No provisional result was yielded.
+        coverage = grid.thermodynamic_validation
+        assert coverage["scope"] == "grid_and_joins"
+        checked += coverage["checked_pairs"]
+        violations += coverage["violations"]
+        assert grid.resolved == (coverage["violations"] == 0)
+    assert checked == 12  # All horizontal/vertical edges of a 3x3 grid, once.
+    assert violations == (4 if bad_energy else 0)
+    for record in records:
+        saved = bm.load_property_grid(tmp_path / record["file"]).to_dict()
+        original = originals[record["file"]]
+        for key in ("solutions", "values", "success", "equilibrium_solves"):
+            assert saved[key] == original[key]
+        assert saved["thermodynamic_validation"]["scope"] == "grid_and_joins"
+
+
 @pytest.mark.parametrize("relaxed", [False, True])
 def test_grid_all_scalar_properties_and_saved_inputs(single_phase, relaxed, tmp_path):
     source, phase = single_phase
