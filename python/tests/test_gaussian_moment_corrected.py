@@ -10,7 +10,7 @@
 # and contributions can be found in the LICENSE document.
 #
 # ------------------------------------------------------
-"""Quadratic reproduction on physical P-S axes, including edges and corners."""
+"""Boundary smoothing on quadratic potentials and sharp stable transitions."""
 
 import numpy as np
 import pytest
@@ -122,3 +122,62 @@ def test_smoothed_curvature_is_recomputed_from_values():
     # Broadening the Gaussian peak reduces its negative curvature at the
     # centre. Copying the unsmoothed Hessian would fail this physical check.
     assert grids.d2_dy2[32, 16] < result.d2_dy2[32, 16] < 2.0
+
+
+@pytest.mark.parametrize("sigma", [1.0, 2.0, (1.0, 3.0), (3.0, 1.0)])
+@pytest.mark.parametrize("location", [(1, 1), (1, 29), (29, 1), (29, 29)])
+def test_sharp_stable_responses_remain_stable_near_every_corner(sigma, location):
+    from scipy.interpolate import CubicSpline
+    from scipy.special import expit
+
+    # A narrow change in curvature is analytically stable but cannot be
+    # extrapolated over several cells using its pointwise peak Hessian.
+    p, s = np.meshgrid(np.arange(31.0), np.arange(31.0))
+    dx, dy, width = 1e8, 0.64, 0.03
+    up, us = (p - location[0]) / width, (s - location[1]) / width
+    fp, fs = expit(up), expit(us)
+    grids = bm.PotentialGrid(
+        "H",
+        (1 + p[0]) * dx,
+        (10 + s[:, 0]) * dy,
+        -1e6
+        + 6000 * p
+        - 0.5 * p * p
+        + 500 * s
+        + 0.5 * s * s
+        + 0.2 * p * s
+        - 500 * width * np.logaddexp(0, up)
+        + 200 * width * np.logaddexp(0, us),
+        (6000 - p + 0.2 * s - 500 * fp) / dx,
+        (500 + s + 0.2 * p + 200 * fs) / dy,
+        (-1 - 500 / width * fp * (1 - fp)) / dx**2,
+        np.full(p.shape, 0.2 / (dx * dy)),
+        (1 + 200 / width * fs * (1 - fs)) / dy**2,
+    )
+    result = bm.smooth_potential_grid(grids, sigma)
+    for grid in (grids, result):
+        assert (grid.d_dx > 0).all()  # Positive volume.
+        assert (grid.d_dy > 0).all()  # Positive temperature.
+        assert (grid.d2_dx2 < 0).all()  # Positive adiabatic compressibility.
+        assert (grid.d2_dy2 > 0).all()  # Positive heat capacity.
+
+    # Check the potential between nodes as well as the exported node arrays.
+    x = np.linspace(grids.x[0], grids.x[-1], 61)
+    y = np.linspace(grids.y[0], grids.y[-1], 61)
+    for px, sy, sign in ((1, 0, 1), (0, 1, 1), (2, 0, -1), (0, 2, 1)):
+        values = CubicSpline(grids.x, result.values, axis=1)(x, px)
+        derivative = CubicSpline(grids.y, values, axis=0)(y, sy)
+        assert (sign * derivative > 0).all()
+
+
+@pytest.mark.parametrize(
+    "sigma,truncate", [(0.1, 4.0), ((0.1, 2.0), 4.0), (2.0, 0.1), (2.0, 0.5)]
+)
+def test_small_kernel_support_preserves_quadratic_derivatives(sigma, truncate):
+    grids = quadratic_grids()
+    result = bm.smooth_potential_grid(grids, sigma, truncate=truncate)
+    assert result.values.shape == grids.values.shape
+    for name in ("d_dx", "d_dy", "d2_dx2", "d2_dxdy", "d2_dy2"):
+        np.testing.assert_allclose(
+            getattr(result, name), getattr(grids, name), rtol=1e-8
+        )
