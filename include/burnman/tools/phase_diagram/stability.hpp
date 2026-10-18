@@ -254,7 +254,15 @@ struct Engine {
   std::vector<int> active_phases(const State &) const;
   /// Assemblage identity retaining candidate multiplicity, ignoring copy order.
   std::vector<int> canonical_ids(const std::vector<int> &) const;
-  /// Reject near-identical copies of the same solution as distinct phases.
+  /// Reject coincident copies or a pair lowered by a homogeneous mixture.
+  bool distinct_compositions(int candidate, const Eigen::VectorXd &,
+                             const Eigen::VectorXd &, double pressure,
+                             double temperature) const;
+  /// Continuation may follow convex or numerically flat mixing, but must not
+  /// cross a resolved Gibbs mixing barrier into another composition minimum.
+  bool same_composition_basin(int candidate, const Eigen::VectorXd &,
+                              const Eigen::VectorXd &, double pressure,
+                              double temperature) const;
   bool distinct(const Assemblage &, const std::vector<int> &) const;
   /// Each solution composition must be a local Gibbs minimum on its occupied
   /// site face. Affinity tolerance alone cannot reject near-critical saddles.

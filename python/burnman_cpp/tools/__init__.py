@@ -16,6 +16,9 @@
 from .contours import phase_diagram_contour_levels
 from .properties import (
     phase_diagram_grid,
+    phase_diagram_grid_chunks,
+    load_property_grid_chunks,
+    retry_property_grid_chunks,
     save_property_grid,
     load_property_grid,
     evaluate_property_grid,
@@ -44,6 +47,9 @@ from .phase_diagram_helpers import (
 
 __all__ = [
     "phase_diagram_grid",
+    "phase_diagram_grid_chunks",
+    "load_property_grid_chunks",
+    "retry_property_grid_chunks",
     "save_property_grid",
     "load_property_grid",
     "evaluate_property_grid",

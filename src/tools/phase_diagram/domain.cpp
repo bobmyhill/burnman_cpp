@@ -17,6 +17,26 @@
 #include <iostream>
 
 namespace burnman::phase_diagrams::detail {
+bool lies_on_calculation_frame(const Boundary &line, const Result &result) {
+  if (line.points.size() < 2)
+    return false;
+  const auto ranges = result.coordinate_ranges();
+  for (int axis = 0; axis < 2; ++axis) {
+    const auto &bounds = ranges[static_cast<std::size_t>(axis)];
+    const double roundoff =
+        64. * std::numeric_limits<double>::epsilon() *
+        std::max({1., std::abs(bounds[0]), std::abs(bounds[1])});
+    for (double edge : bounds)
+      if (std::all_of(
+              line.points.begin(), line.points.end(), [&](const auto &p) {
+                return std::abs(
+                           diagram_coordinates(p, result.section.type)[axis] -
+                           edge) <= roundoff;
+              }))
+        return true;
+  }
+  return false;
+}
 bool unfinished_boundary(const std::string &status) {
   return status.find("failed") != std::string::npos ||
          status.find("unresolved") != std::string::npos ||

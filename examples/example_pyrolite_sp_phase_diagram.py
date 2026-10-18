@@ -45,7 +45,8 @@ def candidate_phases():
 
 def settings(seeds=41, quick=False, verbose=False):
     opts = pyrolite.settings(seeds, quick, verbose)
-    opts.entropy_seeds = opts.pressure_seeds
+    opts.entropy_seeds = 41
+    opts.pressure_seeds = 41
     return opts
 
 

@@ -497,6 +497,8 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
 py::dict grid_solution_dict(const phase_diagrams::GridSolution &solution) {
   auto data = boundary_point_dict(solution.state);
   data["n_moles"] = solution.n_moles;
+  if (std::isfinite(solution.gibbs))
+    data["gibbs"] = solution.gibbs;
   data["molar_fractions"] = vector_list(solution.molar_fractions.matrix());
   py::list bases, compositions;
   for (const auto &basis : solution.phase_bases)
@@ -529,10 +531,12 @@ py::dict property_grid_dict(const phase_diagrams::PropertyGrid &grid) {
     for (Eigen::Index j = 0; j < matrix.rows(); ++j) {
       py::list row;
       for (Eigen::Index i = 0; i < matrix.cols(); ++i)
-        if (std::isfinite(matrix(j, i)))
-          row.append(matrix(j, i));
-        else
+        if (std::isnan(matrix(j, i)))
           row.append(py::none());
+        else if (std::isinf(matrix(j, i)))
+          row.append(matrix(j, i) > 0. ? "+inf" : "-inf");
+        else
+          row.append(matrix(j, i));
       rows.append(row);
     }
     values[py::str(name)] = rows;
@@ -613,12 +617,14 @@ phase_diagrams::PropertyGrid saved_property_grid(const py::dict &data) {
           grid.solutions.push_back(std::nullopt);
           continue;
         }
-        if (!grid.equilibrium_success(j, i) || grid.field_numbers(j, i) <= 0)
-          throw py::value_error(
-              "A saved solution has no successful equilibrium or field.");
+        if (!grid.equilibrium_success(j, i) || grid.field_numbers(j, i) < 0)
+          throw py::value_error("A saved solution has no successful "
+                                "equilibrium or valid field number.");
         auto record = item.cast<py::dict>();
         GridSolution solution;
         solution.n_moles = record["n_moles"].cast<double>();
+        if (record.contains("gibbs"))
+          solution.gibbs = record["gibbs"].cast<double>();
         solution.molar_fractions =
             record["molar_fractions"].cast<Eigen::ArrayXd>();
         auto &point = solution.state;
@@ -627,10 +633,12 @@ phase_diagrams::PropertyGrid saved_property_grid(const py::dict &data) {
         READ(temperature)
         READ(entropy)
         READ(volume)
-        READ(composition_coordinate) READ(mass_balance_error)
-            READ(minimum_affinity) READ(residual)
+        READ(composition_coordinate)
+        READ(mass_balance_error)
+        READ(minimum_affinity)
+        READ(residual)
 #undef READ
-                for (auto entry : record["phases"].cast<py::list>()) {
+        for (auto entry : record["phases"].cast<py::list>()) {
           auto p = entry.cast<py::dict>();
           PhaseState phase;
 #define READ(name) phase.name = p[#name].cast<decltype(phase.name)>();
@@ -877,6 +885,7 @@ void bind_phase_diagram(py::module_ &m) {
   py::class_<GridSolution>(m, "GridSolution")
       .def_readonly("state", &GridSolution::state)
       .def_readonly("n_moles", &GridSolution::n_moles)
+      .def_readonly("gibbs", &GridSolution::gibbs)
       .def_readonly("molar_fractions", &GridSolution::molar_fractions)
       .def_readonly("phase_bases", &GridSolution::phase_bases)
       .def_readonly("phase_compositions", &GridSolution::phase_compositions)
@@ -915,6 +924,26 @@ void bind_phase_diagram(py::module_ &m) {
       .def("to_dict", &property_grid_dict)
       .def_static("from_dict", &saved_property_grid, py::arg("data"))
       .def_readonly("equilibrium_solves", &PropertyGrid::equilibrium_solves);
+  py::class_<PropertyGridder>(m, "_PropertyGridder")
+      .def(py::init([](py::object previous,
+                       std::vector<std::shared_ptr<Material>> phases,
+                       Eigen::VectorXd x, Eigen::VectorXd y) {
+        Result saved;
+        if (py::isinstance<Result>(previous))
+          saved = previous.cast<Result>();
+        else if (py::isinstance<py::dict>(previous))
+          saved = saved_result(previous.cast<py::dict>(), true);
+        else
+          throw py::type_error("Supply a native result or saved dictionary.");
+        py::gil_scoped_release release;
+        return std::make_unique<PropertyGridder>(
+            std::move(saved), std::move(phases), std::move(x), std::move(y));
+      }))
+      .def("evaluate", &PropertyGridder::evaluate, py::arg("properties"),
+           py::arg("x"), py::arg("y"), py::arg("relaxed"),
+           py::arg("store_solutions"), py::call_guard<py::gil_scoped_release>())
+      .def("retry", &PropertyGridder::retry, py::arg("grid"),
+           py::call_guard<py::gil_scoped_release>());
   m.def("_evaluate_property_grid", &evaluate_property_grid, py::arg("grid"),
         py::arg("phases"), py::arg("properties"), py::arg("relaxed"),
         py::call_guard<py::gil_scoped_release>());

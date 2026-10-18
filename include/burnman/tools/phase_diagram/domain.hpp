@@ -23,6 +23,10 @@ bool unfinished_boundary(const std::string &status);
 /// Read the saved start/end termination messages in boundary point order.
 std::pair<std::string, std::string> boundary_statuses(const Boundary &);
 
+/// Every saved point lies on one calculation edge within floating-point
+/// roundoff. Such an arc has only one in-domain neighbouring field.
+bool lies_on_calculation_frame(const Boundary &, const Result &);
+
 /// Trace the EOS admissibility envelope, returning closed rings in native
 /// diagram coordinates. origin/range map the selected axes to the unit square.
 /// These exclusions describe model validity, not mineral reaction boundaries.

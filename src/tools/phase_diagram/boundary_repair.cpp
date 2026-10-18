@@ -17,6 +17,7 @@
 #include "burnman/tools/phase_diagram/polygons.hpp"
 #include "burnman/tools/phase_diagram/refinement.hpp"
 #include "burnman/tools/phase_diagram/stability.hpp"
+#include "burnman/tools/phase_diagram/verification.hpp"
 #include "burnman/utils/index_utils.hpp"
 #include <iostream>
 #include <iterator>
@@ -103,10 +104,11 @@ void join_duplicate_junctions(Result &result, Engine &engine) {
       if (first.size() != a.assemblage.size() ||
           last.size() != z.assemblage.size())
         return;
-      auto equivalent = [&](const PhaseStates &reference) {
-        auto left = junction_point_at(engine, a, first, reference,
+      auto equivalent = [&](const PhaseStates &left_seed,
+                            const PhaseStates &right_seed) {
+        auto left = junction_point_at(engine, a, first, left_seed,
                                       range * engine.settings.node_tolerance),
-             right = junction_point_at(engine, z, last, reference,
+             right = junction_point_at(engine, z, last, right_seed,
                                        range * engine.settings.node_tolerance);
         if (!left || !right ||
             ((diagram_coordinates(*left, result.section.type) -
@@ -127,12 +129,21 @@ void join_duplicate_junctions(Result &result, Engine &engine) {
           return false;
         return true;
       };
-      // One saved representation may have already lost a positive trace
-      // site. Try both composition references so node ordering cannot decide
-      // whether two independently verified equilibria are joined.
-      if (!equivalent(first) &&
-          (engine.direct_coordinates() || !equivalent(last)))
-        return;
+      auto compatible = first;
+      const bool matched =
+          seed_phase_compositions(compatible, last,
+                                  engine.settings.composition_tolerance,
+                                  engine.settings.amount_tolerance) &&
+          (equivalent(first, first) || equivalent(last, last));
+      if (!matched) {
+        // Different active faces can hide one P-T invariant. Open their
+        // union, retaining each limiting state's own compositions; joining
+        // still requires two independent roots at the existing accuracy.
+        if (result.section.type != DiagramType::PT || a.gibbs_variance != 0 ||
+            z.gibbs_variance != 0 || !share_composition_faces(first, last) ||
+            !equivalent(first, last))
+          return;
+      }
       const int x = node(a.id), y = node(z.id);
       if (x != y)
         aliases[std::max(x, y)] = std::min(x, y);
@@ -237,8 +248,13 @@ std::set<int> split_at_stable_nodes(Result &result, Engine &engine) {
         // The constrained solve below, rather than the Gibbs phase count,
         // establishes whether this node actually lies on the curve.
         const bool same_reaction =
-            event == phases && (result.section.type != DiagramType::PT ||
-                                (node.gibbs_variance == 1 && variance == 1));
+            result.section.type == DiagramType::PT
+                ? variance == 1 && node.gibbs_variance >= 0 &&
+                      node.gibbs_variance +
+                              static_cast<int>(node.assemblage.size()) -
+                              static_cast<int>(line.assemblage.size()) ==
+                          1
+                : event == phases;
         const bool same_zero = std::any_of(
             node.zero_phases.begin(), node.zero_phases.end(), [&](int zero) {
               return zero / engine.settings.max_phase_instances ==
@@ -281,7 +297,12 @@ std::set<int> split_at_stable_nodes(Result &result, Engine &engine) {
             // Compare independent zero constraints on the same intensive
             // seed, including active solution faces. Preserve each trace's
             // instance IDs and amounts so reaction extents remain distinct.
-            if (!seed_phase_compositions(states, junction.phases))
+            // A zero-amount solution still identifies this reaction branch.
+            // Do not force it into another minimum merely to reach the node.
+            if (!seed_phase_compositions(states, junction.phases) ||
+                !same_solution_branches(engine, warm->phases, states,
+                                        junction.pressure,
+                                        junction.temperature))
               continue;
             point = boundary_point_at(
                 engine, line, states,
@@ -468,15 +489,41 @@ int boundary_variance(const Boundary &line, const Result &result) {
 void repair_field_boundaries(
     Result &result, Engine &engine,
     const std::function<void(Boundary &)> &label,
-    const std::function<bool(Boundary &, std::size_t)> &refine) {
+    const std::function<bool(Boundary &, std::size_t)> &refine,
+    const std::function<void(Boundary &)> &response_label) {
   const auto ranges = result.coordinate_ranges();
   for (auto &line : result.boundaries)
     trim_boundary_endpoints(
         line, engine,
         {ranges[0][1] - ranges[0][0], ranges[1][1] - ranges[1][0]});
   join_duplicate_junctions(result, engine);
+  auto refresh_conflicting_labels = [&]() {
+    if (!response_label)
+      return;
+    std::set<int> conflicting;
+    for (const auto &polygon : field_polygons(result).polygons)
+      if (polygon.is_provisional && !polygon.has_open_boundary &&
+          !polygon.outside_model_domain)
+        conflicting.insert(polygon.boundary_ids.begin(),
+                           polygon.boundary_ids.end());
+    for (auto &line : result.boundaries)
+      if (conflicting.count(line.id) && !ambiguous_boundary(line))
+        response_label(line);
+  };
+  refresh_conflicting_labels();
+  // A certified connection/label correction can finish the repair without
+  // splitting or subdividing unrelated accepted curves. Rebuild incidence
+  // first so an obsolete junction record cannot supply a stale certificate.
+  if (result.section.type == DiagramType::PT && response_label) {
+    for (auto &node : result.nodes)
+      node.incident_lines.clear();
+    for (const auto &line : result.boundaries)
+      record_incident_line(result, line);
+    if (field_diagnostics(result, engine).empty())
+      return;
+  }
   auto selected = split_at_stable_nodes(result, engine);
-  if (!engine.direct_coordinates() && !selected.empty()) {
+  if (!selected.empty()) {
     // Splitting a recovered arc can expose a short bridge between two
     // representations of the same junction. Verify those new connections
     // before interpreting them as separate entropy/volume vertices.
@@ -491,6 +538,16 @@ void repair_field_boundaries(
     }
     selected = std::move(renumbered);
   }
+  // A missing side label can itself reverse a thin field's graph fan. Recover
+  // that thermodynamic evidence before treating its drawing as inconsistent.
+  // This also avoids refining valid curves merely because a normal probe had
+  // skipped their immediate neighbour.
+  for (auto &line : result.boundaries)
+    if (ambiguous_boundary(line) && !lies_on_calculation_frame(line, result))
+      label(line);
+  // Correct stale thermodynamic evidence before interpreting a conflicting
+  // perimeter as a reason to subdivide every accepted segment.
+  refresh_conflicting_labels();
   retain_thin_loops(result, engine);
   // Verify suspect drawn loops locally. Correctors reuse the ordinary branch
   // validation; intersections themselves never create graph connections.
@@ -498,8 +555,7 @@ void repair_field_boundaries(
   for (const auto &polygon : field_polygons(result).polygons) {
     if (has_composition_axis(result.section.type) || !polygon.is_provisional ||
         (!polygon.phases.empty() && result.section.type != DiagramType::PT) ||
-        polygon.has_open_boundary ||
-        polygon.outside_model_domain)
+        polygon.has_open_boundary || polygon.outside_model_domain)
       continue;
     if (result.section.type == DiagramType::PT && !polygon.phases.empty()) {
       curved.insert(polygon.boundary_ids.begin(), polygon.boundary_ids.end());

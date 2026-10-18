@@ -39,5 +39,6 @@ std::size_t remove_metastable_parallel_lines(Result &, Engine &);
 /// callbacks to recover neighbouring assemblages and test suspect segments.
 void repair_field_boundaries(
     Result &, Engine &, const std::function<void(Boundary &)> &,
-    const std::function<bool(Boundary &, std::size_t)> &);
+    const std::function<bool(Boundary &, std::size_t)> &,
+    const std::function<void(Boundary &)> &response_label = {});
 } // namespace burnman::phase_diagrams::detail

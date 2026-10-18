@@ -4,6 +4,7 @@
 #include "burnman/core/relaxed_solution.hpp"
 #include "burnman/tools/phase_diagram/polygons.hpp"
 #include "burnman/tools/phase_diagram/stability.hpp"
+#include "burnman/tools/phase_diagram/consistency.hpp"
 #include "burnman/tools/polytope.hpp"
 #include <Eigen/Eigenvalues>
 #include <algorithm>
@@ -90,14 +91,17 @@ struct ReactionCurvature {
         -1.e-9 * std::max(1., eigenvalues.cwiseAbs().maxCoeff()))
       throw std::runtime_error("Equilibrium has negative Gibbs curvature.");
   }
-  Eigen::Matrix2d correction(const Assemblage &a) const {
-    if (!basis.rows())
-      return Eigen::Matrix2d::Zero();
-    // Do not replace a divergent univariant/critical response by a finite
-    // pseudoinverse. The paper's inverse requires positive reaction curvature.
-    if (eigenvalues.minCoeff() <= 1.e-12 * std::max(1., eigenvalues.maxCoeff()))
-      throw std::runtime_error(
-          "Singular reaction Hessian: relaxed response is undefined.");
+  double singular_tolerance() const {
+    // Resolve soft positive modes down to roundoff, rather than imposing
+    // a condition-number cutoff that masks finite low-temperature responses.
+    return 64. * std::numeric_limits<double>::epsilon() *
+           std::max(1., eigenvalues.cwiseAbs().maxCoeff());
+  }
+  bool singular() const {
+    return basis.rows() && eigenvalues.minCoeff() <= singular_tolerance();
+  }
+  Eigen::MatrixXd couplings(const Assemblage &a,
+                            Eigen::Vector2d *derivative_scale = nullptr) const {
     Eigen::MatrixXd partial(basis.cols(), 2);
     const auto counts = a.get_endmembers_per_phase();
     Eigen::Index offset = 0;
@@ -112,8 +116,50 @@ struct ReactionCurvature {
       }
       offset += n;
     }
-    const Eigen::MatrixXd coupling =
+    if (derivative_scale)
+      *derivative_scale =
+          (scale.asDiagonal() * basis.cwiseAbs() * partial.cwiseAbs())
+              .colwise()
+              .norm();
+    Eigen::MatrixXd coupling =
         eigenvectors.transpose() * scale.asDiagonal() * basis * partial;
+    if (!coupling.allFinite())
+      throw std::runtime_error("Non-finite reaction derivative coupling.");
+    return coupling;
+  }
+  double divergent_expansivity(const Assemblage &a) const {
+    // Approach zero Gibbs curvature from the stable side. A null mode's
+    // contribution is -dV*(-dS)/(V*lambda); retain its sign instead of
+    // assigning a finite pseudoinverse response. Mixed signs are ambiguous.
+    Eigen::Vector2d norms;
+    const auto coupling = couplings(a, &norms);
+    const double relative = 64. * std::numeric_limits<double>::epsilon();
+    int sign = 0;
+    for (Eigen::Index i = 0; i < eigenvalues.size(); ++i) {
+      if (eigenvalues[i] > singular_tolerance())
+        continue;
+      if (eigenvalues[i] < -singular_tolerance())
+        throw std::runtime_error("Equilibrium has negative Gibbs curvature.");
+      if (std::abs(coupling(i, 0)) <= relative * norms[0] ||
+          std::abs(coupling(i, 1)) <= relative * norms[1])
+        throw std::runtime_error("Singular reaction Hessian: expansivity "
+                                 "divergence has no unique sign.");
+      const int mode_sign =
+          (coupling(i, 0) < 0.) != (coupling(i, 1) < 0.) ? 1 : -1;
+      if (sign && mode_sign != sign)
+        throw std::runtime_error("Singular reaction Hessian: expansivity "
+                                 "divergence has no unique sign.");
+      sign = mode_sign;
+    }
+    return sign * std::numeric_limits<double>::infinity();
+  }
+  Eigen::Matrix2d correction(const Assemblage &a) const {
+    if (!basis.rows())
+      return Eigen::Matrix2d::Zero();
+    if (singular())
+      throw std::runtime_error(
+          "Singular reaction Hessian: relaxed response is undefined.");
+    const auto coupling = couplings(a);
     return coupling.transpose() * eigenvalues.cwiseInverse().asDiagonal() *
            coupling;
   }
@@ -142,6 +188,12 @@ public:
   Properties(const Assemblage &input, bool relax) : a(input), relaxed(relax) {}
   void check_stability() { curvature.emplace(a); }
   double value(const std::string &name) {
+    if (relaxed && name == "thermal_expansivity") {
+      if (!curvature)
+        curvature.emplace(a);
+      if (curvature->singular())
+        return curvature->divergent_expansivity(a);
+    }
     double value;
     if (!relaxed && name == "isentropic_thermal_gradient")
       value = a.get_thermal_expansivity() * a.get_molar_volume() *
@@ -189,21 +241,112 @@ public:
   }
 };
 
+int ring_location(const Eigen::MatrixXd &ring, const Eigen::Vector2d &q,
+                  const Eigen::Vector2d &origin, const Eigen::Vector2d &range) {
+  return detail::ring_location(
+      static_cast<std::size_t>(ring.rows()),
+      [&](std::size_t i) -> Eigen::Vector2d {
+        return (ring.row(static_cast<Eigen::Index>(i)).transpose() - origin)
+            .cwiseQuotient(range);
+      },
+      (q - origin).cwiseQuotient(range), 1.e-9);
+}
 bool contains(const FieldPolygon &field, const Eigen::Vector2d &q,
               const Eigen::Vector2d &origin, const Eigen::Vector2d &range) {
-  const Eigen::Vector2d p = (q - origin).cwiseQuotient(range);
-  auto location = [&](const Eigen::MatrixXd &ring) {
-    return detail::ring_location(
-        static_cast<std::size_t>(ring.rows()),
-        [&](std::size_t i) -> Eigen::Vector2d {
-          return (ring.row(static_cast<Eigen::Index>(i)).transpose() - origin)
-              .cwiseQuotient(range);
-        },
-        p, 1.e-9);
-  };
-  return location(field.vertices) >= 0 &&
+  return ring_location(field.vertices, q, origin, range) >= 0 &&
          std::none_of(field.holes.begin(), field.holes.end(),
-                      [&](const auto &hole) { return location(hole) >= 0; });
+                      [&](const auto &hole) {
+                        return ring_location(hole, q, origin, range) >= 0;
+                      });
+}
+
+// Nearest compatible accepted point beside this column. A different phase set
+// cannot initialise this candidate, but can be tried separately as an
+// alternative.
+const State *neighbour_seed(const std::map<double, State> &row,
+                                    const std::vector<int> &ids,
+                                    const Eigen::Vector2d &q, DiagramType type,
+                                    const Eigen::Vector2d &range) {
+  const auto upper = row.lower_bound(q[0]);
+  const State *nearest = nullptr;
+  double best = std::numeric_limits<double>::infinity();
+  auto consider = [&](auto it) {
+    if (it == row.end() || it->second.phases.size() != ids.size())
+      return;
+    for (int id : ids)
+      if (detail::find_phase(it->second.phases, id) == it->second.phases.end())
+        return;
+    const double distance = (diagram_coordinates(it->second, type) - q)
+                                .cwiseQuotient(range)
+                                .squaredNorm();
+    if (distance < best) {
+      nearest = &it->second;
+      best = distance;
+    }
+  };
+  consider(upper);
+  if (upper != row.begin())
+    consider(std::prev(upper));
+  return nearest;
+}
+
+std::shared_ptr<Assemblage>
+equilibrate_grid_candidate(detail::Engine &engine, const std::vector<int> &ids,
+                           const State &seed, const Eigen::Vector2d &q,
+                           bool check_competitors) {
+  // Preserve physical P,T as well as compositions in inverse S/V sections.
+  auto a = engine.make_at(ids, seed.phases, q,
+                          Eigen::Vector2d(seed.pressure, seed.temperature));
+  a->set_averaging_scheme(types::AveragingType::VRH);
+  auto constraints = engine.state_constraints(q);
+  auto solve = engine.solve(*a, constraints, false);
+  if (!solve.success)
+    throw std::runtime_error("Equilibrium solve failed: " + solve.message);
+  Properties(*a, false).check_stability();
+  // Only fallback assemblages need a competing-phase search. A converged
+  // assigned field is accepted directly, including provisional/open labels.
+  if (check_competitors &&
+      engine.stability(*a) < -engine.settings.affinity_tolerance)
+    throw std::runtime_error(
+        "Candidate assemblage has a negative competing-phase affinity.");
+  return a;
+}
+
+// Saved phase amounts/compositions and physical P,T form a portable Newton
+// starting state. Keep only the phases of this proposed assemblage.
+std::optional<State> field_seed(const Result &source,
+                                        const FieldPolygon &field,
+                                        const Eigen::Vector2d &q,
+                                        const Eigen::Vector2d &range) {
+  std::optional<State> best;
+  double distance = std::numeric_limits<double>::infinity();
+  auto consider = [&](const auto &state) {
+    for (int id : field.phases)
+      if (detail::find_phase(state.phases, id) == state.phases.end())
+        return;
+    const double next = (diagram_coordinates(state, source.section.type) - q)
+                            .cwiseQuotient(range)
+                            .norm();
+    if (next >= distance)
+      return;
+    State seed;
+    seed.pressure = state.pressure;
+    seed.temperature = state.temperature;
+    seed.entropy = state.entropy;
+    seed.volume = state.volume;
+    seed.composition_coordinate = state.composition_coordinate;
+    for (int id : field.phases)
+      seed.phases.push_back(*detail::find_phase(state.phases, id));
+    best = std::move(seed);
+    distance = next;
+  };
+  for (const auto &state : source.samples)
+    if (state.success && !state.outside_model_domain)
+      consider(state);
+  for (const auto &line : source.boundaries)
+    for (const auto &state : line.points)
+      consider(state);
+  return best;
 }
 
 void validate_candidates(
@@ -225,14 +368,28 @@ void validate_candidates(
           "Grid candidate names/order must match the saved phase_diagram.");
 }
 
+void validate_grid_axis(const Eigen::VectorXd &coordinates,
+                        const std::array<double, 2> &bounds) {
+  if (!coordinates.size() || !coordinates.allFinite() ||
+      coordinates.minCoeff() < bounds[0] || coordinates.maxCoeff() > bounds[1])
+    throw std::invalid_argument(
+        "Grid coordinates must be finite, nonempty and inside the diagram.");
+  for (Eigen::Index i = 1; i < coordinates.size(); ++i)
+    if (coordinates[i] <= coordinates[i - 1])
+      throw std::invalid_argument(
+          "Grid coordinates must be strictly increasing.");
+}
+
 GridSolution capture_solution(const Assemblage &a, const detail::Engine &engine,
                               const std::vector<int> &ids) {
   GridSolution solution;
   solution.n_moles = a.get_n_moles();
+  solution.gibbs = a.get_n_moles() * a.get_molar_gibbs();
   solution.molar_fractions = a.get_molar_fractions();
   engine.record_coordinates(solution.state, a);
   solution.state.phases = engine.snapshot(a, ids);
   solution.state.mass_balance_error = engine.mass_error(a);
+  solution.state.residual = detail::reaction_residual(a);
   for (std::size_t i = 0; i < ids.size(); ++i) {
     const auto phase = a.get_phase(i);
     solution.phase_bases.push_back(engine.composition_basis(
@@ -338,39 +495,12 @@ assemblage_properties(const Assemblage &a,
   return values;
 }
 
-PropertyGrid
-phase_diagram_grid(const Result &source,
-                   const std::vector<std::shared_ptr<Material>> &candidates,
-                   const std::vector<std::string> &names,
-                   const Eigen::VectorXd &x, const Eigen::VectorXd &y,
-                   bool relaxed, bool store_solutions) {
+PropertyGrid PropertyGridder::evaluate(const std::vector<std::string> &names,
+                                       const Eigen::VectorXd &x,
+                                       const Eigen::VectorXd &y, bool relaxed,
+                                       bool store_solutions) {
+  const auto &source = source_;
   validate_properties(names);
-  const auto bounds = source.coordinate_ranges();
-  const Eigen::Vector2d origin(bounds[0][0], bounds[1][0]);
-  const Eigen::Vector2d range(bounds[0][1] - bounds[0][0],
-                              bounds[1][1] - bounds[1][0]);
-  if (!origin.allFinite() || !range.allFinite() || range.minCoeff() <= 0.)
-    throw std::invalid_argument(
-        "Grid diagram ranges must be finite and increasing.");
-  for (int axis = 0; axis < 2; ++axis) {
-    const auto &coordinates = axis == 0 ? x : y;
-    if (!coordinates.size() || !coordinates.allFinite() ||
-        coordinates.minCoeff() < bounds[static_cast<std::size_t>(axis)][0] ||
-        coordinates.maxCoeff() > bounds[static_cast<std::size_t>(axis)][1])
-      throw std::invalid_argument(
-          "Grid coordinates must be finite, nonempty and inside the diagram.");
-    for (Eigen::Index i = 1; i < coordinates.size(); ++i)
-      if (coordinates[i] <= coordinates[i - 1])
-        throw std::invalid_argument(
-            "Grid coordinates must be strictly increasing.");
-  }
-  const int stride = source.settings.max_phase_instances;
-  validate_candidates(source, candidates);
-
-  detail::Engine engine(source.composition_start, candidates, source.settings,
-                        source.section);
-  engine.pressure_bounds = source.pressure_range;
-  engine.temperature_bounds = source.temperature_range;
   PropertyGrid result;
   result.diagram_type = source.section.type;
   result.relaxed = relaxed;
@@ -390,139 +520,390 @@ phase_diagram_grid(const Result &source,
   for (const auto &name : names)
     result.values[name] = Eigen::MatrixXd::Constant(
         y.size(), x.size(), std::numeric_limits<double>::quiet_NaN());
+  result.diagnostics = geometry_.diagnostics;
+  result.equilibrium_diagnostics = result.diagnostics;
+  calculate(result, false);
+  return result;
+}
+
+void PropertyGridder::retry(PropertyGrid &grid) {
+  if (grid.solutions.size() !=
+      static_cast<std::size_t>(grid.x.size() * grid.y.size()))
+    throw std::invalid_argument(
+        "Reverse grid retries require store_solutions=True.");
+  if (grid.diagram_type != source_.section.type ||
+      grid.context.phase_names != source_.phase_names ||
+      grid.context.composition_start != source_.composition_start)
+    throw std::invalid_argument(
+        "Saved grid does not match the source diagram.");
+  calculate(grid, true);
+}
+
+void PropertyGridder::calculate(PropertyGrid &result, bool reverse) {
+  const auto &source = source_;
+  const auto &geometry = geometry_;
+  const auto &x = result.x;
+  const auto &y = result.y;
+  const auto bounds = source.coordinate_ranges();
+  const Eigen::Vector2d origin(bounds[0][0], bounds[1][0]);
+  const Eigen::Vector2d range(bounds[0][1] - bounds[0][0],
+                              bounds[1][1] - bounds[1][0]);
+  if (!origin.allFinite() || !range.allFinite() || range.minCoeff() <= 0.)
+    throw std::invalid_argument(
+        "Grid diagram ranges must be finite and increasing.");
+  for (std::size_t axis = 0; axis < 2; ++axis) {
+    const auto &coordinates = axis == 0 ? x : y;
+    validate_grid_axis(coordinates, bounds[axis]);
+    const auto &complete = grid_axes_[axis];
+    if (!std::includes(complete.data(), complete.data() + complete.size(),
+                       coordinates.data(),
+                       coordinates.data() + coordinates.size()))
+      throw std::invalid_argument(
+          "Grid batches must use prepared grid coordinates.");
+  }
+  if (reverse != reverse_) {
+    previous_row_.clear();
+    current_row_.clear();
+    row_coordinate_.reset();
+    reverse_ = reverse;
+  }
+  detail::Engine engine(source.composition_start, candidates_, source.settings,
+                        source.section);
+  engine.pressure_bounds = source.pressure_range;
+  engine.temperature_bounds = source.temperature_range;
   auto issue = [&](const std::string &message, bool equilibrium = true) {
     result.resolved = false;
     result.diagnostics.push_back(message);
     if (equilibrium)
       result.equilibrium_diagnostics.push_back(message);
   };
-  const auto geometry = field_polygons(source);
-  for (const auto &message : geometry.diagnostics)
-    issue(message);
+  // Prepare reusable field guesses once per batch. Geometry is only a
+  // proposal: a curved boundary can put a grid point on its wrong drawn side.
+  std::vector<std::optional<State>> seeds(geometry.polygons.size());
+  std::vector<Eigen::Vector2d> low, high;
   for (const auto &field : geometry.polygons) {
-    if (field.outside_model_domain)
-      continue;
-    const auto prefix = "Field " + std::to_string(field.field_number) + ": ";
-    if (field.phases.empty() || field.has_open_boundary ||
-        field.is_provisional) {
-      issue(prefix + "unidentified, open or provisional field; grid skipped");
-      continue;
+    low.push_back(field.vertices.colwise().minCoeff().transpose());
+    high.push_back(field.vertices.colwise().maxCoeff().transpose());
+  }
+  auto within = [&](std::size_t f, const Eigen::Vector2d &q) {
+    return (q.array() >= (low[f] - 1.e-9 * range).array()).all() &&
+           (q.array() <= (high[f] + 1.e-9 * range).array()).all() &&
+           contains(geometry.polygons[f], q, origin, range);
+  };
+  auto neighbours_at = [&](const Eigen::Vector2d &q) {
+    std::vector<std::pair<const State *, std::size_t>> neighbours;
+    auto along = current_row_.lower_bound(q[0]);
+    if (reverse) {
+      if (along != current_row_.end() && along->first == q[0])
+        ++along;
+      if (along != current_row_.end())
+        neighbours.emplace_back(&along->second, 0);
+    } else if (along != current_row_.begin())
+      neighbours.emplace_back(&std::prev(along)->second, 0);
+    if (const auto above = previous_row_.find(q[0]);
+        above != previous_row_.end())
+      neighbours.emplace_back(&above->second, 1);
+    return neighbours;
+  };
+  for (Eigen::Index row = 0; row < y.size(); ++row) {
+    const auto j = reverse ? y.size() - 1 - row : row;
+    if (!row_coordinate_ || y[j] != *row_coordinate_) {
+      previous_row_.clear();
+      if (row_coordinate_ &&
+          (reverse ? y[j] < *row_coordinate_ : y[j] > *row_coordinate_))
+        previous_row_ = std::move(current_row_);
+      current_row_.clear();
+      row_coordinate_ = y[j];
     }
-    const detail::PhaseStates *saved = nullptr;
-    Eigen::Vector2d physical;
-    Eigen::Vector2d seed_target = field.label_position;
-    double best = std::numeric_limits<double>::infinity();
-    auto consider = [&](const auto &state) {
-      for (int id : field.phases)
-        if (std::none_of(state.phases.begin(), state.phases.end(),
-                         [&](const auto &p) { return p.id == id; }))
-          return;
-      const double distance =
-          (diagram_coordinates(state, source.section.type) - seed_target)
-              .cwiseQuotient(range)
-              .norm();
-      if (distance < best) {
-        saved = &state.phases;
-        physical << state.pressure, state.temperature;
-        best = distance;
+    for (Eigen::Index column = 0; column < x.size(); ++column) {
+      const auto i = reverse ? x.size() - 1 - column : column;
+      const Eigen::Vector2d q(x[i], y[j]);
+      const auto neighbours = neighbours_at(q);
+      auto consistent = [&](const State &state) {
+        return std::none_of(
+            neighbours.begin(), neighbours.end(), [&](const auto &n) {
+              return detail::thermodynamic_violation(
+                         state, *n.first, source.section, n.second) > 0.;
+            });
+      };
+      if (reverse && result.equilibrium_success(j, i)) {
+        auto &saved =
+            result.solutions[static_cast<std::size_t>(j * x.size() + i)];
+        if (saved) {
+          // Legacy archives lack energy; replay it once without equilibration.
+          if (!std::isfinite(saved->gibbs)) {
+            auto a = restore_solution(*saved, engine);
+            saved->gibbs = a->get_n_moles() * a->get_molar_gibbs();
+          }
+          auto state = detail::equilibrium_state(saved->state, saved->gibbs);
+          if (consistent(state)) {
+            current_row_[q[0]] = std::move(state);
+            const auto prefix = "grid [" + std::to_string(j) + ", " +
+                                std::to_string(i) + "]: Thermodynamic";
+            for (auto *messages :
+                 {&result.diagnostics, &result.equilibrium_diagnostics})
+              detail::erase_if(*messages, [&](const auto &message) {
+                return message.find(prefix) != std::string::npos;
+              });
+            continue;
+          }
+        }
+        result.equilibrium_success(j, i) = result.success(j, i) = false;
+        saved.reset();
+        for (auto &[name, values] : result.values)
+          values(j, i) = std::numeric_limits<double>::quiet_NaN();
       }
-    };
-    if (field.sample_index >= 0)
-      consider(source.samples.at(static_cast<std::size_t>(field.sample_index)));
-    if (!saved)
-      for (const auto &state : source.samples)
-        if (state.success && !state.outside_model_domain)
-          consider(state);
-    if (!saved)
-      for (const auto &line : source.boundaries)
-        for (const auto &state : line.points)
-          consider(state);
-    if (!saved) {
-      issue(prefix + "no saved equilibrium contains the field assemblage");
-      continue;
-    }
-    for (const auto &p : *saved)
-      if (std::find(field.phases.begin(), field.phases.end(), p.id) !=
-          field.phases.end()) {
-        if (p.id < 0 || p.candidate_index != p.id / stride ||
-            static_cast<std::size_t>(p.candidate_index) >=
-                engine.phases.size() ||
-            p.composition.size() !=
-                engine.phases[static_cast<std::size_t>(p.candidate_index)]
-                    .vertices.cols() ||
-            !p.composition.allFinite() || !std::isfinite(p.amount))
-          throw std::invalid_argument("Grid requires valid saved phase "
-                                      "compositions and candidate_index.");
+      // Never fill model-domain masks, including their edges, by borrowing an
+      // assemblage from a nearby valid field.
+      if (std::any_of(source.excluded_regions.begin(),
+                      source.excluded_regions.end(), [&](const auto &ring) {
+                        return ring_location(ring, q, origin, range) >= 0;
+                      }))
+        continue;
+      int assigned = -1;
+      bool excluded = false;
+      for (std::size_t f = 0; f < geometry.polygons.size(); ++f)
+        if (within(f, q)) {
+          const auto &field = geometry.polygons[f];
+          excluded = excluded || field.outside_model_domain;
+          if (!field.outside_model_domain &&
+              (assigned < 0 ||
+               field.field_number <
+                   geometry.polygons[static_cast<std::size_t>(assigned)]
+                       .field_number))
+            assigned = static_cast<int>(f);
+        }
+      if (excluded)
+        continue;
+      if (assigned >= 0)
+        result.field_numbers(j, i) =
+            geometry.polygons[static_cast<std::size_t>(assigned)].field_number;
+      const auto point =
+          "grid [" + std::to_string(j) + ", " + std::to_string(i) + "]: ";
+      if (reverse) {
+        for (auto *messages :
+             {&result.diagnostics, &result.equilibrium_diagnostics})
+          messages->erase(std::remove_if(messages->begin(), messages->end(),
+                                         [&](const auto &message) {
+                                           return message.find(point) !=
+                                                  std::string::npos;
+                                         }),
+                          messages->end());
       }
-    detail::PhaseStates warm = *saved;
-    engine.physical_seed = physical;
-    for (Eigen::Index j = 0; j < y.size(); ++j)
-      for (Eigen::Index k = 0; k < x.size(); ++k) {
-        const Eigen::Index i = j % 2 == 0 ? k : x.size() - 1 - k;
-        const Eigen::Vector2d q(x[i], y[j]);
-        if (result.field_numbers(j, i) || !contains(field, q, origin, range))
-          continue;
-        result.field_numbers(j, i) = field.field_number;
-        const auto point = prefix + "grid [" + std::to_string(j) + ", " +
-                           std::to_string(i) + "]: ";
-        try {
-          if (!engine.free_vectors.empty())
-            engine.set_bulk(q[1]);
-          auto solve_at = [&](const detail::PhaseStates &initial) {
-            auto a = engine.make_at(field.phases, initial, q);
-            a->set_averaging_scheme(types::AveragingType::VRH);
-            auto constraints = engine.state_constraints(q);
-            auto solve = engine.solve(*a, constraints, false);
-            if (!solve.success)
-              throw std::runtime_error("Equilibrium solve failed: " +
-                                       solve.message);
-            Properties(*a, relaxed).check_stability();
-            return a;
-          };
-          std::shared_ptr<Assemblage> a;
+      std::string failure =
+          "No saved equilibrium supplies a candidate assemblage.";
+      std::shared_ptr<Assemblage> accepted;
+      std::vector<int> accepted_ids;
+      int chosen = 0;
+      if (!engine.free_vectors.empty())
+        engine.set_bulk(q[1]);
+      auto attempt = [&](const FieldPolygon &field,
+                         std::optional<State> &saved,
+                         bool check_competitors) {
+        if (field.outside_model_domain || field.phases.empty())
+          return false;
+        std::vector<const State *> starts;
+        for (const auto *row : {&current_row_, &previous_row_})
+          if (const auto *seed = neighbour_seed(*row, field.phases, q,
+                                                source.section.type, range))
+            starts.push_back(seed);
+        std::sort(starts.begin(), starts.end(),
+                  [&](const auto *a, const auto *b) {
+                    return (diagram_coordinates(*a, source.section.type) - q)
+                               .cwiseQuotient(range)
+                               .squaredNorm() <
+                           (diagram_coordinates(*b, source.section.type) - q)
+                               .cwiseQuotient(range)
+                               .squaredNorm();
+                  });
+        // A nearby equilibrium's P,T matters as well as its compositions in
+        // inverse S/V sections; a failed Newton iterate must never replace it.
+        auto solve_from = [&](const State &seed) {
           try {
-            a = solve_at(warm);
-          } catch (const std::exception &) {
-            // Retry from nearby accepted data when a grid step leaves the
-            // Newton basin. Retain the same phases without a stability search.
-            seed_target = q;
-            best = std::numeric_limits<double>::infinity();
-            saved = nullptr;
-            for (const auto &state : source.samples)
-              if (state.success && !state.outside_model_domain)
-                consider(state);
-            for (const auto &line : source.boundaries)
-              for (const auto &state : line.points)
-                consider(state);
-            if (!saved)
-              throw;
-            engine.physical_seed = physical;
-            a = solve_at(*saved);
+            accepted = equilibrate_grid_candidate(engine, field.phases, seed, q,
+                                                  check_competitors);
+            chosen = field.field_number;
+            accepted_ids = field.phases;
+            return true;
+          } catch (const std::exception &e) {
+            failure = e.what();
+            return false;
           }
-          Properties properties(*a, relaxed);
-          properties.check_stability();
-          warm = engine.snapshot(*a, field.phases);
-          engine.physical_seed << a->get_pressure(), a->get_temperature();
-          if (store_solutions)
-            result.solutions[static_cast<std::size_t>(j * x.size() + i)] =
-                capture_solution(*a, engine, field.phases);
-          result.equilibrium_success(j, i) = true;
-          result.success(j, i) = 1;
-          for (const auto &name : names) {
-            try {
-              result.values.at(name)(j, i) = properties.value(name);
-            } catch (const std::exception &e) {
-              result.success(j, i) = 0;
-              issue(point + name + ": " + e.what(), false);
-            }
+        };
+        for (const auto *seed : starts)
+          if (solve_from(*seed))
+            return true;
+        if (!saved)
+          saved = field_seed(source, field, field.label_position, range);
+        if (saved && solve_from(*saved))
+          return true;
+        // Saved samples/boundary states can supply another basin when neither
+        // neighbouring grid point converges. No phase discovery is performed.
+        auto nearby = field_seed(source, field, q, range);
+        return nearby && solve_from(*nearby);
+      };
+      if (assigned >= 0) {
+        const auto f = static_cast<std::size_t>(assigned);
+        const auto &field = geometry.polygons[f];
+        attempt(field, seeds[f], false);
+      }
+      if (!accepted && assigned >= 0) {
+        // Only cross an assigned field's boundary when it meets the window
+        // reaching one grid point in each direction. Use the complete axes,
+        // including for singleton batches and nonuniform grids.
+        std::array<std::array<double, 2>, 2> window;
+        for (std::size_t axis = 0; axis < 2; ++axis) {
+          const auto &coordinates = grid_axes_[axis];
+          const double value = q[static_cast<Eigen::Index>(axis)];
+          const auto k =
+              std::lower_bound(coordinates.data(),
+                               coordinates.data() + coordinates.size(), value) -
+              coordinates.data();
+          window[axis] = {value, value};
+          if (coordinates.size() > 1) {
+            window[axis][0] =
+                k > 0 ? coordinates[k - 1] : 2. * value - coordinates[1];
+            window[axis][1] = k + 1 < coordinates.size()
+                                  ? coordinates[k + 1]
+                                  : 2. * value - coordinates[k - 1];
           }
-        } catch (const std::exception &e) {
-          issue(point + e.what());
+        }
+        std::vector<std::pair<double, std::size_t>> nearby;
+        for (const auto &line : source.boundaries) {
+          const auto sharing = boundary_fields_.find(line.id);
+          if (sharing == boundary_fields_.end() ||
+              std::find(sharing->second.begin(), sharing->second.end(),
+                        static_cast<std::size_t>(assigned)) ==
+                  sharing->second.end())
+            continue;
+          double distance = std::numeric_limits<double>::infinity();
+          for (std::size_t k = 1; k < line.points.size(); ++k) {
+            const auto a =
+                diagram_coordinates(line.points[k - 1], source.section.type);
+            const auto b =
+                diagram_coordinates(line.points[k], source.section.type);
+            if (detail::intersects_region(a, b, window))
+              distance = std::min(distance, detail::segment_distance(
+                                                Eigen::Vector2d::Zero(),
+                                                (a - q).cwiseQuotient(range),
+                                                (b - q).cwiseQuotient(range)));
+          }
+          if (std::isfinite(distance))
+            for (auto f : sharing->second)
+              if (static_cast<int>(f) != assigned)
+                nearby.emplace_back(distance, f);
+        }
+        std::sort(nearby.begin(), nearby.end());
+        std::vector<std::vector<int>> tried{
+            geometry.polygons[static_cast<std::size_t>(assigned)].phases};
+        for (const auto &[distance, f] : nearby) {
+          (void)distance;
+          const auto &ids = geometry.polygons[f].phases;
+          if (std::find(tried.begin(), tried.end(), ids) != tried.end())
+            continue;
+          tried.push_back(ids);
+          if (attempt(geometry.polygons[f], seeds[f], true))
+            break;
         }
       }
+      if (!accepted) {
+        issue(point + failure);
+        continue;
+      }
+      auto state = detail::equilibrium_state(engine, *accepted, accepted_ids);
+      if (!consistent(state)) {
+        std::vector<State> starts;
+        for (const auto &n : neighbours)
+          starts.push_back(*n.first);
+        auto recovered = detail::recover_thermodynamic_state(
+            engine, {state, accepted, accepted_ids}, starts);
+        if (!recovered.state.success) {
+          issue(point +
+                "Thermodynamic recovery failed: " + recovered.state.message);
+          result.equilibrium_success(j, i) = result.success(j, i) = false;
+          continue;
+        }
+        accepted = std::move(recovered.assemblage);
+        accepted_ids = std::move(recovered.ids);
+        state = std::move(recovered.state);
+        const auto active = engine.canonical_ids(engine.active_phases(state));
+        const auto previous_field = std::find_if(
+            geometry.polygons.begin(), geometry.polygons.end(),
+            [&](const auto &f) { return f.field_number == chosen; });
+        if (previous_field == geometry.polygons.end() ||
+            engine.canonical_ids(previous_field->phases) != active) {
+          chosen = 0;
+          double nearest = std::numeric_limits<double>::infinity();
+          for (const auto &field : geometry.polygons)
+            if (engine.canonical_ids(field.phases) == active) {
+              const double distance =
+                  (field.label_position - q).cwiseQuotient(range).squaredNorm();
+              if (distance < nearest) {
+                nearest = distance;
+                chosen = field.field_number;
+              }
+            }
+          if (!chosen)
+            issue(point + "Recovered stable assemblage has no field in the "
+                          "saved diagram.");
+        }
+        if (!consistent(state))
+          issue(point + "Thermodynamic inconsistency with a neighbouring "
+                        "equilibrium remains after recovery.");
+      }
+      result.field_numbers(j, i) = chosen;
+      current_row_[q[0]] = std::move(state);
+      if (!result.solutions.empty())
+        result.solutions[static_cast<std::size_t>(j * x.size() + i)] =
+            capture_solution(*accepted, engine, accepted_ids);
+      result.equilibrium_success(j, i) = true;
+      result.success(j, i) = true;
+      Properties properties(*accepted, result.relaxed);
+      for (auto &[name, values] : result.values) {
+        try {
+          values(j, i) = properties.value(name);
+        } catch (const std::exception &e) {
+          result.success(j, i) = false;
+          issue("Field " + std::to_string(chosen) + ": " + point + name + ": " +
+                    e.what(),
+                false);
+        }
+      }
+    }
   }
-  result.equilibrium_solves = engine.equilibrium_solves;
-  return result;
+  result.equilibrium_solves += engine.equilibrium_solves;
+  result.resolved = result.diagnostics.empty();
+}
+
+PropertyGrid
+phase_diagram_grid(const Result &source,
+                   const std::vector<std::shared_ptr<Material>> &candidates,
+                   const std::vector<std::string> &names,
+                   const Eigen::VectorXd &x, const Eigen::VectorXd &y,
+                   bool relaxed, bool store_solutions) {
+  PropertyGridder gridder(source, candidates, x, y);
+  auto grid = gridder.evaluate(names, x, y, relaxed, true);
+  gridder.retry(grid);
+  if (!store_solutions) {
+    grid.solutions.clear();
+    grid.solutions.shrink_to_fit();
+  }
+  return grid;
+}
+
+PropertyGridder::PropertyGridder(
+    Result source, std::vector<std::shared_ptr<Material>> candidates,
+    Eigen::VectorXd x, Eigen::VectorXd y)
+    : source_(std::move(source)), candidates_(std::move(candidates)),
+      geometry_(field_polygons(source_)),
+      grid_axes_{std::move(x), std::move(y)} {
+  validate_candidates(source_, candidates_);
+  const auto bounds = source_.coordinate_ranges();
+  for (std::size_t axis = 0; axis < 2; ++axis)
+    validate_grid_axis(grid_axes_[axis], bounds[axis]);
+  for (std::size_t f = 0; f < geometry_.polygons.size(); ++f)
+    for (int id : geometry_.polygons[f].boundary_ids)
+      boundary_fields_[id].push_back(f);
 }
 
 PropertyGrid

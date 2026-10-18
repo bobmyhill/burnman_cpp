@@ -539,6 +539,19 @@ class PolygonBuilder {
            source->zero_phase == old.source->zero_phase &&
            old.labels == std::set<Phases>{left} &&
            edges[candidate ^ 1].labels == std::set<Phases>{right});
+      // Distinct regular phase-out conditions can enclose a finite field
+      // below drawing accuracy. Their thermodynamic variance distinguishes
+      // them from alternate limiting records of one univariant reaction.
+      const bool separate_phase_outs =
+          result.section.type == DiagramType::PT && same_reaction &&
+          source->zero_phase != old.source->zero_phase &&
+          detail::boundary_variance(*source, result) > 1 &&
+          detail::boundary_variance(*old.source, result) > 1 &&
+          (canonical_assemblage(source->assemblage) == left ||
+           canonical_assemblage(source->assemblage) == right) &&
+          (old.labels.count(canonical_assemblage(old.source->assemblage)) ||
+           edges[candidate ^ 1].labels.count(
+               canonical_assemblage(old.source->assemblage)));
       auto follows = [&](const Ring &a, const Ring &b, double allowance) {
         return detail::follows_polyline(
             a, b, [&](Index vertex) { return vertices.points[vertex]; },
@@ -548,7 +561,7 @@ class PolygonBuilder {
           (univariant &&
            follows(path, old.path, result.settings.node_tolerance) &&
            follows(old.path, path, result.settings.node_tolerance)) ||
-          (follows(path, old.path, tolerance) &&
+          (!separate_phase_outs && follows(path, old.path, tolerance) &&
            follows(old.path, path, tolerance))) {
         if (!left.empty())
           old.labels.insert(left);
