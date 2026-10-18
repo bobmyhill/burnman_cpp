@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: Copyright (C) 2026 by the BurnMan Team.
 #pragma once
+#include "burnman/tools/phase_diagram/consistency.hpp"
 #include "burnman/tools/phase_diagram/types.hpp"
 #include <limits>
 
@@ -47,6 +48,9 @@ struct PropertyGrid {
   std::vector<std::string> diagnostics;
   std::vector<std::string> equilibrium_diagnostics;
   int equilibrium_solves = 0;
+  ThermodynamicValidation thermodynamic_validation;
+  // Temporary audit evidence; saved grids reconstruct it from their solutions.
+  std::vector<detail::ThermodynamicSample> thermodynamic_samples;
   // Diagram metadata without the original samples or boundary geometry.
   Result context;
   // Empty unless requested; otherwise row-major, with nullopt at unsolved
@@ -93,6 +97,9 @@ public:
   /// successive batches must arrive in reverse order with their states
   /// retained.
   void retry(PropertyGrid &);
+  /// Audit final retained states and joins with preceding audited batches.
+  /// No equilibrium solves. reset starts an independent traversal.
+  void audit(PropertyGrid &, bool reverse = false, bool reset = false);
 
 private:
   void calculate(PropertyGrid &, bool reverse);
@@ -104,6 +111,9 @@ private:
   std::map<double, State> previous_row_, current_row_;
   std::optional<double> row_coordinate_;
   bool reverse_ = false;
+  std::map<double, detail::ThermodynamicSample> audit_previous_, audit_current_;
+  std::optional<double> audit_row_;
+  bool audit_reverse_ = false;
 };
 
 /// Evaluate more properties from retained states, preserving the exact active

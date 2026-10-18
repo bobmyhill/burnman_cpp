@@ -134,6 +134,19 @@ def test_closed_loop_can_join_back_to_itself():
     ) == pytest.approx([0.36, 0.64])
 
 
+def test_patching_drops_obsolete_sample_audit_evidence():
+    base = diagram([(0.5, 0), (0.5, 1)])
+    base["thermodynamic_validation"] = dict(
+        scope="aligned_samples", checked_pairs=10, skipped_pairs=0, violations=1
+    )
+    base["diagnostics"] = ["Thermodynamic audit: inconsistent saved samples 8 and 9."]
+    patch = diagram([(0.5, 0.25), (0.5, 0.75)], 0.25, 0.75)
+    merged, _ = bm.merge_phase_diagrams(base, patch)
+    assert "thermodynamic_validation" not in merged
+    assert not any(d.startswith("Thermodynamic audit: ") for d in merged["diagnostics"])
+    assert base["thermodynamic_validation"]["checked_pairs"] == 10
+
+
 def test_unmatched_ports_and_open_native_endpoints_stay_unresolved():
     base = diagram([(0.5, 0), (0.5, 1)])
     patch = diagram([(0.5, 0.25), (0.5, 0.5)], 0.25, 0.75)

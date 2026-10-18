@@ -58,7 +58,10 @@ def phase_diagram_grid(
     A second pass visits failed or inconsistent equilibria in reverse row/column
     order, using successful neighbours to the right and in the following row.
     Consistent equilibria and their properties are preserved, including
-    property failures.
+    property failures. A final read-only audit checks the settled neighbouring
+    states. ``thermodynamic_validation`` records its scope, checked/skipped pair
+    counts and remaining violations. Older saved files without this evidence
+    report ``scope="not_checked"``; a zero count is not a stability certificate.
     ``relaxed=False`` holds
     phase amounts and endmember compositions fixed during property response
     (the point itself is still equilibrated). ``relaxed=True`` includes all
@@ -194,16 +197,18 @@ def retry_property_grid_chunks(result, phases, path):
     Supply the original phase diagram and candidate models. ``path`` is a
     property-grid manifest or its directory; the manifest must retain the full
     ``x`` and ``y`` coordinate arrays. Yield ``(rows, columns, grid)`` in reverse
-    batch order, replacing each attempted batch atomically on disk before
-    yielding. Thermodynamically consistent states and properties remain unchanged. Remove
-    diagnostics for recovered equilibria and retain any property errors.
+    batch order. First complete and save all repairs, then audit the final
+    neighbouring states, including chunk joins, before yielding each batch.
+    Consistent states and properties remain unchanged. Remove diagnostics for
+    recovered equilibria and retain any property errors.
 
     Only one solution batch and two rows of warm starts are retained. Accepted
     states prime those rows without solving again. Ordinary fallback fields
     still require a shared boundary within one grid spacing; thermodynamic
     violations trigger full phase discovery. Existing equilibrium_solves
-    counts include both passes. Regenerate derived arrays/reports from the
-    yielded grids so they reflect the recovered states.
+    counts include both solve passes; the final audit performs no solves.
+    Regenerate derived arrays/reports from the yielded grids so they reflect
+    the recovered states. No batch is yielded until all repairs have finished.
     """
     source, manifest, records = _property_grid_chunks(path)
     if "x" not in manifest or "y" not in manifest:
@@ -211,14 +216,31 @@ def retry_property_grid_chunks(result, phases, path):
     prepared = _core._PropertyGridder(
         _phase_diagram_data(result), phases, manifest["x"], manifest["y"]
     )
-    for record in sorted(
+    records = sorted(
         records, key=lambda r: (r["rows"][0], r["columns"][0]), reverse=True
-    ):
+    )
+    for record in records:
         rows, cols, grid = _load_grid_chunk(source.parent, record)
         attempted = np.any(~grid.equilibrium_success & (grid.field_numbers > 0))
-        solves, diagnostics = grid.equilibrium_solves, tuple(grid.diagnostics)
+        before = (
+            grid.equilibrium_solves,
+            grid.diagnostics,
+            grid.thermodynamic_validation,
+        )
         prepared.retry(grid)
-        if attempted or grid.equilibrium_solves != solves or tuple(grid.diagnostics) != diagnostics:
+        after = (
+            grid.equilibrium_solves,
+            grid.diagnostics,
+            grid.thermodynamic_validation,
+        )
+        if attempted or after != before:
+            save_property_grid(grid, source.parent / record["file"])
+        del grid
+    for index, record in enumerate(records):
+        rows, cols, grid = _load_grid_chunk(source.parent, record)
+        before = (grid.diagnostics, grid.thermodynamic_validation)
+        prepared.audit(grid, reverse=True, reset=index == 0)
+        if (grid.diagnostics, grid.thermodynamic_validation) != before:
             save_property_grid(grid, source.parent / record["file"])
         yield rows, cols, grid
         del grid

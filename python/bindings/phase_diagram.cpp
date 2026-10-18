@@ -155,6 +155,31 @@ py::dict boundary_point_dict(const phase_diagrams::BoundaryPoint &point) {
   item["phases"] = phase_states_dict(point.phases);
   return item;
 }
+py::dict
+validation_dict(const phase_diagrams::ThermodynamicValidation &validation) {
+  py::dict data;
+#define SAVE(name) data[#name] = py::cast(validation.name);
+  SAVE(scope)
+  SAVE(checked_pairs)
+  SAVE(skipped_pairs)
+  SAVE(violations)
+#undef SAVE
+  return data;
+}
+phase_diagrams::ThermodynamicValidation saved_validation(const py::dict &data) {
+  phase_diagrams::ThermodynamicValidation validation;
+  if (data.contains("thermodynamic_validation")) {
+    auto record = data["thermodynamic_validation"].cast<py::dict>();
+#define READ(name)                                                             \
+  validation.name = record[#name].cast<decltype(validation.name)>();
+    READ(scope)
+    READ(checked_pairs)
+    READ(skipped_pairs)
+    READ(violations)
+#undef READ
+  }
+  return validation;
+}
 py::dict result_dict(const phase_diagrams::Result &result) {
   py::dict data;
   data["schema_version"] = 4;
@@ -180,6 +205,9 @@ py::dict result_dict(const phase_diagrams::Result &result) {
   SAVE(equilibrium_solves)
   SAVE(minimization_calls)
 #undef SAVE
+  if (result.thermodynamic_validation.scope != "not_checked")
+    data["thermodynamic_validation"] =
+        validation_dict(result.thermodynamic_validation);
   // Preserve the SI range keys used by the original example JSON files.
   data["calculation_pressure_range_Pa"] = data["pressure_range"];
   data["temperature_range_K"] = data["temperature_range"];
@@ -270,6 +298,7 @@ py::dict result_dict(const phase_diagrams::Result &result) {
 phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
   using namespace phase_diagrams;
   Result result;
+  result.thermodynamic_validation = saved_validation(data);
   if (data.contains("diagram_type"))
     result.section.type =
         diagram_type(data["diagram_type"].cast<std::string>());
@@ -525,6 +554,9 @@ py::dict property_grid_dict(const phase_diagrams::PropertyGrid &grid) {
   data["diagnostics"] = grid.diagnostics;
   data["equilibrium_diagnostics"] = grid.equilibrium_diagnostics;
   data["equilibrium_solves"] = grid.equilibrium_solves;
+  if (grid.thermodynamic_validation.scope != "not_checked")
+    data["thermodynamic_validation"] =
+        validation_dict(grid.thermodynamic_validation);
   py::dict values;
   for (const auto &[name, matrix] : grid.values) {
     py::list rows;
@@ -570,6 +602,7 @@ phase_diagrams::PropertyGrid saved_property_grid(const py::dict &data) {
     throw py::value_error(
         "Unsupported property grid format or schema version.");
   PropertyGrid grid;
+  grid.thermodynamic_validation = saved_validation(data);
   grid.context = saved_result(data["context"].cast<py::dict>(), true);
   grid.diagram_type = grid.context.section.type;
   grid.x = data["x"].cast<Eigen::VectorXd>();
@@ -798,8 +831,11 @@ void bind_phase_diagram(py::module_ &m) {
                                   PROPERTY(minimization_calls)
                                       PROPERTY(excluded_regions)
 #undef PROPERTY
-      .def_property_readonly("spacing_resolved", [](const Result &r) {
-        return r.spacing_diagnostics.empty();
+      .def_property_readonly(
+          "spacing_resolved",
+          [](const Result &r) { return r.spacing_diagnostics.empty(); })
+      .def_property_readonly("thermodynamic_validation", [](const Result &r) {
+        return validation_dict(r.thermodynamic_validation);
       });
   py::class_<FieldPolygon>(m, "PhaseFieldPolygon",
                            "One plotted field: a closed outer coordinate ring "
@@ -906,6 +942,11 @@ void bind_phase_diagram(py::module_ &m) {
       .def_readonly("equilibrium_diagnostics",
                     &PropertyGrid::equilibrium_diagnostics)
       .def_readonly("context", &PropertyGrid::context)
+      .def_property_readonly("thermodynamic_validation",
+                             [](const PropertyGrid &r) {
+                               return validation_dict(
+                                   r.thermodynamic_validation);
+                             })
       .def_property_readonly(
           "has_solutions",
           [](const PropertyGrid &r) { return !r.solutions.empty(); })
@@ -943,6 +984,9 @@ void bind_phase_diagram(py::module_ &m) {
            py::arg("x"), py::arg("y"), py::arg("relaxed"),
            py::arg("store_solutions"), py::call_guard<py::gil_scoped_release>())
       .def("retry", &PropertyGridder::retry, py::arg("grid"),
+           py::call_guard<py::gil_scoped_release>())
+      .def("audit", &PropertyGridder::audit, py::arg("grid"),
+           py::arg("reverse") = false, py::arg("reset") = false,
            py::call_guard<py::gil_scoped_release>());
   m.def("_evaluate_property_grid", &evaluate_property_grid, py::arg("grid"),
         py::arg("phases"), py::arg("properties"), py::arg("relaxed"),

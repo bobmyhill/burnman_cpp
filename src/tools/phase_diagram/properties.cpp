@@ -523,6 +523,7 @@ PropertyGrid PropertyGridder::evaluate(const std::vector<std::string> &names,
   result.diagnostics = geometry_.diagnostics;
   result.equilibrium_diagnostics = result.diagnostics;
   calculate(result, false);
+  audit(result);
   return result;
 }
 
@@ -537,6 +538,90 @@ void PropertyGridder::retry(PropertyGrid &grid) {
     throw std::invalid_argument(
         "Saved grid does not match the source diagram.");
   calculate(grid, true);
+  audit(grid, true);
+}
+
+void PropertyGridder::audit(PropertyGrid &grid, bool reverse, bool reset) {
+  using namespace detail;
+  const auto count = static_cast<std::size_t>(grid.x.size() * grid.y.size());
+  if (grid.thermodynamic_samples.size() != count) {
+    if (grid.solutions.size() != count)
+      throw std::invalid_argument(
+          "Thermodynamic audit requires retained equilibrium states.");
+    grid.thermodynamic_samples.resize(count);
+    std::unique_ptr<Engine> replay;
+    for (std::size_t k = 0; k < count; ++k)
+      if (auto &saved = grid.solutions[k]) {
+        if (!std::isfinite(saved->gibbs)) {
+          if (!replay)
+            replay =
+                std::make_unique<Engine>(source_.composition_start, candidates_,
+                                         source_.settings, source_.section);
+          auto a = restore_solution(*saved, *replay);
+          saved->gibbs = a->get_n_moles() * a->get_molar_gibbs();
+        }
+        grid.thermodynamic_samples[k] = thermodynamic_sample(
+            equilibrium_state(saved->state, saved->gibbs), source_.section);
+      }
+  }
+  // Sweep-time messages can become stale when a later point is repaired.
+  // Rebuild only consistency diagnostics from the final retained states.
+  for (auto *messages : {&grid.diagnostics, &grid.equilibrium_diagnostics})
+    erase_if(*messages, [](const auto &message) {
+      return message.rfind("Thermodynamic audit: ", 0) == 0 ||
+             message.find("Thermodynamic inconsistency with a neighbouring "
+                          "equilibrium remains after recovery.") !=
+                 std::string::npos;
+    });
+  if (reset || reverse != audit_reverse_) {
+    audit_previous_.clear();
+    audit_current_.clear();
+    audit_row_.reset();
+  }
+  audit_reverse_ = reverse;
+  auto &coverage = grid.thermodynamic_validation;
+  coverage = {"grid_and_joins", 0, 0, 0};
+  for (Eigen::Index row = 0; row < grid.y.size(); ++row) {
+    const auto j = reverse ? grid.y.size() - 1 - row : row;
+    if (!audit_row_ || *audit_row_ != grid.y[j]) {
+      audit_previous_.clear();
+      if (audit_row_ &&
+          (reverse ? grid.y[j] < *audit_row_ : grid.y[j] > *audit_row_))
+        audit_previous_ = std::move(audit_current_);
+      audit_current_.clear();
+      audit_row_ = grid.y[j];
+    }
+    for (Eigen::Index col = 0; col < grid.x.size(); ++col) {
+      const auto i = reverse ? grid.x.size() - 1 - col : col;
+      auto sample = grid.thermodynamic_samples[static_cast<std::size_t>(
+          j * grid.x.size() + i)];
+      sample.available = sample.available && grid.equilibrium_success(j, i);
+      auto check = [&](const auto &other, std::size_t axis) {
+        if (audit_thermodynamic_pair(sample, other, axis, coverage) > 0.) {
+          const auto message =
+              "Thermodynamic audit: grid [" + std::to_string(j) + ", " +
+              std::to_string(i) +
+              "] has an inconsistent final neighbour along axis " +
+              std::to_string(axis) + ".";
+          grid.diagnostics.push_back(message);
+          grid.equilibrium_diagnostics.push_back(message);
+        }
+      };
+      auto along = audit_current_.lower_bound(grid.x[i]);
+      if (reverse) {
+        if (along != audit_current_.end() && along->first == grid.x[i])
+          ++along;
+        if (along != audit_current_.end())
+          check(along->second, 0);
+      } else if (along != audit_current_.begin())
+        check(std::prev(along)->second, 0);
+      if (const auto above = audit_previous_.find(grid.x[i]);
+          above != audit_previous_.end())
+        check(above->second, 1);
+      audit_current_[grid.x[i]] = std::move(sample);
+    }
+  }
+  grid.resolved = grid.diagnostics.empty();
 }
 
 void PropertyGridder::calculate(PropertyGrid &result, bool reverse) {
@@ -544,6 +629,8 @@ void PropertyGridder::calculate(PropertyGrid &result, bool reverse) {
   const auto &geometry = geometry_;
   const auto &x = result.x;
   const auto &y = result.y;
+  result.thermodynamic_samples.resize(
+      static_cast<std::size_t>(x.size() * y.size()));
   const auto bounds = source.coordinate_ranges();
   const Eigen::Vector2d origin(bounds[0][0], bounds[1][0]);
   const Eigen::Vector2d range(bounds[0][1] - bounds[0][0],
@@ -636,6 +723,9 @@ void PropertyGridder::calculate(PropertyGrid &result, bool reverse) {
             saved->gibbs = a->get_n_moles() * a->get_molar_gibbs();
           }
           auto state = detail::equilibrium_state(saved->state, saved->gibbs);
+          result.thermodynamic_samples[static_cast<std::size_t>(j * x.size() +
+                                                                i)] =
+              detail::thermodynamic_sample(state, source.section);
           if (consistent(state)) {
             current_row_[q[0]] = std::move(state);
             const auto prefix = "grid [" + std::to_string(j) + ", " +
@@ -852,6 +942,8 @@ void PropertyGridder::calculate(PropertyGrid &result, bool reverse) {
                         "equilibrium remains after recovery.");
       }
       result.field_numbers(j, i) = chosen;
+      result.thermodynamic_samples[static_cast<std::size_t>(j * x.size() + i)] =
+          detail::thermodynamic_sample(state, source.section);
       current_row_[q[0]] = std::move(state);
       if (!result.solutions.empty())
         result.solutions[static_cast<std::size_t>(j * x.size() + i)] =

@@ -148,3 +148,65 @@ TEST_CASE("Seed consistency recovery replaces a higher energy phase before "
                                 1) == 0.);
   CHECK(grid[1].state.mass_balance_error <= settings.mass_balance_tolerance);
 }
+
+TEST_CASE("Final diagram audit revisits pairs after late changes",
+          "[phase_diagram][consistency]") {
+  Result result;
+  result.section.type = DiagramType::PS;
+  result.resolved = true;
+  for (double entropy : {100., 101., 102.}) {
+    State state;
+    state.success = true;
+    state.pressure = 1.e9;
+    state.temperature = 1000.;
+    state.entropy = entropy;
+    state.gibbs = -1.e6;
+    result.samples.push_back(state);
+  }
+  audit_thermodynamic_samples(result);
+  CHECK(result.resolved);
+  CHECK(result.thermodynamic_validation.checked_pairs == 2);
+  CHECK(result.thermodynamic_validation.violations == 0);
+  // An earlier comparison passed, but a later repair changed one endpoint.
+  result.samples.front().gibbs += 10.;
+  result.diagnostics.push_back("Keep this unrelated boundary diagnostic.");
+  audit_thermodynamic_samples(result);
+  CHECK_FALSE(result.resolved);
+  CHECK(result.thermodynamic_validation.violations == 1);
+  CHECK(result.diagnostics.size() == 2);
+  CHECK(result.diagnostics.front() ==
+        "Keep this unrelated boundary diagnostic.");
+  audit_thermodynamic_samples(result);
+  CHECK(result.diagnostics.size() == 2); // No duplicate audit messages.
+  result.samples.front().gibbs -= 10.;
+  audit_thermodynamic_samples(result);
+  CHECK(result.thermodynamic_validation.violations == 0);
+  CHECK(result.diagnostics.size() == 1);
+  CHECK(result.equilibrium_solves == 0);
+  CHECK(result.samples.front().gibbs == -1.e6); // Read-only evidence.
+}
+
+TEST_CASE("Final audit distinguishes unchecked and inapplicable pairs",
+          "[phase_diagram][consistency]") {
+  Result result;
+  CHECK(result.thermodynamic_validation.scope == "not_checked");
+  result.section.type = DiagramType::PT;
+  result.samples.resize(2);
+  auto &a = result.samples[0];
+  a.success = true;
+  a.temperature = 1000.;
+  a.gibbs = -1.e6;
+  result.samples[1] = a;
+  result.samples[1].gibbs += 1.;
+  audit_thermodynamic_samples(result);
+  CHECK(result.thermodynamic_validation.violations >
+        0); // Same location, two roots.
+  result.samples[1].outside_model_domain = true;
+  audit_thermodynamic_samples(result);
+  CHECK(result.thermodynamic_validation.checked_pairs == 0);
+  CHECK(result.thermodynamic_validation.skipped_pairs == 2);
+  CHECK(result.thermodynamic_validation.violations == 0);
+  result.section.type = DiagramType::PV;
+  audit_thermodynamic_samples(result);
+  CHECK(result.thermodynamic_validation.scope == "not_applicable");
+}
