@@ -930,6 +930,10 @@ void bind_phase_diagram(py::module_ &m) {
       .def_property_readonly(
           "diagram_type",
           [](const PropertyGrid &r) { return diagram_name(r.diagram_type); })
+      .def_property_readonly(
+          "bulk_composition",
+          [](const PropertyGrid &r) { return r.context.composition_start; },
+          "Saved elemental mole amounts (starting bulk for X sections).")
       .def_readonly("x", &PropertyGrid::x)
       .def_readonly("y", &PropertyGrid::y)
       .def_readonly("values", &PropertyGrid::values)
@@ -990,6 +994,7 @@ void bind_phase_diagram(py::module_ &m) {
            py::call_guard<py::gil_scoped_release>());
   m.def("_evaluate_property_grid", &evaluate_property_grid, py::arg("grid"),
         py::arg("phases"), py::arg("properties"), py::arg("relaxed"),
+        py::arg("averaging_scheme") = types::AveragingType::VRH,
         py::call_guard<py::gil_scoped_release>());
   m.def("thermodynamic_property_names", &thermodynamic_property_names);
   m.def("assemblage_properties", &assemblage_properties, py::arg("assemblage"),

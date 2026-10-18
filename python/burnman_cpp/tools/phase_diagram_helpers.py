@@ -117,15 +117,40 @@ def report_phase_diagram(result, output_dir):
             print(message, flush=True)
 
 
+def _figure_formats(formats):
+    """Normalize a string or sequence of Matplotlib output formats."""
+    from matplotlib.backend_bases import FigureCanvasBase
+
+    values = [formats] if isinstance(formats, str) else list(formats)
+    if any(not isinstance(value, str) for value in values):
+        raise TypeError("Plot formats must be strings.")
+    result = tuple(dict.fromkeys(value.lower().removeprefix(".") for value in values))
+    unsupported = set(result) - FigureCanvasBase.get_supported_filetypes().keys()
+    if unsupported:
+        raise ValueError(f"Unsupported plot formats: {', '.join(sorted(unsupported))}.")
+    return result
+
+
 def save_figure(figure, path, *, formats=("svg",), dpi=200, **options):
-    """Save a figure in its requested formats and release its plotting memory."""
+    """Save the path and extra formats, close the figure and return output paths.
+
+    formats accepts a string or sequence of strings. Repeated formats are saved
+    once. The original path's extension is always included.
+    """
     import matplotlib.pyplot as plt
 
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    for suffix in (path.suffix,) + tuple("." + item for item in formats):
-        figure.savefig(path.with_suffix(suffix), dpi=dpi, **options)
-    plt.close(figure)
+    try:
+        suffixes = dict.fromkeys(
+            (path.suffix,) + tuple("." + item for item in _figure_formats(formats))
+        )
+        paths = tuple(path.with_suffix(suffix) for suffix in suffixes)
+        for destination in paths:
+            figure.savefig(destination, dpi=dpi, **options)
+        return paths
+    finally:
+        plt.close(figure)
 
 
 def plot_phase_diagram_example(
