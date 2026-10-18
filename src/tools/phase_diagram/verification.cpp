@@ -180,7 +180,7 @@ std::vector<std::string> field_diagnostics(const Result &result,
   auto geometry = field_polygons(result, 1.e-8, true, false);
   auto messages = geometry.diagnostics;
   for (const auto &line : result.boundaries)
-    if (ambiguous_boundary(line))
+    if (ambiguous_boundary(line) && !lies_on_calculation_frame(line, result))
       messages.push_back("Boundary " + std::to_string(line.id) +
                          ": neighbouring fields could not be distinguished "
                          "within tolerances.");

@@ -1,0 +1,604 @@
+{
+  "format": "burnman_cpp.property_grid",
+  "schema_version": 1,
+  "context": {
+    "schema_version": 4,
+    "diagram_type": "PS",
+    "composition_start": {
+      "Cr": 0.007500518941903751,
+      "Si": 0.7489522445881484,
+      "Mg": 0.9646647623082004,
+      "Ca": 0.0567076785900418,
+      "Al": 0.07846169170147545,
+      "Fe": 0.11430278558091557,
+      "Na": 0.004194994559401659,
+      "O": 2.7663350706839376
+    },
+    "composition_end": {},
+    "composition_range": [
+      0.0,
+      1.0
+    ],
+    "entropy_range": [
+      57.51477611466293,
+      313.393912642678
+    ],
+    "volume_range": [
+      1e-06,
+      0.0001
+    ],
+    "pressure_range": [
+      0.0,
+      40000000000.0
+    ],
+    "temperature_range": [
+      273.15,
+      4273.15
+    ],
+    "phase_names": [
+      "ol",
+      "ol #2",
+      "ol #3",
+      "wa",
+      "wa #2",
+      "wa #3",
+      "ri",
+      "ri #2",
+      "ri #3",
+      "opx",
+      "opx #2",
+      "opx #3",
+      "cpx",
+      "cpx #2",
+      "cpx #3",
+      "hpcpx",
+      "hpcpx #2",
+      "hpcpx #3",
+      "gt",
+      "gt #2",
+      "gt #3",
+      "sp",
+      "sp #2",
+      "sp #3",
+      "pl",
+      "pl #2",
+      "pl #3",
+      "ak",
+      "ak #2",
+      "ak #3",
+      "fp",
+      "fp #2",
+      "fp #3",
+      "bg",
+      "bg #2",
+      "bg #3",
+      "ppv",
+      "ppv #2",
+      "ppv #3",
+      "cf",
+      "cf #2",
+      "cf #3",
+      "nal",
+      "nal #2",
+      "nal #3",
+      "capv",
+      "capv #2",
+      "capv #3",
+      "neph",
+      "neph #2",
+      "neph #3",
+      "ky",
+      "ky #2",
+      "ky #3",
+      "q",
+      "q #2",
+      "q #3",
+      "coe",
+      "coe #2",
+      "coe #3",
+      "st",
+      "st #2",
+      "st #3",
+      "seif",
+      "seif #2",
+      "seif #3",
+      "wo",
+      "wo #2",
+      "wo #3",
+      "pwo",
+      "pwo #2",
+      "pwo #3",
+      "Fe-bcc",
+      "Fe-bcc #2",
+      "Fe-bcc #3",
+      "Fe-fcc",
+      "Fe-fcc #2",
+      "Fe-fcc #3",
+      "Fe-hcp",
+      "Fe-hcp #2",
+      "Fe-hcp #3"
+    ],
+    "diagnostics": [],
+    "spacing_diagnostics": [],
+    "spacing_resolved": true,
+    "resolved": false,
+    "equilibrium_solves": 0,
+    "minimization_calls": 0,
+    "calculation_pressure_range_Pa": [
+      0.0,
+      40000000000.0
+    ],
+    "temperature_range_K": [
+      273.15,
+      4273.15
+    ],
+    "settings": {
+      "pressure_seeds": 41,
+      "temperature_seeds": 41,
+      "entropy_seeds": 41,
+      "volume_seeds": 7,
+      "composition_seeds": 7,
+      "max_refinement_iterations": 150,
+      "minimization_starts": 10,
+      "max_phase_instances": 3,
+      "max_trace_steps": 500,
+      "max_lines": 1000,
+      "max_recovery_passes": 2,
+      "step": 0.025,
+      "min_step": 1e-07,
+      "affinity_tolerance": 0.2,
+      "mass_balance_tolerance": 1e-08,
+      "amount_tolerance": 1e-07,
+      "composition_tolerance": 1e-05,
+      "node_tolerance": 0.0002,
+      "verbose": true,
+      "exclude_invalid_eos": true,
+      "active_solution_faces": true,
+      "required_eos_phases": [
+        "opx"
+      ]
+    },
+    "excluded_regions": [],
+    "fields": [],
+    "nodes": [],
+    "boundaries": [],
+    "samples": []
+  },
+  "x": [
+    33920000000.0
+  ],
+  "y": [
+    66.47054589314345
+  ],
+  "relaxed": true,
+  "resolved": false,
+  "field_numbers": [
+    [
+      170
+    ]
+  ],
+  "success": [
+    [
+      false
+    ]
+  ],
+  "equilibrium_success": [
+    [
+      true
+    ]
+  ],
+  "diagnostics": [
+    "Field 170: grid [0, 0]: thermal_expansivity: Singular reaction Hessian: relaxed response is undefined."
+  ],
+  "equilibrium_diagnostics": [],
+  "equilibrium_solves": 1,
+  "values": {
+    "temperature": [
+      [
+        410.51973790108525
+      ]
+    ],
+    "thermal_expansivity": [
+      [
+        null
+      ]
+    ]
+  },
+  "solutions": [
+    [
+      {
+        "pressure": 33920000000.0,
+        "temperature": 410.51973790108525,
+        "entropy": 66.47054589314342,
+        "volume": 2.1652807181144267e-05,
+        "composition_coordinate": 0.0,
+        "mass_balance_error": 1.5133235639032453e-16,
+        "minimum_affinity": 0.0,
+        "residual": 0.0,
+        "phases": [
+          {
+            "id": 27,
+            "candidate_index": 9,
+            "name": "ak",
+            "amount": 0.0021859614987079375,
+            "composition": [
+              1.91726758979994e-05,
+              0.0,
+              0.9997495548537308,
+              0.0,
+              0.00023127247037113552
+            ],
+            "composition_basis": [
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ],
+              [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "id": 30,
+            "candidate_index": 10,
+            "name": "fp",
+            "amount": 0.16381138314750518,
+            "composition": [
+              0.9998583539444328,
+              9.787626253019101e-05,
+              0.0,
+              4.376979303704544e-05,
+              0.0
+            ],
+            "composition_basis": [
+              [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "id": 33,
+            "candidate_index": 11,
+            "name": "bg",
+            "amount": 0.2351909557028737,
+            "composition": [
+              0.9935574603595978,
+              1.9193949980875676e-05,
+              0.0,
+              0.0,
+              0.0,
+              0.006423180508276394,
+              1.6518214500850127e-07
+            ],
+            "composition_basis": [
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ],
+              [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "id": 39,
+            "candidate_index": 13,
+            "name": "cf",
+            "amount": 0.06916988721035423,
+            "composition": [
+              0.9457698703487083,
+              -0.5478392839786486,
+              1.736587896171289e-05,
+              0.5478418239076747,
+              0.05421022384330386
+            ]
+          },
+          {
+            "id": 42,
+            "candidate_index": 14,
+            "name": "nal",
+            "amount": 0.0036157457202166342,
+            "composition": [
+              0.9220451731065732,
+              3.042359861193098e-06,
+              0.07795178453356558
+            ]
+          },
+          {
+            "id": 45,
+            "candidate_index": 15,
+            "name": "capv",
+            "amount": 0.0567076785900418,
+            "composition": [
+              1.0
+            ]
+          },
+          {
+            "id": 60,
+            "candidate_index": 20,
+            "name": "st",
+            "amount": 0.45438362661751497,
+            "composition": [
+              1.0
+            ]
+          },
+          {
+            "id": 78,
+            "candidate_index": 26,
+            "name": "Fe-hcp",
+            "amount": 0.03693495236629198,
+            "composition": [
+              1.0
+            ]
+          }
+        ],
+        "n_moles": 1.0220001908535064,
+        "molar_fractions": [
+          0.002138905176605073,
+          0.16028508077938894,
+          0.2301280937202741,
+          0.06768089461175948,
+          0.003537911002929466,
+          0.05548695499037366,
+          0.44460229135382456,
+          0.0361398683648448
+        ],
+        "phase_bases": [
+          [
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            [
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              1.0,
+              0.0,
+              0.0
+            ]
+          ],
+          [
+            [
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.0,
+              1.0,
+              0.0
+            ]
+          ],
+          [
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              1.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            [
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          ],
+          [
+            [
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              1.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.0,
+              1.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          ],
+          [
+            [
+              1.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              1.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              1.0
+            ]
+          ],
+          [
+            [
+              1.0
+            ]
+          ],
+          [
+            [
+              1.0
+            ]
+          ],
+          [
+            [
+              1.0
+            ]
+          ]
+        ],
+        "phase_compositions": [
+          [
+            0.00023127247037113552,
+            1.91726758979994e-05,
+            0.9997495548537308
+          ],
+          [
+            0.9998583539444328,
+            9.787626253019101e-05,
+            4.376979303704544e-05
+          ],
+          [
+            0.006423180508276394,
+            1.6518214500850127e-07,
+            0.9935574603595978,
+            1.9193949980875676e-05
+          ],
+          [
+            0.9457698703487083,
+            -0.5478392839786486,
+            1.736587896171289e-05,
+            0.5478418239076747,
+            0.05421022384330386
+          ],
+          [
+            0.9220451731065732,
+            3.042359861193098e-06,
+            0.07795178453356558
+          ],
+          [
+            1.0
+          ],
+          [
+            1.0
+          ],
+          [
+            1.0
+          ]
+        ]
+      }
+    ]
+  ]
+}

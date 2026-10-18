@@ -15,6 +15,7 @@
 #include "burnman/tools/equilibration/equality_constraint_variants.hpp"
 #include "burnman/tools/phase_diagram/boundary_repair.hpp"
 #include "burnman/tools/phase_diagram/continuation.hpp"
+#include "burnman/tools/phase_diagram/consistency.hpp"
 #include "burnman/tools/phase_diagram/critical.hpp"
 #include "burnman/tools/phase_diagram/domain.hpp"
 #include "burnman/tools/phase_diagram/polygons.hpp"
@@ -64,6 +65,7 @@ class Tracer {
   Eigen::VectorXd critical_axis;
   std::optional<LineResolution> line_resolution;
   std::set<int> unstable_lines;
+  std::vector<std::string> thermodynamic_diagnostics;
   Eigen::Vector2d normalise(double first, double second) const {
     return (Eigen::Vector2d(first, second) - origin).cwiseQuotient(range);
   }
@@ -167,27 +169,55 @@ class Tracer {
             : 0.;
     return p;
   }
-  // Basic root/domain/mass checks; competing-phase affinity is checked
-  // separately.
+  // A stationary solution composition can be a saddle even when its affinity
+  // lies inside the discovery tolerance. Check local stability in every
+  // section; competing-phase affinity is checked separately.
   bool valid(const Assemblage &a, const EquilibriumSolve &s) const {
     return s.success && s.x.allFinite() && inside(normalised_coordinates(a)) &&
            engine.mass_error(a) <= engine.settings.mass_balance_tolerance &&
-           (engine.direct_coordinates() || engine.locally_stable(a));
+           engine.locally_stable(a);
   }
   bool needs_face_refit(double affinity, bool composition = false) const {
     // A trace site can lower the energy by much less than the phase-entry
     // tolerance. Releasing its face changes a composition, not the assemblage.
     const double tolerance =
         engine.settings.affinity_tolerance * (composition ? .05 : 1.);
-    return affinity < -(engine.direct_coordinates()
+    return affinity < -(engine.direct_coordinates() && !composition
                             ? tolerance
                             : std::min(tolerance, 1.e-5));
   }
-  // Keep coexisting solution compositions on the same branches during a step;
-  // exchanging or coalescing them needs a separate critical/junction treatment.
+  // Locate weak, distinct solvus minima before their branch loses stability.
+  double phase_entry_tolerance(std::size_t base, const PhaseStates &states,
+                               const Minimum &minimum) const {
+    double tolerance = engine.settings.affinity_tolerance;
+    bool present = false, separate = true;
+    const auto &phase = engine.phases[base];
+    for (const auto &state : states)
+      if (state.candidate_index == static_cast<int>(base)) {
+        present = true;
+        separate = separate && engine.distinct_compositions(
+                                   static_cast<int>(base), state.composition,
+                                   minimum.p, phase.material->get_pressure(),
+                                   phase.material->get_temperature());
+      }
+    // A resolved composition difference need not be a second Gibbs basin.
+    // A lower-energy homogeneous mixture rules out a weak solvus entry and
+    // avoids repeatedly trying a copy that the corrector must reject.
+    if (present && separate)
+      tolerance = std::min(tolerance, 1.e-5);
+    return tolerance;
+  }
+  // A zero-amount phase still identifies a particular solution minimum.
+  // Sharing the basin check with junction and face-refit solves prevents a
+  // small residual from accepting a different saturation branch.
   bool same_branch(const Assemblage &a, const Assemblage &b,
                    const std::vector<int> &ids) const {
     auto old = engine.snapshot(a, ids), next = engine.snapshot(b, ids);
+    if (!same_solution_branches(engine, old, next, b.get_pressure(),
+                                b.get_temperature()))
+      return false;
+    // Ordinary continuation must not exchange or coalesce existing copies.
+    // Junction/critical corrections can meet them under separate constraints.
     for (std::size_t i = 0; i < ids.size(); ++i)
       for (std::size_t j = i + 1; j < ids.size(); ++j)
         if (old[i].candidate_index == old[j].candidate_index &&
@@ -965,7 +995,8 @@ class Tracer {
     for (int z : zeros) {
       // A P-T invariant can project to a finite latent S/V edge. The tangent
       // projection below rejects any branch invisible in the chosen axes.
-      if (gibbs_variance >= 0) {
+      if (gibbs_variance >= 0 &&
+          (result.section.type != DiagramType::PT || gibbs_variance > 0)) {
         queue.push_back({ids, z, index, states, normalised_coordinates(a),
                          Eigen::Vector2d::Zero()});
         queue.back().physical =
@@ -977,7 +1008,21 @@ class Tracer {
              std::find(zeros.begin(), zeros.end(), removed) != zeros.end())) {
           auto subset = ids;
           subset.erase(std::find(subset.begin(), subset.end(), removed));
-          queue.push_back({subset, z, index, states, normalised_coordinates(a),
+          auto trial = states;
+          if (result.section.type == DiagramType::PT && gibbs_variance == 0) {
+            // At a P-T invariant, compositions are fixed while reaction
+            // extents change. A mass-balance LP identifies feasible limiting
+            // mixtures before an expensive boundary Newton solve is queued.
+            try {
+              auto balanced = reaction_seed_amounts(engine, subset, states, z);
+              if (!balanced)
+                continue;
+              trial = std::move(*balanced);
+            } catch (const std::exception &) {
+              // A numerical LP failure is not an infeasibility certificate.
+            }
+          }
+          queue.push_back({subset, z, index, trial, normalised_coordinates(a),
                            Eigen::Vector2d::Zero()});
           queue.back().physical =
               Eigen::Vector2d(a.get_pressure(), a.get_temperature());
@@ -1092,10 +1137,10 @@ class Tracer {
   // Set output affinity/solution only on acceptance. A rejected trial can still
   // change a, so preserve the last accepted assemblage before trying the solve.
   int endpoint(Assemblage &a, const std::vector<int> &ids, int z, int other,
+               const PhaseStates &previous_phases,
                const Eigen::Vector2d &previous, double maximum_distance,
                double &accepted_affinity, EquilibriumSolve *solution = nullptr,
                const Eigen::Vector2d &direction = Eigen::Vector2d::Zero()) {
-
     auto prm = engine.parameters(a);
     auto zi = std::find(ids.begin(), ids.end(), z) - ids.begin(),
          oi = std::find(ids.begin(), ids.end(), other) - ids.begin();
@@ -1135,6 +1180,9 @@ class Tracer {
           (svd.singularValues().array() > 1.e-9).count() < j.cols();
     }
     if (!verified || !separate || singular_copy_event ||
+        !same_solution_branches(engine, previous_phases,
+                                engine.snapshot(a, ids), a.get_pressure(),
+                                a.get_temperature()) ||
         affinity < -engine.settings.affinity_tolerance ||
         displacement > maximum_distance ||
         offset.dot(direction) <
@@ -1254,8 +1302,9 @@ class Tracer {
       auto junction = engine.make_assemblage(
           joined, states, best.a->get_pressure(), best.a->get_temperature());
       engine.set_coordinate(*junction, engine.composition_coordinate(*best.a));
-      index = endpoint(*junction, joined, zero, added, previous_position,
-                       maximum_distance, accepted_affinity, &solution);
+      index =
+          endpoint(*junction, joined, zero, added, states, previous_position,
+                   maximum_distance, accepted_affinity, &solution);
       if (index >= 0)
         return junction;
     } catch (const std::exception &error) {
@@ -1293,14 +1342,27 @@ class Tracer {
           if ((minimum.p - states[k].composition).norm() >= .05)
             minimum = engine.minimize(base, engine.potentials(*current),
                                       states[k].composition);
-          if ((minimum.p - states[k].composition).norm() < .05) {
+          const Eigen::VectorXd weights =
+              basis.transpose().completeOrthogonalDecomposition().solve(
+                  minimum.p);
+          // Releasing a face requires a resolved population outside that
+          // face. A nearby minimum within it only changes the warm seed and
+          // can switch branches or repeatedly freeze numerical trace sites.
+          if (needs_face_refit(minimum.affinity, true) &&
+              (basis.transpose() * weights - minimum.p).norm() > 1.e-10 &&
+              (minimum.p - states[k].composition).norm() < .05) {
             states[k].composition = minimum.p;
             face_tolerance = std::min(face_tolerance, 1.e-9);
           }
         }
-        auto trial =
-            engine.make_assemblage(ids, states, current->get_pressure(),
-                                   current->get_temperature(), face_tolerance);
+        // Infer the new face while retaining positive trace populations.
+        // Freezing and releasing the same population changes its chemical
+        // potential and can mimic an additional solution copy.
+        for (auto &state : states)
+          state.composition_basis.reset();
+        auto trial = engine.make_assemblage(
+            ids, states, current->get_pressure(), current->get_temperature(),
+            face_tolerance, true);
         engine.set_coordinate(*trial, engine.composition_coordinate(*current));
         bool changed = false;
         for (std::size_t k = 0; k < ids.size(); ++k) {
@@ -1328,6 +1390,7 @@ class Tracer {
           c = boundary_constraints(*trial, ids, zero, where, normal);
         auto solve = engine.solve(*trial, c);
         if (!valid(*trial, solve) || !engine.distinct(*trial, ids) ||
+            !same_branch(*input, *trial, ids) ||
             (normalised_coordinates(*trial) - where).norm() >
                 engine.settings.step * 3.)
           return false;
@@ -1418,7 +1481,8 @@ class Tracer {
             predict(*event_a, old_x, delta, prm);
           EquilibriumSolve event_s;
           int n = endpoint(
-              *event_a, ids, seed.zero, leaving, old_u,
+              *event_a, ids, seed.zero, leaving, engine.snapshot(*a, ids),
+              old_u,
               std::max(requested * 3., engine.settings.node_tolerance * 2.),
               affinity, &event_s,
               engine.project_direction(direction, *a).cwiseQuotient(range));
@@ -1521,15 +1585,16 @@ class Tracer {
         auto target =
             (old_u + std::max(used, engine.settings.min_step) * unit).eval();
         if (refit_composition_faces(next, ids, seed.zero, target, unit, next_s,
-                                    affinity, &ms)) {
+                                    affinity, &ms) &&
+            same_branch(*a, *next, ids)) {
           accepted = true;
           stability_verified = true;
           border_axis = -1;
         }
       }
       if (!accepted) {
-        if (merged && solution_separation(engine.snapshot(*a, ids)) < .01) {
-          approach_critical(a, ids, seed.zero, solve, points);
+        if (merged && solution_separation(engine.snapshot(*a, ids)) < .01 &&
+            approach_critical(a, ids, seed.zero, solve, points)) {
           end_node = node(*a, ids, {seed.zero}, "critical_point", &solve.J);
           termination = "solution critical point";
         } else
@@ -1553,32 +1618,21 @@ class Tracer {
                                 affinity, &ms);
       }
       const auto current_states = engine.snapshot(*next, ids);
-      auto entry_tolerance = [&](std::size_t base) {
-        double tolerance = engine.settings.affinity_tolerance;
-        double separation = std::numeric_limits<double>::infinity();
-        for (const auto &phase : current_states)
-          if (phase.candidate_index == static_cast<int>(base))
-            separation =
-                std::min(separation, (phase.composition - ms[base].p).norm());
-        // A weak solvus can lose local stability before its affinity reaches
-        // the ordinary discovery tolerance. Distinct minima of an already
-        // present solution need their binodal located before that spinodal.
-        if (!engine.direct_coordinates() && engine.phases[base].solution &&
-            std::isfinite(separation) &&
-            separation > engine.settings.composition_tolerance * 10.)
-          tolerance = std::min(tolerance, 1.e-5);
-        return tolerance;
-      };
+      // Locate a distinct solvus minimum before its branch loses stability,
+      // including weak P-T solvi inside the ordinary discovery tolerance.
       bool entering = false;
       for (std::size_t base = 0; base < ms.size(); ++base)
-        entering = entering || ms[base].affinity < -entry_tolerance(base);
+        entering = entering ||
+                   ms[base].affinity <
+                       -phase_entry_tolerance(base, current_states, ms[base]);
       if (entering) {
         // A previously absent phase becomes stable: add it at zero amount and
         // solve the two zero constraints to locate the node, then spawn
         // branches.
         bool located = false;
         for (std::size_t base = 0; base < ms.size(); ++base)
-          if (ms[base].affinity < -entry_tolerance(base)) {
+          if (ms[base].affinity <
+              -phase_entry_tolerance(base, current_states, ms[base])) {
             int added = burnman::utils::checked_int(
                 base *
                 static_cast<std::size_t>(engine.settings.max_phase_instances));
@@ -1611,7 +1665,7 @@ class Tracer {
               EquilibriumSolve event_s;
               double event_affinity = 0.;
               int n = endpoint(
-                  *junction, joined, seed.zero, added, old_u,
+                  *junction, joined, seed.zero, added, states, old_u,
                   std::max((engine.direct_coordinates() ? used : requested) *
                                3.,
                            engine.settings.node_tolerance * 2.),
@@ -1719,8 +1773,8 @@ class Tracer {
   // Start with the equilibrium response; local probes provide additional
   // evidence when degeneracy or solution replacement prevents a derivative-only
   // decision.
-  void label(Boundary &line) {
-    if (line.points.size() < 2)
+  void label(Boundary &line, bool response_only = false) {
+    if (line.points.size() < 2 || lies_on_calculation_frame(line, result))
       return;
     double length = 0.;
     for (std::size_t k = 1; k < line.points.size(); ++k)
@@ -1814,6 +1868,8 @@ class Tracer {
         break;
       } catch (const std::exception &) {
       }
+    if (response_only)
+      return;
     // An endpoint can lie on several phase lines at once. Keep the midpoint
     // when no interior corrector verifies, using its interpolated warm start.
     if (anchor.phases.empty()) {
@@ -2528,6 +2584,12 @@ class Tracer {
                       bool reconnect = false) {
     const auto left = normalise(line.points[right_index - 1]);
     const auto right = normalise(line.points[right_index]);
+    const auto accuracy =
+        equilibrium_coordinate_tolerance(result.section.type, range);
+    if (((right - left).cwiseAbs().cwiseProduct(range).array() <=
+         accuracy.array())
+            .all())
+      return false;
     double length = (right - left).norm();
     // Inverse coordinates can leave duplicate endpoints at the native solve
     // accuracy. Direct P-T repairs still need to resolve short reaction arcs.
@@ -2722,7 +2784,10 @@ class Tracer {
         } else if (line.start_node < 0 || line.end_node < 0)
           continue;
         bool uncertain = ambiguous_boundary(line) || ambiguous_boundary(old);
-        if ((!same_sides && !uncertain) || !same_ends ||
+        const bool univariant = result.section.type == DiagramType::PT &&
+                                boundary_variance(line, result) == 1 &&
+                                boundary_variance(old, result) == 1;
+        if ((!same_sides && !uncertain && !univariant) || !same_ends ||
             old.assemblage != line.assemblage)
           continue;
         const bool verify = uncertain || line.zero_phase != old.zero_phase ||
@@ -2744,6 +2809,8 @@ class Tracer {
           }
           duplicate = true;
           retain_curve(old, line);
+          if (!same_sides && univariant)
+            label(old, true);
           break;
         }
       }
@@ -2894,7 +2961,8 @@ class Tracer {
         result, engine, [&](Boundary &line) { label(line); },
         [&](Boundary &line, std::size_t k) {
           return refine_segment(line, k, true);
-        });
+        },
+        [&](Boundary &line) { label(line, true); });
     // Short duplicates may become verifiable only after recovering side labels.
     reconcile_boundaries();
     index_boundaries();
@@ -3008,12 +3076,27 @@ class Tracer {
   // set resolved from the outstanding messages. This is completion of the
   // implemented checks, not a proof that every stability field was discovered.
   Result certify_result() {
+    // Geometry repair can change an arc's endpoints, active faces or retained
+    // sampling after its first side calculation. Refresh only the perimeters
+    // that still conflict; accepted fields need no additional solves.
+    std::set<int> conflicting;
+    for (const auto &polygon : field_polygons(result).polygons)
+      if (polygon.is_provisional && !polygon.has_open_boundary &&
+          !polygon.outside_model_domain)
+        conflicting.insert(polygon.boundary_ids.begin(),
+                           polygon.boundary_ids.end());
+    for (auto &line : result.boundaries)
+      if (conflicting.count(line.id) && !ambiguous_boundary(line))
+        label(line, true);
     // Certification changes endpoint diagnostics, never field geometry.
     detail::verify_critical_endpoints(result, engine);
     detail::recover_boundary_labels(result);
     auto messages = detail::field_diagnostics(result, engine);
     result.diagnostics.insert(result.diagnostics.end(), messages.begin(),
                               messages.end());
+    result.diagnostics.insert(result.diagnostics.end(),
+                              thermodynamic_diagnostics.begin(),
+                              thermodynamic_diagnostics.end());
     if (!queue.empty())
       result.diagnostics.push_back(
           "Boundary search limit reached; increase max_lines.");
@@ -3083,6 +3166,10 @@ class Tracer {
                        std::chrono::steady_clock::now() - grid_start)
                        .count()
                 << " s. Discovering boundaries between neighbouring seeds.\n";
+    thermodynamic_diagnostics = recover_thermodynamic_grid(
+        engine, grid, second_seeds, [&](std::size_t k) {
+          add_sample(grid[k].state, burnman::utils::checked_int(k));
+        });
     const auto bracket_start = std::chrono::steady_clock::now();
     for (int i = 0; i < first_seeds; ++i)
       for (int j = 0; j < second_seeds; ++j) {
@@ -3389,6 +3476,8 @@ public:
     recover_failed_seeds();
     repair_and_refine_boundaries(true);
     retrace_unstable_boundaries();
+    // Recovery can add accepted frame endpoints after the first domain pass.
+    detail::join_frame_limits(result, engine);
     if (detail::remove_metastable_parallel_lines(result, engine))
       index_boundaries();
     collect_boundary_diagnostics();

@@ -28,6 +28,76 @@ AXES = dict(
 )
 
 
+def test_local_pyrolite_akimotoite_branches_bound_equilibratable_fields():
+    from burnman_cpp.tools.phase_diagram_helpers import load_example
+
+    saved = json.loads(
+        (
+            Path(__file__).with_name("data") / "pyrolite_sp_ak_branch_switch.json"
+        ).read_text()
+    )
+    example = load_example(
+        Path(__file__).resolve().parents[2]
+        / "examples/example_pyrolite_phase_diagram.py"
+    )
+    patch = bm.calculate_phase_diagram_patch(
+        saved,
+        example.candidate_phases(),
+        ((138.0, 155.5), (21.2, 22.5)),
+        pressure_unit="GPa",
+        entropy_unit="J/K",
+    )
+    assert patch.resolved, patch.diagnostics
+    double_zero = [node for node in patch.nodes if node.zero_phases == [27, 28]]
+    assert len(double_zero) == 1
+    assert double_zero[0].pressure == pytest.approx(21.429396678594486e9, abs=1.0)
+    assert double_zero[0].entropy == pytest.approx(139.09580456113144, abs=1.0e-6)
+    grid = bm.phase_diagram_grid(
+        patch,
+        example.candidate_phases(),
+        ["temperature", "thermal_expansivity"],
+        **saved["grid"],
+        store_solutions=True,
+    )
+    assert grid.success.all(), grid.diagnostics
+    # The reported point was assigned akimotoite but cannot have positive ak.
+    row = np.flatnonzero(np.isclose(grid.y, 145.1533803755081))[0]
+    column = np.flatnonzero(np.isclose(grid.x, 22.0e9))[0]
+    state = grid.solution_at(int(row), int(column)).state
+    assert {p.candidate_index for p in state.phases} == {2, 6, 13, 20, 26}
+    assert state.temperature == pytest.approx(787.5233434907014, abs=1.0e-4)
+
+
+def test_original_scale_curve_does_not_attach_to_another_akimotoite_branch():
+    from burnman_cpp.tools.phase_diagram_helpers import load_example
+
+    saved = json.loads(
+        (
+            Path(__file__).with_name("data") / "pyrolite_sp_wrong_branch_junction.json"
+        ).read_text()
+    )
+    example = load_example(
+        Path(__file__).resolve().parents[2]
+        / "examples/example_pyrolite_phase_diagram.py"
+    )
+    result = bm.refine_phase_diagram(
+        saved["composition_start"],
+        example.candidate_phases(),
+        saved,
+        resolution=(2, 2),
+        region=(saved["entropy_range"], saved["pressure_range"]),
+        pressure_unit="Pa",
+        entropy_unit="J/K",
+    )
+    # Both curves share the present assemblage, but the capv/ak junction lies
+    # on only one akimotoite composition branch. Coarse chords of the other
+    # curve pass nearby in the original full-diagram frame.
+    a, b, c = (saved["fixture_original_nodes"].index(i) for i in [214, 242, 243])
+    assert any({line.start_node, line.end_node} == {a, c} for line in result.boundaries)
+    assert len(result.nodes[b].incident_lines) == 1
+    assert len(result.boundaries) == 2
+
+
 @pytest.mark.parametrize("diagram", ["PS", "TV", "SV"])
 def test_natural_coordinate_grid_solves_without_pt_equilibrium_search(diagram, capfd):
     phase = bm.Mineral(oxide_params())
@@ -348,6 +418,7 @@ def test_fresh_entropy_diagram_preserves_reduced_bases_at_latent_junctions():
         / "examples/example_pyrolite_sp_phase_diagram.py"
     )
     opts = example.settings(3)
+    opts.pressure_seeds = opts.entropy_seeds = 3
     opts.required_eos_phases = []
     opts.max_trace_steps = 200
     result = bm.phase_diagram(
@@ -402,6 +473,7 @@ def test_fresh_entropy_diagram_keeps_weakly_coupled_nine_phase_fields():
         / "examples/example_pyrolite_sp_phase_diagram.py"
     )
     opts = example.settings(5)
+    opts.pressure_seeds = opts.entropy_seeds = 5
     opts.required_eos_phases = []
     opts.max_trace_steps = 200
     result = bm.phase_diagram(

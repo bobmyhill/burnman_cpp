@@ -57,6 +57,18 @@ bool seed_phase_compositions(
     double tolerance = std::numeric_limits<double>::infinity(),
     double amount_tolerance = 0.);
 
+/// Open the union of two matching states' active composition faces without
+/// changing either state's compositions, amounts or instance IDs. Independent
+/// corrections must still establish whether they describe the same equilibrium.
+bool share_composition_faces(PhaseStates &, PhaseStates &);
+
+/// Redistribute amounts at fixed phase compositions, with the specified phase
+/// absent. No EOS, equilibrium or composition minimisation is performed.
+/// Returns no state when these compositions cannot represent the bulk.
+std::optional<PhaseStates> reaction_seed_amounts(const Engine &,
+                                                 const std::vector<int> &,
+                                                 const PhaseStates &, int zero);
+
 /// Remove a verified overshoot beyond a junction. Re-solve on the earlier
 /// reaction branch before trimming; curved lines need not be monotonic in P/T.
 void trim_boundary_endpoints(Boundary &, Engine &,
@@ -71,6 +83,13 @@ bool same_phase_compositions(const PhaseStates &, const PhaseStates &,
 /// and composition. Equal present assemblages alone cannot identify a reaction.
 bool same_boundary_compositions(const PhaseStates &, int, const PhaseStates &,
                                 int, double, double);
+
+/// Persistent zero-amount phase IDs must remain in the same Gibbs mixing basin.
+/// Unlike an absolute composition-jump limit, homogeneous mixing permits large
+/// changes within a single basin. New junction phases have no earlier match.
+bool same_solution_branches(const Engine &, const PhaseStates &before,
+                            const PhaseStates &after, double pressure,
+                            double temperature);
 
 /// Map a junction's zero-phase choices onto an incident equilibrium's local
 /// copy IDs, selecting the smallest-amount unused copy of each candidate.

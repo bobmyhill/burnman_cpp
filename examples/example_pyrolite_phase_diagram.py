@@ -183,7 +183,7 @@ def settings(seeds=9, quick=False, verbose=False):
 
 
 def calculate(
-    seeds=9,
+    seeds=41,
     quick=False,
     verbose=False,
     *,

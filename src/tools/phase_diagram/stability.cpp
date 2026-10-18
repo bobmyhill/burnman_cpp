@@ -29,10 +29,10 @@
 #include <stdexcept>
 namespace burnman::phase_diagrams::detail {
 namespace {
-bool homogeneous_mixing(const Solution &solution, double pressure,
-                        double temperature, const Eigen::VectorXd &left,
-                        const Eigen::VectorXd &right,
-                        bool require_flat = false) {
+enum class MixingTest { Lower, Flat, Barrier };
+bool mixing_test(const Solution &solution, double pressure, double temperature,
+                 const Eigen::VectorXd &left, const Eigen::VectorXd &right,
+                 MixingTest test = MixingTest::Lower) {
   // Endmember energies are affine in composition. Only the excess term can
   // distinguish separate copies from their homogeneous mixture.
   const auto &model = solution.get_solution_model();
@@ -42,7 +42,7 @@ bool homogeneous_mixing(const Solution &solution, double pressure,
   };
   const double gl = excess(left), gr = excess(right);
   if (!std::isfinite(gl) || !std::isfinite(gr))
-    return false;
+    return test == MixingTest::Barrier;
   for (double fraction : {.25, .5, .75}) {
     double mixed = excess((1. - fraction) * left + fraction * right);
     double linear = (1. - fraction) * gl + fraction * gr;
@@ -50,13 +50,15 @@ bool homogeneous_mixing(const Solution &solution, double pressure,
         32. * std::numeric_limits<double>::epsilon() *
         std::max({1., std::abs(gl), std::abs(gr), std::abs(mixed)});
     if (!std::isfinite(mixed))
-      return false;
-    if (!require_flat && mixed < linear - tolerance)
+      return test == MixingTest::Barrier;
+    if (test == MixingTest::Lower && mixed < linear - tolerance)
       return true;
-    if (require_flat && std::abs(mixed - linear) > tolerance)
+    if (test == MixingTest::Barrier && mixed > linear + tolerance)
+      return true;
+    if (test == MixingTest::Flat && std::abs(mixed - linear) > tolerance)
       return false;
   }
-  return require_flat;
+  return test == MixingTest::Flat;
 }
 } // namespace
 std::shared_ptr<Material> clone(const std::shared_ptr<Material> &phase) {
@@ -671,7 +673,7 @@ WorkState Engine::fixed_at(const std::vector<int> &ids,
   auto out = equilibrate_phase_set(
       ids, states, physical[0], physical[1],
       direct_coordinates() ? std::nullopt : std::optional<Eigen::Vector2d>(q),
-      !direct_coordinates());
+      true);
   if (out.state.success)
     physical_seed << out.state.pressure, out.state.temperature;
   return out;
@@ -716,8 +718,7 @@ Engine::make_at(const std::vector<int> &ids, const PhaseStates &states,
       state.composition = projected;
     }
   }
-  auto a = make_assemblage(ids, initial, physical[0], physical[1], 1.e-7,
-                           !direct_coordinates());
+  auto a = make_assemblage(ids, initial, physical[0], physical[1], 1.e-7, true);
   if (!free_vectors.empty())
     set_coordinate(*a, q[1]);
   return a;
@@ -1090,44 +1091,64 @@ std::shared_ptr<Assemblage> Engine::make_assemblage(const std::vector<int> &ids,
       if (settings.active_solution_faces && init && !restored_face) {
         auto &ph = phases[static_cast<std::size_t>(base)];
         auto sites = (ph.occupancies.transpose() * x).eval();
-        std::vector<int> vertices;
-        for (int row = 0; row < ph.vertices.rows(); ++row) {
-          bool inside = true;
-          for (int col = 0; col < sites.size(); ++col)
-            if (std::abs(sites[col]) < face_tolerance &&
-                std::abs(ph.vertices.row(row).dot(ph.occupancies.col(col))) >
-                    1.e-10)
-              inside = false;
-          if (inside)
-            vertices.push_back(row);
+        // If the proposed face removes a resolved trace population, relax
+        // its site constraints until the composition reconstructs. Keeping
+        // the full basis can leave numerically empty, stiff directions free.
+        std::vector<double> cutoffs{face_tolerance};
+        if (preserve_composition) {
+          for (double population : sites)
+            if (std::abs(population) > 0. &&
+                std::abs(population) < face_tolerance)
+              cutoffs.push_back(std::abs(population));
+          std::sort(cutoffs.begin(), cutoffs.end(),
+                    [](double a, double b) { return a > b; });
+          cutoffs.erase(std::unique(cutoffs.begin(), cutoffs.end()),
+                        cutoffs.end());
         }
-        if (!vertices.empty()) {
-          Eigen::MatrixXd face(vertices.size(), x.size());
-          for (std::size_t i = 0; i < vertices.size(); ++i)
-            face.row(static_cast<Eigen::Index>(i)) =
-                ph.vertices.row(vertices[i]);
-          Eigen::ColPivHouseholderQR<Eigen::MatrixXd> qr(face.transpose());
-          qr.setThreshold(1.e-10);
-          if (qr.rank() < x.size()) {
-            Eigen::MatrixXd basis(qr.rank(), x.size());
-            for (int i = 0; i < qr.rank(); ++i)
-              basis.row(i) = face.row(qr.colsPermutation().indices()[i]);
-            Eigen::VectorXd q =
-                basis.transpose().completeOrthogonalDecomposition().solve(x);
-            q /= q.sum();
-            // An inverse-section restart must retain positive trace sites.
-            // A small bulk error can still change their chemical potentials
-            // enough to destroy a saved reaction equilibrium.
-            const double reconstruction_tolerance =
-                preserve_composition ? 1.e-10 : 1.e-6;
-            if ((basis.transpose() * q - x).norm() < reconstruction_tolerance) {
-              auto reduced = polytope::transform_solution_to_new_basis(
-                  *s, basis, q.array(), m->get_name());
-              if (auto rs = std::dynamic_pointer_cast<Solution>(reduced))
-                m = std::make_shared<FaceSolution>(*rs, basis);
-              else
-                m = std::make_shared<FaceMineral>(
-                    *std::dynamic_pointer_cast<Mineral>(reduced), basis);
+        for (double cutoff : cutoffs) {
+          std::vector<int> vertices;
+          for (int row = 0; row < ph.vertices.rows(); ++row) {
+            bool inside = true;
+            for (int col = 0; col < sites.size(); ++col)
+              if (std::abs(sites[col]) < cutoff &&
+                  std::abs(ph.vertices.row(row).dot(ph.occupancies.col(col))) >
+                      1.e-10)
+                inside = false;
+            if (inside)
+              vertices.push_back(row);
+          }
+          if (!vertices.empty()) {
+            Eigen::MatrixXd face(vertices.size(), x.size());
+            for (std::size_t i = 0; i < vertices.size(); ++i)
+              face.row(static_cast<Eigen::Index>(i)) =
+                  ph.vertices.row(vertices[i]);
+            Eigen::ColPivHouseholderQR<Eigen::MatrixXd> qr(face.transpose());
+            qr.setThreshold(1.e-10);
+            if (qr.rank() == x.size())
+              break;
+            if (qr.rank() < x.size()) {
+              Eigen::MatrixXd basis(qr.rank(), x.size());
+              for (int i = 0; i < qr.rank(); ++i)
+                basis.row(i) = face.row(qr.colsPermutation().indices()[i]);
+              Eigen::VectorXd q =
+                  basis.transpose().completeOrthogonalDecomposition().solve(x);
+              q /= q.sum();
+              // A restart must retain positive trace sites.
+              // A small bulk error can still change their chemical potentials
+              // enough to destroy a saved reaction equilibrium.
+              const double reconstruction_tolerance =
+                  preserve_composition ? 1.e-10 : 1.e-6;
+              if ((basis.transpose() * q - x).norm() <
+                  reconstruction_tolerance) {
+                auto reduced = polytope::transform_solution_to_new_basis(
+                    *s, basis, q.array(), m->get_name());
+                if (auto rs = std::dynamic_pointer_cast<Solution>(reduced))
+                  m = std::make_shared<FaceSolution>(*rs, basis);
+                else
+                  m = std::make_shared<FaceMineral>(
+                      *std::dynamic_pointer_cast<Mineral>(reduced), basis);
+                break;
+              }
             }
           }
         }
@@ -1384,10 +1405,11 @@ WorkState Engine::equilibrate_phase_set(
                (settings.active_solution_faces &&
                 phases[static_cast<std::size_t>(first.candidate_index)]
                     .solution &&
-                homogeneous_mixing(
+                mixing_test(
                     *phases[static_cast<std::size_t>(first.candidate_index)]
                          .solution,
-                    p, t, first.composition, second.composition, true)))) {
+                    p, t, first.composition, second.composition,
+                    MixingTest::Flat)))) {
             first.composition = (first.amount * first.composition +
                                  second.amount * second.composition) /
                                 amount;
@@ -1720,25 +1742,35 @@ std::vector<int> Engine::active_phases(const State &s) const {
 std::vector<int> Engine::canonical_ids(const std::vector<int> &ids) const {
   return canonical_phase_ids(ids, settings.max_phase_instances);
 }
+bool Engine::distinct_compositions(int candidate, const Eigen::VectorXd &first,
+                                   const Eigen::VectorXd &second,
+                                   double pressure, double temperature) const {
+  const auto solution = phases[static_cast<std::size_t>(candidate)].solution;
+  return solution &&
+         (first - second).norm() > settings.composition_tolerance * 10. &&
+         !mixing_test(*solution, pressure, temperature, first, second);
+}
+bool Engine::same_composition_basin(int candidate, const Eigen::VectorXd &first,
+                                    const Eigen::VectorXd &second,
+                                    double pressure, double temperature) const {
+  const auto solution = phases[static_cast<std::size_t>(candidate)].solution;
+  return !solution ||
+         (first - second).norm() <= settings.composition_tolerance ||
+         !mixing_test(*solution, pressure, temperature, first, second,
+                      MixingTest::Barrier);
+}
 bool Engine::distinct(const Assemblage &a, const std::vector<int> &ids) const {
   const auto states = snapshot(a, ids);
-  if (solution_separation(states) <= settings.composition_tolerance * 10.)
-    return false;
-  if (direct_coordinates())
-    return true;
   for (std::size_t i = 0; i < states.size(); ++i)
     for (std::size_t j = i + 1; j < states.size(); ++j)
-      if (states[i].candidate_index == states[j].candidate_index) {
-        const auto solution =
-            phases[static_cast<std::size_t>(states[i].candidate_index)]
-                .solution;
-        if (!solution ||
-            homogeneous_mixing(*solution, a.get_pressure(), a.get_temperature(),
-                               states[i].composition, states[j].composition))
-          return false;
-      }
+      if (states[i].candidate_index == states[j].candidate_index &&
+          !distinct_compositions(states[i].candidate_index,
+                                 states[i].composition, states[j].composition,
+                                 a.get_pressure(), a.get_temperature()))
+        return false;
   return true;
 }
+
 bool Engine::locally_stable(const Assemblage &a) const {
   for (Eigen::Index k = 0; k < a.get_n_phases(); ++k) {
     auto solution = std::dynamic_pointer_cast<Solution>(

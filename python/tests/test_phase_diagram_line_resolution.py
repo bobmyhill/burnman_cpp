@@ -21,7 +21,6 @@ import runpy
 import numpy as np
 import pytest
 import burnman_cpp as bm
-
 from conftest import oxide_params
 from test_phase_diagram import crossing_phases, curved_phases, pure, settings
 from test_composition_phase_diagram import (
@@ -30,6 +29,46 @@ from test_composition_phase_diagram import (
     calculate,
     check_boundaries,
 )
+
+
+@pytest.mark.parametrize("case", ["invariant", "ak_capv", "cf_fp"])
+def test_pyrolite_trace_faces_and_limiting_labels_repair_without_retracing(case):
+    # Compact accepted boundary states from the October 2026 full P-T run.
+    # The windows omit the rest of the diagram, so exterior closure is not
+    # asserted. These tests check the local reaction connections and labels.
+    saved = json.loads(
+        (Path(__file__).parent / "data/pyrolite_pt_repair_regressions.json").read_text()
+    )[case]["previous"]
+    example = runpy.run_path(
+        str(Path(__file__).parents[2] / "examples/example_pyrolite_phase_diagram.py")
+    )
+    result = bm.refine_phase_diagram(
+        saved["composition_start"],
+        example["candidate_phases"](),
+        saved,
+        resolution=(2, 2),
+        region=((0.0, 2500.0), (0.0, 25.0)),
+        pressure_unit="GPa",
+        temperature_unit="K",
+    )
+    if case == "invariant":
+        nodes = {node.id: node for node in result.nodes}
+        event_ids = {
+            node_id
+            for boundary in result.boundaries
+            for node_id in (boundary.start_node, boundary.end_node)
+            if node_id >= 0 and abs(nodes[node_id].temperature - 238.6715) < 0.01
+        }
+        assert len(event_ids) == 1
+    else:
+        assert not any("conflicting perimeter" in d for d in result.diagnostics)
+    if case == "cf_fp":
+        reaction = next(b for b in result.boundaries if b.zero_phase == 30)
+        assert list(reaction.side_a) == [6, 18, 27, 30, 33, 39, 45, 78]
+        assert list(reaction.side_b) == [6, 18, 27, 33, 39, 40, 45, 78]
+        # Rebuilding a limiting state used to lose trace sites, reject its
+        # analytic sides, and require hundreds of finite-probe equilibria.
+        assert result.equilibrium_solves < 60
 
 
 def check_spacing(result, resolution, **units):
@@ -356,6 +395,75 @@ def refine_pyrolite_fixture(data):
         temperature_unit="K",
         pressure_unit="Pa",
     )
+
+
+@pytest.mark.parametrize("name", ["saddle", "binodal"])
+def test_pt_refinement_rejects_garnet_saddles_and_retains_stable_binodals(name):
+    fixture = json.loads(
+        (Path(__file__).parent / "data/pyrolite_pt_garnet_stability.json").read_text()
+    )
+    cases = fixture.pop("cases")
+    saved = dict(
+        fixture,
+        **cases[name],
+        fields=[],
+        samples=[],
+        excluded_regions=[],
+        diagnostics=[],
+        spacing_diagnostics=[],
+        resolved=True,
+        equilibrium_solves=0,
+        minimization_calls=0,
+    )
+    before = deepcopy(saved)
+    factory = runpy.run_path(
+        str(Path(__file__).parents[2] / "examples/example_pyrolite_phase_diagram.py")
+    )["candidate_phases"]
+    # Older results can include a stationary garnet composition which passes
+    # mass and affinity checks but has negative curvature. Refinement must not
+    # extend it. The adjacent stable solvus still needs to gain solved points.
+    result = bm.refine_phase_diagram(
+        saved["composition_start"], factory(), saved, resolution=(501, 501)
+    )
+    assert saved == before
+    assert result.resolved  # Refinement preserves the supplied graph.
+    points = result.to_dict()["boundaries"][0]["points"]
+    assert all(p in points for p in saved["boundaries"][0]["points"])
+    if name == "saddle":
+        assert not result.spacing_resolved
+        assert result.spacing_diagnostics
+        assert points == saved["boundaries"][0]["points"]
+    else:
+        assert result.spacing_resolved, result.spacing_diagnostics
+        assert len(points) > len(saved["boundaries"][0]["points"])
+        check_spacing(result, (501, 501))
+
+
+def test_pyrolite_pt_reopens_garnet_faces_before_adding_another_copy():
+    data = json.loads(
+        (Path(__file__).parent / "data/pyrolite_pt_garnet_stability.json").read_text()
+    )
+    data.pop("cases")
+    factory = runpy.run_path(
+        str(Path(__file__).parents[2] / "examples/example_pyrolite_phase_diagram.py")
+    )["candidate_phases"]
+    settings = bm.PhaseDiagramSettings.from_dict(data["settings"])
+    settings.max_recovery_passes = 2
+    # Bound a regression's unsuccessful phase-entry walks. The physical arcs
+    # in this window complete well within this limit.
+    settings.max_trace_steps = 100
+    result = bm.calculate_phase_diagram_patch(
+        data,
+        factory(),
+        ((600.0, 790.0), (19.30, 20.75)),
+        settings,
+        pressure_unit="GPa",
+        temperature_unit="K",
+    )
+    assert result.resolved, result.diagnostics
+    assert result.equilibrium_solves < 2500
+    geometry = bm.phase_diagram_field_polygons(result)
+    assert all(p.phases and not p.is_provisional for p in geometry.polygons)
 
 
 @pytest.mark.parametrize("transform", ["original", "reverse", "renumber"])

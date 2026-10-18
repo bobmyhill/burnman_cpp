@@ -17,6 +17,7 @@
 #include "burnman/tools/phase_diagram/boundary_repair.hpp"
 #include "burnman/tools/phase_diagram/domain.hpp"
 #include "burnman/tools/phase_diagram/stability.hpp"
+#include "burnman/tools/polytope.hpp"
 #include "burnman/utils/index_utils.hpp"
 
 namespace burnman::phase_diagrams::detail {
@@ -103,16 +104,24 @@ int phase_entry_side(Engine &engine, Assemblage &a, const std::vector<int> &ids,
     if (state.id != zero && state.amount <= total * 1.e-10)
       return 0;
   auto response = field_response(engine, a, s.J, range, normal);
-  if (!response.size())
-    return 0;
-  Eigen::Index amount = prm.phase_amount_indices[entry - ids.begin()];
-  double change = response[amount] / total;
-  if (std::abs(change) < 1.e-9)
-    return 0;
-  const int sign = change > 0. ? 1 : -1;
-  full_side = sign;
-  // Check the opposite field, including composition-axis feasibility. Merely
-  // deleting a phase can leave a branch that exists only on the line itself.
+  int response_sign = 0;
+  if (response.size()) {
+    const Eigen::Index amount = prm.phase_amount_indices[entry - ids.begin()];
+    const double change = response[amount] / total;
+    if (std::abs(change) > 1.e-9)
+      response_sign = change > 0. ? 1 : -1;
+  }
+  full_side = response_sign;
+  if (!response_sign) {
+    // An arbitrarily thin regular field can have an ill-conditioned full
+    // response while its absent branch remains regular. Dependent phase
+    // amounts instead need the compound-reaction limiting states below.
+    const auto formulae = engine.phase_formulae(ids, states);
+    Eigen::FullPivLU<Eigen::MatrixXd> rank(formulae);
+    rank.setThreshold(1.e-9);
+    if (rank.rank() < formulae.rows())
+      return 0;
+  }
   auto absent = ids;
   absent.erase(absent.begin() + (entry - ids.begin()));
   auto other =
@@ -128,39 +137,75 @@ int phase_entry_side(Engine &engine, Assemblage &a, const std::vector<int> &ids,
     fixed.push_back(engine.coordinate_constraint(
         *engine.section.fixed_coordinate, 0., x.size()));
   auto j = J(x, *other, fixed, other_prm.reduced_free_composition_vectors);
-  auto opposite = field_response(engine, *other, j, range, -sign * normal);
+  const auto opposite = field_response(engine, *other, j, range, normal);
   if (!opposite.size())
     return 0;
-  // The disappearing phase must become unfavourable on the absent side.
-  // Differentiate its tangent-plane affinity along the linearised branch;
-  // the stationary phase composition makes this an envelope derivative.
-  auto formula = engine.phase_formulae({zero}, states).row(0).eval();
-  auto material =
-      clone(a.get_phase(static_cast<std::size_t>(entry - ids.begin())));
-  auto affinity = [&]() {
-    auto mu = engine.potentials(*other);
-    double value = material->get_molar_gibbs();
-    for (std::size_t k = 0; k < engine.components.size(); ++k)
-      value -= formula[engine.components[k]] * mu[static_cast<Eigen::Index>(k)];
-    return value;
-  };
-  const double initial = affinity();
-  double step = 1.e-6;
+
+  // Express the entering phase's elemental formula as a combination of the
+  // absent branch's endmembers. Their partial-Gibbs derivatives then give its
+  // affinity derivative without subtracting large Gibbs energies or stepping
+  // outside a nearly empty composition face. This is independent of the
+  // chemical-potential gauge when the formula lies in the endmember span.
+  const auto stoich = other->get_stoichiometric_matrix();
+  const auto elements = other->get_elements();
+  Eigen::MatrixXd formulae(stoich.rows(), engine.components.size());
+  const auto formula = engine.phase_formulae({zero}, states).row(0).eval();
+  Eigen::VectorXd target(engine.components.size());
+  for (std::size_t k = 0; k < engine.components.size(); ++k) {
+    const auto it = std::find(elements.begin(), elements.end(),
+                              engine.elements[engine.components[k]]);
+    if (it == elements.end())
+      formulae.col(static_cast<Eigen::Index>(k)).setZero();
+    else
+      formulae.col(static_cast<Eigen::Index>(k)) =
+          stoich.col(it - elements.begin());
+    target[static_cast<Eigen::Index>(k)] = formula[engine.components[k]];
+  }
+  const Eigen::VectorXd weights =
+      formulae.transpose().completeOrthogonalDecomposition().solve(target);
+  if ((formulae.transpose() * weights - target).norm() >
+      1.e-10 * std::max(1., target.norm()))
+    return 0;
+  Eigen::VectorXd derivatives(stoich.rows());
+  Eigen::Index offset = 0;
+  const auto counts = other->get_endmembers_per_phase();
+  for (std::size_t k = 0; k < counts.size(); ++k) {
+    const Eigen::Index n = counts[k];
+    const auto phase = other->get_phase(k);
+    if (n == 1)
+      derivatives[offset] = phase->get_molar_volume() * opposite[0] -
+                            phase->get_molar_entropy() * opposite[1];
+    else {
+      const auto solution = other->get_phase<Solution>(k);
+      Eigen::VectorXd change(n);
+      change.tail(n - 1) =
+          opposite.segment(other_prm.phase_amount_indices[k] + 1, n - 1);
+      change[0] = -change.tail(n - 1).sum();
+      derivatives.segment(offset, n) =
+          solution->get_partial_volumes().matrix() * opposite[0] -
+          solution->get_partial_entropies().matrix() * opposite[1] +
+          solution->get_gibbs_hessian().matrix() * change;
+    }
+    offset += n;
+  }
+  const auto material =
+      a.get_phase(static_cast<std::size_t>(entry - ids.begin()));
+  const double derivative = material->get_molar_volume() * opposite[0] -
+                            material->get_molar_entropy() * opposite[1] -
+                            weights.dot(derivatives);
+  if (!std::isfinite(derivative) || std::abs(derivative) <= 1.e-5)
+    return 0;
+  const int sign = derivative < 0. ? 1 : -1;
+  if (response_sign && response_sign != sign)
+    return 0;
   const auto slack =
       (other_prm.constraint_matrix * x + other_prm.constraint_vector).eval();
-  const auto rate = (other_prm.constraint_matrix * opposite).eval();
+  const auto rate = (other_prm.constraint_matrix * (-sign * opposite)).eval();
   for (Eigen::Index row = 0; row < slack.size(); ++row)
-    if (rate[row] > 1.e-12) {
-      if (slack[row] >= -1.e-12)
-        return 0;
-      step = std::min(step, -.1 * slack[row] / rate[row]);
-    }
-  if (step < 1.e-10)
-    return 0;
-  set_composition_and_state_from_parameters(*other, x + step * opposite);
-  material->set_state(other->get_pressure(), other->get_temperature());
-  const double derivative = (affinity() - initial) / step;
-  return std::isfinite(derivative) && derivative > 1.e-5 ? sign : 0;
+    if (slack[row] >= -1.e-12 && rate[row] > 1.e-12)
+      return 0;
+  full_side = sign;
+  return sign;
 }
 
 // At an intensive invariant, changing reaction extents gives a latent S/V
@@ -334,8 +379,9 @@ boundary_sides(Engine &engine, Assemblage &a, const std::vector<int> &ids,
               std::max(0., warm[k].amount +
                                extent * reaction[static_cast<Eigen::Index>(k)]);
       const auto &present = end ? after : absent;
-      auto limit = engine.make_assemblage(present, warm, a.get_pressure(),
-                                          a.get_temperature());
+      auto limit = engine.make_at(
+          present, warm, engine.coordinates(a),
+          Eigen::Vector2d(a.get_pressure(), a.get_temperature()));
       auto &state = (*limiting_states)[static_cast<std::size_t>(
           slope > 0. ? 1 - end : end)];
       engine.record_coordinates(state, *limit);
@@ -465,6 +511,66 @@ bool seed_phase_compositions(PhaseStates &warm, const PhaseStates &seed,
   return true;
 }
 
+bool share_composition_faces(PhaseStates &first, PhaseStates &second) {
+  const auto matches =
+      phase_matches(first, second, std::numeric_limits<double>::infinity());
+  if (!matches || first.size() != second.size())
+    return false;
+  for (std::size_t k = 0; k < first.size(); ++k) {
+    auto &a = first[k], &b = second[(*matches)[k]];
+    const auto n = a.composition.size();
+    if (n <= 1)
+      continue;
+    Eigen::MatrixXd basis;
+    if (!a.composition_basis || !b.composition_basis)
+      basis = Eigen::MatrixXd::Identity(n, n);
+    else {
+      const auto &left = *a.composition_basis, &right = *b.composition_basis;
+      if (left.cols() != n || right.cols() != n)
+        return false;
+      Eigen::MatrixXd joined(left.rows() + right.rows(), n);
+      joined.topRows(left.rows()) = left;
+      joined.bottomRows(right.rows()) = right;
+      Eigen::ColPivHouseholderQR<Eigen::MatrixXd> qr(joined.transpose());
+      qr.setThreshold(1.e-10);
+      basis.resize(qr.rank(), n);
+      for (Eigen::Index row = 0; row < basis.rows(); ++row)
+        basis.row(row) = joined.row(qr.colsPermutation().indices()[row]);
+    }
+    a.composition_basis = b.composition_basis = std::move(basis);
+  }
+  return true;
+}
+
+std::optional<PhaseStates> reaction_seed_amounts(const Engine &engine,
+                                                 const std::vector<int> &ids,
+                                                 const PhaseStates &warm,
+                                                 int zero) {
+  auto present = ids;
+  present.erase(std::remove(present.begin(), present.end(), zero),
+                present.end());
+  if (present.empty())
+    return std::nullopt;
+  const auto formulae = engine.phase_formulae(present, warm);
+  Eigen::MatrixXd reduced(formulae.rows(), engine.components.size());
+  for (std::size_t k = 0; k < engine.components.size(); ++k)
+    reduced.col(static_cast<Eigen::Index>(k)) =
+        formulae.col(engine.components[k]);
+  try {
+    const auto lp = polytope::gibbs_linear_program(
+        reduced, Eigen::VectorXd::Zero(reduced.rows()), engine.b);
+    auto states = warm;
+    for (auto &phase : states) {
+      const auto it = std::find(present.begin(), present.end(), phase.id);
+      phase.amount =
+          it == present.end() ? 0. : lp.amounts[it - present.begin()];
+    }
+    return states;
+  } catch (const polytope::InfeasibleBulk &) {
+    return std::nullopt;
+  }
+}
+
 bool same_phase_compositions(const PhaseStates &a, const PhaseStates &b,
                              double tolerance, double amount_tolerance) {
   if (a.size() > b.size())
@@ -491,6 +597,28 @@ bool same_boundary_compositions(const PhaseStates &a, int zero_a,
          same_phase_compositions(a, b, tolerance, amount_tolerance);
 }
 
+bool same_solution_branches(const Engine &engine, const PhaseStates &before,
+                            const PhaseStates &after, double pressure,
+                            double temperature) {
+  const double before_tolerance =
+      engine.settings.amount_tolerance * total_amount(before);
+  const double after_tolerance =
+      engine.settings.amount_tolerance * total_amount(after);
+  for (const auto &phase : before) {
+    const auto next = find_phase(after, phase.id);
+    if (next == after.end() || std::abs(phase.amount) > before_tolerance ||
+        std::abs(next->amount) > after_tolerance)
+      continue;
+    if (phase.candidate_index != next->candidate_index ||
+        phase.composition.size() != next->composition.size() ||
+        !engine.same_composition_basin(phase.candidate_index, phase.composition,
+                                       next->composition, pressure,
+                                       temperature))
+      return false;
+  }
+  return true;
+}
+
 std::vector<int> zero_phases_at(const Node &node, const PhaseStates &states,
                                 int copies) {
   std::vector<int> zeros;
@@ -515,8 +643,7 @@ corrected_point(Engine &engine, Assemblage &a, const std::vector<int> &ids,
   auto solved = engine.solve(a, c, true, tolerance_scale);
   if (!solved.success || !solved.x.allFinite() ||
       engine.mass_error(a) > engine.settings.mass_balance_tolerance ||
-      (!engine.direct_coordinates() && !engine.locally_stable(a)) ||
-      !engine.distinct(a, ids) ||
+      !engine.locally_stable(a) || !engine.distinct(a, ids) ||
       ((engine.coordinates(a) - target).cwiseAbs().array() > allowance.array())
           .any())
     return std::nullopt;

@@ -56,6 +56,55 @@ def square(low=0.2, high=0.8):
     return [(low, low), (high, low), (high, high), (low, high), (low, low)]
 
 
+@pytest.mark.parametrize("width", [1.0e-6, 1.0e-9])
+@pytest.mark.parametrize("reverse", [False, True])
+def test_distinct_phase_out_arcs_keep_a_field_below_drawing_tolerance(width, reverse):
+    # Independent zero-amount conditions can bound a field much narrower than
+    # the coordinate snapping tolerance. Their shared full assemblage does not
+    # make them duplicate reactions.
+    boundaries = [
+        line([(0.5, 0.0), (0.5, 0.2)], [1, 2], [0, 2]),
+        line([(0.5, 0.2), (0.5 - width, 0.5), (0.5, 0.8)], [1, 2], [0, 1, 2]),
+        line([(0.5, 0.2), (0.5 + width, 0.5), (0.5, 0.8)], [0, 1, 2], [0, 2]),
+        line([(0.5, 0.8), (0.5, 1.0)], [1, 2], [0, 2]),
+    ]
+    for i, boundary in enumerate(boundaries):
+        boundary.update(id=i, assemblage=[0, 1, 2], zero_phase=1 if i == 2 else 0)
+    for boundary, start, end in zip(boundaries, [-1, 0, 0, 1], [0, 1, 1, -1]):
+        boundary.update(start_node=start, end_node=end)
+    data = diagram(boundaries)
+    data["settings"] = dict(max_phase_instances=1)
+    data["nodes"] = [
+        dict(
+            id=i,
+            pressure=0.5,
+            temperature=t,
+            kind="junction",
+            assemblage=[0, 1, 2, 3],
+            gibbs_variance=1,
+            pt_nullity=0,
+        )
+        for i, t in enumerate([0.2, 0.8])
+    ]
+    if reverse:
+        data["boundaries"].reverse()
+        for boundary in data["boundaries"]:
+            boundary["points"].reverse()
+            boundary["side_a"], boundary["side_b"] = (
+                boundary["side_b"],
+                boundary["side_a"],
+            )
+            boundary["start_node"], boundary["end_node"] = (
+                boundary["end_node"],
+                boundary["start_node"],
+            )
+    geometry = bm.phase_diagram_field_polygons(data)
+    assert not geometry.diagnostics
+    assert {tuple(p.phases) for p in geometry.polygons} == {(1, 2), (0, 1, 2), (0, 2)}
+    thin = next(p for p in geometry.polygons if p.phases == [0, 1, 2])
+    assert thin.area == pytest.approx(0.6 * width, rel=1.0e-6)
+
+
 @pytest.mark.parametrize(
     "offset,provisional", [(0.0, False), (1.0e-12, False), (1.0e-6, True)]
 )
