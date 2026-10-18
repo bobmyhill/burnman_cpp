@@ -135,8 +135,10 @@ def phase_diagram_grid_chunks(
     """Yield ``(row_slice, column_slice, grid)`` with at most chunk_size points.
 
     Arguments and coordinates match ``phase_diagram_grid``. Prepare the saved
-    diagram and field geometry once, then equilibrate bounded rectangular
-    batches. Save/process each yielded grid and discard it before advancing;
+    diagram, cloned candidate models, chemical metadata and field bounds once.
+    Saved field guesses are cached when first needed; accepted neighbour states
+    still take priority. Equilibrate bounded rectangular batches, saving or
+    processing each grid and discarding it before advancing;
     collecting the iterator defeats the memory limit. Retained solutions,
     property failures, holes and excluded fields have the usual grid semantics.
     Accepted neighbours are reused across batch boundaries with at most two
@@ -246,7 +248,7 @@ def retry_property_grid_chunks(result, phases, path):
         del grid
 
 
-def _property_grid_chunks(path):
+def _property_grid_chunks(path, *, require_complete=False):
     """Read batch locations and metadata without loading any solution states."""
     import json
     from pathlib import Path
@@ -261,6 +263,8 @@ def _property_grid_chunks(path):
         or manifest.get("schema_version") != 1
     ):
         raise ValueError("Unsupported property-grid chunk manifest.")
+    if require_complete and not manifest.get("complete", False):
+        raise ValueError("The saved grid calculation has not finished.")
 
     if "chunks" in manifest:
         records = manifest["chunks"]
@@ -338,7 +342,9 @@ def load_property_grid(path):
     return _core.PhaseDiagramPropertyGrid.from_dict(data)
 
 
-def evaluate_property_grid(grid, phases, properties, *, relaxed=None):
+def evaluate_property_grid(
+    grid, phases, properties, *, relaxed=None, averaging_scheme=_core.AveragingType.VRH
+):
     """Evaluate properties at retained equilibria without repeating any solves.
 
     Accept a native grid, its saved dictionary, or a JSON/JSON.gz path. The grid
@@ -352,6 +358,9 @@ def evaluate_property_grid(grid, phases, properties, *, relaxed=None):
     the input is unchanged. ``relaxed=None`` inherits the saved mode; True/False
     switches it. ``equilibrium_solves`` is zero for this evaluation. Source
     equilibrium diagnostics are retained; property diagnostics are recalculated.
+    ``averaging_scheme`` accepts an ``AveragingType`` as in
+    ``Assemblage.set_averaging_scheme``; the default is VRH. It controls elastic
+    averaging, independently of thermodynamic relaxation or spatial smoothing.
     """
     from collections.abc import Mapping
 
@@ -364,4 +373,25 @@ def evaluate_property_grid(grid, phases, properties, *, relaxed=None):
     if not isinstance(relaxed, (bool, np.bool_)):
         raise TypeError("relaxed must be a boolean or None.")
     names = [properties] if isinstance(properties, str) else list(properties)
-    return _core._evaluate_property_grid(grid, phases, names, bool(relaxed))
+    return _core._evaluate_property_grid(
+        grid, phases, names, bool(relaxed), averaging_scheme
+    )
+
+
+def _saved_property_grid_batches(source):
+    """Return full axes and bounded batches of completed retained equilibria."""
+    from pathlib import Path
+
+    if hasattr(source, "solution_at"):
+        return source.x, source.y, [(slice(None), slice(None), source)]
+    path = Path(source)
+    if path.is_dir():
+        path /= "manifest.json"
+    if path.name != "manifest.json":
+        return _saved_property_grid_batches(load_property_grid(path))
+    _, manifest, _ = _property_grid_chunks(path, require_complete=True)
+    return (
+        np.asarray(manifest["x"]),
+        np.asarray(manifest["y"]),
+        load_property_grid_chunks(path),
+    )

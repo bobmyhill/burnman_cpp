@@ -549,15 +549,10 @@ void PropertyGridder::audit(PropertyGrid &grid, bool reverse, bool reset) {
       throw std::invalid_argument(
           "Thermodynamic audit requires retained equilibrium states.");
     grid.thermodynamic_samples.resize(count);
-    std::unique_ptr<Engine> replay;
     for (std::size_t k = 0; k < count; ++k)
       if (auto &saved = grid.solutions[k]) {
         if (!std::isfinite(saved->gibbs)) {
-          if (!replay)
-            replay =
-                std::make_unique<Engine>(source_.composition_start, candidates_,
-                                         source_.settings, source_.section);
-          auto a = restore_solution(*saved, *replay);
+          auto a = restore_solution(*saved, *engine_);
           saved->gibbs = a->get_n_moles() * a->get_molar_gibbs();
         }
         grid.thermodynamic_samples[k] = thermodynamic_sample(
@@ -631,16 +626,11 @@ void PropertyGridder::calculate(PropertyGrid &result, bool reverse) {
   const auto &y = result.y;
   result.thermodynamic_samples.resize(
       static_cast<std::size_t>(x.size() * y.size()));
-  const auto bounds = source.coordinate_ranges();
-  const Eigen::Vector2d origin(bounds[0][0], bounds[1][0]);
-  const Eigen::Vector2d range(bounds[0][1] - bounds[0][0],
-                              bounds[1][1] - bounds[1][0]);
-  if (!origin.allFinite() || !range.allFinite() || range.minCoeff() <= 0.)
-    throw std::invalid_argument(
-        "Grid diagram ranges must be finite and increasing.");
+  const auto &origin = origin_;
+  const auto &range = range_;
   for (std::size_t axis = 0; axis < 2; ++axis) {
     const auto &coordinates = axis == 0 ? x : y;
-    validate_grid_axis(coordinates, bounds[axis]);
+    validate_grid_axis(coordinates, source.coordinate_ranges()[axis]);
     const auto &complete = grid_axes_[axis];
     if (!std::includes(complete.data(), complete.data() + complete.size(),
                        coordinates.data(),
@@ -654,27 +644,24 @@ void PropertyGridder::calculate(PropertyGrid &result, bool reverse) {
     row_coordinate_.reset();
     reverse_ = reverse;
   }
-  detail::Engine engine(source.composition_start, candidates_, source.settings,
-                        source.section);
-  engine.pressure_bounds = source.pressure_range;
-  engine.temperature_bounds = source.temperature_range;
+  auto &engine = *engine_;
+  // Keep immutable preparation across batches, without carrying additional
+  // chemical-potential or physical-coordinate guesses across their joins.
+  // The same two rows of accepted equilibria still supply the warm starts.
+  engine.potential_seed.resize(0);
+  engine.physical_seed = physical_seed_;
+  engine.equilibrium_solves = engine.minimization_calls = 0;
+  if (!engine.free_vectors.empty())
+    engine.set_bulk(0.);
   auto issue = [&](const std::string &message, bool equilibrium = true) {
     result.resolved = false;
     result.diagnostics.push_back(message);
     if (equilibrium)
       result.equilibrium_diagnostics.push_back(message);
   };
-  // Prepare reusable field guesses once per batch. Geometry is only a
-  // proposal: a curved boundary can put a grid point on its wrong drawn side.
-  std::vector<std::optional<State>> seeds(geometry.polygons.size());
-  std::vector<Eigen::Vector2d> low, high;
-  for (const auto &field : geometry.polygons) {
-    low.push_back(field.vertices.colwise().minCoeff().transpose());
-    high.push_back(field.vertices.colwise().maxCoeff().transpose());
-  }
   auto within = [&](std::size_t f, const Eigen::Vector2d &q) {
-    return (q.array() >= (low[f] - 1.e-9 * range).array()).all() &&
-           (q.array() <= (high[f] + 1.e-9 * range).array()).all() &&
+    return (q.array() >= (fields_[f].low - 1.e-9 * range).array()).all() &&
+           (q.array() <= (fields_[f].high + 1.e-9 * range).array()).all() &&
            contains(geometry.polygons[f], q, origin, range);
   };
   auto neighbours_at = [&](const Eigen::Vector2d &q) {
@@ -787,9 +774,9 @@ void PropertyGridder::calculate(PropertyGrid &result, bool reverse) {
       int chosen = 0;
       if (!engine.free_vectors.empty())
         engine.set_bulk(q[1]);
-      auto attempt = [&](const FieldPolygon &field,
-                         std::optional<State> &saved,
-                         bool check_competitors) {
+      auto attempt = [&](std::size_t f, bool check_competitors) {
+        const auto &field = geometry.polygons[f];
+        auto &cached = fields_[f];
         if (field.outside_model_domain || field.phases.empty())
           return false;
         std::vector<const State *> starts;
@@ -823,9 +810,11 @@ void PropertyGridder::calculate(PropertyGrid &result, bool reverse) {
         for (const auto *seed : starts)
           if (solve_from(*seed))
             return true;
-        if (!saved)
-          saved = field_seed(source, field, field.label_position, range);
-        if (saved && solve_from(*saved))
+        if (!cached.seed_ready) {
+          cached.seed = field_seed(source, field, field.label_position, range);
+          cached.seed_ready = true;
+        }
+        if (cached.seed && solve_from(*cached.seed))
           return true;
         // Saved samples/boundary states can supply another basin when neither
         // neighbouring grid point converges. No phase discovery is performed.
@@ -834,8 +823,7 @@ void PropertyGridder::calculate(PropertyGrid &result, bool reverse) {
       };
       if (assigned >= 0) {
         const auto f = static_cast<std::size_t>(assigned);
-        const auto &field = geometry.polygons[f];
-        attempt(field, seeds[f], false);
+        attempt(f, false);
       }
       if (!accepted && assigned >= 0) {
         // Only cross an assigned field's boundary when it meets the window
@@ -892,7 +880,7 @@ void PropertyGridder::calculate(PropertyGrid &result, bool reverse) {
           if (std::find(tried.begin(), tried.end(), ids) != tried.end())
             continue;
           tried.push_back(ids);
-          if (attempt(geometry.polygons[f], seeds[f], true))
+          if (attempt(f, true))
             break;
         }
       }
@@ -986,22 +974,38 @@ phase_diagram_grid(const Result &source,
 PropertyGridder::PropertyGridder(
     Result source, std::vector<std::shared_ptr<Material>> candidates,
     Eigen::VectorXd x, Eigen::VectorXd y)
-    : source_(std::move(source)), candidates_(std::move(candidates)),
-      geometry_(field_polygons(source_)),
+    : source_(std::move(source)), geometry_(field_polygons(source_)),
       grid_axes_{std::move(x), std::move(y)} {
-  validate_candidates(source_, candidates_);
+  validate_candidates(source_, candidates);
   const auto bounds = source_.coordinate_ranges();
+  origin_ << bounds[0][0], bounds[1][0];
+  range_ << bounds[0][1] - bounds[0][0], bounds[1][1] - bounds[1][0];
+  if (!origin_.allFinite() || !range_.allFinite() || range_.minCoeff() <= 0.)
+    throw std::invalid_argument(
+        "Grid diagram ranges must be finite and increasing.");
   for (std::size_t axis = 0; axis < 2; ++axis)
     validate_grid_axis(grid_axes_[axis], bounds[axis]);
-  for (std::size_t f = 0; f < geometry_.polygons.size(); ++f)
+  engine_ = std::make_unique<detail::Engine>(
+      source_.composition_start, candidates, source_.settings, source_.section);
+  engine_->pressure_bounds = source_.pressure_range;
+  engine_->temperature_bounds = source_.temperature_range;
+  physical_seed_ = engine_->physical_seed;
+  fields_.resize(geometry_.polygons.size());
+  for (std::size_t f = 0; f < geometry_.polygons.size(); ++f) {
+    fields_[f].low =
+        geometry_.polygons[f].vertices.colwise().minCoeff().transpose();
+    fields_[f].high =
+        geometry_.polygons[f].vertices.colwise().maxCoeff().transpose();
     for (int id : geometry_.polygons[f].boundary_ids)
       boundary_fields_[id].push_back(f);
+  }
 }
 
 PropertyGrid
 evaluate_property_grid(const PropertyGrid &saved,
                        const std::vector<std::shared_ptr<Material>> &candidates,
-                       const std::vector<std::string> &names, bool relaxed) {
+                       const std::vector<std::string> &names, bool relaxed,
+                       types::AveragingType averaging_scheme) {
   validate_properties(names);
   if (saved.solutions.empty())
     throw std::invalid_argument(
@@ -1038,6 +1042,7 @@ evaluate_property_grid(const PropertyGrid &saved,
                           std::to_string(i) + "]: ";
       try {
         auto a = restore_solution(*solution, engine);
+        a->set_averaging_scheme(averaging_scheme);
         if (!engine.free_vectors.empty())
           engine.set_bulk(solution->state.composition_coordinate);
         if (engine.mass_error(*a, false) >

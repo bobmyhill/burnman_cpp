@@ -68,10 +68,14 @@ CMAKE_BUILD_PARALLEL_LEVEL=2 python -m pip install .
 python -c "import burnman_cpp"
 ```
 
-Pip installs the Python dependencies and builds the C++ extension. The native
+Pip installs NumPy and SciPy and builds the C++ extension. The native
 dependencies listed above must already be installed. Re-run the installation
 after changing the C++ or Python sources. Adjust `CMAKE_BUILD_PARALLEL_LEVEL`
 to suit the memory available on your machine.
+
+To create, refine and grid a phase diagram through one Python call, see the
+[workflow guide](docs/phase_diagram_workflow.md) and
+[short example](examples/example_phase_diagram_grid.py).
 
 ### C++ library
 

@@ -134,6 +134,47 @@ def single_phase():
     return result, phase
 
 
+def test_prepared_batches_own_models_and_count_only_their_solves(single_phase):
+    source, phase = single_phase
+    before = source.to_dict()
+    x, y = np.array([3e9, 5e9]), np.array([1000.0])
+    names = ["density", "molar_enthalpy"]
+    original = bm._core._PropertyGridder(source, [phase], x, y)
+    # A second prepared calculation must own its changed model. Neither may
+    # borrow thermodynamic state or field guesses from the other's batches.
+    shift = dict(delta_E=1200.0, delta_S=0.0, delta_V=1.0e-7)
+    phase.set_property_modifiers([("linear", shift)])
+    phase.set_state(2e9, 700.0)
+    modified = bm._core._PropertyGridder(source, [phase], x, y)
+    reference = bm.Mineral(oxide_params())
+    for p in x:
+        plain = original.evaluate(names, [p], y, True, True)
+        shifted = modified.evaluate(names, [p], y, True, True)
+        fresh = bm.phase_diagram_grid(
+            source, [reference], names, x=[p], y=y, store_solutions=True
+        )
+        assert plain.resolved and shifted.resolved
+        for name in names:
+            np.testing.assert_allclose(
+                plain.values[name], fresh.values[name], rtol=1e-12
+            )
+        reference.set_state(p, y[0])
+        assert shifted.values["density"][0, 0] == pytest.approx(
+            reference.molar_mass / (reference.molar_volume + shift["delta_V"])
+        )
+        assert shifted.values["molar_enthalpy"][0, 0] == pytest.approx(
+            plain.values["molar_enthalpy"][0, 0]
+            + shift["delta_E"]
+            + p * shift["delta_V"]
+        )
+        assert plain.equilibrium_solves == fresh.equilibrium_solves
+        solves = plain.equilibrium_solves
+        original.retry(plain)
+        assert plain.equilibrium_solves == solves
+    assert (phase.pressure, phase.temperature) == (2e9, 700.0)
+    assert source.to_dict() == before
+
+
 def test_resumed_diagram_audits_saved_states_without_new_solves(single_phase):
     source, phase = single_phase
     data = source.to_dict()

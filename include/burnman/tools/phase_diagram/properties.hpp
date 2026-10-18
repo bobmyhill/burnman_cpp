@@ -82,7 +82,9 @@ phase_diagram_grid(const Result &,
 /// Prepare source geometry once for bounded batches of grid points.
 /// Supply the complete grid axes so boundary proximity is independent of batch
 /// size. Each evaluate() accepts subsets and returns an independent grid.
-/// Retain only two rows of warm starts across batches.
+/// Cache cloned candidate models, chemical metadata, field bounds and saved
+/// field guesses for this gridder's lifetime. Retain only two rows of solved
+/// warm starts across batches; no process-wide caches are used.
 class PropertyGridder {
 public:
   PropertyGridder(Result source,
@@ -102,10 +104,17 @@ public:
   void audit(PropertyGrid &, bool reverse = false, bool reset = false);
 
 private:
+  struct FieldCache {
+    Eigen::Vector2d low, high;
+    std::optional<State> seed;
+    bool seed_ready = false;
+  };
   void calculate(PropertyGrid &, bool reverse);
   Result source_;
-  std::vector<std::shared_ptr<Material>> candidates_;
+  std::unique_ptr<detail::Engine> engine_;
   FieldPolygons geometry_;
+  Eigen::Vector2d origin_, range_, physical_seed_;
+  std::vector<FieldCache> fields_;
   std::array<Eigen::VectorXd, 2> grid_axes_;
   std::map<int, std::vector<std::size_t>> boundary_fields_;
   std::map<double, State> previous_row_, current_row_;
@@ -118,9 +127,12 @@ private:
 
 /// Evaluate more properties from retained states, preserving the exact active
 /// faces and both solved/excluded masks. Performs zero equilibrium solves.
+/// averaging_scheme sets the elastic averaging used for acoustic velocities.
 PropertyGrid
 evaluate_property_grid(const PropertyGrid &,
                        const std::vector<std::shared_ptr<Material>> &candidates,
                        const std::vector<std::string> &properties,
-                       bool relaxed = true);
+                       bool relaxed = true,
+                       types::AveragingType averaging_scheme =
+                           types::AveragingType::VRH);
 } // namespace burnman::phase_diagrams
