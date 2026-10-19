@@ -123,7 +123,6 @@ TEST_CASE("Set state", "[core][mineral]") {
   //  'd2GdT2': -0.0013725232726512617,
   //  'd2GdP2': -1.8604628992319605e-19,
   //  'd2GdPdT': 8.173395433302176e-12
-  // d2GdP2 will be within error
   CHECK_THAT(test_excess.G, !WithinRel(zero_excess.G, tol_rel) &&
                                 !WithinAbs(zero_excess.G, tol_abs));
   CHECK_THAT(test_excess.dGdT, !WithinRel(zero_excess.dGdT, tol_rel) &&
@@ -132,10 +131,8 @@ TEST_CASE("Set state", "[core][mineral]") {
                                    !WithinAbs(zero_excess.dGdP, tol_abs));
   CHECK_THAT(test_excess.d2GdT2, !WithinRel(zero_excess.d2GdT2, tol_rel) &&
                                      !WithinAbs(zero_excess.d2GdT2, tol_abs));
-  // Check against equality for small values
-  // CHECK_THAT(test_excess.d2GdP2,
-  //   !WithinRel(zero_excess.d2GdP2, tol_rel) &&
-  //   !WithinAbs(zero_excess.d2GdP2, tol_abs));
+  // This nonzero pressure curvature is much smaller than the absolute
+  // tolerance used above; that tolerance would incorrectly accept zero here.
   CHECK(test_excess.d2GdP2 != zero_excess.d2GdP2);
   CHECK_THAT(test_excess.d2GdPdT, !WithinRel(zero_excess.d2GdPdT, tol_rel) &&
                                       !WithinAbs(zero_excess.d2GdPdT, tol_abs));

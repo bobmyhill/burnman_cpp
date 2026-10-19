@@ -16,7 +16,6 @@ import numpy as np
 import pytest
 import burnman_cpp as bm
 
-pytest.importorskip("scipy")
 infill_potential_grid = bm.infill_potential_grid
 DERIVATIVES = ("d_dx", "d_dy", "d2_dx2", "d2_dxdy", "d2_dy2")
 

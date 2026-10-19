@@ -166,7 +166,8 @@ Eigen::VectorXd CriticalConstraint::mode(const Assemblage &a, int phase) const {
 }
 
 bool CriticalConstraint::stable(const Assemblage &a, int phase) const {
-  if (typeid(*model) != typeid(solution_models::IdealSolution) &&
+  const auto *model_ptr = model.get();
+  if (typeid(*model_ptr) != typeid(solution_models::IdealSolution) &&
       !dynamic_cast<const solution_models::AsymmetricRegularSolution *>(
           model.get()))
     return false; // Higher derivatives of other nonideal models are unknown.

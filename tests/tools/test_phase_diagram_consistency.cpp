@@ -16,6 +16,7 @@
 #include "burnman/tools/phase_diagram/consistency.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
+#include <limits>
 
 using namespace burnman::phase_diagrams;
 using namespace burnman::phase_diagrams::detail;
@@ -113,6 +114,37 @@ TEST_CASE("Measured solve uncertainty permits unresolved energy differences",
   b.outside_model_domain = true;
   b.success = false;
   CHECK(thermodynamic_violation(a, b, section, 1) == 0.);
+}
+
+TEST_CASE("Affinity uncertainty respects changes in reaction mole amounts",
+          "[phase_diagram][consistency]") {
+  CompositionSection section;
+  section.type = GENERATE(DiagramType::PT, DiagramType::PS, DiagramType::TV,
+                          DiagramType::SV);
+  const double scale = GENERATE(1.e-3, 1., 1000.);
+  State reactant;
+  reactant.success = true;
+  reactant.pressure = 1.e9;
+  reactant.temperature = 1000.;
+  reactant.entropy = 100. * scale;
+  reactant.volume = 1.e-5 * scale;
+  reactant.gibbs = -1.e6 * scale;
+  reactant.phases.resize(1);
+  reactant.phases[0].amount = scale;
+  auto products = reactant;
+  products.phases.push_back(products.phases.front());
+  // AB -> A + B makes two moles of products per mole of reactant. Each
+  // candidate affinity can be -0.2 J/mol within the accepted solve tolerance.
+  reactant.minimum_affinity = -.2;
+  reactant.gibbs += .3 * scale;
+  CHECK(thermodynamic_violation(reactant, products, section, 0) == 0.);
+  CHECK(thermodynamic_violation(products, reactant, section, 0) == 0.);
+  reactant.gibbs += .2 * scale; // Exceeds the combined affinity uncertainty.
+  CHECK(thermodynamic_violation(reactant, products, section, 0) > 0.);
+  CHECK(thermodynamic_violation(products, reactant, section, 0) > 0.);
+  reactant.gibbs = products.gibbs;
+  reactant.minimum_affinity = std::numeric_limits<double>::quiet_NaN();
+  CHECK(thermodynamic_violation(reactant, products, section, 0) > 0.);
 }
 
 TEST_CASE("Seed consistency recovery replaces a higher energy phase before "

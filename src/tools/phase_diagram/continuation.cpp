@@ -152,8 +152,9 @@ int phase_entry_side(Engine &engine, Assemblage &a, const std::vector<int> &ids,
   const auto formula = engine.phase_formulae({zero}, states).row(0).eval();
   Eigen::VectorXd target(engine.components.size());
   for (std::size_t k = 0; k < engine.components.size(); ++k) {
-    const auto it = std::find(elements.begin(), elements.end(),
-                              engine.elements[engine.components[k]]);
+    const auto it = std::find(
+        elements.begin(), elements.end(),
+        engine.elements[static_cast<std::size_t>(engine.components[k])]);
     if (it == elements.end())
       formulae.col(static_cast<Eigen::Index>(k)).setZero();
     else
@@ -178,8 +179,9 @@ int phase_entry_side(Engine &engine, Assemblage &a, const std::vector<int> &ids,
     else {
       const auto solution = other->get_phase<Solution>(k);
       Eigen::VectorXd change(n);
-      change.tail(n - 1) =
-          opposite.segment(other_prm.phase_amount_indices[k] + 1, n - 1);
+      change.tail(n - 1) = opposite.segment(
+          other_prm.phase_amount_indices[static_cast<Eigen::Index>(k)] + 1,
+          n - 1);
       change[0] = -change.tail(n - 1).sum();
       derivatives.segment(offset, n) =
           solution->get_partial_volumes().matrix() * opposite[0] -

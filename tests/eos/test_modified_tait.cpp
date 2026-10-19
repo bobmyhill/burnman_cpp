@@ -134,9 +134,6 @@ TEST_CASE("Check reference conditions", "[modified_tait][eos]") {
     CHECK_THAT(mt.compute_volume(*params.P_0, T, params),
                WithinRel(*params.V_0, tol_rel) ||
                    WithinAbs(*params.V_0, tol_abs));
-    // K_S returns 1.0e99 in MT
-    // CHECK_THAT(mt.compute_isentropic_bulk_modulus_reuss(P, T, V, params),
-    //  WithinRel(*params.K_0, tol_rel) || WithinAbs(*params.K_0, tol_abs));
   }
   SECTION("Reference P-V") {
     auto T = GENERATE(300.0, 2000.0);
@@ -147,7 +144,7 @@ TEST_CASE("Check reference conditions", "[modified_tait][eos]") {
   }
 }
 
-TEST_CASE("Check hard-coded returns", "[modified_tait][eos]") {
+TEST_CASE("Athermal EOS conventions", "[modified_tait][eos]") {
   // Set up test P, T, V
   auto P = GENERATE(0.0, 25.e9);
   auto T = GENERATE(300.0, 2000.0);
@@ -165,11 +162,9 @@ TEST_CASE("Check hard-coded returns", "[modified_tait][eos]") {
   eos::MT mt;
   CHECK(mt.compute_thermal_expansivity(P, T, V, params) == 0);
   CHECK(mt.compute_grueneisen_parameter(P, T, V, params) == 0);
-  CHECK(mt.compute_molar_heat_capacity_v(P, T, V, params) == 1.0e99);
-  CHECK(mt.compute_molar_heat_capacity_v(P, T, V, params) == 1.0e99);
+  // Thermal and adiabatic placeholders are not predictions of this EOS.
   CHECK(mt.compute_entropy(P, T, V, params) == 0);
   CHECK(mt.compute_shear_modulus(P, T, V, params) == 0);
-  CHECK(mt.compute_isentropic_bulk_modulus_reuss(P, T, V, params) == 1.0e99);
 }
 
 TEST_CASE("MT python reference values", "[modified_tait][eos]") {

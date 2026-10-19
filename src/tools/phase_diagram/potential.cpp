@@ -318,12 +318,13 @@ void minimize_active_potential(PotentialMinimum &d, const Engine &engine) {
     opt.add_inequality_constraint(
         [](const std::vector<double> &z, std::vector<double> &g,
            void *context) {
-          auto &c = *static_cast<Linear *>(context);
+          auto &constraint = *static_cast<Linear *>(context);
           if (!g.empty())
-            std::copy(c.a.data(), c.a.data() + c.a.size(), g.begin());
-          return c.a.dot(Eigen::Map<const Eigen::VectorXd>(
+            std::copy(constraint.a.data(),
+                      constraint.a.data() + constraint.a.size(), g.begin());
+          return constraint.a.dot(Eigen::Map<const Eigen::VectorXd>(
                      z.data(), static_cast<Eigen::Index>(z.size()))) +
-                 c.b;
+                 constraint.b;
         },
         &c, 1.e-10);
   std::vector<double> z, low, high;
@@ -405,7 +406,8 @@ WorkState Engine::feasible_start(double p, double t) {
             formula[components[j]];
     }
     const auto balance = polytope::gibbs_linear_program(
-        formulae, Eigen::VectorXd::Zero(compounds.size()), b);
+        formulae,
+        Eigen::VectorXd::Zero(static_cast<Eigen::Index>(compounds.size())), b);
     potential_seed = balance.chemical_potentials;
     PhaseStates states;
     for (std::size_t base = 0; base < phases.size(); ++base) {

@@ -19,8 +19,6 @@ import shutil
 
 import pytest
 
-pytest.importorskip("scipy")
-
 
 @pytest.fixture(scope="module")
 def ps1994_audit():

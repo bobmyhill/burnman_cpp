@@ -21,6 +21,7 @@ struct ThermodynamicSample {
   Eigen::Vector2d position = Eigen::Vector2d::Zero(),
                   gradient = Eigen::Vector2d::Zero();
   double energy = 0., uncertainty = 0., bulk_coordinate = 0.;
+  double amount = 0., minimum_affinity = 0.;
   bool available = false;
   std::array<bool, 2> applicable{false, false}, convex{false, false};
 };
@@ -39,7 +40,8 @@ void audit_thermodynamic_samples(Result &);
 /// states along the other axis; compositions with different X are not compared.
 double thermodynamic_potential(const State &, const CompositionSection &);
 
-/// Energy uncertainty from roundoff, measured reaction and mass residuals.
+/// Energy uncertainty from roundoff, reaction/mass residuals and candidate
+/// affinities, accounting for different mole amounts across a reaction.
 double thermodynamic_energy_tolerance(const State &, const State &);
 
 /// Excess beyond the tangent/secant bounds along one natural coordinate.

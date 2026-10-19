@@ -910,124 +910,6 @@ def test_grid_uses_all_native_section_coordinates(diagram):
                 assert actual == pytest.approx(target, rel=1e-8)
 
 
-def test_figure4_example_plot_and_grid(single_phase, monkeypatch, tmp_path):
-    import matplotlib.pyplot as plt
-
-    source, phase = single_phase
-    example = runpy.run_path(
-        str(
-            Path(__file__).resolve().parents[2]
-            / "examples/example_grid_pyrolite_expansivity.py"
-        )
-    )
-    monkeypatch.setattr(example["pyrolite"], "candidate_phases", lambda: [phase])
-    grids = example["calculate_grids"](source, resolution=(4, 3))
-    fig, axes = example["plot"](source, grids)
-    assert axes[0].get_xlim() == (3.0, 5.0)
-    assert axes[0].get_ylim() == (800.0, 1200.0)
-    assert grids["relaxed"].values["thermal_expansivity"].shape == (3, 4)
-    fig.savefig(tmp_path / "figure4.png")
-    assert (tmp_path / "figure4.png").stat().st_size > 1000
-    plt.close(fig)
-
-
-def test_figure4_isentropes_use_saved_total_entropy_without_solves(
-    single_phase, monkeypatch, tmp_path
-):
-    _, phase = single_phase
-    settings = bm.PhaseDiagramSettings()
-    settings.pressure_seeds = settings.temperature_seeds = 2
-    settings.max_phase_instances = 1
-    diagram = bm.phase_diagram(
-        {"Mg": 2.0, "O": 2.0}, [phase], (0.0, 2e9), (800.0, 1600.0), settings
-    )
-    grid = bm.phase_diagram_grid(
-        diagram, [phase], "density", resolution=(9, 17), store_solutions=True
-    )
-    assert grid.equilibrium_success.all(), grid.diagnostics
-    grid = bm.load_property_grid(bm.save_property_grid(grid, tmp_path / "grid.json.gz"))
-    example = runpy.run_path(
-        str(
-            Path(__file__).resolve().parents[2]
-            / "examples/example_grid_pyrolite_expansivity.py"
-        )
-    )
-
-    def unexpected(*args, **kwargs):
-        raise AssertionError("Isentropes must use saved grid entropy only.")
-
-    monkeypatch.setattr(bm, "stable_equilibrium", unexpected)
-    monkeypatch.setattr(bm, "phase_diagram_contours", unexpected)
-    monkeypatch.setattr(bm, "phase_diagram_grid", unexpected)
-    monkeypatch.setattr(bm, "evaluate_property_grid", unexpected)
-    records = example["calculate_isentropes"](grid, (1000.0, 1025.0, 700.0))
-    assert records[0]["entropy"] == pytest.approx(grid.solution_at(4, 0).state.entropy)
-    expected = (
-        grid.solution_at(4, 0).state.entropy + grid.solution_at(5, 0).state.entropy
-    ) / 2
-    assert records[1]["entropy"] == pytest.approx(expected)
-    for record in records[:2]:
-        assert record["lines"] and not record["diagnostics"]
-        starts = [
-            point
-            for line in record["lines"]
-            for point in line["points"]
-            if point["pressure"] == 0.0
-        ]
-        assert any(
-            p["temperature"] == pytest.approx(record["potential_temperature"])
-            for p in starts
-        )
-        for line in record["lines"]:
-            for point in line["points"]:
-                phase.set_state(point["pressure"], point["temperature"])
-                assert 2 * phase.molar_entropy == pytest.approx(
-                    record["entropy"], rel=3e-4
-                )
-    assert not records[2]["lines"]
-    assert "outside the saved grid" in records[2]["diagnostics"][0]
-
-
-def test_figure4_isentropes_mask_missing_saved_entropy():
-    from types import SimpleNamespace
-
-    example = runpy.run_path(
-        str(
-            Path(__file__).resolve().parents[2]
-            / "examples/example_grid_pyrolite_expansivity.py"
-        )
-    )
-    # A gap separates two valid contour segments. Property failures must not
-    # hide accepted equilibria, while missing equilibria must break the line.
-    x, y = np.arange(7.0), np.array([800.0, 1000.0, 1200.0])
-    valid = np.ones((len(y), len(x)), dtype=bool)
-    valid[:, 3] = False
-
-    def solution_at(row, col):
-        assert valid[row, col]
-        return SimpleNamespace(state=SimpleNamespace(entropy=y[row] - 10.0 * x[col]))
-
-    grid = SimpleNamespace(
-        diagram_type="PT",
-        has_solutions=True,
-        x=x,
-        y=y,
-        equilibrium_success=valid,
-        success=np.zeros_like(valid),
-        solution_at=solution_at,
-    )
-    record = example["calculate_isentropes"](grid, (900.0,))[0]
-    assert len(record["lines"]) == 2
-    assert not record["diagnostics"]
-    for line in record["lines"]:
-        p = np.array([point["pressure"] for point in line["points"]])
-        assert (p <= 2).all() or (p >= 4).all()
-    valid[1, 0] = False
-    failed = example["calculate_isentropes"](grid, (900.0,))[0]
-    assert not failed["lines"]
-    assert "entropy is unavailable" in failed["diagnostics"][0]
-
-
 @pytest.mark.parametrize("suffix", [".json", ".json.gz"])
 def test_saved_solutions_round_trip_and_add_properties(single_phase, tmp_path, suffix):
     import json
@@ -1266,96 +1148,13 @@ def test_chunked_grid_rejects_invalid_batch_size(single_phase, chunk_size):
         )
 
 
-def test_sp_example_disk_grid_and_full_resolution_isotherms(tmp_path, monkeypatch):
-    import json
-    import matplotlib.pyplot as plt
-
-    phase = bm.Mineral(oxide_params())
-    phase.set_state(4e9, 1000.0)
-    settings = bm.PhaseDiagramSettings()
-    settings.pressure_seeds = settings.entropy_seeds = 2
-    settings.max_phase_instances = 1
-    source = bm.phase_diagram(
-        {"Mg": 1.0, "O": 1.0},
-        [phase],
-        (3.9e9, 4.1e9),
-        (800, 1200),
-        settings,
-        diagram="PS",
-        entropy_range=(phase.molar_entropy - 1, phase.molar_entropy + 1),
-    )
-    example = runpy.run_path(
-        str(
-            Path(__file__).resolve().parents[2]
-            / "examples/example_grid_pyrolite_sp_expansivity.py"
-        )
-    )
-    monkeypatch.setattr(example["pyrolite"], "candidate_phases", lambda: [phase])
-    grids, arrays, report = example["calculate_grids_on_disk"](
-        source,
-        tmp_path,
-        resolution=(5, 7),
-        chunk_size=8,
-    )
-    assert all(isinstance(a, np.memmap) for a in arrays.values())
-    assert report["successful_points"] == dict(relaxed=35, unrelaxed=35)
-    full = bm.phase_diagram_grid(
-        source, [phase], ["thermal_expansivity", "temperature"], resolution=(5, 7)
-    )
-    np.testing.assert_allclose(
-        arrays["relaxed"], full.values["thermal_expansivity"], rtol=1e-10
-    )
-    np.testing.assert_allclose(
-        arrays["temperature"], full.values["temperature"], rtol=1e-10
-    )
-    replays = 0
-    for rows, cols, grid in bm.load_property_grid_chunks(tmp_path / "grid_solutions"):
-        replay = bm.evaluate_property_grid(grid, [phase], "density")
-        assert replay.equilibrium_solves == 0 and replay.success.all()
-        replays += replay.success.size
-    assert replays == 35
-    assert json.loads((tmp_path / "grid_solutions/manifest.json").read_text())[
-        "complete"
-    ]
-
-    def unexpected(*args, **kwargs):
-        raise AssertionError("Contours must use saved temperatures only.")
-
-    monkeypatch.setattr(bm, "phase_diagram_grid", unexpected)
-    monkeypatch.setattr(bm, "evaluate_property_grid", unexpected)
-    records = example["calculate_isotherms"](grids["relaxed"], (1000.0,), chunk_rows=3)
-    assert records[0]["lines"] and not records[0]["diagnostics"]
-    for line in records[0]["lines"]:
-        for point in line["points"]:
-            phase.set_state(point["pressure"], point["temperature"])
-            assert phase.molar_entropy == pytest.approx(point["entropy"], abs=3e-4)
-    fig, axes = example["plot"](source, grids, isotherms=records, max_plot_resolution=3)
-    assert axes[0].images[0].get_array().shape == (3, 3)
-    assert axes[0].get_xlim() == (3.9, 4.1)
-    assert "Entropy" in axes[0].get_ylabel()
-    assert all(any(text.get_text() == "1000 K" for text in ax.texts) for ax in axes)
-    plt.close(fig)
-    alpha = np.array(grids["relaxed"].values["thermal_expansivity"])
-    alpha[0, :3] = [np.inf, -np.inf, np.nan]
-    grids["relaxed"].values["thermal_expansivity"] = alpha
-    fig, axes = example["plot"](source, grids, max_plot_resolution=7)
-    raster = axes[0].images[0].get_array()
-    assert raster[0, 0] == 5 and raster[0, 1] == -5
-    assert np.ma.is_masked(raster[0, 2])
-    plt.close(fig)
-    example["save_array_archive"](tmp_path / "arrays", tmp_path / "expansivity.npz")
-    with np.load(tmp_path / "expansivity.npz") as archive:
-        for name, value in arrays.items():
-            np.testing.assert_array_equal(archive[name], value)
-
-
 def test_sp_isotherms_keep_gaps_and_all_strip_cells():
     from types import SimpleNamespace
 
     example = runpy.run_path(
         str(
             Path(__file__).resolve().parents[2]
-            / "examples/example_grid_pyrolite_sp_expansivity.py"
+            / "examples/example_plot_pyrolite_sp_relaxed_properties.py"
         )
     )
     x, y = np.arange(7.0), np.arange(9.0)
@@ -1437,7 +1236,7 @@ def test_soft_pyrolite_curvature_remains_finite():
     example = runpy.run_path(
         str(
             Path(__file__).resolve().parents[2]
-            / "examples/example_grid_pyrolite_sp_expansivity.py"
+            / "examples/example_pyrolite_phase_diagram.py"
         )
     )
     grid = bm.load_property_grid(
@@ -1445,7 +1244,7 @@ def test_soft_pyrolite_curvature_remains_finite():
     )
     replay = bm.evaluate_property_grid(
         grid,
-        example["pyrolite"].candidate_phases(),
+        example["candidate_phases"](),
         ["thermal_expansivity", "molar_heat_capacity_p"],
     )
     assert replay.equilibrium_solves == 0
@@ -1454,29 +1253,29 @@ def test_soft_pyrolite_curvature_remains_finite():
     assert np.isfinite(replay.values["molar_heat_capacity_p"]).all()
 
 
-def test_sp_example_reverse_pass_updates_arrays_reports_and_saved_states(
-    cold_entropy_seed, tmp_path, monkeypatch, capsys
+def test_disk_grid_reverse_pass_updates_manifest_and_saved_states(
+    cold_entropy_seed, tmp_path, capsys
 ):
+    import json
+    from burnman_cpp.tools.phase_diagram_workflow import _grid_to_disk
+
     source, phase, _, _ = cold_entropy_seed
-    example = runpy.run_path(
-        str(
-            Path(__file__).resolve().parents[2]
-            / "examples/example_grid_pyrolite_sp_expansivity.py"
-        )
+    manifest_path, diagnostics = _grid_to_disk(
+        bm.PhaseDiagramResult.from_dict(source),
+        [phase],
+        (2, 3),
+        tmp_path / "grid_solutions",
+        1,
+        True,
     )
-    monkeypatch.setattr(example["pyrolite"], "candidate_phases", lambda: [phase])
-    _, arrays, report = example["calculate_grids_on_disk"](
-        source, tmp_path, resolution=(2, 3), chunk_size=1, verbose=True
-    )
-    assert report["successful_points"] == dict(relaxed=6, unrelaxed=6)
-    assert report["diagnostic_counts"] == dict(relaxed={}, unrelaxed={})
-    assert (tmp_path / "diagnostics.jsonl").read_text() == ""
-    assert np.isfinite(arrays["temperature"]).all()
-    assert np.isfinite(arrays["relaxed"]).all()
-    for _, _, grid in bm.load_property_grid_chunks(tmp_path / "grid_solutions"):
+    report = json.loads(manifest_path.read_text())
+    assert report["complete"] and report["equilibrium_successes"] == 6
+    assert not diagnostics and not report["diagnostics"]
+    for _, _, grid in bm.load_property_grid_chunks(manifest_path):
         assert grid.equilibrium_success.all() and not grid.diagnostics
+        assert np.isfinite(grid.values["temperature"]).all()
     output = capsys.readouterr().out
-    assert "Reverse pass:" in output
+    assert "Retrying failed grid nodes backwards" in output
     assert "grid [" not in output
 
 
@@ -1491,7 +1290,7 @@ def test_saved_sp_response_panels_need_no_equilibrium_solves(
     example = runpy.run_path(
         str(
             Path(__file__).resolve().parents[2]
-            / "examples/example_plot_pyrolite_sp_properties.py"
+            / "examples/example_plot_pyrolite_sp_relaxed_properties.py"
         )
     )
     names = [name for name, _, _ in example["PROPERTIES"]]
@@ -1538,7 +1337,7 @@ def test_saved_sp_response_panels_need_no_equilibrium_solves(
 
     # A failure of one property must not mask the others at the same point.
     arrays["relaxed_molar_heat_capacity_p"][0, 0] = np.nan
-    isotherms = example["grid_example"].calculate_isotherms(
+    isotherms = example["calculate_isotherms"](
         type(
             "Temperatures",
             (),

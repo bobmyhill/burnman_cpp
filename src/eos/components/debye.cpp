@@ -20,10 +20,12 @@
 namespace burnman::eos {
 
 double debye::debye_fn_integrand(double xi, void *) {
-  return (xi * xi * xi) / std::expm1(xi);
+  return xi == 0.0 ? 0.0 : (xi * xi * xi) / std::expm1(xi);
 }
 
 double debye::debye_fn_quad(double x) {
+  if (x == 0.0)
+    return 1.0; // D_3(0): the classical high-temperature limit.
   gsl_integration_workspace *gsl_w = gsl_integration_workspace_alloc(1000);
   double result, error;
   gsl_function integrand;

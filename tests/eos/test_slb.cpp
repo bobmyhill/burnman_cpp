@@ -219,7 +219,7 @@ TEST_CASE("Check reference conditions", "[eos][slb]") {
     CHECK_THAT(slb3.compute_isothermal_bulk_modulus_reuss(P, T, V, params),
                WithinRel(*params.K_0, tol_rel) ||
                    WithinAbs(*params.K_0, tol_abs));
-    CHECK_THAT(slb3.compute_shear_modulus(P, T, V, params),
+    CHECK_THAT(slb2.compute_shear_modulus(P, T, V, params),
                WithinRel(*params.G_0, tol_rel) ||
                    WithinAbs(*params.G_0, tol_abs));
     CHECK_THAT(slb3.compute_shear_modulus(P, T, V, params),

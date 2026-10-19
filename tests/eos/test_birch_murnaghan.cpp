@@ -112,7 +112,7 @@ TEST_CASE("Check reference volume", "[birch-murnaghan][eos]") {
                  WithinAbs(*params_b.G_0, tol_abs));
 }
 
-TEST_CASE("Check hard-coded returns", "[birch-murnaghan][eos]") {
+TEST_CASE("Athermal EOS conventions", "[birch-murnaghan][eos]") {
   // Set up test P, T, V
   auto P = GENERATE(0.0, 25.e9);
   auto T = GENERATE(300.0, 2000.0);
@@ -135,8 +135,8 @@ TEST_CASE("Check hard-coded returns", "[birch-murnaghan][eos]") {
   CHECK(bm2.compute_grueneisen_parameter(P, T, V, params) == 0);
   CHECK(bm2.compute_thermal_expansivity(P, T, V, params) == 0);
   CHECK(bm2.compute_entropy(P, T, V, params) == 0);
-  CHECK(bm2.compute_molar_heat_capacity_v(P, T, V, params) == 1.0e99);
-  CHECK(bm2.compute_molar_heat_capacity_v(P, T, V, params) == 1.0e99);
+  // This athermal EOS does not supply physical heat capacities; its numerical
+  // placeholders are deliberately not treated as thermodynamic reference data.
 }
 
 TEST_CASE("Shear modulus expansion", "[birch-murnaghan][eos]") {

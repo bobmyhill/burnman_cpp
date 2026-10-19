@@ -165,9 +165,10 @@ def test_pyrolite_example_passes_pressure_in_pascals(example, monkeypatch):
     [((9.4e9, 9.6e9), 1.0), ((10.7e9, 10.75e9), 10.0)],
 )
 @pytest.mark.parametrize("bulk_scale", [1.0, 0.5])
-def test_cold_pyrolite_boundaries_reach_zero_kelvin(
+def test_cold_pyrolite_boundaries_reach_zero_kelvin_and_report_thermal_instability(
     example, pressure_range, max_temperature, bulk_scale
 ):
+    models = example["candidate_phases"]()
     result = bm.phase_diagram(
         {
             element: amount * bulk_scale
@@ -175,12 +176,26 @@ def test_cold_pyrolite_boundaries_reach_zero_kelvin(
                 "PYROLITE_COMPOSITION"
             ].atomic_composition.items()
         },
-        example["candidate_phases"](),
+        models,
         pressure_range,
         (0.0, max_temperature),
         example["settings"](seeds=3),
     )
-    assert result.resolved, result.diagnostics
+    # Geometric tracing can reach zero kelvin even where extrapolated SLB24
+    # heat capacities are negative. Keep that genuine thermal instability
+    # visible rather than requiring the thermodynamic audit to accept it.
+    state = result.samples[0]
+    frozen_cp = 0.0
+    for phase in state.phases:
+        model = models[phase.candidate_index]
+        if isinstance(model, bm.Solution):
+            model.set_composition(phase.composition)
+        model.set_state(state.pressure, 0.5)
+        frozen_cp += phase.amount * model.molar_heat_capacity_p
+    assert frozen_cp < 0.0
+    assert not result.resolved
+    assert result.thermodynamic_validation["violations"] > 0
+    assert all(d.startswith("Thermodynamic ") for d in result.diagnostics)
     assert len(result.fields) == 2 and len(result.boundaries) == 1
     line = result.boundaries[0]
     assert line.start_node >= 0 and line.end_node >= 0

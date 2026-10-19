@@ -313,7 +313,14 @@ def test_four_branches_at_a_phase_swap_node():
     assert node.gibbs_variance == node.pt_nullity == 0
     for line in result.boundaries:
         assert line.side_a != line.side_b
-        assert len(line.points) > 5
+        assert len(line.points) >= 2
+        assert node.id in (line.start_node, line.end_node)
+        first, last = line.points[0], line.points[-1]
+        # Each known coexistence arm must reach the frame from the invariant;
+        # the number of continuation steps is not a physical requirement.
+        assert abs(last.pressure - first.pressure) == pytest.approx(1e9) or abs(
+            last.temperature - first.temperature
+        ) == pytest.approx(400.0)
         for p in line.points:
             # Independently known coexistence equations of the test model.
             assert abs(p.pressure - 1e9) < 1.0 or abs(p.temperature - 1000.0) < 1e-6
