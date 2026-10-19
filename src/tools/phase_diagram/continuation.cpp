@@ -303,7 +303,13 @@ std::array<std::vector<int>, 2>
 boundary_sides(Engine &engine, Assemblage &a, const std::vector<int> &ids,
                int zero, const EquilibriumSolve &s,
                const Eigen::Vector2d &range, const Eigen::Vector2d &normal,
-               std::array<State, 2> *limiting_states) {
+               std::array<State, 2> *limiting_states,
+               ReactionKind *reaction_kind) {
+  auto kind = [&](ReactionKind value) {
+    if (reaction_kind)
+      *reaction_kind = value;
+  };
+  kind(ReactionKind::unknown);
   if (limiting_states)
     *limiting_states = {};
   auto entry = std::find(ids.begin(), ids.end(), zero);
@@ -314,19 +320,34 @@ boundary_sides(Engine &engine, Assemblage &a, const std::vector<int> &ids,
   int full_side = 0;
   int sign =
       phase_entry_side(engine, a, ids, zero, s, range, normal, full_side);
-  if (sign)
+  if (sign) {
+    kind(ReactionKind::phase_out);
     return {engine.canonical_ids(sign > 0 ? absent : ids),
             engine.canonical_ids(sign > 0 ? ids : absent)};
+  }
+  // Release the zero-amount constraint, retaining the actual reaction and
+  // mass equations. A full branch spanning both plotted coordinates is a
+  // finite field even when its normal response is ill-conditioned.
+  auto full = s;
+  full.J.row(0).setZero();
+  int field_rank = 0;
+  continuation_tangent(engine, full, a, range, &field_rank);
+  if (!has_composition_axis(engine.section.type) && field_rank == 2)
+    kind(ReactionKind::phase_out);
   if (engine.section.type != DiagramType::PT) {
     // Preserve the full branch's orientation even when the opposite field
     // needs another phase. Local probes must not skip this narrow branch.
     std::array<std::vector<int>, 2> partial;
     if (full_side)
       partial[full_side > 0 ? 1 : 0] = engine.canonical_ids(ids);
-    else if (!has_composition_axis(engine.section.type))
+    else if (!has_composition_axis(engine.section.type) && field_rank < 2)
       partial = latent_boundary_sides(engine, a, ids, range, normal);
+    if (field_rank < 2 && !partial[0].empty() && !partial[1].empty())
+      kind(ReactionKind::replacement);
     return partial;
   }
+  if (field_rank == 2)
+    return {};
   // A compound reaction has dependent phase amounts. Its two limiting
   // assemblages follow the reaction extent, and dG = dV dP - dS dT orients
   // them even though the full assemblage is singular at fixed P,T.
@@ -400,6 +421,7 @@ boundary_sides(Engine &engine, Assemblage &a, const std::vector<int> &ids,
         return {};
     }
   }
+  kind(ReactionKind::replacement);
   return {engine.canonical_ids(slope > 0. ? after : absent),
           engine.canonical_ids(slope > 0. ? absent : after)};
 }
@@ -688,6 +710,13 @@ boundary_point_at(Engine &engine, const Boundary &line, const PhaseStates &warm,
   if (zero == line.assemblage.end())
     return std::nullopt;
   std::optional<BoundaryPoint> point;
+  auto accepted_point = [&]() -> std::optional<BoundaryPoint> {
+    return point && (!require_stability ||
+                     point->minimum_affinity >=
+                         -engine.settings.affinity_tolerance)
+               ? point
+               : std::nullopt;
+  };
   for (int pass = 0; pass < 3; ++pass) {
     const auto prm = engine.parameters(*assembly);
     auto c = constraints(std::make_unique<PhaseFractionConstraint>(
@@ -695,12 +724,16 @@ boundary_point_at(Engine &engine, const Boundary &line, const PhaseStates &warm,
                          continuation_plane(engine, *assembly, prm.n_parameters,
                                             target, weights));
     point = corrected_point(engine, *assembly, line.assemblage, c, target,
-                            allowance, tolerance_scale, require_stability);
-    if (!point || tolerance_scale == 1. ||
+                            allowance, tolerance_scale, false);
+    // Inspect a converged but unstable root before rejecting it: the warm
+    // state's composition face may have frozen a site needed at the target.
+    if (!point || (!require_stability && tolerance_scale == 1.) ||
         !engine.settings.active_solution_faces ||
-        point->minimum_affinity >=
-            -std::min(engine.settings.affinity_tolerance, 1.e-5))
-      return point;
+        (point->minimum_affinity >= -engine.settings.affinity_tolerance &&
+         (tolerance_scale == 1. ||
+          point->minimum_affinity >=
+              -std::min(engine.settings.affinity_tolerance, 1.e-5))))
+      return accepted_point();
     // Before rejecting a weakly unstable arc, release a trace composition
     // that the ordinary continuation face may have pinned to zero.
     std::vector<Minimum> minima;
@@ -711,12 +744,16 @@ boundary_point_at(Engine &engine, const Boundary &line, const PhaseStates &warm,
           minima[static_cast<std::size_t>(phase.candidate_index)];
       if (minimum.affinity <
               -std::min(engine.settings.affinity_tolerance, 1.e-5) &&
-          (minimum.p - phase.composition).norm() < .05)
+          engine.same_composition_basin(
+              phase.candidate_index, phase.composition, minimum.p,
+              assembly->get_pressure(), assembly->get_temperature())) {
         phase.composition = minimum.p;
+        phase.composition_basis.reset();
+      }
     }
-    auto trial = engine.make_assemblage(line.assemblage, states,
-                                        assembly->get_pressure(),
-                                        assembly->get_temperature(), 1.e-9);
+    auto trial = engine.make_assemblage(
+        line.assemblage, states, assembly->get_pressure(),
+        assembly->get_temperature(), 1.e-9, true);
     bool changed = false;
     for (std::size_t k = 0; k < line.assemblage.size(); ++k) {
       auto old = engine.composition_basis(*assembly->get_phase(k),
@@ -729,11 +766,11 @@ boundary_point_at(Engine &engine, const Boundary &line, const PhaseStates &warm,
                  (old - next).norm() > 1.e-8);
     }
     if (!changed)
-      return point;
+      return accepted_point();
     engine.set_coordinate(*trial, engine.composition_coordinate(*assembly));
     assembly = trial;
   }
-  return point;
+  return accepted_point();
 }
 
 // Use the same intensive seed (and active solution faces) for both events,
@@ -895,9 +932,14 @@ bool same_boundary_curve(Engine &engine, const Result &result,
   if (!univariant && !partial && !require_equilibrium && near(first, second) &&
       near(second, first))
     return true;
-  auto verified = [&](const Boundary &one, const Boundary &two) {
+  const bool intensive_branch =
+      univariant && !partial && same_boundary_nodes(first, second, result);
+  // No result means the starting state failed numerically. False means two
+  // independently corrected equilibria actually disagree.
+  auto verified = [&](const Boundary &one,
+                      const Boundary &two) -> std::optional<bool> {
     if (one.points.size() < 2 || two.points.empty())
-      return false;
+      return std::nullopt;
     double reach = engine.settings.step * 3.;
     for (std::size_t k = 1; k < two.points.size(); ++k)
       reach = std::max(reach, (q(two.points[k]) - q(two.points[k - 1])).norm());
@@ -906,7 +948,7 @@ bool same_boundary_curve(Engine &engine, const Result &result,
       try {
         Eigen::Vector2d tangent = q(one.points.back()) - q(one.points.front());
         if (tangent.norm() == 0.)
-          return false;
+          return std::nullopt;
         const Eigen::Vector2d target =
             origin + .5 * (q(one.points.front()) + q(one.points.back()))
                               .cwiseProduct(range);
@@ -914,11 +956,11 @@ bool same_boundary_curve(Engine &engine, const Result &result,
             engine, one, one.points.front().phases, target,
             tangent.normalized().cwiseQuotient(range), range * tangent.norm());
         if (!midpoint)
-          return false;
+          return std::nullopt;
         inserted = {one.points.front(), std::move(*midpoint),
                     one.points.back()};
       } catch (const std::exception &) {
-        return false;
+        return std::nullopt;
       }
     int checked = 0;
     const auto &samples = inserted.empty() ? one.points : inserted;
@@ -943,19 +985,27 @@ bool same_boundary_curve(Engine &engine, const Result &result,
       if (tangent.norm() < 1.e-12)
         continue;
       try {
-        if (univariant) {
+        if (univariant || require_equilibrium) {
           const auto weights = tangent.normalized().cwiseQuotient(range).eval();
-          auto left = boundary_point_at(
-              engine, one, target.phases,
-              diagram_coordinates(target, result.section.type), weights,
-              range * engine.settings.node_tolerance);
-          if (!left)
-            return false;
-          auto warm = closest->phases;
+          auto first_seed = target.phases, warm = closest->phases;
           erase_if(warm, [&](const auto &p) {
             return std::find(two.assemblage.begin(), two.assemblage.end(),
                              p.id) == two.assemblage.end();
           });
+          // Reaction extents can carry different saved active faces. Open
+          // their union without copying compositions between independent
+          // starting states, so a stale frozen site cannot define identity.
+          if (!share_composition_faces(first_seed, warm))
+            return false;
+          auto left = boundary_point_at(
+              engine, one, first_seed,
+              diagram_coordinates(target, result.section.type), weights,
+              range * engine.settings.node_tolerance);
+          if (!left) {
+            if (intensive_branch)
+              continue;
+            return std::nullopt;
+          }
           auto right = boundary_point_at(
               engine, two, warm,
               diagram_coordinates(*left, result.section.type), weights,
@@ -963,17 +1013,23 @@ bool same_boundary_curve(Engine &engine, const Result &result,
           // Match the independently corrected compositions before sharing a
           // seed. Otherwise a different intensive branch could be forced to
           // the reference root merely by copying its starting compositions.
-          const bool same = right && same_phase_compositions(
-                                         left->phases, right->phases,
-                                         engine.settings.composition_tolerance,
-                                         engine.settings.amount_tolerance);
-          if (!same || ((diagram_coordinates(*right, result.section.type) -
-                         diagram_coordinates(*left, result.section.type))
-                            .cwiseAbs()
-                            .array() > equilibrium_pt_tolerance().array())
-                           .any()) {
-            if (same)
-              warm = right->phases;
+          if (!right) {
+            if (intensive_branch)
+              continue;
+            return std::nullopt;
+          }
+          const bool same =
+              same_phase_compositions(left->phases, right->phases,
+                                      engine.settings.composition_tolerance,
+                                      engine.settings.amount_tolerance);
+          if (!same)
+            return false;
+          if (((diagram_coordinates(*right, result.section.type) -
+                diagram_coordinates(*left, result.section.type))
+                   .cwiseAbs()
+                   .array() > equilibrium_pt_tolerance().array())
+                  .any()) {
+            warm = right->phases;
             if (!seed_phase_compositions(warm, left->phases,
                                          engine.settings.composition_tolerance,
                                          engine.settings.amount_tolerance))
@@ -982,8 +1038,12 @@ bool same_boundary_curve(Engine &engine, const Result &result,
                 engine, two, warm,
                 diagram_coordinates(*left, result.section.type), weights,
                 equilibrium_pt_tolerance());
-            if (!right ||
-                !same_phase_compositions(left->phases, right->phases,
+            if (!right) {
+              if (intensive_branch)
+                continue;
+              return std::nullopt;
+            }
+            if (!same_phase_compositions(left->phases, right->phases,
                                          engine.settings.composition_tolerance,
                                          engine.settings.amount_tolerance))
               return false;
@@ -1012,11 +1072,25 @@ bool same_boundary_curve(Engine &engine, const Result &result,
           return false;
         ++checked;
       } catch (const std::exception &) {
-        return false;
+        if (!intensive_branch)
+          return std::nullopt;
       }
     }
-    return checked > 0;
+    return checked > 0 ? std::optional<bool>(true) : std::nullopt;
   };
-  return verified(first, second) && (partial || verified(second, first));
+  // A regular univariant reaction with matching stable endpoints and
+  // independently corrected phase compositions is one intensive branch.
+  // Either direction can establish that identity; a cold, sparsely sampled
+  // record may not supply a usable Newton start in the reverse direction.
+  const auto forward = verified(first, second);
+  if (intensive_branch) {
+    if (forward == false)
+      return false;
+    const auto backward = verified(second, first);
+    return backward != false &&
+           (forward.value_or(false) || backward.value_or(false));
+  }
+  return forward.value_or(false) &&
+         (partial || verified(second, first).value_or(false));
 }
 } // namespace burnman::phase_diagrams::detail

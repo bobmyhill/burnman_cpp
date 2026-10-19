@@ -417,6 +417,45 @@ def refine_pyrolite_fixture(data):
     )
 
 
+@pytest.mark.parametrize("reverse", [False, True])
+def test_equivalent_univariant_extents_need_a_verified_root_not_every_warm_start(
+    reverse,
+):
+    data = json.loads(
+        (
+            Path(__file__).parent / "data/pyrolite_pt_equivalent_reaction_curves.json"
+        ).read_text()
+    )
+    if reverse:
+        transform_saved_traces(data, "reverse")
+    result = refine_pyrolite_fixture(data)
+    # Independent corrections identify the same intensive equilibrium with
+    # different reaction extents (ri-out versus Fe-out). A failed Newton start
+    # on a cold, sparse record cannot create an additional finite-area field.
+    assert len(result.boundaries) == 1
+    assert not bm.phase_diagram_field_polygons(result, close_domain=False).polygons
+    check_boundary_equilibria(result)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_equivalent_reactions_can_end_at_separate_model_limit_records(reverse):
+    data = json.loads(
+        (
+            Path(__file__).parent / "data/pyrolite_pt_model_limit_duplicates.json"
+        ).read_text()
+    )
+    if reverse:
+        transform_saved_traces(data, "reverse")
+    result = refine_pyrolite_fixture(data)
+    # These independently traced cpx-out records reach one cold model limit
+    # with slightly different stopping temperatures and node IDs. Corrected
+    # branch identity must remove the artificial lens without adding a field.
+    assert len(result.boundaries) == 1
+    assert all(n >= 0 for b in result.boundaries for n in (b.start_node, b.end_node))
+    assert not any("corrector failed" in d for d in result.diagnostics)
+    check_boundary_equilibria(result)
+
+
 @pytest.mark.parametrize("name", ["saddle", "binodal"])
 def test_pt_refinement_rejects_garnet_saddles_and_retains_stable_binodals(name):
     fixture = json.loads(

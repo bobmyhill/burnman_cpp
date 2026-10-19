@@ -1700,6 +1700,8 @@ Tracer::follow(std::shared_ptr<Assemblage> a, const Seed &seed,
 }
 
 void Tracer::label(Boundary &line) {
+  // A failed refresh must not retain an earlier, unverified interpretation.
+  line.reaction_kind = ReactionKind::unknown;
   if (line.points.size() < 2 || lies_on_calculation_frame(line, result))
     return;
   double length = 0.;
@@ -1773,21 +1775,14 @@ void Tracer::label(Boundary &line) {
       // At a regular phase-out arc, differentiate the actual equilibrium
       // rather than probing across an arbitrarily wide neighbouring field.
       std::array<State, 2> limiting_states;
-      neighbours = boundary_sides(
-          engine, *a, line.assemblage, line.zero_phase, s, range,
-          Eigen::Vector2d(-along[1], along[0]), &limiting_states);
+      neighbours =
+          boundary_sides(engine, *a, line.assemblage, line.zero_phase, s, range,
+                         Eigen::Vector2d(-along[1], along[0]), &limiting_states,
+                         &line.reaction_kind);
       if (!neighbours[0].empty() && !neighbours[1].empty()) {
         line.side_a = neighbours[0];
         line.side_b = neighbours[1];
         line.is_solution_replacement = line.side_a == line.side_b;
-        auto absent = line.assemblage;
-        absent.erase(std::find(absent.begin(), absent.end(), line.zero_phase));
-        const auto full = engine.canonical_ids(line.assemblage),
-                   missing = engine.canonical_ids(absent);
-        line.reaction_kind = ((line.side_a == full && line.side_b == missing) ||
-                              (line.side_b == full && line.side_a == missing))
-                                 ? ReactionKind::phase_out
-                                 : ReactionKind::replacement;
         for (auto &state : limiting_states)
           if (state.success) {
             state.minimum_affinity = affinity;
@@ -1808,7 +1803,8 @@ void Tracer::label(Boundary &line) {
     line.side_a = neighbours[0];
   if (!neighbours[1].empty())
     line.side_b = neighbours[1];
-  if (anchor.phases.empty() || !ambiguous_boundary(line))
+  if (!has_composition_axis(result.section.type) || anchor.phases.empty() ||
+      !ambiguous_boundary(line))
     return;
   // A bulk-composition section can meet a field containing phases absent
   // from this reaction. The graph cannot discover that field from one arc.
@@ -2449,7 +2445,7 @@ void Tracer::reconcile_boundaries(bool transfer_labels_only) {
           ambiguous_boundary(line) == ambiguous_boundary(old))
         continue;
       bool same_sides = same_boundary_sides(old, line);
-      bool same_ends = same_boundary_nodes(old, line);
+      bool same_ends = same_boundary_nodes(old, line, result);
       const bool partial = complete_boundary(line) != complete_boundary(old);
       auto &part = complete_boundary(line) ? old : line;
       auto &whole = complete_boundary(line) ? line : old;
@@ -2475,7 +2471,8 @@ void Tracer::reconcile_boundaries(bool transfer_labels_only) {
       if ((!same_sides && !uncertain && !univariant) || !same_ends ||
           old.assemblage != line.assemblage)
         continue;
-      const bool verify = uncertain || line.zero_phase != old.zero_phase ||
+      const bool verify = !same_boundary_nodes(old, line) || uncertain ||
+                          line.zero_phase != old.zero_phase ||
                           boundary_variance(line, result) == 1;
       if (same_curve(partial ? part : line, partial ? whole : old, partial,
                      verify || partial)) {
@@ -2526,7 +2523,7 @@ void Tracer::apply_model_domain() {
     if (model_excluded(state)) {
       state.success = false;
       state.outside_model_domain = true;
-      state.message = "Outside the required EOS model domain.";
+      state.message = "Outside the required model domain.";
     }
   if (!result.excluded_regions.empty()) {
     auto states = std::move(result.samples);
@@ -2638,6 +2635,7 @@ void Tracer::recover_failed_seeds() {
 
 void Tracer::resolve_boundaries() {
   for (int pass = 0; pass < 2; ++pass) {
+    detail::join_model_limits(result);
     reconcile_boundaries(pass == 0);
     for (auto &line : result.boundaries)
       if (line.reaction_kind == ReactionKind::unknown)

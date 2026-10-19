@@ -74,13 +74,19 @@ void join_model_limits(Result &result) {
       int region_index = -1, segment = -1;
       for (std::size_t r = 0; r < result.excluded_regions.size(); ++r) {
         auto &ring = result.excluded_regions[r];
-        // Exclude the top/frame closure: only the actual EOS limit can
-        // receive a terminated phase line. Keep the last thermodynamically
-        // verified point, adjusting the plotted domain envelope within node
-        // tolerance.
-        for (int i = 1; i < ring.rows() - 2; ++i) {
+        // Only the model limit can receive a phase line; frame closure
+        // segments cannot. Identify these by geometry rather than their
+        // position in the ring, which changes when endpoints are inserted.
+        for (int i = 1; i < ring.rows(); ++i) {
           auto a = normalise(ring(i - 1, 0), ring(i - 1, 1)),
                b = normalise(ring(i, 0), ring(i, 1));
+          bool frame = false;
+          for (int axis = 0; axis < 2; ++axis)
+            for (double edge : {0., 1.})
+              frame = frame || (std::abs(a[axis] - edge) < 1.e-12 &&
+                                std::abs(b[axis] - edge) < 1.e-12);
+          if (frame)
+            continue;
           auto delta = (b - a).eval();
           double f =
               (delta.squaredNorm() != 0.)
@@ -117,16 +123,19 @@ void join_model_limits(Result &result) {
         Node n;
         n.id = burnman::utils::checked_int(result.nodes.size());
         n.kind = "model_domain_limit";
-        n.pressure = point.pressure;
-        n.temperature = point.temperature;
-        n.entropy = point.entropy;
-        n.volume = point.volume;
-        n.composition_coordinate = point.composition_coordinate;
         n.zero_phases = {line.zero_phase};
         n.assemblage = line.assemblage;
         result.nodes.push_back(n);
         id = n.id;
       }
+      // Repair can re-correct the endpoint after its node was created. The
+      // plotted vertex and mask must use the same accepted equilibrium.
+      auto &n = result.nodes.at(static_cast<std::size_t>(id));
+      n.pressure = point.pressure;
+      n.temperature = point.temperature;
+      n.entropy = point.entropy;
+      n.volume = point.volume;
+      n.composition_coordinate = point.composition_coordinate;
       (start ? back : forward) = "model domain limit";
     }
     line.termination = back + "; " + forward;
@@ -216,7 +225,7 @@ excluded_model_regions(Engine &engine, const Eigen::Vector2d &origin,
                   << " K.\n";
       return;
     }
-    if (entropy_section && !curve.empty())
+    if (!curve.empty())
       subdivide(last_temperature, tn, curve.back(), *point, 0);
     else
       curve.push_back(*point);

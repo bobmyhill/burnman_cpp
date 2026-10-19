@@ -166,7 +166,8 @@ void audit_thermodynamic_samples(Result &result) {
   auto &coverage = result.thermodynamic_validation;
   coverage = {"aligned_samples", 0, 0, 0};
   erase_if(result.diagnostics, [](const auto &message) {
-    return message.rfind("Thermodynamic audit: ", 0) == 0;
+    return message.rfind("Thermodynamic audit: ", 0) == 0 ||
+           message.rfind("Thermodynamic inconsistency between seed ", 0) == 0;
   });
   std::vector<ThermodynamicSample> samples;
   for (const auto &state : result.samples)

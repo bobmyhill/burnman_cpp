@@ -169,6 +169,10 @@ def test_cold_pyrolite_boundaries_reach_zero_kelvin_and_report_thermal_instabili
     example, pressure_range, max_temperature, bulk_scale
 ):
     models = example["candidate_phases"]()
+    opts = example["settings"](seeds=3)
+    # Deliberately inspect the unmasked extrapolation: genuine thermal
+    # violations must remain visible when domain masking is not requested.
+    opts.required_thermal_phases = []
     result = bm.phase_diagram(
         {
             element: amount * bulk_scale
@@ -179,7 +183,7 @@ def test_cold_pyrolite_boundaries_reach_zero_kelvin_and_report_thermal_instabili
         models,
         pressure_range,
         (0.0, max_temperature),
-        example["settings"](seeds=3),
+        opts,
     )
     # Geometric tracing can reach zero kelvin even where extrapolated SLB24
     # heat capacities are negative. Keep that genuine thermal instability
@@ -220,6 +224,39 @@ def test_zero_kelvin_flat_garnet_mixing_does_not_create_an_extra_phase(example):
     garnets = [p for p in state.phases if p.name.startswith("gt")]
     # Two genuine garnet branches remain: mixing across their gap costs energy.
     assert len(garnets) == 2
+
+
+def test_requested_cf_thermal_domain_masks_the_cold_extrapolation(example):
+    models = example["candidate_phases"]()
+    opts = example["settings"](seeds=3)
+    bulk = example["PYROLITE_COMPOSITION"].atomic_composition
+    cold = bm.stable_equilibrium(bulk, models, 9.5e9, 0.0, opts)
+    assert not cold.success and cold.outside_model_domain
+    assert any("heat capacity" in reason for reason in cold.excluded_phases)
+    warm = bm.stable_equilibrium(bulk, models, 9.5e9, 10.0, opts)
+    assert warm.success, warm.message
+    result = bm.phase_diagram(bulk, models, (9.4e9, 9.6e9), (0.0, 100.0), opts)
+    assert result.resolved, result.diagnostics
+    assert result.thermodynamic_validation["violations"] == 0
+    assert result.settings.required_thermal_phases == ["cf"]
+    valid_temperatures = [s.temperature for s in result.samples if s.success]
+    assert min(valid_temperatures) == pytest.approx(5.0, abs=1.0e-5)
+    assert result.excluded_regions
+    # The cold edge is retained as an explicit excluded region, with the
+    # phase fields above the 5 K ordering transition available for plotting.
+    excluded = [
+        p
+        for p in bm.phase_diagram_field_polygons(result).polygons
+        if p.outside_model_domain
+    ]
+    assert any(
+        p.contains_rectangle(np.array([9.5e9, 1.0]), np.array([1.0, 1.0e-6]))
+        for p in excluded
+    )
+    assert not any(
+        p.contains_rectangle(np.array([9.5e9, 8.0]), np.array([1.0, 1.0e-6]))
+        for p in excluded
+    )
 
 
 def test_distinct_solution_branches_can_have_the_same_phase_counts(example):
@@ -299,6 +336,7 @@ def test_eos_exclusion_can_be_disabled_for_strict_candidate_validation(example):
     opts = example["settings"]()
     opts.exclude_invalid_eos = False
     opts.required_eos_phases = []
+    opts.required_thermal_phases = []
     state = bm.stable_equilibrium(
         example["PYROLITE_COMPOSITION"].atomic_composition,
         example["candidate_phases"](),

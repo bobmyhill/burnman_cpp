@@ -1220,7 +1220,7 @@ def plot_phase_diagram(
         handles, labels = ax.get_legend_handles_labels()
         if domain_patches:
             handles.append(Patch(facecolor="#eeeeee", edgecolor="#888888", hatch="///"))
-            labels.append("Outside solid EOS domain")
+            labels.append("Outside model domain")
         if uncoloured:
             handles.append(Patch(facecolor="white", edgecolor=".65"))
             labels.append("Unresolved field")
