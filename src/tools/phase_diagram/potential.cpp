@@ -378,10 +378,7 @@ WorkState Engine::feasible_start(double p, double t) {
     for (std::size_t base = 0; base < phases.size(); ++base) {
       const auto &phase = phases[base];
       if (!phase.available) {
-        if (std::find(settings.required_eos_phases.begin(),
-                      settings.required_eos_phases.end(),
-                      phase.material->get_name()) !=
-            settings.required_eos_phases.end())
+        if (required_model(phase))
           throw std::runtime_error("Required model outside EOS domain: " +
                                    phase.domain_error);
         continue;

@@ -31,9 +31,11 @@ for every sample in JSON; numerical failures remain failures. The Mg-Tschermak
 thermal spinodal makes the full orthopyroxene model undefined at LP/HT; this
 example conservatively masks that domain even when other phases remain valid.
 A solid outside its EOS domain is never assigned an unstable volume root.
-Zero kelvin is included using active solution faces. Both the magnetic and
-Debye contributions have finite analytic zero-temperature limits. All stable
-states are verified against the full solution composition polytopes.
+Zero kelvin remains on the axes. The cf model's signed endmember combinations
+have negative heat capacity below their 5 K ordering transition; that model
+domain is conservatively masked rather than assigned a phase assemblage.
+Both magnetic and Debye contributions have finite zero-temperature limits.
+Accepted states are verified against the full solution composition polytopes.
 
 Increase --seeds to check narrow/disconnected fields. --refine-json resumes
 unfinished lines from the last accepted native phase compositions and amounts.
@@ -178,12 +180,15 @@ def settings(seeds=9, quick=False, verbose=False):
     # Mg-Tschermak loses its stable volume at LP/HT while orthopyroxene
     # is still an essential competitor. Mask that conservative model limit.
     opts.required_eos_phases = ["opx"]
+    # Signed cf endmember combinations have negative Cp below the 5 K
+    # ordering transition. Retain the 0 K axis and hatch that model domain.
+    opts.required_thermal_phases = ["cf"]
     opts.verbose = verbose
     return opts
 
 
 def calculate(
-    seeds=41,
+    seeds=9,
     quick=False,
     verbose=False,
     *,

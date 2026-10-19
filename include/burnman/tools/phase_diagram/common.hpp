@@ -85,6 +85,32 @@ inline bool same_boundary_nodes(const Boundary &a, const Boundary &b) {
   return (a.start_node == b.start_node && a.end_node == b.end_node) ||
          (a.start_node == b.end_node && a.end_node == b.start_node);
 }
+/// Model-limit endpoints can stop at different accepted states near the same
+/// mask location. This only proposes matching ends: corrected equilibria must
+/// still establish reaction identity before either curve can be removed.
+inline bool same_boundary_nodes(const Boundary &a, const Boundary &b,
+                                const Result &result) {
+  const auto ranges = result.coordinate_ranges();
+  const Eigen::Vector2d range(ranges[0][1] - ranges[0][0],
+                              ranges[1][1] - ranges[1][0]);
+  auto matches = [&](int first, int second) {
+    if (first == second)
+      return true;
+    if (first < 0 || second < 0)
+      return false;
+    const auto &x = result.nodes.at(static_cast<std::size_t>(first)),
+               &y = result.nodes.at(static_cast<std::size_t>(second));
+    return x.kind == "model_domain_limit" && y.kind == x.kind &&
+           ((diagram_coordinates(x, result.section.type) -
+             diagram_coordinates(y, result.section.type))
+                .cwiseQuotient(range))
+                   .norm() <= result.settings.node_tolerance;
+  };
+  return (matches(a.start_node, b.start_node) &&
+          matches(a.end_node, b.end_node)) ||
+         (matches(a.start_node, b.end_node) &&
+          matches(a.end_node, b.start_node));
+}
 /// Register a boundary once at each endpoint, for junction branch accounting.
 inline void record_incident_line(Result &result, const Boundary &line) {
   for (int id : {line.start_node, line.end_node})

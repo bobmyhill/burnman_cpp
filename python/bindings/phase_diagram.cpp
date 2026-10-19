@@ -69,7 +69,8 @@ phase_diagrams::DiagramType diagram_type(std::string name) {
   X(verbose)                                                                   \
   X(exclude_invalid_eos)                                                       \
   X(active_solution_faces)                                                     \
-  X(required_eos_phases)
+  X(required_eos_phases)                                                       \
+  X(required_thermal_phases)
 
 py::dict settings_dict(const phase_diagrams::Settings &settings) {
   py::dict data;

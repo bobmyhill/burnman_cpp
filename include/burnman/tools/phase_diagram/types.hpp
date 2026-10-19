@@ -136,6 +136,9 @@ struct Settings {
   // Conservatively mask points where an essential candidate model is outside
   // its EOS domain, even if the remaining candidates can represent the bulk.
   std::vector<std::string> required_eos_phases;
+  // Also require nonnegative Cp throughout these models' allowed composition
+  // polytopes. Mask their invalid domain instead of silently omitting them.
+  std::vector<std::string> required_thermal_phases;
 };
 
 /// Amount and composition of one phase, including an individual solvus branch.

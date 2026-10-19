@@ -160,6 +160,8 @@ struct Engine {
           const std::optional<Eigen::Vector2d> & = std::nullopt);
   /// Whether available EOS models can represent the bulk at a diagram position.
   bool eos_bulk_feasible_at(const Eigen::Vector2d &);
+  /// Whether this candidate must remain available throughout the model domain.
+  bool required_model(const Phase &) const;
   /// Set all candidate P,T states and record diagnosed EOS-domain exclusions.
   void set_pt(double, double);
   /// Test bulk representability at physical P,T, respecting required EOS

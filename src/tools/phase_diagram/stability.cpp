@@ -193,13 +193,17 @@ Engine::Engine(const types::FormulaMap &composition,
   }
   elements.assign(els.begin(), els.end());
   full_bulk = Eigen::VectorXd::Zero(static_cast<Eigen::Index>(elements.size()));
-  for (auto &name : settings.required_eos_phases)
-    if (!names.count(name))
-      throw std::invalid_argument("Required EOS phase is not a candidate: " +
-                                  name);
-  if (!settings.required_eos_phases.empty() && !settings.exclude_invalid_eos)
+  for (const auto *required :
+       {&settings.required_eos_phases, &settings.required_thermal_phases})
+    for (const auto &name : *required)
+      if (!names.count(name))
+        throw std::invalid_argument("Required model is not a candidate: " +
+                                    name);
+  if ((!settings.required_eos_phases.empty() ||
+       !settings.required_thermal_phases.empty()) &&
+      !settings.exclude_invalid_eos)
     throw std::invalid_argument(
-        "required_eos_phases requires exclude_invalid_eos.");
+        "Required model domains need exclude_invalid_eos.");
   for (std::size_t k = 0; k < elements.size(); ++k)
     if (bulk.count(elements[k]))
       full_bulk[static_cast<Eigen::Index>(k)] = bulk.at(elements[k]);
@@ -723,8 +727,23 @@ Engine::make_at(const std::vector<int> &ids, const PhaseStates &states,
     set_coordinate(*a, q[1]);
   return a;
 }
+bool Engine::required_model(const Phase &phase) const {
+  for (const auto *required :
+       {&settings.required_eos_phases, &settings.required_thermal_phases})
+    if (std::find(required->begin(), required->end(),
+                  phase.material->get_name()) != required->end())
+      return true;
+  return false;
+}
 void Engine::set_pt(double p, double t) {
   for (auto &phase : phases) {
+    // Composition searches reuse one P,T many times. Candidate endmember
+    // energies and domain checks do not change with their trial composition.
+    if (phase.available && phase.domain_error.empty() &&
+        phase.g.size() == phase.vertices.cols() &&
+        phase.material->get_pressure() == p &&
+        phase.material->get_temperature() == t)
+      continue;
     phase.available = true;
     phase.domain_error.clear();
     try {
@@ -739,6 +758,39 @@ void Engine::set_pt(double p, double t) {
         }
       } else
         phase.g[0] = phase.material->get_molar_gibbs();
+      if (std::find(settings.required_thermal_phases.begin(),
+                    settings.required_thermal_phases.end(),
+                    phase.material->get_name()) !=
+          settings.required_thermal_phases.end()) {
+        // Cp is affine in composition for the supported solution models, so
+        // its minimum occurs at a permitted polytope vertex. At zero kelvin
+        // test the one-sided limit, where Cp itself can vanish identically.
+        const double temperature =
+            t == 0. ? std::sqrt(std::numeric_limits<double>::epsilon()) : t;
+        Eigen::VectorXd cp(phase.g.size());
+        for (Eigen::Index i = 0; i < cp.size(); ++i) {
+          auto model = phase.solution
+                           ? std::make_shared<Mineral>(
+                                 phase.solution->get_solution_model()
+                                     ->endmembers[static_cast<std::size_t>(i)])
+                           : clone(phase.material);
+          model->set_state(p, temperature);
+          cp[i] = model->get_molar_heat_capacity_p();
+        }
+        for (Eigen::Index i = 0; i < phase.vertices.rows(); ++i) {
+          const auto vertex = phase.vertices.row(i);
+          const double roundoff = 64. * std::numeric_limits<double>::epsilon() *
+                                  vertex.cwiseAbs().dot(cp.cwiseAbs());
+          if (!cp.allFinite() || vertex.dot(cp) < -roundoff) {
+            phase.available = false;
+            phase.domain_error = phase.material->get_name() +
+                                 ": negative or nonfinite heat capacity in an "
+                                 "allowed composition at T=" +
+                                 std::to_string(temperature) + " K";
+            break;
+          }
+        }
+      }
     } catch (const eos::SLBDomainError &error) {
       if (!settings.exclude_invalid_eos)
         throw;
@@ -754,10 +806,7 @@ bool Engine::eos_bulk_feasible(double p, double t) {
     if (ph.available)
       count += ph.vertices.rows();
   for (auto &ph : phases)
-    if (!ph.available && std::find(settings.required_eos_phases.begin(),
-                                   settings.required_eos_phases.end(),
-                                   ph.material->get_name()) !=
-                             settings.required_eos_phases.end())
+    if (!ph.available && required_model(ph))
       return false;
   if (!count)
     return false;
@@ -1305,10 +1354,7 @@ double Engine::stability(const Assemblage &a, std::vector<Minimum> *output) {
   auto mu = potentials(a);
   double worst = 0.;
   for (auto &ph : phases)
-    if (!ph.available && std::find(settings.required_eos_phases.begin(),
-                                   settings.required_eos_phases.end(),
-                                   ph.material->get_name()) !=
-                             settings.required_eos_phases.end())
+    if (!ph.available && required_model(ph))
       throw eos::SLBDomainError("Required model outside EOS domain: " +
                                 ph.domain_error);
   if (output)
@@ -1491,10 +1537,7 @@ WorkState Engine::equilibrate_phase_set(
                     out.state.excluded_phases.end(),
                     ph.domain_error) == out.state.excluded_phases.end())
         out.state.excluded_phases.push_back(ph.domain_error);
-      if (std::find(settings.required_eos_phases.begin(),
-                    settings.required_eos_phases.end(),
-                    ph.material->get_name()) !=
-          settings.required_eos_phases.end())
+      if (required_model(ph))
         out.state.outside_model_domain = true;
     }
   return out;
@@ -1521,10 +1564,7 @@ WorkState Engine::stable(double p, double t) {
     }
     set_pt(p, t);
     for (auto &ph : phases)
-      if (!ph.available && std::find(settings.required_eos_phases.begin(),
-                                     settings.required_eos_phases.end(),
-                                     ph.material->get_name()) !=
-                               settings.required_eos_phases.end())
+      if (!ph.available && required_model(ph))
         throw polytope::InfeasibleBulk("Required model outside EOS domain: " +
                                        ph.domain_error);
     struct Compound {

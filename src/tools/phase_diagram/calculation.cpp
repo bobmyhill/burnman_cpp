@@ -61,8 +61,9 @@ Result Tracer::calculate(const Result *previous,
   remove_retraced_spurs();
   recover_failed_seeds();
   resolve_boundaries();
-  // Recovery can add accepted frame endpoints after the first domain pass.
+  // Recovery can add accepted endpoints after the first domain pass.
   detail::join_frame_limits(result, engine);
+  detail::join_model_limits(result);
   if (detail::remove_metastable_parallel_lines(result, engine))
     index_boundaries();
   collect_boundary_diagnostics();
@@ -179,6 +180,38 @@ void Tracer::seed_boundaries() {
                          .count()
                   << " s)\n";
     }
+  // An excluded cold frame must not leave an entire temperature row without
+  // starting equilibria. Seed the valid model edge, retaining the original
+  // exclusion and its reason, before bracketing neighbouring assemblages.
+  if (result.section.type == DiagramType::PT &&
+      !opts.required_thermal_phases.empty())
+    for (int i = 0; i < first_seeds; ++i) {
+      const auto k = static_cast<std::size_t>(i * second_seeds);
+      if (!grid[k].state.outside_model_domain)
+        continue;
+      for (int j = 1; j < second_seeds; ++j) {
+        const auto &warm = grid[k + static_cast<std::size_t>(j)];
+        if (!warm.state.success)
+          continue;
+        const double pressure = warm.state.pressure;
+        double low = grid[k].state.temperature, high = warm.state.temperature;
+        for (int pass = 0;
+             pass < 40 && high - low > equilibrium_pt_tolerance()[1]; ++pass) {
+          const double mid = .5 * (low + high);
+          if (engine.eos_bulk_feasible(pressure, mid))
+            high = mid;
+          else
+            low = mid;
+        }
+        auto edge = engine.stable_at({pressure, high}, &warm);
+        if (edge.state.success) {
+          add_sample(grid[k].state);
+          grid[k] = std::move(edge);
+          add_sample(grid[k].state, burnman::utils::checked_int(k));
+        }
+        break;
+      }
+    }
   if (opts.verbose)
     std::cerr << "Seed grid completed in "
               << std::chrono::duration<double>(
@@ -235,13 +268,13 @@ void Tracer::collect_boundary_diagnostics() {
 }
 
 void Tracer::verify_field_interiors() {
-  if (engine.settings.verbose && line_resolution)
+  if (engine.settings.verbose)
     std::cerr
         << "Checking phase field consistency from saved boundary labels.\n";
   // Seek the interior point with greatest clearance from outer ring and
   // holes; a centroid can lie outside a concave field or inside one of its
   // holes.
-  if (line_resolution) {
+  {
     std::vector<Eigen::Vector2d> centres;
     for (const auto &polygon : field_polygons(result).polygons)
       if ((polygon.is_provisional || polygon.phases.empty()) &&

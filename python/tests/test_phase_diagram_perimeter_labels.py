@@ -141,3 +141,43 @@ def test_equal_neighbours_do_not_certify_an_ordinary_phase_boundary():
         ]
     )
     assert not bm.phase_diagram_field_polygons(data).boundary_sides
+
+
+def test_pyrolite_entropy_coexistence_field_survives_failed_side_orientation():
+    data = json.loads(
+        (
+            Path(__file__).parent / "data/pyrolite_sp_reaction_classification.json"
+        ).read_text()
+    )
+    models = data["workflow"]["models"]
+    phases = [getattr(SLB24, name)() for name in models["phase_names"]]
+    assert bm.phase_diagram_field_polygons(data).diagnostics
+    result = bm.refine_phase_diagram(
+        data["composition_start"],
+        phases,
+        data,
+        bm.PhaseDiagramSettings.from_dict(data["settings"]),
+        resolution=(2, 2),
+    )
+    # This crop omits the surrounding network. Its complete inner loop must
+    # still retain the finite nine-phase field, including bg and ringwoodite.
+    point = np.array([24.100611966328526e9, 192.03118480616763])
+    geometry = bm.phase_diagram_field_polygons(result)
+    field = next(
+        p
+        for p in geometry.polygons
+        if p.contains_rectangle(point, np.array([1.0, 1.0e-8]))
+    )
+    expected = [6, 12, 15, 16, 24, 30, 33, 36, 72]
+    assert field.phases == expected and not field.is_provisional
+    state = bm.stable_equilibrium(
+        data["composition_start"],
+        phases,
+        pressure=point[0],
+        entropy=point[1],
+        pressure_range=data["pressure_range"],
+        temperature_range=data["temperature_range"],
+    )
+    assert state.success, state.message
+    assert sorted(p.id for p in state.phases) == expected
+    assert not any("conflicting perimeter" in d for d in result.diagnostics)

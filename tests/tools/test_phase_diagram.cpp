@@ -508,6 +508,101 @@ TEST_CASE("Shared composition faces retain independent limiting populations",
   CHECK(*first[0].composition_basis == *second[0].composition_basis);
 }
 
+TEST_CASE("A singular response cannot exclude a finite P-S coexistence field",
+          "[phase_diagram]") {
+  namespace ps = phase_diagrams;
+  auto first = minerals::HGP18::per();
+  auto second = std::make_shared<Mineral>(make_combined_mineral(
+      {*first}, Eigen::ArrayXd::Ones(1), {22500., 20., -.5e-6}, "hot"));
+  second->set_state(5.e9, 1000.);
+  ps::Settings settings;
+  settings.max_phase_instances = 1;
+  ps::CompositionSection section;
+  section.type = ps::DiagramType::PS;
+  ps::detail::Engine engine({{"Mg", 1.}, {"O", 1.}}, {first, second}, settings,
+                            section);
+  ps::PhaseState absent, present;
+  absent.id = absent.candidate_index = 0;
+  present.id = present.candidate_index = 1;
+  absent.composition = present.composition = Eigen::VectorXd::Ones(1);
+  present.amount = 1.;
+  auto a = engine.make_at({0, 1}, {absent, present},
+                          {5.e9, second->get_molar_entropy()},
+                          Eigen::Vector2d(5.e9, 1000.));
+  const auto prm = engine.parameters(*a);
+  auto constraints = ps::detail::constraints(
+      std::make_unique<equilibration::PhaseFractionConstraint>(0, 0., prm),
+      std::make_unique<equilibration::PressureConstraint>(5.e9));
+  auto solved = engine.solve(*a, constraints);
+  REQUIRE(solved.success);
+  REQUIRE(ps::detail::field_variance(*a, 2) == 1);
+  const Eigen::Vector2d range(1.e10, 100.);
+  auto sides = ps::detail::boundary_sides(engine, *a, {0, 1}, 0, solved, range,
+                                          {1., 0.});
+  CHECK((sides[0] == std::vector<int>{0, 1} ||
+         sides[1] == std::vector<int>{0, 1}));
+  // Unresolved derivatives provide no certificate that the full assemblage
+  // is absent on both sides. Its physical coexistence region remains finite.
+  solved.J.setZero();
+  sides = ps::detail::boundary_sides(engine, *a, {0, 1}, 0, solved, range,
+                                     {1., 0.});
+  CHECK(sides[0].empty());
+  CHECK(sides[1].empty());
+}
+
+TEST_CASE("Boundary correction releases an obsolete composition face",
+          "[phase_diagram]") {
+  namespace ps = phase_diagrams;
+  auto quartz = minerals::SLB24::qtz();
+  auto polymorph = std::make_shared<Mineral>(make_combined_mineral(
+      {*quartz}, Eigen::ArrayXd::Ones(1), {5000., 4., -.5e-6}, "polymorph"));
+  auto mg = minerals::SLB24::pe(), fe = minerals::SLB24::wu();
+  auto oxide = std::make_shared<Solution>();
+  oxide->set_solution_model(
+      std::make_shared<solution_models::SymmetricRegularSolution>(
+          types::PairedEndmemberList{{*mg, "[Mg]O"}, {*fe, "[Fe]O"}},
+          std::vector<std::vector<double>>{{0.}}));
+  oxide->set_composition(Eigen::Array2d(1., 0.));
+  auto fe_oxide = std::make_shared<Mineral>(make_combined_mineral(
+      {*fe}, Eigen::ArrayXd::Ones(1), {-10000., 0., 0.}, "Fe oxide"));
+  ps::Settings settings;
+  settings.max_phase_instances = 1;
+  ps::detail::Engine engine({{"Si", 1.}, {"Mg", .5}, {"Fe", .5}, {"O", 3.}},
+                            {quartz, polymorph, oxide, fe_oxide}, settings);
+  ps::Boundary line;
+  line.assemblage = {0, 1, 2, 3};
+  line.zero_phase = 0;
+  ps::BoundaryPoint cold;
+  cold.pressure = 10.e9;
+  cold.temperature = 0.;
+  for (int id : line.assemblage) {
+    ps::PhaseState phase;
+    phase.id = phase.candidate_index = id;
+    phase.amount = id == 0 ? 0. : id == 1 ? 1. : .5;
+    phase.composition = id == 2 ? Eigen::VectorXd(Eigen::Vector2d(1., 0.))
+                                : Eigen::VectorXd::Ones(1);
+    if (id == 2) {
+      Eigen::MatrixXd face(1, 2);
+      face << 1., 0.;
+      phase.composition_basis = face;
+    }
+    cold.phases.push_back(phase);
+  }
+  line.points.push_back(cold);
+  auto point = ps::detail::boundary_point_at(
+      engine, line, cold.phases, {2.e9, 1000.}, {0., 1.}, {1., 1.e-6});
+  REQUIRE(point);
+  CHECK(point->mass_balance_error < settings.mass_balance_tolerance);
+  CHECK(point->minimum_affinity >= -settings.affinity_tolerance);
+  const auto &mixture = *ps::detail::find_phase(point->phases, 2);
+  // The lower-G pure Fe oxide fixes aFe=exp(-10000/RT), requiring a
+  // positive Fe population in the solid solution at this temperature.
+  CHECK_THAT(mixture.composition[1],
+             Catch::Matchers::WithinAbs(
+                 std::exp(-10000. / (constants::physics::gas_constant * 1000.)),
+                 1.e-6));
+}
+
 TEST_CASE("Compound reaction limiting states preserve positive trace sites",
           "[phase_diagram]") {
   namespace ps = phase_diagrams;
@@ -899,6 +994,47 @@ TEST_CASE("Calculation-frame reactions do not include nearby interior curves",
   CHECK_FALSE(ps::detail::lies_on_calculation_frame(line, result));
   line.points[1].temperature = 1.e-7;
   CHECK_FALSE(ps::detail::lies_on_calculation_frame(line, result));
+}
+
+TEST_CASE(
+    "Recovered reactions terminate at the model mask without extending them",
+    "[phase_diagram]") {
+  namespace ps = phase_diagrams;
+  ps::Result result;
+  result.pressure_range = {0., 25.e9};
+  result.temperature_range = {0., 2500.};
+  Eigen::MatrixXd mask(5, 2);
+  mask << 0., 0., 25.e9, 0., 25.e9, 5., 0., 5., 0., 0.;
+  result.excluded_regions = {mask};
+  ps::Boundary line;
+  line.termination = "corrector failed; corrector failed";
+  ps::BoundaryPoint interior, cold;
+  interior.pressure = 4.9e9;
+  interior.temperature = 143.;
+  cold.pressure = 5.4e9;
+  cold.temperature = 5.000001;
+  line.points = {interior, cold};
+  result.boundaries = {line};
+  ps::detail::join_model_limits(result);
+  const auto &joined = result.boundaries.front();
+  CHECK(joined.start_node == -1);
+  REQUIRE(joined.end_node >= 0);
+  CHECK(joined.termination == "corrector failed; model domain limit");
+  const auto &node = result.nodes.at(static_cast<std::size_t>(joined.end_node));
+  CHECK(node.kind == "model_domain_limit");
+  CHECK(node.pressure == cold.pressure);
+  CHECK(node.temperature == cold.temperature);
+  CHECK(joined.points.size() == line.points.size());
+  CHECK(joined.points.front().temperature == interior.temperature);
+  CHECK(joined.points.back().temperature == cold.temperature);
+  // Repeated finalisation retains the same connection and accepted points.
+  ps::detail::join_model_limits(result);
+  CHECK(result.nodes.size() == 1);
+  CHECK(result.boundaries.front().end_node == joined.end_node);
+  result.boundaries.front().points.back().temperature += 1.e-5;
+  ps::detail::join_model_limits(result);
+  CHECK(result.nodes.front().temperature ==
+        result.boundaries.front().points.back().temperature);
 }
 
 TEST_CASE(

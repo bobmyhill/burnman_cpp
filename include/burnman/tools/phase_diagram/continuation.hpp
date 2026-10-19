@@ -151,12 +151,16 @@ Eigen::VectorXd continuation_tangent(const Engine &, const EquilibriumSolve &,
 /// reaction, the sign of dG = dV*dP - dS*dT orders its limiting assemblages.
 /// An X section can return just the full-assemblage side when the other needs
 /// a separate probe. Optional limiting_states provide contour starting states.
-/// Uses derivatives at the boundary, without nonlinear equilibrium solves.
+/// reaction_kind also records a finite full-assemblage field when its side
+/// orientation remains unresolved. Its two-dimensional projection is tested
+/// after releasing the imposed zero amount. Latent limiting states are used
+/// only when that full branch has fewer than two diagram directions.
 std::array<std::vector<int>, 2>
 boundary_sides(Engine &, Assemblage &, const std::vector<int> &, int,
                const EquilibriumSolve &, const Eigen::Vector2d &range,
                const Eigen::Vector2d &normal,
-               std::array<State, 2> *limiting_states = nullptr);
+               std::array<State, 2> *limiting_states = nullptr,
+               ReactionKind *reaction_kind = nullptr);
 
 /// Moving correction plane through target in the selected diagram coordinates.
 /// weights fix its normal, giving one location condition while permitting
