@@ -25,7 +25,7 @@ using namespace burnman;
 using namespace eos::debye;
 
 TEST_CASE("Debye function integrand", "[debye][eos]") {
-  REQUIRE(std::isnan(debye_fn_integrand(0.0, nullptr)));
+  CHECK(debye_fn_integrand(0.0, nullptr) == 0.0);
   double xi = std::log(2);
   double ref_log2 = xi * xi * xi;
   CHECK_THAT(debye_fn_integrand(xi, nullptr),
@@ -37,6 +37,10 @@ TEST_CASE("Debye function integrand", "[debye][eos]") {
 }
 
 TEST_CASE("Debye function", "[debye][eos]") {
+  SECTION("High-temperature limit") {
+    CHECK(debye_fn_cheb(0.0) == 1.0);
+    CHECK(debye_fn_quad(0.0) == 1.0);
+  }
   // Values regenerated from the pinned Python BurnMan Debye function.
   double ref_a = 0.962999940487211;
   double ref_b = 0.6744155640778144;

@@ -276,7 +276,7 @@ def test_olivine_example_closes_endmember_edges_and_uses_only_native_thermodynam
 import json, runpy, sys
 example = runpy.run_path(sys.argv[1])
 result = example['calculate'](quick=True)
-assert not {'burnman', 'scipy', 'cvxpy', 'sympy', 'cdd'} & sys.modules.keys()
+assert not {'burnman', 'cvxpy', 'sympy', 'cdd'} & sys.modules.keys()
 print(json.dumps(result.to_dict()))
 """
     output = subprocess.run(

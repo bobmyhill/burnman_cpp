@@ -11,7 +11,8 @@
 # and contributions can be found in the LICENSE document.
 #
 # ------------------------------------------------------
-"""Create phase diagrams/equilibria, then process their potentials independently.
+"""
+Create phase diagrams/equilibria, then process their potentials independently.
 
 PHASE_DIAGRAMS holds the diagram-specific inputs; main() applies shared grid,
 processing and plotting options to each entry. Edit the list to choose which
@@ -23,8 +24,6 @@ Invalid thermodynamic grids produce diagnostic plots but no table.
 The pyrolite entry defines a 100 g, 3% ferric-iron composition locally and
 uses the SLB2024 solid catalogue. Its entropy bounds come from P-T reference
 states; the plotted pressure range is independently limited to 0-40 GPa.
-See docs/phase_diagram_workflow.md for the four thermodynamic potentials and
-subsequent infilling/smoothing.
 """
 
 from importlib import import_module

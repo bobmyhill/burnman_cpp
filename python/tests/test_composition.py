@@ -269,12 +269,12 @@ def test_read_composition_table_rejects_bad_numbers(tmp_path, row):
         bm.file_to_composition_list(str(table), "mass", False)
 
 
-def test_no_python_burnman_or_scipy_dependency():
+def test_no_python_burnman_dependency():
     script = """
 import builtins
 original = builtins.__import__
 def checked_import(name, *args, **kwargs):
-    if name.split('.')[0] in ('burnman', 'scipy'):
+    if name.split('.')[0] == 'burnman':
         raise AssertionError('Unexpected Python dependency: ' + name)
     return original(name, *args, **kwargs)
 builtins.__import__ = checked_import

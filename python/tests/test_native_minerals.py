@@ -79,15 +79,17 @@ def test_reduced_models_span_the_required_elements():
         opx.set_composition([1.1, -1.2, 1.1])
 
 
-def test_entire_example_imports_no_reference_or_python_optimisation():
+def test_entire_example_imports_no_reference_or_optional_backends():
     example = (
         Path(__file__).resolve().parents[2] / "examples" / "example_equilibrate.py"
     )
+    # SciPy is required for potential-grid processing. The optional reference
+    # and optimisation backends must still stay out of the native examples.
     code = (
         "import runpy, sys\n"
         f"sys.argv = [{str(example)!r}, '--quick', '--no-plots']\n"
         f"runpy.run_path({str(example)!r}, run_name='__main__')\n"
-        "blocked = {'burnman', 'scipy', 'cvxpy', 'sympy', 'cdd'}\n"
+        "blocked = {'burnman', 'cvxpy', 'sympy', 'cdd'}\n"
         "loaded = blocked.intersection(n.split('.')[0] for n in sys.modules)\n"
         "assert not loaded, f'Unexpected Python computation packages: {loaded}'\n"
     )

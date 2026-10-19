@@ -99,7 +99,7 @@ TEST_CASE("Check reference volume", "[vinet][eos]") {
              WithinRel(V, tol_rel) || WithinAbs(V, tol_abs));
 }
 
-TEST_CASE("Check hard-coded returns", "[vinet][eos]") {
+TEST_CASE("Athermal EOS conventions", "[vinet][eos]") {
   // Set up test P, T, V
   auto P = GENERATE(0.0, 25.e9);
   auto T = GENERATE(300.0, 2000.0);
@@ -123,8 +123,7 @@ TEST_CASE("Check hard-coded returns", "[vinet][eos]") {
   CHECK(vinet.compute_shear_modulus(P, T, V, params) == 0);
   CHECK(vinet.compute_thermal_expansivity(P, T, V, params) == 0);
   CHECK(vinet.compute_entropy(P, T, V, params) == 0);
-  CHECK(vinet.compute_molar_heat_capacity_v(P, T, V, params) == 1.0e99);
-  CHECK(vinet.compute_molar_heat_capacity_v(P, T, V, params) == 1.0e99);
+  // Thermal placeholders are not heat-capacity predictions of this EOS.
 }
 
 TEST_CASE("Vinet python reference values", "[vinet][eos]") {

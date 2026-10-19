@@ -44,9 +44,6 @@ import numpy as np
 import burnman_cpp as bm
 from burnman_cpp.tools.phase_diagram_helpers import load_example
 
-grid_example = load_example(
-    Path(__file__).with_name("example_grid_pyrolite_sp_expansivity.py")
-)
 PROPERTIES = (
     ("thermal_expansivity", r"$\alpha$ ($10^{-5}$ K$^{-1}$)", 1e5),
     ("isothermal_compressibility_reuss", r"$\beta_T$ (GPa$^{-1}$)", 1e9),
@@ -130,8 +127,36 @@ def evaluate_saved(path, phases, output_dir, *, verbose=False):
             del grid
     for array in arrays.values():
         array.flush()
-    grid_example.save_array_archive(arrays_dir, Path(output_dir) / "properties.npz")
+    np.savez_compressed(Path(output_dir) / "properties.npz", x=x, y=y, **arrays)
     return x, y, arrays
+
+
+def calculate_isotherms(grid, temperatures, *, chunk_rows=256):
+    """Contour saved temperatures on P-S axes, preserving gaps between samples."""
+    import contourpy
+
+    generator = contourpy.contour_generator(
+        x=grid.x,
+        y=grid.y,
+        z=np.ma.masked_invalid(grid.values["temperature"]),
+        corner_mask=False,
+        chunk_size=(max(1, chunk_rows - 1), 0),
+        line_type="Separate",
+    )
+    return [
+        dict(
+            temperature=float(temperature),
+            resolved=True,
+            diagnostics=[],
+            lines=[
+                dict(
+                    points=[dict(pressure=float(p), entropy=float(s)) for p, s in path]
+                )
+                for path in generator.lines(float(temperature))
+            ],
+        )
+        for temperature in temperatures
+    ]
 
 
 def plot(diagram, x, y, arrays, *, isotherms=(), max_plot_resolution=1001):
@@ -150,9 +175,7 @@ def plot(diagram, x, y, arrays, *, isotherms=(), max_plot_resolution=1001):
     )
     for row, (name, label, factor) in enumerate(PROPERTIES):
         values = [
-            grid_example.array_sample(arrays[f"{mode}_{name}"], np.ix_(rows, columns))
-            * factor
-            for mode in MODES
+            arrays[f"{mode}_{name}"][np.ix_(rows, columns)] * factor for mode in MODES
         ]
         finite = np.concatenate([v[np.isfinite(v)] for v in values])
         if row == 0:
@@ -280,7 +303,7 @@ def main():
         has_solutions=True,
         values={"temperature": arrays["temperature"]},
     )
-    isotherms = grid_example.calculate_isotherms(temperatures, args.isotherms)
+    isotherms = calculate_isotherms(temperatures, args.isotherms)
     (args.output_dir / "isotherms.json").write_text(json.dumps(isotherms) + "\n")
     fig, _ = plot(
         diagram,

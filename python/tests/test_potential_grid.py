@@ -18,11 +18,24 @@ import pytest
 import burnman_cpp as bm
 from burnman_cpp.tools.potential_grid import DERIVATIVES, POTENTIALS
 
-pytest.importorskip("scipy")
+# Independent thermodynamic expectations, rather than values read back from
+# the implementation being tested: axes, then the two stability curvatures.
+NATURAL_POTENTIALS = {
+    "E": (("V", "S"), (1, 1)),
+    "F": (("V", "T"), (1, -1)),
+    "G": (("P", "T"), (-1, -1)),
+    "H": (("P", "S"), (-1, 1)),
+}
+
+
+def test_natural_variables_and_curvatures_match_thermodynamics():
+    assert {
+        name: values[:2] for name, values in POTENTIALS.items()
+    } == NATURAL_POTENTIALS
 
 
 def quadratic(symbol):
-    (vx, vy), (cx, cy), _ = POTENTIALS[symbol]
+    (vx, vy), (cx, cy) = NATURAL_POTENTIALS[symbol]
     sx, sy = {"V": 1e-5, "P": 1e9}[vx], {"S": 10.0, "T": 1000.0}[vy]
     x, y = np.linspace(1, 2, 7) * sx, np.linspace(1, 2, 9) * sy
     xx, yy = np.meshgrid(x / sx - 1, y / sy - 1)
@@ -41,7 +54,7 @@ def quadratic(symbol):
     )
 
 
-@pytest.mark.parametrize("symbol", list(POTENTIALS))
+@pytest.mark.parametrize("symbol", list(NATURAL_POTENTIALS))
 def test_reconstruct_missing_derivatives_at_edges_on_all_natural_potentials(symbol):
     grid = quadratic(symbol)
     truth = {name: getattr(grid, name).copy() for name in DERIVATIVES}
@@ -56,7 +69,7 @@ def test_reconstruct_missing_derivatives_at_edges_on_all_natural_potentials(symb
     np.testing.assert_array_equal(result.values, grid.values)
 
 
-@pytest.mark.parametrize("symbol", list(POTENTIALS))
+@pytest.mark.parametrize("symbol", list(NATURAL_POTENTIALS))
 def test_infill_corner_value_and_derivatives_with_correct_thermodynamic_signs(symbol):
     grid = quadratic(symbol)
     grid.values[0, 0] = np.nan
@@ -77,7 +90,7 @@ def test_infill_corner_value_and_derivatives_with_correct_thermodynamic_signs(sy
     assert np.isnan(grid.values[0, 0])
 
 
-@pytest.mark.parametrize("symbol", list(POTENTIALS))
+@pytest.mark.parametrize("symbol", list(NATURAL_POTENTIALS))
 def test_smoothing_derivatives_reproduce_physical_quadratics_for_all_potentials(symbol):
     grid = quadratic(symbol)
     result = bm.smooth_potential_grid(grid, sigma=(1.5, 2.0))
@@ -101,7 +114,7 @@ def test_grid_rejects_invalid_axes_and_shapes():
         bm.PotentialGrid("G", [1, 2], [1, 2], np.zeros((3, 2)))
 
 
-@pytest.mark.parametrize("symbol", list(POTENTIALS))
+@pytest.mark.parametrize("symbol", list(NATURAL_POTENTIALS))
 def test_potential_arrays_round_trip_without_models_or_pickle(tmp_path, symbol):
     grids = quadratic(symbol)
     grids.values[0, 0] = np.nan

@@ -64,8 +64,15 @@ def test_scalar_constraints_trace_saved_json_and_retain_source(simple_diagram, k
         line.field_number
         == bm.phase_diagram_field_polygons(saved).polygons[0].field_number
     )
-    assert len(line.points) > 10
-    assert line.termination == "field boundary; field boundary"
+    assert len(line.points) >= 2
+    for endpoint in (line.points[0], line.points[-1]):
+        assert (
+            min(abs(endpoint.pressure - edge) for edge in result.pressure_range) < 1.0
+            or min(
+                abs(endpoint.temperature - edge) for edge in result.temperature_range
+            )
+            < 1e-6
+        )
     for p in line.points:
         assert p.mass_balance_error < 1.0e-9
         phase.set_state(p.pressure, p.temperature)

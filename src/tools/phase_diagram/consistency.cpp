@@ -53,6 +53,14 @@ double conjugate(const State &state, Coordinate coordinate) {
   }
   return std::numeric_limits<double>::quiet_NaN();
 }
+double affinity_uncertainty(double amount_a, double affinity_a, double amount_b,
+                            double affinity_b) {
+  // Candidate affinities are per mole of the competing phase. The chemical
+  // potential bound therefore uses the other assemblage's mole amount, e.g.
+  // two moles of A + B can replace one mole of AB at the same bulk composition.
+  return amount_b * std::max(0., -affinity_a) +
+         amount_a * std::max(0., -affinity_b);
+}
 } // namespace
 
 double thermodynamic_potential(const State &state,
@@ -79,7 +87,9 @@ double thermodynamic_energy_tolerance(const State &a, const State &b) {
                   64. * std::numeric_limits<double>::epsilon()) *
                      scale;
   }
-  return tolerance;
+  return tolerance +
+         affinity_uncertainty(total_amount(a.phases), a.minimum_affinity,
+                              total_amount(b.phases), b.minimum_affinity);
 }
 ThermodynamicSample thermodynamic_sample(const State &state,
                                          const CompositionSection &section) {
@@ -87,6 +97,8 @@ ThermodynamicSample thermodynamic_sample(const State &state,
   sample.position = diagram_coordinates(state, section.type);
   sample.energy = thermodynamic_potential(state, section);
   sample.uncertainty = thermodynamic_energy_tolerance(state, State{});
+  sample.amount = total_amount(state.phases);
+  sample.minimum_affinity = state.minimum_affinity;
   sample.bulk_coordinate = state.composition_coordinate;
   sample.available = state.success && !state.outside_model_domain;
   const auto axes = diagram_axes(section.type);
@@ -114,13 +126,17 @@ double audit_thermodynamic_pair(const ThermodynamicSample &a,
   if (std::isfinite(a.energy) && std::isfinite(b.energy) &&
       a.position.allFinite() && b.position.allFinite() &&
       std::isfinite(a.gradient[k]) && std::isfinite(b.gradient[k]) &&
+      std::isfinite(a.amount) && std::isfinite(b.amount) &&
+      std::isfinite(a.minimum_affinity) && std::isfinite(b.minimum_affinity) &&
       std::isfinite(a.uncertainty) && std::isfinite(b.uncertainty)) {
     const double delta = b.position[k] - a.position[k],
                  change = b.energy - a.energy;
     const double sign = a.convex[axis] ? 1. : -1.;
     // Allow roundoff in the nominally fixed orthogonal coordinate. Diagram
     // sampling below only groups coordinates that agree to roundoff.
-    double tolerance = a.uncertainty + b.uncertainty;
+    double tolerance = a.uncertainty + b.uncertainty +
+                       affinity_uncertainty(a.amount, a.minimum_affinity,
+                                            b.amount, b.minimum_affinity);
     if (a.applicable[static_cast<std::size_t>(other)] &&
         a.position[other] != b.position[other])
       tolerance +=

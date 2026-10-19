@@ -779,8 +779,8 @@ void PropertyGridder::calculate(PropertyGrid &result, bool reverse) {
         if (field.outside_model_domain || field.phases.empty())
           return false;
         std::vector<const State *> starts;
-        for (const auto *row : {&current_row_, &previous_row_})
-          if (const auto *seed = neighbour_seed(*row, field.phases, q,
+        for (const auto *neighbour_row : {&current_row_, &previous_row_})
+          if (const auto *seed = neighbour_seed(*neighbour_row, field.phases, q,
                                                 source.section.type, range))
             starts.push_back(seed);
         std::sort(starts.begin(), starts.end(),

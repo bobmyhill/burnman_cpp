@@ -638,11 +638,11 @@ phase_diagrams::PropertyGrid saved_property_grid(const py::dict &data) {
     if (static_cast<Eigen::Index>(rows.size()) != grid.y.size())
       throw py::value_error("Saved solutions do not match the grid shape.");
     for (Eigen::Index j = 0; j < grid.y.size(); ++j) {
-      const auto row = rows[static_cast<py::ssize_t>(j)].cast<py::list>();
+      const auto row = rows[static_cast<std::size_t>(j)].cast<py::list>();
       if (static_cast<Eigen::Index>(row.size()) != grid.x.size())
         throw py::value_error("Saved solutions do not match the grid shape.");
       for (Eigen::Index i = 0; i < grid.x.size(); ++i) {
-        const auto item = row[static_cast<py::ssize_t>(i)];
+        const auto item = row[static_cast<std::size_t>(i)];
         if (item.is_none()) {
           if (grid.equilibrium_success(j, i))
             throw py::value_error(

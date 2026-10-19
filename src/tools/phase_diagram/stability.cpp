@@ -505,10 +505,10 @@ WorkState Engine::stable_at(const Eigen::Vector2d &q, const WorkState *warm,
   // and for non-natural P-V/T-S sections.
   auto seed = stable(physical[0], physical[1]);
   auto best = seed;
-  auto attempt = [&](const WorkState &first, const WorkState &second,
+  auto attempt = [&](const WorkState &first, const WorkState &additional,
                      const Eigen::Vector2d &guess) {
     auto states = first.state.phases;
-    for (auto phase : second.state.phases) {
+    for (auto phase : additional.state.phases) {
       auto old = find_phase(states, phase.id);
       if (old == states.end())
         states.push_back(phase);
@@ -1101,7 +1101,7 @@ std::shared_ptr<Assemblage> Engine::make_assemblage(const std::vector<int> &ids,
                 std::abs(population) < face_tolerance)
               cutoffs.push_back(std::abs(population));
           std::sort(cutoffs.begin(), cutoffs.end(),
-                    [](double a, double b) { return a > b; });
+                    [](double left, double right) { return left > right; });
           cutoffs.erase(std::unique(cutoffs.begin(), cutoffs.end()),
                         cutoffs.end());
         }
