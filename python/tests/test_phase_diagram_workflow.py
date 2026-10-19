@@ -41,6 +41,15 @@ def calculate(directory, diagram="PT", **kwargs):
     )
 
 
+def process(run, **kwargs):
+    return bm.calculate_potential_grid(
+        run.grid_manifest,
+        run.phases,
+        output_dir=run.refined_diagram.parent / "potentials",
+        **kwargs,
+    )
+
+
 @pytest.mark.parametrize(
     "diagram,symbol",
     [
@@ -57,7 +66,8 @@ def calculate(directory, diagram="PT", **kwargs):
 def test_real_diagram_refinement_saved_grid_and_potential_replay(
     tmp_path, diagram, symbol
 ):
-    run = calculate(tmp_path, diagram, make_potential_grid=True)
+    run = calculate(tmp_path, diagram)
+    potentials = process(run)
     assert run.diagram.resolved and run.diagram.spacing_resolved
     assert run.grid_manifest is not None and not run.diagnostics
     assert run.initial_diagram.exists() and run.refined_diagram.exists()
@@ -68,7 +78,7 @@ def test_real_diagram_refinement_saved_grid_and_potential_replay(
     assert grids.values.shape == (
         (4, 3) if tuple(diagram) == grids.variables else (3, 4)
     )
-    saved = bm.load_potential_grid(run.raw_potential)
+    saved = bm.load_potential_grid(potentials.raw_potential)
     assert saved.potential == symbol
     np.testing.assert_array_equal(saved.values, grids.values)
     assert grids.equilibrium_success.all() and np.isfinite(grids.values).all()
@@ -152,7 +162,7 @@ def test_real_diagram_refinement_saved_grid_and_potential_replay(
     assert manifest == json.loads(run.grid_manifest.read_text())
 
 
-@pytest.mark.parametrize("problem", ["unresolved", "spacing", "polygon"])
+@pytest.mark.parametrize("problem", ["unresolved", "polygon"])
 def test_only_completely_resolved_diagrams_are_gridded(tmp_path, monkeypatch, problem):
     refine = workflow._core.refine_phase_diagram
 
@@ -161,10 +171,6 @@ def test_only_completely_resolved_diagrams_are_gridded(tmp_path, monkeypatch, pr
         data = result.to_dict()
         if problem == "unresolved":
             data.update(resolved=False, diagnostics=["Unresolved test boundary"])
-        if problem == "spacing":
-            data.update(
-                spacing_resolved=False, spacing_diagnostics=["Unmet test spacing"]
-            )
         return bm.PhaseDiagramResult.from_dict(data)
 
     monkeypatch.setattr(workflow._core, "refine_phase_diagram", fail_refinement)
@@ -179,12 +185,7 @@ def test_only_completely_resolved_diagrams_are_gridded(tmp_path, monkeypatch, pr
         pytest.fail("Unresolved diagrams must never start gridding")
 
     monkeypatch.setattr(workflow, "phase_diagram_grid_chunks", forbidden)
-    run = calculate(
-        tmp_path,
-        make_potential_grid=True,
-        make_infilled_potential_grid=True,
-        make_smoothed_potential_grid=True,
-    )
+    run = calculate(tmp_path)
     assert run.grid_manifest is None and run.diagnostics
     assert run.initial_diagram.exists() and run.refined_diagram.exists()
     assert not (tmp_path / "grid_solutions").exists()
@@ -193,9 +194,48 @@ def test_only_completely_resolved_diagrams_are_gridded(tmp_path, monkeypatch, pr
     assert not report["gridding_started"]
 
 
+@pytest.mark.parametrize("grid_warning", [False, True])
+def test_unmet_boundary_spacing_warns_without_blocking_gridding(
+    tmp_path, monkeypatch, grid_warning
+):
+    refine = workflow._core.refine_phase_diagram
+    retry = workflow.retry_property_grid_chunks
+
+    def unmet_spacing(*args, **kwargs):
+        data = refine(*args, **kwargs).to_dict()
+        data.update(spacing_resolved=False, spacing_diagnostics=["Unmet test spacing"])
+        return bm.PhaseDiagramResult.from_dict(data)
+
+    monkeypatch.setattr(workflow._core, "refine_phase_diagram", unmet_spacing)
+    if grid_warning:
+
+        def warning_on_retry(*args, **kwargs):
+            for rows, cols, grid in retry(*args, **kwargs):
+                data = grid.to_dict()
+                data["diagnostics"] = ["Test grid property warning"]
+                yield rows, cols, bm.PhaseDiagramPropertyGrid.from_dict(data)
+
+        monkeypatch.setattr(workflow, "retry_property_grid_chunks", warning_on_retry)
+    run = calculate(tmp_path)
+    assert run.diagram.resolved and not run.diagram.spacing_resolved
+    assert run.grid_manifest is not None
+    manifest = json.loads(run.grid_manifest.read_text())
+    assert manifest["complete"] and manifest["equilibrium_successes"] == 12
+    assert run.diagnostics == [*manifest["diagnostics"], "Unmet test spacing"]
+    if grid_warning:
+        assert manifest["diagnostics"]
+        assert all(
+            item["messages"] == ["Test grid property warning"]
+            for item in manifest["diagnostics"]
+        )
+    report = json.loads((tmp_path / "report.json").read_text())
+    assert report["gridding_started"] and report["diagnostics"] == run.diagnostics
+
+
 def test_catalogue_aliases_and_endmembers_are_not_duplicated():
     phases, provenance = workflow._candidates("SLB24", None)
     assert phases and len({p.name for p in phases}) == len(phases)
+    assert {p.name for p in phases} <= SLB24.phase_aliases.keys()
     assert len(provenance["phase_names"]) == len(phases)
     assert not any(isinstance(p, bm.RelaxedSolution) for p in phases)
     endmembers = {
@@ -301,7 +341,7 @@ def test_gridding_can_be_disabled_for_a_resolved_diagram(tmp_path, monkeypatch):
     monkeypatch.setattr(workflow, "phase_diagram_grid_chunks", forbidden)
     run = calculate(tmp_path, make_grid=False)
     assert run.diagram.resolved and not run.diagnostics
-    assert run.grid_manifest is None and run.raw_potential is None
+    assert run.grid_manifest is None
     assert run.initial_diagram.exists() and run.refined_diagram.exists()
     assert not (tmp_path / "grid_solutions").exists()
 
@@ -312,20 +352,21 @@ def test_raw_potential_output_does_not_implicitly_process_arrays(tmp_path, monke
 
     monkeypatch.setattr(workflow, "infill_potential_grid", forbidden)
     monkeypatch.setattr(workflow, "smooth_potential_grid", forbidden)
-    run = calculate(tmp_path, "PS", make_potential_grid=True, smoothing_sigma=0.5)
-    raw = bm.load_potential_grid(run.raw_potential)
+    run = calculate(tmp_path, "PS")
+    potentials = process(run, smoothing_sigma=0.5)
+    raw = bm.load_potential_grid(potentials.raw_potential)
     expected = bm.load_potential_grid(run.grid_manifest, run.phases)
-    assert run.infilled_potential is None and run.smoothed_potential is None
+    assert (
+        potentials.infilled_potential is None and potentials.smoothed_potential is None
+    )
     np.testing.assert_array_equal(raw.values, expected.values)
     np.testing.assert_array_equal(raw.d2_dy2, expected.d2_dy2)
 
 
 def test_infill_output_does_not_require_smoothing(tmp_path):
-    run = calculate(
-        tmp_path, make_potential_grid=True, make_infilled_potential_grid=True
-    )
-    assert run.raw_potential.exists() and run.infilled_potential.exists()
-    assert run.smoothed_potential is None
+    potentials = process(calculate(tmp_path), make_infilled_potential_grid=True)
+    assert potentials.raw_potential.exists() and potentials.infilled_potential.exists()
+    assert potentials.smoothed_potential is None
 
 
 def test_smoothing_is_skipped_when_infilling_leaves_a_gap(tmp_path, monkeypatch):
@@ -338,15 +379,14 @@ def test_smoothing_is_skipped_when_infilling_leaves_a_gap(tmp_path, monkeypatch)
         return result, {"success": False}
 
     monkeypatch.setattr(workflow, "infill_potential_grid", incomplete)
-    run = calculate(
-        tmp_path,
-        make_potential_grid=True,
+    potentials = process(
+        calculate(tmp_path),
         make_infilled_potential_grid=True,
         make_smoothed_potential_grid=True,
     )
-    assert run.raw_potential.exists() and run.infilled_potential.exists()
-    assert run.smoothed_potential is None
-    assert any("nonfinite" in message for message in run.diagnostics)
+    assert potentials.raw_potential.exists() and potentials.infilled_potential.exists()
+    assert potentials.smoothed_potential is None
+    assert any("nonfinite" in message for message in potentials.diagnostics)
 
 
 def test_infill_and_smoothing_write_separate_files_and_preserve_raw_gaps(
@@ -363,15 +403,18 @@ def test_infill_and_smoothing_write_separate_files_and_preserve_raw_gaps(
 
     monkeypatch.setattr(workflow, "load_potential_grid", missing_corner)
     # Smoothing infers G for PT and requests infilling first.
-    run = calculate(
-        tmp_path,
-        make_potential_grid=True,
+    potentials = process(
+        calculate(tmp_path),
         make_infilled_potential_grid=True,
         make_smoothed_potential_grid=True,
     )
     raw, filled, smoothed = [
         bm.load_potential_grid(path)
-        for path in (run.raw_potential, run.infilled_potential, run.smoothed_potential)
+        for path in (
+            potentials.raw_potential,
+            potentials.infilled_potential,
+            potentials.smoothed_potential,
+        )
     ]
     assert np.isnan(raw.values[0, 0])
     assert np.isfinite(filled.values).all() and np.isfinite(smoothed.values).all()
@@ -379,51 +422,101 @@ def test_infill_and_smoothing_write_separate_files_and_preserve_raw_gaps(
     np.testing.assert_array_equal(filled.values[observed], raw.values[observed])
     np.testing.assert_array_equal(smoothed.equilibrium_success, raw.equilibrium_success)
     assert not smoothed.equilibrium_success[0, 0]
-    assert len({run.raw_potential, run.infilled_potential, run.smoothed_potential}) == 3
-    report = json.loads((tmp_path / "report.json").read_text())
+    assert (
+        len(
+            {
+                potentials.raw_potential,
+                potentials.infilled_potential,
+                potentials.smoothed_potential,
+            }
+        )
+        == 3
+    )
+    report = json.loads((potentials.raw_potential.parent / "report.json").read_text())
     assert report["postprocessing"]["n_missing"] == 1
 
 
 @pytest.mark.parametrize(
     "options",
     [
-        dict(make_grid=False, make_potential_grid=True),
-        dict(make_infilled_potential_grid=True),
-        dict(make_potential_grid=True, make_smoothed_potential_grid=True),
+        dict(make_smoothed_potential_grid=True),
         dict(
-            make_potential_grid=True,
             make_infilled_potential_grid=True,
             make_smoothed_potential_grid=True,
             smoothing_sigma=-1.0,
         ),
+        dict(make_infilled_potential_grid="yes"),
+        dict(
+            make_infilled_potential_grid=True,
+            make_smoothed_potential_grid=True,
+            smoothing_sigma=(1, 2, 3),
+        ),
     ],
 )
-def test_invalid_processing_options_are_rejected_before_calculation(tmp_path, options):
-    with pytest.raises(ValueError):
-        calculate(tmp_path, **options)
+def test_invalid_processing_options_are_rejected_before_loading(tmp_path, options):
+    with pytest.raises((ValueError, TypeError)):
+        bm.calculate_potential_grid(
+            "missing.npz", output_dir=tmp_path / "invalid", **options
+        )
     assert not list(tmp_path.iterdir())
 
 
-@pytest.mark.parametrize("diagram", ["PV", "TS"])
-def test_non_natural_coordinates_require_potential_gridding_to_be_disabled(
-    tmp_path, diagram
+@pytest.mark.parametrize("source_type", ["npz", "arrays"])
+def test_potential_processing_can_repeat_without_models_or_equilibrium_solves(
+    tmp_path, monkeypatch, source_type
 ):
-    with pytest.raises(ValueError, match="make_potential_grid=False"):
-        calculate(tmp_path, diagram, make_potential_grid=True)
-    assert not list(tmp_path.iterdir())
+    run = calculate(tmp_path / "diagram", "PS")
+    first = process(run)
+    source = first.raw_potential
+    before = source.read_bytes()
+    if source_type == "arrays":
+        source = bm.load_potential_grid(source)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Processing existing potential arrays must not solve equilibria")
+
+    monkeypatch.setattr(workflow._core, "stable_equilibrium", forbidden)
+    monkeypatch.setattr(workflow, "phase_diagram_grid_chunks", forbidden)
+    second = bm.calculate_potential_grid(
+        source,
+        output_dir=tmp_path / "reprocessed",
+        make_infilled_potential_grid=True,
+        make_smoothed_potential_grid=True,
+        smoothing_sigma=(1.0, 2.0),
+    )
+    assert second.infilled_potential.exists() and second.smoothed_potential.exists()
+    assert not second.diagnostics
+    assert set(second.timings) == {"potential", "infill", "smoothing"}
+    np.testing.assert_array_equal(
+        bm.load_potential_grid(second.raw_potential).values,
+        bm.load_potential_grid(first.raw_potential).values,
+    )
+    assert first.raw_potential.read_bytes() == before
+    with pytest.raises(FileExistsError):
+        bm.calculate_potential_grid(source, output_dir=tmp_path / "reprocessed")
+    assert first.raw_potential.read_bytes() == before
+
+
+def test_smoothing_grid_size_is_checked_before_creating_output(tmp_path):
+    grid = bm.PotentialGrid("H", [1.0, 2.0], [3.0, 4.0], np.zeros((2, 2)))
+    directory = tmp_path / "potential"
+    with pytest.raises(ValueError, match="three grid points"):
+        bm.calculate_potential_grid(
+            grid,
+            output_dir=directory,
+            make_infilled_potential_grid=True,
+            make_smoothed_potential_grid=True,
+        )
+    assert not directory.exists()
 
 
 def test_make_grid_saves_only_equilibrium_samples(tmp_path, monkeypatch):
     def forbidden(*args, **kwargs):
         pytest.fail("Potential processing was not requested")
 
-    monkeypatch.setattr(workflow, "_process_potential", forbidden)
+    monkeypatch.setattr(workflow, "load_potential_grid", forbidden)
     run = calculate(tmp_path)
     assert run.grid_manifest.exists()
-    assert all(
-        path is None
-        for path in (run.raw_potential, run.infilled_potential, run.smoothed_potential)
-    )
     assert not list(tmp_path.glob("*.npz"))
 
 
@@ -446,7 +539,6 @@ def test_non_natural_sections_can_grid_equilibrium_samples(
     )
     assert run.diagram.resolved, run.diagnostics
     assert run.grid_manifest is not None
-    assert run.raw_potential is None
     assert (
         sum(
             int(grid.equilibrium_success.sum())
@@ -454,6 +546,9 @@ def test_non_natural_sections_can_grid_equilibrium_samples(
         )
         == 12
     )
+    with pytest.raises(ValueError, match="Potential processing requires"):
+        process(run)
+    assert not (tmp_path / "potentials").exists()
 
 
 @pytest.mark.parametrize("resolved", [True, False])

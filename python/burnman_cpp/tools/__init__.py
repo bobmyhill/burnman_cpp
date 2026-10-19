@@ -76,7 +76,9 @@ __all__ = [
 from .potential_grid import PotentialGrid, load_potential_grid, save_potential_grid
 from .phase_diagram_workflow import (
     PhaseDiagramCalculation,
+    PotentialGridCalculation,
     calculate_phase_diagram_grid,
+    calculate_potential_grid,
 )
 
 
@@ -92,6 +94,8 @@ __all__ += [
     "smooth_potential_grid",
     "PhaseDiagramCalculation",
     "calculate_phase_diagram_grid",
+    "PotentialGridCalculation",
+    "calculate_potential_grid",
     "AspectTableExport",
     "write_aspect_entropy_pressure_table",
 ]

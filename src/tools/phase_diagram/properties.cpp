@@ -2,9 +2,9 @@
 // SPDX-FileCopyrightText: Copyright (C) 2026 by the BurnMan Team.
 #include "burnman/tools/phase_diagram/properties.hpp"
 #include "burnman/core/relaxed_solution.hpp"
+#include "burnman/tools/phase_diagram/consistency.hpp"
 #include "burnman/tools/phase_diagram/polygons.hpp"
 #include "burnman/tools/phase_diagram/stability.hpp"
-#include "burnman/tools/phase_diagram/consistency.hpp"
 #include "burnman/tools/polytope.hpp"
 #include <Eigen/Eigenvalues>
 #include <algorithm>
@@ -264,9 +264,9 @@ bool contains(const FieldPolygon &field, const Eigen::Vector2d &q,
 // cannot initialise this candidate, but can be tried separately as an
 // alternative.
 const State *neighbour_seed(const std::map<double, State> &row,
-                                    const std::vector<int> &ids,
-                                    const Eigen::Vector2d &q, DiagramType type,
-                                    const Eigen::Vector2d &range) {
+                            const std::vector<int> &ids,
+                            const Eigen::Vector2d &q, DiagramType type,
+                            const Eigen::Vector2d &range) {
   const auto upper = row.lower_bound(q[0]);
   const State *nearest = nullptr;
   double best = std::numeric_limits<double>::infinity();
@@ -314,10 +314,9 @@ equilibrate_grid_candidate(detail::Engine &engine, const std::vector<int> &ids,
 
 // Saved phase amounts/compositions and physical P,T form a portable Newton
 // starting state. Keep only the phases of this proposed assemblage.
-std::optional<State> field_seed(const Result &source,
-                                        const FieldPolygon &field,
-                                        const Eigen::Vector2d &q,
-                                        const Eigen::Vector2d &range) {
+std::optional<State> field_seed(const Result &source, const FieldPolygon &field,
+                                const Eigen::Vector2d &q,
+                                const Eigen::Vector2d &range) {
   std::optional<State> best;
   double distance = std::numeric_limits<double>::infinity();
   auto consider = [&](const auto &state) {
