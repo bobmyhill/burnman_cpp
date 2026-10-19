@@ -338,6 +338,8 @@ from .tools.potential_grid import (
     PotentialGrid,
     load_potential_grid,
     save_potential_grid,
+    infill_potential_grid,
+    smooth_potential_grid,
 )
 from .tools.phase_diagram_workflow import (
     PhaseDiagramCalculation,
@@ -345,10 +347,6 @@ from .tools.phase_diagram_workflow import (
     calculate_phase_diagram_grid,
     calculate_potential_grid,
 )
-
-
-from .tools.potential_infill import infill_potential_grid
-from .tools.potential_smoothing import smooth_potential_grid
 from .tools.aspect import AspectTableExport, write_aspect_entropy_pressure_table
 
 __all__ += [

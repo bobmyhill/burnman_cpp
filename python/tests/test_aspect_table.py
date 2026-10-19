@@ -200,7 +200,11 @@ def test_missing_native_solutions_interpolate_only_missing_velocities(
     observed = missing.equilibrium_success.T.ravel()
     truth = np.loadtxt(full.table, skiprows=4)
     filled = np.loadtxt(export.table, skiprows=4)
-    np.testing.assert_array_equal(filled[observed], truth[observed])
+    # Bulk mass is recomputed after JSON reconstruction. Summation order can
+    # change derived specific properties by a few floating-point roundoff units.
+    np.testing.assert_allclose(
+        filled[observed], truth[observed], rtol=4 * np.finfo(float).eps, atol=0
+    )
     assert np.isfinite(filled).all()
     assert len(export.diagnostics) == 2
     assert all("interpolated 2" in message for message in export.diagnostics)
