@@ -1,12 +1,4 @@
 {
-  "calculation_pressure_range_Pa": [
-    0.0,
-    150000000000.0
-  ],
-  "temperature_range_K": [
-    0.0,
-    4000.0
-  ],
   "phase_names": [
     "ol",
     "ol #2",
@@ -1130,5 +1122,13 @@
     }
   ],
   "samples": [],
-  "fields": []
+  "fields": [],
+  "pressure_range": [
+    0.0,
+    150000000000.0
+  ],
+  "temperature_range": [
+    0.0,
+    4000.0
+  ]
 }

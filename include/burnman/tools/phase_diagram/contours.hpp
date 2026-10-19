@@ -30,8 +30,6 @@ struct ContourSettings {
 struct ContourLine {
   // Same one-based number as the source FieldPolygon.
   int field_number = 0;
-  // Internal sampled-assemblage ID, retained for compatibility.
-  int field_id = -1;
   std::vector<int> phases;
   std::vector<BoundaryPoint> points;
   bool closed = false;

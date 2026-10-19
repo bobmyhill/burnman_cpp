@@ -4,14 +4,6 @@
       "name": "line 53 trace spin activation",
       "end": "start",
       "previous": {
-        "calculation_pressure_range_Pa": [
-          0.0,
-          150000000000.0
-        ],
-        "temperature_range_K": [
-          0.0,
-          4000.0
-        ],
         "phase_names": [
           "ol",
           "ol #2",
@@ -264,6 +256,14 @@
               }
             ]
           }
+        ],
+        "pressure_range": [
+          0.0,
+          150000000000.0
+        ],
+        "temperature_range": [
+          0.0,
+          4000.0
         ]
       }
     },
@@ -271,14 +271,6 @@
       "name": "line 136 trace spin activation",
       "end": "end",
       "previous": {
-        "calculation_pressure_range_Pa": [
-          0.0,
-          150000000000.0
-        ],
-        "temperature_range_K": [
-          0.0,
-          4000.0
-        ],
         "phase_names": [
           "ol",
           "ol #2",
@@ -522,6 +514,14 @@
               }
             ]
           }
+        ],
+        "pressure_range": [
+          0.0,
+          150000000000.0
+        ],
+        "temperature_range": [
+          0.0,
+          4000.0
         ]
       }
     },
@@ -529,14 +529,6 @@
       "name": "line 176 trace spin activation",
       "end": "end",
       "previous": {
-        "calculation_pressure_range_Pa": [
-          0.0,
-          150000000000.0
-        ],
-        "temperature_range_K": [
-          0.0,
-          4000.0
-        ],
         "phase_names": [
           "ol",
           "ol #2",
@@ -768,6 +760,14 @@
               }
             ]
           }
+        ],
+        "pressure_range": [
+          0.0,
+          150000000000.0
+        ],
+        "temperature_range": [
+          0.0,
+          4000.0
         ]
       }
     }

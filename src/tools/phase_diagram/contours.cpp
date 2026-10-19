@@ -330,7 +330,6 @@ class Contours {
     }
     ContourLine line;
     line.field_number = field.field_number;
-    line.field_id = field.field_id;
     line.phases = ids;
     std::string forward, backward;
     line.points = follow(seed, d, line.closed, forward);

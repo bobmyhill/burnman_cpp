@@ -58,6 +58,91 @@ def square(low=0.2, high=0.8):
 
 @pytest.mark.parametrize("width", [1.0e-6, 1.0e-9])
 @pytest.mark.parametrize("reverse", [False, True])
+def test_reaction_loop_recovers_a_thin_field_despite_agreed_stale_side_labels(
+    width, reverse
+):
+    # A-out and B-out enclose A+B+C. Both old normal probes skipped that
+    # narrow field and reported C alone. Agreement between those probes cannot
+    # override the different zero-amount constraints around the closed loop.
+    data = diagram(
+        [
+            dict(
+                id=0,
+                zero_phase=0,
+                **line([(0.5, 0), (0.5 - width, 0.5), (0.5, 1)], [3, 6], [6]),
+            ),
+            dict(
+                id=1,
+                zero_phase=3,
+                **line([(0.5, 0), (0.5 + width, 0.5), (0.5, 1)], [6], [0, 6]),
+            ),
+        ]
+    )
+    for boundary in data["boundaries"]:
+        boundary.update(
+            assemblage=[0, 3, 6], start_node=0, end_node=1, reaction_kind="phase_out"
+        )
+    data["nodes"] = [
+        dict(
+            id=i,
+            pressure=0.5,
+            temperature=float(i),
+            kind="junction",
+            assemblage=[0, 3, 6, 9],
+            gibbs_variance=1,
+            pt_nullity=0,
+        )
+        for i in range(2)
+    ]
+    if reverse:
+        data["boundaries"].reverse()
+        for boundary in data["boundaries"]:
+            boundary["points"].reverse()
+            boundary["side_a"], boundary["side_b"] = (
+                boundary["side_b"],
+                boundary["side_a"],
+            )
+            boundary["start_node"], boundary["end_node"] = 1, 0
+    geometry = bm.phase_diagram_field_polygons(data)
+    assert not geometry.diagnostics
+    assert {tuple(p.phases) for p in geometry.polygons} == {(3, 6), (0, 3, 6), (0, 6)}
+    thin = next(p for p in geometry.polygons if p.phases == [0, 3, 6])
+    assert thin.area == pytest.approx(width, rel=1.0e-6)
+    assert all(sides[0] != sides[1] for sides in geometry.boundary_sides.values())
+    assert set(geometry.boundary_sides) == {0, 1}
+
+
+def test_agreed_probe_labels_cannot_hide_conflicting_verified_reactions():
+    data = diagram(
+        [
+            dict(
+                id=0,
+                zero_phase=0,
+                assemblage=[0, 3],
+                reaction_kind="phase_out",
+                **line([(0.5, 0), (0.4, 0.5), (0.5, 1)], [3], [0]),
+            ),
+            dict(
+                id=1,
+                zero_phase=0,
+                assemblage=[0, 6],
+                reaction_kind="phase_out",
+                **line([(0.5, 0), (0.6, 0.5), (0.5, 1)], [0], [6]),
+            ),
+        ]
+    )
+    # The inner side labels agree on A, but the reactions permit {A+B, B}
+    # and {A+C, C}. No single field satisfies both: a connection or label is
+    # missing. Displaying A must not certify this loop as resolved.
+    geometry = bm.phase_diagram_field_polygons(data)
+    interior = next(p for p in geometry.polygons if p.phases == [0])
+    assert interior.is_provisional
+    assert any("conflicting perimeter reactions" in d for d in geometry.diagnostics)
+    assert not geometry.boundary_sides
+
+
+@pytest.mark.parametrize("width", [1.0e-6, 1.0e-9])
+@pytest.mark.parametrize("reverse", [False, True])
 def test_distinct_phase_out_arcs_keep_a_field_below_drawing_tolerance(width, reverse):
     # Independent zero-amount conditions can bound a field much narrower than
     # the coordinate snapping tolerance. Their shared full assemblage does not
@@ -558,7 +643,6 @@ def test_joining_keeps_intersections_and_disconnected_boundaries_separate():
     horizontal = [(t, p) for p, t in vertical]
     crossing = bm.phase_diagram_field_polygons(
         diagram([line(vertical, [0], [1]), line(horizontal, [0], [1])]),
-        merge_fields=False,
     )
     check_joined_edges(crossing)
     paths = [path for path in crossing.boundary_lines if len(path) > 2]
@@ -647,7 +731,7 @@ def test_closed_loop_and_surrounding_field_preserve_hole():
 def test_tiny_face_area_is_stable_far_from_coordinate_origin():
     low, high = 0.9, 0.9 + 4.0e-8
     result = bm.phase_diagram_field_polygons(
-        diagram([line(square(low, high), [0, 1], [0])]), merge_fields=False
+        diagram([line(square(low, high), [0, 1], [0])])
     )
     enclosed = next(p for p in result.polygons if p.n_phases == 2)
     assert enclosed.area == pytest.approx((high - low) ** 2, rel=1.0e-12, abs=0.0)
@@ -658,11 +742,11 @@ def test_verified_interior_can_identify_face_thinner_than_snap_tolerance():
     triangle = [(0.1, 0.1), (0.9, 0.9), (0.5 + 2.0e-9, 0.5 - 2.0e-9), (0.1, 0.1)]
     interior = sample(0.5 + 2.0e-9 / 3.0, 0.5 - 2.0e-9 / 3.0, [0, 1, 2])
     data = diagram([line(triangle, [0], [0, 1, 2])], [interior])
-    ordinary = bm.phase_diagram_field_polygons(data, merge_fields=False)
+    ordinary = bm.phase_diagram_field_polygons(data)
     assert {p.n_phases for p in ordinary.polygons} == {1, 3}
     assert all(p.sample_index == -1 for p in ordinary.polygons)
     interior["is_field_verification"] = True
-    verified = bm.phase_diagram_field_polygons(data, merge_fields=False)
+    verified = bm.phase_diagram_field_polygons(data)
     assert not verified.diagnostics
     assert {p.n_phases for p in verified.polygons} == {1, 3}
     enclosed = next(p for p in verified.polygons if p.n_phases == 3)
@@ -728,9 +812,7 @@ def test_latent_invariant_loops_have_no_area_but_univariant_strips_remain(
         ],
     )
     before = json.dumps(data, sort_keys=True)
-    geometry = bm.phase_diagram_field_polygons(
-        data, tolerance=1.0e-12, merge_fields=False
-    )
+    geometry = bm.phase_diagram_field_polygons(data, tolerance=1.0e-12)
     assert json.dumps(data, sort_keys=True) == before
     assert len(geometry.polygons) == expected_count
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
@@ -826,7 +908,6 @@ def test_crossing_curves_between_stable_vertices_form_one_field_loop():
     assert len(geometry.polygons) == 2
     assert {tuple(p.phases) for p in geometry.polygons} == {(0,), (0, 1)}
     assert all(not p.has_open_boundary for p in geometry.polygons)
-    assert all(len(p.source_regions) == 1 for p in geometry.polygons)
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
     assert len(geometry.boundary_lines) == 6  # two saved arcs and four frame sides
     np.testing.assert_array_equal(geometry.boundary_lines[0], first)
@@ -845,15 +926,13 @@ def test_explicit_junctions_close_adjacent_fields_without_polygon_union():
     data["nodes"] = [
         dict(id=i, pressure=0.5, temperature=t) for i, t in enumerate([0.2, 0.8])
     ]
-    for merge in (False, True):
-        geometry = bm.phase_diagram_field_polygons(data, merge_fields=merge)
-        assert not geometry.diagnostics
-        assert len(geometry.polygons) == 3
-        assert sorted(p.area for p in geometry.polygons) == pytest.approx(
-            [0.32, 0.32, 0.36]
-        )
-        assert all(len(p.source_regions) == 1 for p in geometry.polygons)
-        assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
+    geometry = bm.phase_diagram_field_polygons(data)
+    assert not geometry.diagnostics
+    assert len(geometry.polygons) == 3
+    assert sorted(p.area for p in geometry.polygons) == pytest.approx(
+        [0.32, 0.32, 0.36]
+    )
+    assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
 
 
 def test_nested_closed_loops_are_retained_even_with_identical_labels():
@@ -865,7 +944,6 @@ def test_nested_closed_loops_are_retained_even_with_identical_labels():
         [0.04, 0.32, 0.64]
     )
     assert sorted(len(p.holes) for p in geometry.polygons) == [0, 1, 1]
-    assert all(len(p.source_regions) == 1 for p in geometry.polygons)
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
 
 
@@ -882,7 +960,6 @@ def test_same_assemblage_loops_touching_at_a_stable_vertex_remain_separate():
     assert sorted(p.area for p in geometry.polygons) == pytest.approx(
         [0.09, 0.09, 0.82]
     )
-    assert all(len(p.source_regions) == 1 for p in geometry.polygons)
 
 
 def test_hole_is_not_assigned_to_neighbour_touching_its_first_vertex():
@@ -939,18 +1016,14 @@ def test_grid_closed_loops_preserve_each_cell_and_assemblage():
             for j in range(n)
         ],
     )
-    raw = bm.phase_diagram_field_polygons(data, merge_fields=False)
-    merged = bm.phase_diagram_field_polygons(data)
-    assert not raw.diagnostics and not merged.diagnostics
-    assert len(raw.polygons) == n * n
-    assert len(merged.polygons) == n * n
-    for geometry in (raw, merged):
-        assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
-        for p in geometry.polygons:
-            cell = tuple(np.floor(p.label_position * n).astype(int))
-            assert p.phases == [int(grid[cell])]
-            assert p.area == pytest.approx(1.0 / (n * n))
-            assert len(p.source_regions) == 1
+    geometry = bm.phase_diagram_field_polygons(data)
+    assert not geometry.diagnostics
+    assert len(geometry.polygons) == n * n
+    assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
+    for p in geometry.polygons:
+        cell = tuple(np.floor(p.label_position * n).astype(int))
+        assert p.phases == [int(grid[cell])]
+        assert p.area == pytest.approx(1.0 / (n * n))
 
 
 def test_open_boundary_is_not_extended_to_close_a_field():
@@ -1000,7 +1073,6 @@ def test_roundoff_width_rings_are_removed_but_thin_fields_are_kept(
     geometry = bm.phase_diagram_field_polygons(
         diagram([line(triangle, [0], [0, 1])], [sample(0.5, 0.5, [0])]),
         tolerance=1.0e-12,
-        merge_fields=False,
     )
     assert not geometry.diagnostics
     assert len(geometry.polygons) == expected_count
@@ -1022,7 +1094,6 @@ def test_intersection_roundoff_near_a_metasediment_junction(width, expected_coun
     geometry = bm.phase_diagram_field_polygons(
         diagram([line(triangle, [0, 1], [0])], [sample(0.5, 0.5, [0])]),
         tolerance=1.0e-12,
-        merge_fields=False,
     )
     assert not geometry.diagnostics
     assert len(geometry.polygons) == expected_count
@@ -1071,7 +1142,7 @@ def test_near_edge_sample_does_not_change_perimeter_labels():
             sample(0.5 - 5.0e-9, 0.5, [1]),
         ],
     )
-    geometry = bm.phase_diagram_field_polygons(data, merge_fields=False)
+    geometry = bm.phase_diagram_field_polygons(data)
     assert not geometry.diagnostics
     assert len(geometry.polygons) == 3
     assert [
@@ -1143,7 +1214,6 @@ def test_saved_pyrolite_fragments_296_to_298_belong_to_one_vertex_loop():
     field = geometry.polygons[matches[0]]
     assert field.phases == target
     assert not field.has_open_boundary
-    assert len(field.source_regions) == 1
 
 
 @pytest.mark.parametrize("tip,open_count", [((0.1, 0.5), 1), ((0.3, 0.5), 2)])
@@ -1206,7 +1276,7 @@ def test_conflicting_perimeter_without_samples_remains_unidentified():
     assert result.diagnostics[0].startswith(f"Field {inner.field_number} ")
 
 
-def test_native_equilibrium_result_and_saved_json_range_names():
+def test_aluminosilicate_polygons_cover_the_native_domain():
     from burnman_cpp.minerals import HP11
 
     settings = bm.PhaseDiagramSettings()
@@ -1223,12 +1293,6 @@ def test_native_equilibrium_result_and_saved_json_range_names():
     assert len(polygons.polygons) == 3
     assert all(p.n_phases == 1 for p in polygons.polygons)
     assert sum(p.area for p in polygons.polygons) == pytest.approx(1.0)
-    data = diagram([line(square(), [0, 1], [0])])
-    data["calculation_pressure_range_Pa"] = data.pop("pressure_range")
-    data["temperature_range_K"] = data.pop("temperature_range")
-    assert sorted(
-        p.n_phases for p in bm.phase_diagram_field_polygons(data).polygons
-    ) == [1, 2]
 
 
 def test_plot_has_discrete_phase_count_colours_and_hole(tmp_path):
@@ -1362,8 +1426,7 @@ def test_plot_marks_only_unverified_critical_endpoints(verified):
         plt.close(fig)
 
 
-@pytest.mark.parametrize("merge_fields", [True, False])
-def test_plot_labels_each_explicit_closed_loop(merge_fields):
+def test_plot_labels_each_explicit_closed_loop():
     matplotlib = pytest.importorskip("matplotlib")
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -1381,7 +1444,6 @@ def test_plot_labels_each_explicit_closed_loop(merge_fields):
         data,
         pressure_unit="Pa",
         temperature_unit="K",
-        merge_fields=merge_fields,
         show_unresolved=False,
         label_key_path=None,
         label_fontsize=10.0,
@@ -1582,7 +1644,7 @@ def test_conflicting_hole_does_not_override_agreed_exterior():
         ],
         [sample(0.3, 0.3, [0, 1])],
     )
-    geometry = bm.phase_diagram_field_polygons(data, merge_fields=False)
+    geometry = bm.phase_diagram_field_polygons(data)
     surrounding = next(p for p in geometry.polygons if p.holes and p.area < 0.5)
     assert surrounding.phases == [0, 1]
     assert surrounding.is_provisional

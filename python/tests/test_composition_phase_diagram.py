@@ -365,7 +365,7 @@ def test_composition_subrange_clips_coexistence_to_its_frame():
         ({"composition_range": (0.5, 0.5)}, "increasing"),
         (
             {"temperature_range": (900.0, 1100.0), "temperature": None},
-            "fixed temperature",
+            "fixed thermodynamic coordinate",
         ),
         ({"temperature": None}, "Specify both"),
         ({"diagram": "YX"}, "diagram must"),

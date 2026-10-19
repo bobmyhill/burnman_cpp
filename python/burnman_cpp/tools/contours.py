@@ -30,7 +30,6 @@ def phase_diagram_contour_levels(
     constraint,
     *,
     settings=None,
-    composition=None,
     verbose=False,
 ):
     """Calculate a family of property contours or mineral-composition isopleths.
@@ -39,8 +38,7 @@ def phase_diagram_contour_levels(
     original candidate phases, in their original order. ``constraint(value)``
     returns any native equality constraint or a field-specific constraint
     factory. Levels use the units expected by that constructor (normally SI).
-    ``settings`` controls native seeding and continuation; ``composition``
-    supplies the elemental bulk for legacy results without composition_start.
+    ``settings`` controls native seeding and continuation.
 
     For example, ``levels`` can contain garnet Mg/(Mg+Fe2+) values and the
     factory can construct the corresponding phase-composition constraint.
@@ -70,7 +68,6 @@ def phase_diagram_contour_levels(
             phases,
             constraint(value),
             settings=settings,
-            composition=composition,
         )
         records.append(dict(value=value, contours=lines.to_dict()))
         if verbose:

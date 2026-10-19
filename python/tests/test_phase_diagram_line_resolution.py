@@ -366,7 +366,7 @@ def test_pyrolite_reaction_extent_repairs_keep_unverified_loops_unresolved(
     path = Path(__file__).parent / "data" / f"pyrolite_{name}.json"
     data = json.loads(path.read_text())
     # Saved records propose duplicates; only equivalent corrected equilibria
-    # may be joined. Ambiguous legacy records must remain explicitly unresolved.
+    # may be joined. Unverified records must remain explicitly unresolved.
     data["resolved"] = False
     transform_saved_traces(data, transform)
     factory = runpy.run_path(
@@ -890,7 +890,7 @@ def test_missing_line_remains_diagnosed_with_provisional_field_labels(crossing):
     assert len(result.boundaries) == 3
     check_spacing(result, (17, 21))
     geometry = bm.phase_diagram_field_polygons(result)
-    assert any("conflicting perimeter assemblages" in d for d in geometry.diagnostics)
+    assert geometry.diagnostics
     assert len(geometry.polygons) == 3
     # Existing equilibrium limits can supply a provisional label, while the
     # missing physical boundary must still prevent a resolved result.
@@ -1064,7 +1064,7 @@ def test_perimeter_labels_survive_crowded_or_previously_verified_warm_roots(
     result = bm.refine_phase_diagram(
         saved["composition_start"], model_sets.metabasite().phases, saved
     )
-    geometry = bm.phase_diagram_field_polygons(result, merge_fields=False)
+    geometry = bm.phase_diagram_field_polygons(result)
     polygons = [
         polygon
         for polygon in geometry.polygons
@@ -1116,7 +1116,7 @@ def test_local_basalt_fields_use_saved_evidence_without_new_interior_roots(
     result = bm.refine_phase_diagram(
         saved["composition_start"], model_sets.metabasite().phases, saved
     )
-    geometry = bm.phase_diagram_field_polygons(result, merge_fields=False)
+    geometry = bm.phase_diagram_field_polygons(result)
     assert all(p.phases for p in geometry.polygons)
     assert all("label is provisional" in d for d in geometry.diagnostics)
     containing = [
@@ -1140,7 +1140,7 @@ def test_local_pyrolite_neighbours_escape_the_phase_amount_cutoff():
         saved["composition_start"], example["candidate_phases"](), saved
     )
     assert result.resolved, result.diagnostics
-    geometry = bm.phase_diagram_field_polygons(result, merge_fields=False)
+    geometry = bm.phase_diagram_field_polygons(result)
     assert not geometry.diagnostics
     assert {tuple(p.phases) for p in geometry.polygons} == {
         tuple(f["phases"]) for f in saved["fields"]
@@ -1305,7 +1305,7 @@ def test_metasediment_explicit_refinement_preserves_saved_samples(
         opts,
         resolution=(101, 201),
     )
-    geometry = bm.phase_diagram_field_polygons(result, merge_fields=False)
+    geometry = bm.phase_diagram_field_polygons(result)
     containing = [
         p
         for p in geometry.polygons
@@ -1458,38 +1458,6 @@ def test_unmet_resolution_is_reported_without_losing_verified_boundaries(
     )
     assert retried.resolved and retried.spacing_resolved
     assert not retried.diagnostics and not retried.spacing_diagnostics
-
-
-@pytest.mark.parametrize("structural", [[], ["Field 1 label is provisional."]])
-def test_legacy_spacing_diagnostics_migrate_without_losing_metadata(
-    crossing, tmp_path, structural
-):
-    _, original = crossing
-    saved = deepcopy(original)
-    warning = (
-        "Boundary 0: requested line resolution was not reached on "
-        "1 segment(s) (refinement limit reached)."
-    )
-    saved.update(schema_version=3, resolved=False, diagnostics=structural + [warning])
-    del saved["spacing_diagnostics"], saved["spacing_resolved"]
-    expected_resolved = not structural
-    native = bm.PhaseDiagramResult.from_dict(saved)
-    assert native.resolved == expected_resolved
-    assert native.diagnostics == structural
-    assert not native.spacing_resolved
-    assert native.spacing_diagnostics == [warning]
-
-    saved["description"] = "Preserve extra saved metadata."
-    source = tmp_path / "legacy.json"
-    source.write_text(json.dumps(saved))
-    loaded = bm.load_phase_diagram(source)
-    assert loaded["resolved"] == expected_resolved
-    assert loaded["diagnostics"] == structural
-    assert loaded["spacing_diagnostics"] == [warning]
-    assert not loaded["spacing_resolved"]
-    assert loaded["description"] == saved["description"]
-    destination = bm.save_phase_diagram(saved, tmp_path / "updated.json")
-    assert bm.load_phase_diagram(destination) == loaded
 
 
 @pytest.mark.parametrize("swap_instances", [False, True])

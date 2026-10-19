@@ -489,8 +489,7 @@ int boundary_variance(const Boundary &line, const Result &result) {
 void repair_field_boundaries(
     Result &result, Engine &engine,
     const std::function<void(Boundary &)> &label,
-    const std::function<bool(Boundary &, std::size_t)> &refine,
-    const std::function<void(Boundary &)> &response_label) {
+    const std::function<bool(Boundary &, std::size_t)> &refine) {
   const auto ranges = result.coordinate_ranges();
   for (auto &line : result.boundaries)
     trim_boundary_endpoints(
@@ -498,28 +497,24 @@ void repair_field_boundaries(
         {ranges[0][1] - ranges[0][0], ranges[1][1] - ranges[1][0]});
   join_duplicate_junctions(result, engine);
   auto refresh_conflicting_labels = [&]() {
-    if (!response_label)
-      return;
     std::set<int> conflicting;
-    for (const auto &polygon : field_polygons(result).polygons)
+    const auto graph = recover_boundary_labels(result);
+    for (const auto &polygon : graph.polygons)
       if (polygon.is_provisional && !polygon.has_open_boundary &&
           !polygon.outside_model_domain)
         conflicting.insert(polygon.boundary_ids.begin(),
                            polygon.boundary_ids.end());
     for (auto &line : result.boundaries)
       if (conflicting.count(line.id) && !ambiguous_boundary(line))
-        response_label(line);
+        label(line);
   };
   refresh_conflicting_labels();
   // A certified connection/label correction can finish the repair without
   // splitting or subdividing unrelated accepted curves. Rebuild incidence
   // first so an obsolete junction record cannot supply a stale certificate.
-  if (result.section.type == DiagramType::PT && response_label) {
-    for (auto &node : result.nodes)
-      node.incident_lines.clear();
-    for (const auto &line : result.boundaries)
-      record_incident_line(result, line);
-    if (field_diagnostics(result, engine).empty())
+  if (result.section.type == DiagramType::PT) {
+    rebuild_boundary_incidence(result);
+    if (field_diagnostics(result, engine, field_polygons(result)).empty())
       return;
   }
   auto selected = split_at_stable_nodes(result, engine);
@@ -596,41 +591,9 @@ void repair_field_boundaries(
   for (const auto &polygon : field_polygons(result).polygons)
     if (polygon.is_provisional && !polygon.outside_model_domain)
       selected.insert(polygon.boundary_ids.begin(), polygon.boundary_ids.end());
-  auto skipped_neighbour = [&](const Boundary &line) {
-    if (has_composition_axis(result.section.type))
-      return false;
-    const bool observed = std::any_of(
-        result.fields.begin(), result.fields.end(), [&](const Field &f) {
-          return f.phases == engine.canonical_ids(line.assemblage);
-        });
-    if (!line.points.empty() && observed) {
-      const auto formulae = engine.phase_formulae(
-          line.assemblage, line.points[line.points.size() / 2].phases);
-      Eigen::FullPivLU<Eigen::MatrixXd> amounts(formulae);
-      amounts.setThreshold(1.e-9);
-      if (amounts.rank() == formulae.rows()) {
-        auto absent = line.assemblage;
-        absent.erase(std::find(absent.begin(), absent.end(), line.zero_phase));
-        auto full = engine.canonical_ids(line.assemblage),
-             missing = engine.canonical_ids(absent);
-        auto immediate = [&](const std::vector<int> &side) {
-          return side == full || side == missing;
-        };
-        return !immediate(line.side_a) || !immediate(line.side_b);
-      }
-    }
-    const auto copies = std::count_if(
-        line.assemblage.begin(), line.assemblage.end(), [&](int id) {
-          return id / engine.settings.max_phase_instances ==
-                 line.zero_phase / engine.settings.max_phase_instances;
-        });
-    return copies > 1 && std::min(line.side_a.size(), line.side_b.size()) + 1 <
-                             line.assemblage.size();
-  };
   for (auto &line : result.boundaries)
     if (ambiguous_boundary(line) ||
-        (!rejected.count(line.id) &&
-         (skipped_neighbour(line) || selected.count(line.id))))
+        (!rejected.count(line.id) && selected.count(line.id)))
       try {
         label(line);
       } catch (const std::exception &error) {

@@ -51,49 +51,24 @@ using detail::canonical_phase_ids;
 // Finite-area neighbouring assemblages permitted by this reaction. Include the
 // zero phase only on an admissible side; a univariant reaction is not itself an
 // additional area to colour. Verified replacement reactions supply their sides.
-Assemblages boundary_assemblages(const Boundary &line, const Result &result,
-                                 bool limiting = false) {
+Assemblages boundary_assemblages(const Boundary &line, const Result &result) {
   Assemblages choices;
   if (line.assemblage.empty() || line.zero_phase < 0)
     return choices;
-  const int variance = detail::boundary_variance(line, result);
-  auto finite_area = [&](const Phases &ids) {
-    return !ids.empty() &&
-           (result.section.type != DiagramType::PT || variance < 0 ||
-            static_cast<int>(ids.size()) <=
-                static_cast<int>(line.assemblage.size()) + variance - 2);
+  auto insert = [&](const Phases &phases) {
+    if (!phases.empty())
+      choices.insert(
+          canonical_phase_ids(phases, result.settings.max_phase_instances));
   };
-  auto insert = [&](const Phases &ids) {
-    if (!finite_area(ids))
-      return;
-    choices.insert(
-        canonical_phase_ids(ids, result.settings.max_phase_instances));
-  };
-  // A composition edge or compound reaction can replace phases absent from
-  // the source assemblage. Its verified neighbours supply the alternatives.
-  const auto source =
-      canonical_phase_ids(line.assemblage, result.settings.max_phase_instances);
-  auto outside_source = [&](const Phases &ids) {
-    const auto phases =
-        canonical_phase_ids(ids, result.settings.max_phase_instances);
-    return !std::includes(source.begin(), source.end(), phases.begin(),
-                          phases.end());
-  };
-  const bool replacement =
-      limiting || has_composition_axis(result.section.type) ||
-      !finite_area(line.assemblage) || outside_source(line.side_a) ||
-      outside_source(line.side_b);
-  if (replacement) {
+  if (line.reaction_kind == ReactionKind::phase_out) {
+    insert(line.assemblage);
+    auto absent = line.assemblage;
+    absent.erase(std::remove(absent.begin(), absent.end(), line.zero_phase),
+                 absent.end());
+    insert(absent);
+  } else if (line.reaction_kind == ReactionKind::replacement) {
     insert(line.side_a);
     insert(line.side_b);
-  } else {
-    insert(line.assemblage);
-    Phases absent = line.assemblage;
-    auto zero = std::find(absent.begin(), absent.end(), line.zero_phase);
-    if (zero != absent.end()) {
-      absent.erase(zero);
-      insert(absent);
-    }
   }
   return choices;
 }
@@ -545,13 +520,15 @@ class PolygonBuilder {
       const bool separate_phase_outs =
           result.section.type == DiagramType::PT && same_reaction &&
           source->zero_phase != old.source->zero_phase &&
-          detail::boundary_variance(*source, result) > 1 &&
-          detail::boundary_variance(*old.source, result) > 1 &&
-          (canonical_assemblage(source->assemblage) == left ||
-           canonical_assemblage(source->assemblage) == right) &&
-          (old.labels.count(canonical_assemblage(old.source->assemblage)) ||
-           edges[candidate ^ 1].labels.count(
-               canonical_assemblage(old.source->assemblage)));
+          (((source->reaction_kind == ReactionKind::phase_out) ||
+            (old.source->reaction_kind == ReactionKind::phase_out)) ||
+           (detail::boundary_variance(*source, result) > 1 &&
+            detail::boundary_variance(*old.source, result) > 1 &&
+            (canonical_assemblage(source->assemblage) == left ||
+             canonical_assemblage(source->assemblage) == right) &&
+            (old.labels.count(canonical_assemblage(old.source->assemblage)) ||
+             edges[candidate ^ 1].labels.count(
+                 canonical_assemblage(old.source->assemblage)))));
       auto follows = [&](const Ring &a, const Ring &b, double allowance) {
         return detail::follows_polyline(
             a, b, [&](Index vertex) { return vertices.points[vertex]; },
@@ -635,6 +612,7 @@ class PolygonBuilder {
                       std::move(left),
                       std::move(right),
                       line->is_solution_replacement,
+                      line->reaction_kind,
                       detail::boundary_variance(*line, result),
                       reversed};
   }
@@ -951,7 +929,6 @@ class PolygonBuilder {
       FieldPolygon polygon;
       polygon.field_number =
           burnman::utils::checked_int(output.polygons.size() + 1);
-      polygon.source_regions.push_back(polygon.field_number - 1);
       polygon.has_open_boundary = face.dangling;
       polygon.area = face.area;
       polygon.vertices =
@@ -1027,8 +1004,8 @@ class PolygonBuilder {
       // can expose unfinished topology without suppressing its surrounding
       // label.
       Assemblages exterior_labels, perimeter;
-      std::array<Assemblages, 3> candidates;
-      std::array<bool, 3> constrained{};
+      Assemblages candidates;
+      bool constrained = false;
       std::set<const Boundary *> sources, observations;
       std::set<Index> perimeter_edges;
       auto collect = [&](Index edge) { perimeter_edges.insert(edge); };
@@ -1056,19 +1033,18 @@ class PolygonBuilder {
             // perimeter reactions to identify each finite field.
             if (edges[edge].latent_invariant)
               continue;
-            intersect_assemblages(candidates[0],
-                                  boundary_assemblages(source, result),
-                                  constrained[0]);
-            if (result.section.type == DiagramType::PT) {
-              const auto limiting = boundary_assemblages(source, result, true);
-              intersect_assemblages(candidates[1], limiting, constrained[1]);
-              if (detail::boundary_variance(source, result) != 1)
-                intersect_assemblages(candidates[2], limiting, constrained[2]);
-            }
+            intersect_assemblages(
+                candidates, boundary_assemblages(source, result), constrained);
           }
           for (const auto &phases : edges[edge].labels) {
             if (phases.empty())
               continue;
+            if (const auto *source = edges[edge].source;
+                source && (source->reaction_kind == ReactionKind::phase_out)) {
+              const auto permitted = boundary_assemblages(*source, result);
+              unknown_side = unknown_side ||
+                             (!permitted.empty() && !permitted.count(phases));
+            }
             perimeter.insert(phases);
             if (exterior)
               exterior_labels.insert(phases);
@@ -1082,16 +1058,10 @@ class PolygonBuilder {
         if (source->id >= 0)
           polygon.boundary_ids.push_back(source->id);
       std::sort(polygon.boundary_ids.begin(), polygon.boundary_ids.end());
-      // Finite probes may skip thin fields, so first use the phase-out choices.
-      // A compound reaction can instead replace a different limiting zero
-      // phase; require agreement around the entire loop before accepting that
-      // alternative.
-      Phases common;
-      for (const auto &choices : candidates)
-        if (choices.size() == 1) {
-          common = *choices.begin();
-          break;
-        }
+      // Every reaction constrains the same loop. A unique common assemblage
+      // takes priority over finite side probes that can skip a narrow field.
+      Phases common = candidates.size() == 1 ? *candidates.begin() : Phases{};
+      const bool inconsistent = constrained && candidates.empty();
       bool loop_identified = false;
       // Two records of one univariant curve bound a field of zero width. Its
       // perimeter labels conflict, so label it with every phase present along
@@ -1124,14 +1094,14 @@ class PolygonBuilder {
       if (!univariant.empty()) {
         polygon.phases = std::move(univariant);
         loop_identified = true;
+      } else if (!face.dangling && !common.empty()) {
+        polygon.phases = std::move(common);
+        loop_identified = true;
       } else if (exterior_labels.size() == 1)
         polygon.phases = *exterior_labels.begin();
       else if (exterior_labels.empty() && perimeter.size() == 1)
         polygon.phases = *perimeter.begin();
-      else if (!face.dangling && !common.empty()) {
-        polygon.phases = std::move(common);
-        loop_identified = true;
-      } else if (!sample_phases.empty())
+      else if (!sample_phases.empty())
         polygon.phases = sample_phases;
       else if (perimeter.empty()) {
         // No usable loop or interior sample: retain a provisional label from
@@ -1156,7 +1126,7 @@ class PolygonBuilder {
       if (identified != field_ids.end())
         polygon.field_id = identified->second;
       polygon.is_provisional =
-          face.dangling ||
+          face.dangling || inconsistent ||
           (!loop_identified && (unknown_side || perimeter.size() > 1)) ||
           (perimeter.empty() && (physical_perimeter || !uniform));
       if (polygon.is_provisional || polygon.phases.empty())
@@ -1169,6 +1139,8 @@ class PolygonBuilder {
              : polygon.phases.empty() ? " has no assemblage evidence."
              : face.dangling
                  ? " contains an unfinished boundary; its label is provisional."
+             : inconsistent ? " has conflicting perimeter reactions; its label "
+                              "is provisional."
              : unknown_side ? " has an unlabelled perimeter side; its label is "
                               "provisional."
              : perimeter.empty()
@@ -1342,8 +1314,7 @@ public:
 } // namespace
 
 FieldPolygons field_polygons(const Result &result, double tolerance,
-                             bool close_domain, bool /* merge_fields */) {
-  // The legacy merge option remains API-compatible; closed loops are fields.
+                             bool close_domain) {
   return PolygonBuilder(result, tolerance).build(close_domain);
 }
 

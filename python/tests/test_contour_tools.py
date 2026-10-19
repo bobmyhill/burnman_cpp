@@ -61,14 +61,12 @@ def test_batches_accept_field_factories_and_retain_failed_level_diagnostics(sect
     settings = bm.PhaseDiagramContourSettings()
     settings.max_trace_steps = 1
     saved = result.to_dict()
-    del saved["composition_start"]
     records = bm.phase_diagram_contour_levels(
         saved,
         [phase],
         [1000.0],
         lambda value: lambda *_: bm.TemperatureConstraint(value),
         settings=settings,
-        composition=result.composition_start,
     )
     assert not records[0]["contours"]["resolved"]
     assert records[0]["contours"]["diagnostics"]

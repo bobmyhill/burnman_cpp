@@ -274,6 +274,7 @@ def test_boundary_probes_keep_a_narrow_field_between_equal_phase_counts():
         assert result.resolved, result.diagnostics
         assert len(result.boundaries) == 2
         for line in result.boundaries:
+            assert line.reaction_kind == "phase_out"
             assert line.assemblage == [0, 3, 6]
             missing = [p for p in line.assemblage if p != line.zero_phase]
             assert {tuple(line.side_a), tuple(line.side_b)} == {
@@ -289,6 +290,16 @@ def test_boundary_probes_keep_a_narrow_field_between_equal_phase_counts():
     for line in saved["boundaries"]:
         line.update(side_a=[0, 6], side_b=[0, 3])
     saved["resolved"] = False  # Deliberately stale labels require recovery.
+    # The reaction graph can recover all three finite assemblages from the
+    # verified phase-out conditions, independently of those stale probes.
+    for representation in (saved, bm.PhaseDiagramResult.from_dict(saved)):
+        geometry = bm.phase_diagram_field_polygons(representation)
+        assert not geometry.diagnostics
+        assert {tuple(p.phases) for p in geometry.polygons} == {
+            (0, 3, 6),
+            (0, 3),
+            (0, 6),
+        }
     check_neighbours(bm.refine_phase_diagram(bulk, phases, saved))
 
 
@@ -459,8 +470,8 @@ def test_resume_does_not_relocate_or_reverify_samples_from_another_domain():
     # is unstable. Dropping it must preserve the requested field coordinates.
     saved["boundaries"] = []
     saved["nodes"] = []
-    saved["pressure_range"] = saved["calculation_pressure_range_Pa"] = [1e5, 1.01e5]
-    saved["temperature_range"] = saved["temperature_range_K"] = [700.0, 700.1]
+    saved["pressure_range"] = [1e5, 1.01e5]
+    saved["temperature_range"] = [700.0, 700.1]
     saved["samples"] = saved["samples"][:1]
     repaired = bm.refine_phase_diagram(bulk, phases, saved, opts)
     assert repaired.to_dict()["samples"] == saved["samples"]
@@ -671,13 +682,6 @@ def test_save_refined_diagram_preserves_metadata_and_replaces_old_phase_lines(tm
     assert loaded == metadata | refined.to_dict()
     assert path.read_text(encoding="utf-8") == before
 
-    # Re-saving old files must retain extra entries and omit absent legacy keys.
-    legacy = saved.copy()
-    del legacy["composition_start"]
-    legacy["future_metadata"] = {"note": "Preserve this entry"}
-    save_phase_diagram(legacy, destination)
-    assert load_phase_diagram(destination) == legacy
-
 
 @pytest.mark.parametrize("invalid_value", [np.nan, np.inf, -np.inf])
 def test_invalid_metadata_does_not_overwrite_an_existing_diagram(
@@ -690,52 +694,6 @@ def test_invalid_metadata_does_not_overwrite_an_existing_diagram(
         bm.save_phase_diagram(saved, path, metadata={"bulk_mass": invalid_value})
     assert path.read_bytes() == original
     assert bm.load_phase_diagram(path) == saved
-
-
-def test_legacy_region_diagnostics_use_plot_numbers_on_load_save_and_native_import(
-    tmp_path,
-):
-    old = [
-        "Region 0 has no assemblage evidence.",
-        "Region 219 has conflicting perimeter assemblages; its label is provisional.",
-        "No closed region resolved for sampled field 37; increase seed density or inspect failed solves.",
-    ]
-    unchanged = [
-        "Field 220 has no assemblage evidence.",
-        "Boundary 8: neighbouring fields could not be distinguished within tolerances.",
-        "Region 2x is not an index.",
-        "Region -1 is not an index.",
-        "Region 999999999999999999999 is not an index.",
-        "Region 219",
-    ]
-    expected = [
-        "Field 1 has no assemblage evidence.",
-        "Field 220 has conflicting perimeter assemblages; its label is provisional.",
-        "No closed region resolved for sampled assemblage 37; increase seed density or inspect failed solves.",
-    ] + unchanged
-    saved = dict(
-        pressure_range=[0.0, 1.0],
-        temperature_range=[0.0, 1.0],
-        fields=[],
-        samples=[],
-        nodes=[],
-        boundaries=[],
-        diagnostics=old + unchanged,
-        metadata={"keep": "unchanged"},
-    )
-    path = tmp_path / "legacy.json"
-    original = json.dumps(saved)
-    path.write_text(original)
-    loaded = bm.load_phase_diagram(path)
-    assert loaded == saved | dict(diagnostics=expected)
-    assert path.read_text() == original
-    native = bm.PhaseDiagramResult.from_dict(saved)
-    assert native.diagnostics == expected
-    assert native.to_dict()["diagnostics"] == expected
-    destination = bm.save_phase_diagram(saved, tmp_path / "updated.json")
-    assert json.loads(destination.read_text()) == loaded
-    assert bm.load_phase_diagram(destination) == loaded  # Conversion is idempotent.
-    assert saved["diagnostics"] == old + unchanged  # Do not mutate the caller.
 
 
 def test_settings_dictionary_rejects_unknown_options():
@@ -759,7 +717,7 @@ def test_conflicting_loops_recheck_stale_edges_without_interior_samples():
     opts.max_recovery_passes = 0
     result = bm.refine_phase_diagram(bulk, crossing_phases(), previous, opts)
     assert not any("No field edge" in d for d in result.diagnostics)
-    polygons = bm.phase_diagram_field_polygons(result, merge_fields=False)
+    polygons = bm.phase_diagram_field_polygons(result)
     assert len(polygons.polygons) == 4
     assert all(p.n_phases == 2 and p.phases for p in polygons.polygons)
     assert {tuple(p.phases) for p in polygons.polygons} == expected

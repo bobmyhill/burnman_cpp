@@ -56,10 +56,12 @@ def test_closed_perimeters_recover_ambiguous_boundary_labels(
     boundary = next(b for b in result.boundaries if b.id == 9)
     assert boundary.side_a == full and boundary.side_b == absent
     assert result.equilibrium_solves == data["equilibrium_solves"]
-    assert list(result.diagnostics) == (
-        ["An unrelated diagnostic must survive."] if unrelated else []
-    )
-    assert result.resolved == (not unrelated)
+    # This extracted network has an unfinished exterior field. Recovering
+    # boundary 9 must retain that diagnostic rather than certify the whole crop.
+    expected = ["An unrelated diagnostic must survive."] if unrelated else []
+    expected += list(before.diagnostics)
+    assert list(result.diagnostics) == expected
+    assert result.resolved == (not expected)
     checked = result.to_dict()
     assert checked["nodes"] == data["nodes"]
     assert checked["samples"] == data["samples"]
@@ -102,9 +104,19 @@ def test_opposed_duplicate_loops_keep_each_records_side_orientation(reverse):
     points = square()
     data = diagram(
         [
-            dict(id=3, zero_phase=0, assemblage=[0, 3], **line(points, [0, 3], [3])),
             dict(
-                id=9, zero_phase=0, assemblage=[0, 3], **line(points[::-1], [3], [0, 3])
+                id=3,
+                zero_phase=0,
+                assemblage=[0, 3],
+                reaction_kind="phase_out",
+                **line(points, [0, 3], [3]),
+            ),
+            dict(
+                id=9,
+                zero_phase=0,
+                assemblage=[0, 3],
+                reaction_kind="phase_out",
+                **line(points[::-1], [3], [0, 3]),
             ),
         ]
     )

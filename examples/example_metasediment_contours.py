@@ -35,7 +35,6 @@ from burnman_cpp.tools.phase_diagram_helpers import load_example, save_figure
 metasediment = load_example(
     Path(__file__).with_name("example_metasediment_phase_diagram.py")
 )
-METASEDIMENT_COMPOSITION = metasediment.METASEDIMENT_COMPOSITION
 candidate_phases = metasediment.candidate_phases
 
 
@@ -44,9 +43,7 @@ def calculate(diagram, density_levels, garnet_levels, seed_grid=5, step=0.02):
     settings = bm.PhaseDiagramContourSettings()
     settings.seed_grid = seed_grid
     settings.step = step
-    composition = diagram.get(
-        "composition_start", METASEDIMENT_COMPOSITION.atomic_composition
-    )
+    composition = diagram["composition_start"]
     # The Composition object keeps density on the saved bulk's amount scale.
     mass = sum(bm.Composition(composition, "molar").mass_composition.values())
     # MP14 garnet's A sites contain Mg and Fe2+; its Fe3+ B site is excluded.
@@ -66,7 +63,6 @@ def calculate(diagram, density_levels, garnet_levels, seed_grid=5, step=0.02):
             levels,
             constructor,
             settings=settings,
-            composition=composition,
             verbose=True,
         )
         for name, (levels, constructor) in constructors.items()

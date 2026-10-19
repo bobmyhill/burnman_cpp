@@ -82,7 +82,8 @@
           "pressure": 33416405864.166405,
           "temperature": 447.95098817625336
         }
-      ]
+      ],
+      "reaction_kind": "phase_out"
     },
     {
       "id": 390,
@@ -157,7 +158,8 @@
           "pressure": 33624955154.982677,
           "temperature": 432.9424462371903
         }
-      ]
+      ],
+      "reaction_kind": "phase_out"
     },
     {
       "id": 394,
@@ -218,7 +220,8 @@
           "pressure": 35940584755.754814,
           "temperature": 0.0
         }
-      ]
+      ],
+      "reaction_kind": "unknown"
     },
     {
       "id": 395,
@@ -279,7 +282,8 @@
           "pressure": 35836012031.07589,
           "temperature": 163.5587282223692
         }
-      ]
+      ],
+      "reaction_kind": "unknown"
     },
     {
       "id": 712,
@@ -326,7 +330,8 @@
           "pressure": 33624965398.369587,
           "temperature": 432.94163693474707
         }
-      ]
+      ],
+      "reaction_kind": "phase_out"
     }
   ],
   "nodes": [

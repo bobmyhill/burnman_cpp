@@ -635,6 +635,8 @@ TEST_CASE("Fe-O TX closes fields with unequal composition endpoints",
   namespace hp = minerals::HGP18;
   ps::CompositionSection path;
   path.type = ps::DiagramType::TX;
+  path.fixed_coordinate = ps::Coordinate::P;
+  path.fixed_value = 1.e5;
   path.composition_end = {{"Fe", 2.}, {"O", 3.}};
   ps::Settings settings;
   settings.temperature_seeds = settings.composition_seeds = 5;

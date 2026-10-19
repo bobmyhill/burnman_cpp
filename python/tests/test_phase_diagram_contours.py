@@ -103,7 +103,6 @@ def test_contour_diagnostics_identify_the_closed_loop_not_a_sampled_assemblage(
     saved["fields"][0]["id"] = 37
     contours = bm.phase_diagram_contours(saved, [phase], bm.PressureConstraint(4.0e9))
     assert contours.lines[0].field_number == 1
-    assert contours.lines[0].field_id == 37  # Preserve internal IDs for callers.
     saved["fields"] = saved["samples"] = []
     contours = bm.phase_diagram_contours(saved, [phase], bm.PressureConstraint(4.0e9))
     assert contours.diagnostics == [
@@ -210,23 +209,10 @@ def test_constraint_and_source_validation(simple_diagram):
         bm.phase_diagram_contours(result, [phase], lambda *_: 4.0)
     with pytest.raises(ValueError, match="candidate names"):
         bm.phase_diagram_contours(result, [], bm.PressureConstraint(4.0e9))
-    with pytest.raises(ValueError, match="match the saved bulk"):
-        bm.phase_diagram_contours(
-            result,
-            [phase],
-            bm.PressureConstraint(4.0e9),
-            composition={"Mg": 2.0, "O": 2.0},
-        )
-    legacy = result.to_dict()
-    del legacy["composition_start"]
+    incomplete = result.to_dict()
+    del incomplete["composition_start"]
     with pytest.raises(ValueError, match="composition_start"):
-        bm.phase_diagram_contours(legacy, [phase], bm.PressureConstraint(4.0e9))
-    assert bm.phase_diagram_contours(
-        legacy,
-        [phase],
-        bm.PressureConstraint(4.0e9),
-        composition=result.composition_start,
-    ).resolved
+        bm.phase_diagram_contours(incomplete, [phase], bm.PressureConstraint(4.0e9))
 
 
 def test_phase_composition_constraint_uses_the_field_parameter_layout():

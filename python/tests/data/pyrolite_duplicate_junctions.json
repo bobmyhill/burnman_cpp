@@ -143,14 +143,6 @@
     "resolved": false,
     "equilibrium_solves": 0,
     "minimization_calls": 0,
-    "calculation_pressure_range_Pa": [
-      0.0,
-      25000000000.0
-    ],
-    "temperature_range_K": [
-      0.0,
-      2500.0
-    ],
     "settings": {
       "pressure_seeds": 9,
       "temperature_seeds": 9,
@@ -7757,14 +7749,6 @@
     "resolved": false,
     "equilibrium_solves": 0,
     "minimization_calls": 0,
-    "calculation_pressure_range_Pa": [
-      0.0,
-      140000000000.0
-    ],
-    "temperature_range_K": [
-      0.0,
-      4000.0
-    ],
     "settings": {
       "pressure_seeds": 140,
       "temperature_seeds": 40,
@@ -15594,14 +15578,6 @@
     "resolved": false,
     "equilibrium_solves": 0,
     "minimization_calls": 0,
-    "calculation_pressure_range_Pa": [
-      0.0,
-      140000000000.0
-    ],
-    "temperature_range_K": [
-      0.0,
-      4000.0
-    ],
     "settings": {
       "pressure_seeds": 140,
       "temperature_seeds": 40,
@@ -30408,14 +30384,6 @@
     "resolved": false,
     "equilibrium_solves": 0,
     "minimization_calls": 0,
-    "calculation_pressure_range_Pa": [
-      0.0,
-      140000000000.0
-    ],
-    "temperature_range_K": [
-      0.0,
-      4000.0
-    ],
     "settings": {
       "pressure_seeds": 140,
       "temperature_seeds": 40,

@@ -75,7 +75,6 @@ struct CompositionSection {
   // Extensive entropy (J/K) and volume (m^3), on the supplied bulk scale.
   std::array<double, 2> entropy_range{0., 1.}, volume_range{1.e-6, 1.e-4};
   // An X section fixes one thermodynamic coordinate outside its axes.
-  // Omitted for legacy PX/TX sections: infer fixed T/P from its range.
   std::optional<Coordinate> fixed_coordinate;
   double fixed_value = 0.;
 };
@@ -151,7 +150,7 @@ struct PhaseState {
   // Pure phases have [1]; ordering coefficients may be negative.
   Eigen::VectorXd composition;
   // Rows express the accepted reduced composition basis in original
-  // endmembers. Missing means the full model or an older snapshot. Retain
+  // endmembers. Missing means the full model. Retain
   // the actual basis: proportions alone cannot identify constrained sites.
   std::optional<Eigen::MatrixXd> composition_basis;
 };
@@ -187,11 +186,17 @@ struct BoundaryPoint {
   double mass_balance_error = 0., minimum_affinity = 0., residual = 0.;
 };
 
+/// Relation between neighbouring fields, verified by the equilibrium response.
+enum class ReactionKind { unknown, phase_out, replacement };
+
 /// One traced reaction curve, stored as an ordered sequence of solved points.
-/// Consecutive points are joined by straight segments only for
-/// geometry/drawing.
+/// Consecutive points are joined by straight segments only for drawing.
 struct Boundary {
   int id = -1, zero_phase = -1, start_node = -1, end_node = -1;
+  // A phase_out has a finite full-assemblage field and a field without
+  // zero_phase. A replacement exchanges limiting assemblages. Unknown means
+  // that the local equilibrium response has not established the reaction.
+  ReactionKind reaction_kind = ReactionKind::unknown;
   // Verified exchange of distinct solution compositions at unchanged counts.
   bool is_solution_replacement = false;
   // assemblage retains all boundary instances, including zero_phase. The side
@@ -310,8 +315,6 @@ struct FieldPolygon {
   bool is_provisional = false;
   bool outside_model_domain = false;
   std::vector<int> phases;
-  // Zero-based closed-loop indices; use field_number for display.
-  std::vector<int> source_regions;
   // Closed rings in the selected diagram coordinates (SI units). Holes
   // have opposite winding. Area is a fraction of the diagram domain.
   Eigen::MatrixXd vertices;
