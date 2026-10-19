@@ -11,7 +11,7 @@
 # and contributions can be found in the LICENSE document.
 #
 # ------------------------------------------------------
-"""Create, refine and grid silica and pyrolite diagrams using one public driver.
+"""Create phase diagrams/equilibria, then process their potentials independently.
 
 PHASE_DIAGRAMS holds the diagram-specific inputs; main() applies shared grid,
 processing and plotting options to each entry. Edit the list to choose which
@@ -27,6 +27,7 @@ See docs/phase_diagram_workflow.md for the four thermodynamic potentials and
 subsequent infilling/smoothing.
 """
 
+from importlib import import_module
 from pathlib import Path
 
 import burnman_cpp as bm
@@ -83,7 +84,7 @@ PHASE_DIAGRAMS = [
         seeds=(5, 5),
         boundary_resolution=(101, 101),
         grid_resolution=(31, 31),
-        plot_kwargs={"pressure_unit": "GPa"},
+        plot_kwargs={"pressure_unit": "GPa", "phase_aliases": SLB24.phase_aliases},
         output_dir=EXAMPLES / "silica_phase_diagram_grid_output",
     ),
     dict(
@@ -98,7 +99,11 @@ PHASE_DIAGRAMS = [
         seeds=(41, 41),
         boundary_resolution=(401, 401),
         grid_resolution=(401, 401),
-        plot_kwargs={"pressure_unit": "GPa", "entropy_unit": "kB/atom"},
+        plot_kwargs={
+            "pressure_unit": "GPa",
+            "entropy_unit": "kB/atom",
+            "phase_aliases": SLB24.phase_aliases,
+        },
         output_dir=EXAMPLES / "pyrolite_sp_phase_diagram_grid_output",
     ),
 ]
@@ -106,34 +111,53 @@ PHASE_DIAGRAMS = [
 
 def main():
     parameters = PHASE_DIAGRAMS[1]
-    run = bm.calculate_phase_diagram_grid(
-        **parameters,
-        # For diagrams only, disable all four grid/processing stages.
-        make_grid=True,
-        make_potential_grid=True,
+
+    run_phase_diagram = True  # False reuses the saved equilibrium grid.
+    if run_phase_diagram:
+        run = bm.calculate_phase_diagram_grid(
+            **parameters,
+            # For diagrams only, set make_grid=False.
+            make_grid=True,
+            plot=True,
+            plot_formats=["png", "svg"],  # A single string, e.g. "pdf", also works.
+            verbose=True,
+        )
+        print(f"Refined diagram: {run.refined_diagram}")
+        for path in run.diagram_plots:
+            print(f"Phase diagram plot: {path}")
+        if run.grid_manifest is None:
+            print("Gridding skipped:", *run.diagnostics, sep="\n")
+            return
+        grid_manifest, phases = run.grid_manifest, run.phases
+    else:
+        grid_manifest = parameters["output_dir"] / "grid_solutions" / "manifest.json"
+        # Restore the original candidate order recorded alongside the diagram.
+        saved = bm.load_phase_diagram(parameters["output_dir"] / "initial.json")
+        models = saved["workflow"]["models"]
+        dataset = import_module(models["dataset"])
+        phases = [getattr(dataset, name)() for name in models["phase_names"]]
+
+    print(f"Saved equilibria: {grid_manifest}")
+    potentials = bm.calculate_potential_grid(
+        grid_manifest,
+        phases,
+        output_dir=parameters["output_dir"] / "potential_grids",
         make_infilled_potential_grid=True,
         make_smoothed_potential_grid=True,
-        smoothing_sigma=2.0,
-        plot=True,
-        plot_formats=["png", "svg"],  # A single string, e.g. "pdf", also works.
+        smoothing_sigma=1.0,
         verbose=True,
     )
-    print(f"Refined diagram: {run.refined_diagram}")
-    for path in run.diagram_plots:
-        print(f"Phase diagram plot: {path}")
-    if run.grid_manifest is None:
-        print("Gridding skipped:", *run.diagnostics, sep="\n")
+    print(f"Raw potential and derivatives: {potentials.raw_potential}")
+    print(f"Infilled potential and derivatives: {potentials.infilled_potential}")
+    print(f"Smoothed potential and derivatives: {potentials.smoothed_potential}")
+    for diagnostic in potentials.diagnostics:
+        print(diagnostic)
 
-    print(f"Saved equilibria: {run.grid_manifest}")
-    print(f"Raw potential and derivatives: {run.raw_potential}")
-    print(f"Infilled potential and derivatives: {run.infilled_potential}")
-    print(f"Smoothed potential and derivatives: {run.smoothed_potential}")
-
-    if run.smoothed_potential is not None:
+    if potentials.smoothed_potential is not None:
         export = bm.write_aspect_entropy_pressure_table(
-            run.smoothed_potential,
-            run.grid_manifest,
-            run.phases,
+            potentials.smoothed_potential,
+            grid_manifest,
+            phases,
             parameters["output_dir"] / "material_table_entropy_pressure.txt",
             averaging_scheme=bm.AveragingType.VRH,  # Or Voigt, Reuss, etc.
             plot=True,
@@ -145,10 +169,8 @@ def main():
         for diagnostic in export.diagnostics:
             print(diagnostic)
 
-    # Optional postprocessing; saved equilibria stay unchanged:
-    # grids = bm.load_potential_grid(run.grid_manifest, run.phases)
-    # grids, info = bm.infill_potential_grid(grids, fill_derivatives=True, return_info=True)
-    # smoothed_grids = bm.smooth_potential_grid(grids, sigma=2.)
+    # To repeat only potential processing, call calculate_potential_grid() with
+    # the saved manifest and original phases, or a potential NPZ without models.
 
 
 if __name__ == "__main__":

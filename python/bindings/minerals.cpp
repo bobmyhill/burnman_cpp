@@ -13,6 +13,7 @@
 
 #include "bindings.hpp"
 #include "burnman/minerals/datasets.hpp"
+#include "burnman/minerals/phase_aliases.hpp"
 
 namespace burnman::python {
 void bind_minerals(py::module_ &m) {
@@ -796,6 +797,7 @@ void bind_minerals(py::module_ &m) {
   MP14.def("ilm", &minerals::MP14::ilm);
   MP14.def("mt1", &minerals::MP14::mt1);
   auto SLB24 = catalog.def_submodule("SLB24");
+  SLB24.attr("phase_aliases") = minerals::SLB24::phase_aliases();
   SLB24.def("ab", &minerals::SLB24::ab);
   SLB24.def("acm", &minerals::SLB24::acm);
   SLB24.def("al", &minerals::SLB24::al);

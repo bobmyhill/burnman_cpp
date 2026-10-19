@@ -351,6 +351,10 @@ def main():
         functions = []
         headers = []
         bind = [f'  auto {group} = catalog.def_submodule("{group}");']
+        if group == "SLB24":
+            bind.append(
+                '  SLB24.attr("phase_aliases") = minerals::SLB24::phase_aliases();'
+            )
         aliases = {}
         for name, phase in phases:
             if isinstance(phase, burnman.Solution):
@@ -402,7 +406,7 @@ def main():
         + "} // namespace burnman::minerals\n"
     )
     binding = CPP_HEADER + (
-        '#include "bindings.hpp"\n#include "burnman/minerals/datasets.hpp"\n\nnamespace burnman::python {\nvoid bind_minerals(py::module_& m) {\n  auto catalog = m.def_submodule("minerals", "Native factories for complete published mineral datasets.");\n'
+        '#include "bindings.hpp"\n#include "burnman/minerals/datasets.hpp"\n#include "burnman/minerals/phase_aliases.hpp"\n\nnamespace burnman::python {\nvoid bind_minerals(py::module_& m) {\n  auto catalog = m.def_submodule("minerals", "Native factories for complete published mineral datasets.");\n'
         + "\n".join(bindings)
         + "\n}\n} // namespace burnman::python\n"
     )

@@ -10,9 +10,9 @@
 # and contributions can be found in the LICENSE document.
 #
 # ------------------------------------------------------
-"""Calculate, refine and save equilibrium grids through one public workflow."""
+"""Separate drivers for phase diagrams/equilibria and potential-grid processing."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib import import_module
 from pathlib import Path
 from time import perf_counter
@@ -30,7 +30,7 @@ from .properties import (
 )
 from .potential_grid import (
     DERIVATIVES,
-    _natural_potential,
+    PotentialGrid,
     load_potential_grid,
     save_potential_grid,
 )
@@ -45,9 +45,11 @@ class PhaseDiagramCalculation:
     """Calculated diagram, original candidate models and paths to saved data.
 
     grid_manifest is None when gridding is disabled or the refined diagram is
-    not completely resolved. raw_potential/infilled_potential/smoothed_potential
-    are paths to the requested NPZ arrays, or None for stages that did not run.
-    diagnostics explains why gridding was skipped, or records grid problems.
+    not structurally resolved or fails its field-loop checks. Boundary spacing
+    warnings do not block gridding. Use calculate_potential_grid() separately to
+    extract potentials and optionally infill/smooth their derivatives.
+    diagnostics records diagram warnings, reasons gridding was skipped and grid
+    problems.
     Complete disk grids may still contain failed or excluded equilibrium nodes;
     inspect their equilibrium_success masks and diagnostics before processing.
     """
@@ -59,11 +61,25 @@ class PhaseDiagramCalculation:
     grid_manifest: Path | None
     diagnostics: list
     timings: dict
-    raw_potential: Path | None = None
-    infilled_potential: Path | None = None
-    smoothed_potential: Path | None = None
     diagram_plot: Path | None = None
     diagram_plots: tuple[Path, ...] = ()
+
+
+@dataclass
+class PotentialGridCalculation:
+    """Saved potential arrays, processing diagnostics, timings and infill summary.
+
+    raw_potential always exists. Optional stage paths are None when disabled
+    or skipped. diagnostics records processing problems; original equilibrium
+    and response diagnostics remain in the saved grids and source manifest.
+    """
+
+    raw_potential: Path
+    infilled_potential: Path | None = None
+    smoothed_potential: Path | None = None
+    diagnostics: list = field(default_factory=list)
+    timings: dict = field(default_factory=dict)
+    infill_info: dict = field(default_factory=dict)
 
 
 def _counts(values, name):
@@ -228,34 +244,125 @@ def _grid_to_disk(diagram, phases, resolution, directory, chunk_size, verbose):
     return path, diagnostics
 
 
-def _process_potential(
-    manifest, phases, symbol, directory, make_infilled, make_smoothed, sigma
+def calculate_potential_grid(
+    source,
+    phases=None,
+    *,
+    output_dir="potential_grid_output",
+    make_infilled_potential_grid=False,
+    make_smoothed_potential_grid=False,
+    smoothing_sigma=2.0,
+    verbose=False,
 ):
-    """Save each requested stage independently, preserving original arrays."""
-    raw = load_potential_grid(manifest, phases, potential=symbol)
-    paths = [save_potential_grid(raw, directory / "potential_raw.npz"), None, None]
-    info = {}
-    if make_infilled:
+    """Extract, optionally infill/smooth, and save a thermodynamic potential grid.
+
+    source accepts retained equilibrium samples (a native grid, JSON path or
+    completed chunk manifest/directory), a PotentialGrid, or a saved potential
+    NPZ. Supply the original candidate models in their original order as phases
+    when replaying equilibria. Potential arrays need no models. No diagram is
+    traced and no equilibrium solves are performed by this driver.
+
+    The independent variables select G(P,T), H(P,S), F(V,T) or E(V,S), including
+    reversed coordinate order. Raw values and all five relaxed derivatives are
+    saved to potential_raw.npz with their original NaNs and equilibrium masks.
+    PotentialGrid/NPZ inputs retain the supplied values and derivatives as
+    the raw snapshot; replayed equilibrium responses are relaxed.
+    Optional infilling estimates missing values/derivatives, preserves observed
+    samples and writes potential_infilled.npz. Optional 2D Gaussian smoothing
+    writes potential_smoothed.npz with derivatives of the smoothed potential.
+    Smoothing requires infilling to be enabled. smoothing_sigma is a positive
+    scalar or (y,x) width in cells in the potential's natural axis order.
+
+    Each stage preserves the input and earlier outputs. The output directory
+    must be new or empty; it receives its own report.json. The returned
+    PotentialGridCalculation lists paths, timings, processing diagnostics and
+    infill_info. Nonfinite entries left after infilling skip smoothing and are
+    reported. Strict thermodynamic validation still applies to ASPECT export.
+    """
+    for name, enabled in (
+        ("make_infilled_potential_grid", make_infilled_potential_grid),
+        ("make_smoothed_potential_grid", make_smoothed_potential_grid),
+    ):
+        if not isinstance(enabled, (bool, np.bool_)):
+            raise TypeError(f"{name} must be a boolean.")
+    if make_smoothed_potential_grid and not make_infilled_potential_grid:
+        raise ValueError(
+            "make_smoothed_potential_grid=True requires make_infilled_potential_grid=True."
+        )
+    if make_smoothed_potential_grid:
+        widths = np.asarray(smoothing_sigma, float)
+        if widths.ndim == 0:
+            widths = np.repeat(widths, 2)
+        if widths.shape != (2,) or not np.isfinite(widths).all() or (widths <= 0).any():
+            raise ValueError(
+                "smoothing_sigma must be positive and finite, scalar or (y,x)."
+            )
+    directory = Path(output_dir)
+    if directory.exists() and any(directory.iterdir()):
+        raise FileExistsError(f"Calculation directory is not empty: {directory}")
+    if verbose:
+        print(
+            "Loading potential and relaxed derivatives from saved samples", flush=True
+        )
+    started = perf_counter()
+    raw = (
+        source
+        if isinstance(source, PotentialGrid)
+        else load_potential_grid(source, phases)
+    )
+    if make_smoothed_potential_grid and min(raw.values.shape) < 3:
+        raise ValueError("Smoothing requires at least three grid points per axis.")
+    directory.mkdir(parents=True, exist_ok=True)
+    result = PotentialGridCalculation(
+        save_potential_grid(raw, directory / "potential_raw.npz")
+    )
+    result.timings["potential"] = perf_counter() - started
+    if make_infilled_potential_grid:
+        if verbose:
+            print("Infilling potential values and derivatives", flush=True)
+        started = perf_counter()
         filled, info = infill_potential_grid(
             raw, fill_derivatives=True, return_info=True
         )
-        paths[1] = save_potential_grid(filled, directory / "potential_infilled.npz")
+        result.infilled_potential = save_potential_grid(
+            filled, directory / "potential_infilled.npz"
+        )
+        result.timings["infill"] = perf_counter() - started
         # Detailed masks are recovered by comparing raw and infilled arrays.
-        info = {key: value for key, value in info.items() if key != "estimated_masks"}
-        if make_smoothed:
+        result.infill_info = {
+            key: value for key, value in info.items() if key != "estimated_masks"
+        }
+        if make_smoothed_potential_grid:
             if all(
                 np.isfinite(getattr(filled, name)).all()
                 for name in ("values", *DERIVATIVES)
             ):
-                smoothed = smooth_potential_grid(filled, sigma=sigma)
-                paths[2] = save_potential_grid(
-                    smoothed, directory / "potential_smoothed.npz"
+                if verbose:
+                    print(
+                        "Smoothing potential and recalculating derivatives", flush=True
+                    )
+                started = perf_counter()
+                result.smoothed_potential = save_potential_grid(
+                    smooth_potential_grid(filled, sigma=smoothing_sigma),
+                    directory / "potential_smoothed.npz",
                 )
+                result.timings["smoothing"] = perf_counter() - started
             else:
-                info["smoothing_skipped"] = (
-                    "Infilling left nonfinite values or derivatives."
+                message = (
+                    "Infilling left nonfinite values or derivatives; smoothing skipped."
                 )
-    return paths, info
+                result.infill_info["smoothing_skipped"] = message
+                result.diagnostics.append(message)
+    _write_json(
+        directory / "report.json",
+        dict(
+            potential=raw.potential,
+            timings_seconds=result.timings,
+            diagnostics=result.diagnostics,
+            postprocessing=result.infill_info,
+        ),
+    )
+    return result
 
 
 def calculate_phase_diagram_grid(
@@ -276,10 +383,6 @@ def calculate_phase_diagram_grid(
     chunk_size=4096,
     verbose=False,
     make_grid=False,
-    make_potential_grid=False,
-    make_infilled_potential_grid=False,
-    make_smoothed_potential_grid=False,
-    smoothing_sigma=2.0,
     plot=False,
     plot_kwargs=None,
     plot_formats="png",
@@ -307,28 +410,20 @@ def calculate_phase_diagram_grid(
     diagram/grid follow native PT,PS,PV,TS,TV,SV order, also recorded in metadata.
 
     Save initial.json and refined.json even on unresolved runs. Grid only when
-    resolved, spacing_resolved and polygon checks all pass; otherwise return
-    grid_manifest=None and diagnostics. This is the implemented resolution
-    criterion, not proof that every possible disconnected field was discovered.
+    the diagram is structurally resolved and polygon checks have no diagnostics;
+    otherwise return grid_manifest=None and diagnostics. Unmet boundary spacing
+    remains a warning and does not block gridding. These checks cannot prove
+    that every possible disconnected field was discovered.
     A grid_solutions manifest journals compressed batches, retained equilibria
     and a reverse retry/final audit. No infilling or smoothing is automatic.
-    Use load_potential_grid(run.grid_manifest, run.phases) for postprocessing.
+    Use calculate_potential_grid(run.grid_manifest, run.phases) separately for
+    potential extraction, infilling and smoothing.
     An existing calculation directory is rejected to preserve previous results.
 
     make_grid=True saves only the equilibrium samples. Set it to False to stop
-    after diagram refinement. The three subsequent stage flags default to False,
-    and each requires the preceding stage's flag to be True:
-    make_potential_grid saves raw values and five relaxed derivatives to
-    potential_raw.npz, retaining NaNs; make_infilled_potential_grid saves a
-    separate potential_infilled.npz; make_smoothed_potential_grid saves
-    potential_smoothed.npz. smoothing_sigma sets the width (default 2 cells),
-    without enabling smoothing by itself.
-
-    Independent variables select G(P,T), H(P,S), F(V,T) or E(V,S), in either
-    coordinate order. PV/TS sections support equilibrium gridding but cannot
-    make potential grids. Every stage preserves source arrays and original
-    equilibrium masks. If infilling leaves nonfinite entries, smoothing is
-    skipped and reported. All stages require a completely resolved diagram.
+    after diagram refinement. Potential processing has a separate driver and
+    output directory, so saved equilibria can be reused without a fresh diagram.
+    PV/TS sections support equilibrium gridding, but have no natural potential.
 
     plot=True saves phase_diagram.<format> after refinement, including for
     unresolved diagrams or runs without gridding. plot_formats accepts a string
@@ -356,36 +451,11 @@ def calculate_phase_diagram_grid(
         if not plot_formats:
             raise ValueError("plot_formats must contain at least one format.")
     plot_options = dict(plot_kwargs or {})
-    stages = [
-        ("make_grid", make_grid),
-        ("make_potential_grid", make_potential_grid),
-        ("make_infilled_potential_grid", make_infilled_potential_grid),
-        ("make_smoothed_potential_grid", make_smoothed_potential_grid),
-    ]
-    for index, (name, enabled) in enumerate(stages):
-        if not isinstance(enabled, (bool, np.bool_)):
-            raise TypeError(f"{name} must be a boolean.")
-        if enabled and index and not stages[index - 1][1]:
-            raise ValueError(f"{name}=True requires {stages[index - 1][0]}=True.")
-    potential = _natural_potential(native)
-    if make_potential_grid and potential is None:
-        raise ValueError(
-            "Potential gridding requires PT, PS, VT or VS coordinates; "
-            "use make_potential_grid=False for PV or TS diagrams."
-        )
-    if make_smoothed_potential_grid:
-        widths = np.asarray(smoothing_sigma, float)
-        if widths.ndim == 0:
-            widths = np.repeat(widths, 2)
-        if widths.shape != (2,) or not np.isfinite(widths).all() or (widths <= 0).any():
-            raise ValueError(
-                "smoothing_sigma must be positive and finite, scalar or (y,x)."
-            )
+    if not isinstance(make_grid, (bool, np.bool_)):
+        raise TypeError("make_grid must be a boolean.")
     seeds = _counts(seeds, "seeds")
     boundary_resolution = _counts(boundary_resolution, "boundary_resolution")
     grid_resolution = _counts(grid_resolution, "grid_resolution")
-    if make_smoothed_potential_grid and min(grid_resolution) < 3:
-        raise ValueError("Smoothing requires at least three grid points per axis.")
     if (
         not isinstance(chunk_size, int)
         or isinstance(chunk_size, bool)
@@ -483,18 +553,13 @@ def calculate_phase_diagram_grid(
         )
         timings["plot"] = perf_counter() - started
     polygons = _core.phase_diagram_field_polygons(refined)
-    diagnostics = list(
-        dict.fromkeys(
-            [*refined.diagnostics, *refined.spacing_diagnostics, *polygons.diagnostics]
-        )
-    )
+    diagnostics = list(dict.fromkeys([*refined.diagnostics, *polygons.diagnostics]))
     grid_path = None
-    potential_paths, processing_info = [None, None, None], {}
-    ready = refined.resolved and refined.spacing_resolved and not diagnostics
+    ready = refined.resolved and not diagnostics
     if make_grid and ready:
         started = perf_counter()
         resolution = grid_resolution if native == variables else grid_resolution[::-1]
-        grid_path, diagnostics = _grid_to_disk(
+        grid_path, grid_diagnostics = _grid_to_disk(
             refined,
             phases,
             resolution,
@@ -502,34 +567,23 @@ def calculate_phase_diagram_grid(
             chunk_size,
             verbose,
         )
+        diagnostics.extend(grid_diagnostics)
         timings["grid"] = perf_counter() - started
-        if make_potential_grid:
-            started = perf_counter()
-            potential_paths, processing_info = _process_potential(
-                grid_path,
-                phases,
-                potential,
-                directory,
-                make_infilled_potential_grid,
-                make_smoothed_potential_grid,
-                smoothing_sigma,
-            )
-            timings["postprocessing"] = perf_counter() - started
-            if "smoothing_skipped" in processing_info:
-                diagnostics.append(processing_info["smoothing_skipped"])
     elif not ready:
         diagnostics = diagnostics or [
             "Diagram is not completely resolved; gridding skipped."
         ]
         if verbose:
             print("Diagram is not completely resolved; gridding skipped.", flush=True)
+    for message in refined.spacing_diagnostics:
+        if message not in diagnostics:
+            diagnostics.append(message)
     _write_json(
         directory / "report.json",
         dict(
             timings_seconds=timings,
             gridding_started=grid_path is not None,
             diagnostics=diagnostics,
-            postprocessing=processing_info,
         ),
     )
     return PhaseDiagramCalculation(
@@ -540,7 +594,6 @@ def calculate_phase_diagram_grid(
         grid_path,
         diagnostics,
         timings,
-        *potential_paths,
         diagram_plot,
         diagram_plots,
     )

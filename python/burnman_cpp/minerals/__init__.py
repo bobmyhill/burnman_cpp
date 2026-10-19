@@ -18,6 +18,7 @@ IG24 and IG25 provide dataset 6.36 and the W24/G25 igneous families.
 MP14 and MB16 provide metapelite and metabasite solutions, including melts.
 SLB11, JH15 and SLB24 provide mantle models and relaxed spin solutions.
 Factories create independent native objects without Python BurnMan.
+SLB24.phase_aliases maps original model names to preferred plot abbreviations.
 model_sets provides matched collections with calibration metadata.
 
 """

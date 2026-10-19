@@ -128,11 +128,9 @@ private:
 /// Evaluate more properties from retained states, preserving the exact active
 /// faces and both solved/excluded masks. Performs zero equilibrium solves.
 /// averaging_scheme sets the elastic averaging used for acoustic velocities.
-PropertyGrid
-evaluate_property_grid(const PropertyGrid &,
-                       const std::vector<std::shared_ptr<Material>> &candidates,
-                       const std::vector<std::string> &properties,
-                       bool relaxed = true,
-                       types::AveragingType averaging_scheme =
-                           types::AveragingType::VRH);
+PropertyGrid evaluate_property_grid(
+    const PropertyGrid &,
+    const std::vector<std::shared_ptr<Material>> &candidates,
+    const std::vector<std::string> &properties, bool relaxed = true,
+    types::AveragingType averaging_scheme = types::AveragingType::VRH);
 } // namespace burnman::phase_diagrams

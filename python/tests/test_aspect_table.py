@@ -38,11 +38,13 @@ def calculation(tmp_path_factory):
         boundary_resolution=(3, 3),
         grid_resolution=(5, 4),
         make_grid=True,
-        make_potential_grid=True,
         output_dir=directory,
     )
     assert run.grid_manifest is not None, run.diagnostics
-    grids = bm.load_potential_grid(run.raw_potential)
+    potentials = bm.calculate_potential_grid(
+        run.grid_manifest, run.phases, output_dir=directory / "potentials"
+    )
+    grids = bm.load_potential_grid(potentials.raw_potential)
     batch = next(bm.load_property_grid_chunks(run.grid_manifest))[2]
     assert batch.equilibrium_success.all()
     mass = sum(composition.mass_composition.values())

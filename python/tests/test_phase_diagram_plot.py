@@ -1293,17 +1293,33 @@ def test_assemblage_colours_preserve_solution_multiplicity_and_polygon_holes(nam
     plt.close(fig)
 
 
-def test_plot_labels_assemblages_and_solution_multiplicity():
+@pytest.mark.parametrize("dataset_aliases", [False, True])
+def test_plot_labels_assemblages_and_solution_multiplicity(dataset_aliases):
     matplotlib = pytest.importorskip("matplotlib")
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     data = diagram([line(square(), [0, 1, 2], [3, 4, 5])])
     data["phase_names"] = ["g", "pl", "q", "hb", "hb #2", "q"]
+    aliases = {"g": "gt"}
+    repeated = "2hb q"
+    if dataset_aliases:
+        from burnman_cpp.minerals import SLB24
+
+        data["phase_names"] = [
+            "garnet",
+            "plagioclase",
+            "Quartz",
+            "clinopyroxene",
+            "clinopyroxene #2",
+            "Quartz",
+        ]
+        aliases = SLB24.phase_aliases
+        repeated = "2cpx q"
     fig, ax = bm.plot_phase_diagram(
-        data, pressure_unit="Pa", temperature_unit="K", phase_aliases={"g": "gt"}
+        data, pressure_unit="Pa", temperature_unit="K", phase_aliases=aliases
     )
-    assert {text.get_text() for text in ax.texts} == {"gt pl q", "2hb q"}
+    assert {text.get_text() for text in ax.texts} == {"gt pl q", repeated}
     fig.canvas.draw()
     plt.close(fig)
     fig, ax = bm.plot_phase_diagram(
