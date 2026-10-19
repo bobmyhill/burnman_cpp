@@ -132,14 +132,6 @@
   "resolved": false,
   "equilibrium_solves": 0,
   "minimization_calls": 0,
-  "calculation_pressure_range_Pa": [
-    100000.0,
-    2000000000.0
-  ],
-  "temperature_range_K": [
-    573.15,
-    1173.15
-  ],
   "settings": {
     "pressure_seeds": 7,
     "temperature_seeds": 7,

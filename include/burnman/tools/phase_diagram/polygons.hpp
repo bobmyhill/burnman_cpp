@@ -30,14 +30,13 @@ namespace burnman::phase_diagrams {
 /// tolerance is a distance after each diagram axis is rescaled to 0..1.
 ///
 /// Identify each field from the assemblages permitted by its perimeter
-/// reactions. Agreed outer-ring side labels take priority; otherwise find the
-/// assemblages common to the perimeter and consult saved interior equilibria.
+/// reactions. Verified reaction conditions constrain the whole loop, including
+/// very thin fields whose side probes skipped a neighbour. Agreed outer-ring
+/// labels take priority over saved interior samples.
 /// Conflicting or incomplete evidence produces a provisional label or leaves
 /// the assemblage unknown, with a diagnostic. Boundary length gives no extra
 /// authority to a label. EOS-domain exclusions have no assigned assemblage.
-/// merge_fields is retained for API compatibility and has no effect.
 FieldPolygons field_polygons(const Result &result, double tolerance = 1.e-8,
-                             bool close_domain = true,
-                             bool merge_fields = true);
+                             bool close_domain = true);
 
 } // namespace burnman::phase_diagrams

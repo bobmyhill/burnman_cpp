@@ -96,6 +96,13 @@ inline void record_incident_line(Result &result, const Boundary &line) {
         incident.push_back(line.id);
     }
 }
+/// Rebuild node connections after arcs have been split, removed or renumbered.
+inline void rebuild_boundary_incidence(Result &result) {
+  for (auto &node : result.nodes)
+    node.incident_lines.clear();
+  for (const auto &line : result.boundaries)
+    record_incident_line(result, line);
+}
 /// Signed 2-D cross product; its sign gives the sense of a turn between
 /// vectors.
 inline double cross(const Eigen::Vector2d &a, const Eigen::Vector2d &b) {

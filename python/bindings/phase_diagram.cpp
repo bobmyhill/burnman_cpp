@@ -15,32 +15,15 @@
 #include "bindings.hpp"
 #include "burnman/minerals/water.hpp"
 #include "burnman/tools/phase_diagram/refinement.hpp"
-#include <charconv>
 #include <set>
 namespace burnman::python {
 namespace {
-std::vector<std::string>
-normalize_field_diagnostics(std::vector<std::string> messages) {
-  const std::string region = "Region ";
-  const std::string sampled = "No closed region resolved for sampled field ";
-  for (auto &message : messages) {
-    if (message.compare(0, region.size(), region) == 0) {
-      const auto end = message.find(' ', region.size());
-      if (end == std::string::npos)
-        continue;
-      int index = -1;
-      auto parsed = std::from_chars(message.data() + region.size(),
-                                    message.data() + end, index);
-      if (parsed.ec == std::errc{} && parsed.ptr == message.data() + end &&
-          index >= 0 && index < std::numeric_limits<int>::max())
-        message = "Field " + std::to_string(index + 1) + message.substr(end);
-    } else if (message.compare(0, sampled.size(), sampled) == 0)
-      message.replace(0, sampled.size(),
-                      "No closed region resolved for sampled assemblage ");
-  }
-  return messages;
+std::string reaction_name(phase_diagrams::ReactionKind kind) {
+  using phase_diagrams::ReactionKind;
+  return kind == ReactionKind::phase_out     ? "phase_out"
+         : kind == ReactionKind::replacement ? "replacement"
+                                             : "unknown";
 }
-
 std::string coordinate_name(phase_diagrams::Coordinate axis) {
   return std::string(1, std::string("PTSVX")[static_cast<std::size_t>(axis)]);
 }
@@ -208,9 +191,6 @@ py::dict result_dict(const phase_diagrams::Result &result) {
   if (result.thermodynamic_validation.scope != "not_checked")
     data["thermodynamic_validation"] =
         validation_dict(result.thermodynamic_validation);
-  // Preserve the SI range keys used by the original example JSON files.
-  data["calculation_pressure_range_Pa"] = data["pressure_range"];
-  data["temperature_range_K"] = data["temperature_range"];
   data["settings"] = settings_dict(result.settings);
   py::list excluded;
   for (auto &ring : result.excluded_regions)
@@ -259,6 +239,7 @@ py::dict result_dict(const phase_diagrams::Result &result) {
     SAVE(end_node)
     SAVE(termination)
 #undef SAVE
+    record["reaction_kind"] = reaction_name(line.reaction_kind);
     py::list points;
     for (auto &point : line.points) {
       points.append(boundary_point_dict(point));
@@ -341,34 +322,16 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
   };
   if (data.contains("settings"))
     result.settings = saved_settings(data["settings"].cast<py::dict>());
-  else {
-    // Legacy pyrolite results recorded their model policy at the top level.
-    if (data.contains("excludes_invalid_eos"))
-      result.settings.exclude_invalid_eos =
-          data["excludes_invalid_eos"].cast<bool>();
-    if (data.contains("active_solution_faces"))
-      result.settings.active_solution_faces =
-          data["active_solution_faces"].cast<bool>();
-    if (data.contains("required_eos_phases"))
-      result.settings.required_eos_phases =
-          data["required_eos_phases"].cast<std::vector<std::string>>();
-  }
   if (data.contains("resolved"))
     result.resolved = data["resolved"].cast<bool>();
   if (data.contains("diagnostics"))
-    result.diagnostics = normalize_field_diagnostics(
-        data["diagnostics"].cast<std::vector<std::string>>());
+    result.diagnostics = data["diagnostics"].cast<std::vector<std::string>>();
   if (data.contains("spacing_diagnostics"))
     result.spacing_diagnostics =
         data["spacing_diagnostics"].cast<std::vector<std::string>>();
-  result.pressure_range =
-      data.contains("pressure_range")
-          ? data["pressure_range"].cast<std::array<double, 2>>()
-          : data["calculation_pressure_range_Pa"].cast<std::array<double, 2>>();
+  result.pressure_range = data["pressure_range"].cast<std::array<double, 2>>();
   result.temperature_range =
-      data.contains("temperature_range")
-          ? data["temperature_range"].cast<std::array<double, 2>>()
-          : data["temperature_range_K"].cast<std::array<double, 2>>();
+      data["temperature_range"].cast<std::array<double, 2>>();
   if (data.contains("phase_names"))
     result.phase_names = data["phase_names"].cast<std::vector<std::string>>();
   if (data.contains("excluded_regions"))
@@ -458,6 +421,15 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
     if (value.contains("is_solution_replacement"))
       line.is_solution_replacement =
           value["is_solution_replacement"].cast<bool>();
+    if (value.contains("reaction_kind")) {
+      const auto kind = value["reaction_kind"].cast<std::string>();
+      if (kind == "phase_out")
+        line.reaction_kind = ReactionKind::phase_out;
+      else if (kind == "replacement")
+        line.reaction_kind = ReactionKind::replacement;
+      else if (kind != "unknown")
+        throw py::value_error("Unknown reaction kind: " + kind);
+    }
     for (auto point : value["points"]) {
       auto record = py::reinterpret_borrow<py::dict>(point);
       BoundaryPoint p;
@@ -520,9 +492,17 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
     if (data.contains("minimization_calls"))
       result.minimization_calls = data["minimization_calls"].cast<int>();
   }
-  detail::separate_spacing_diagnostics(result);
   return result;
 }
+phase_diagrams::Result calculation_result(const py::object &object) {
+  if (py::isinstance<phase_diagrams::Result>(object))
+    return object.cast<phase_diagrams::Result>();
+  if (py::isinstance<py::dict>(object))
+    return saved_result(object.cast<py::dict>(), true);
+  throw py::type_error(
+      "Supply a PhaseDiagramResult or its full saved JSON dictionary.");
+}
+
 py::dict grid_solution_dict(const phase_diagrams::GridSolution &solution) {
   auto data = boundary_point_dict(solution.state);
   data["n_moles"] = solution.n_moles;
@@ -703,7 +683,6 @@ phase_diagrams::PropertyGrid saved_property_grid(const py::dict &data) {
 }
 } // namespace
 void bind_phase_diagram(py::module_ &m) {
-  m.def("_normalize_phase_diagram_diagnostics", &normalize_field_diagnostics);
   using namespace phase_diagrams;
   py::class_<Settings>(m, "PhaseDiagramSettings",
                        "Initial equilibrium sampling, reaction continuation "
@@ -757,11 +736,12 @@ void bind_phase_diagram(py::module_ &m) {
       "neighbours in calculation-axis order.")
 #define PROPERTY(name) .def_readonly(#name, &Boundary::name)
       PROPERTY(id) PROPERTY(zero_phase) PROPERTY(start_node) PROPERTY(end_node)
-          PROPERTY(assemblage) PROPERTY(side_a) PROPERTY(side_b)
-              PROPERTY(is_solution_replacement) PROPERTY(points)
-                  PROPERTY(termination)
+          PROPERTY(assemblage) PROPERTY(side_a) PROPERTY(side_b) PROPERTY(
+              is_solution_replacement) PROPERTY(points) PROPERTY(termination)
 #undef PROPERTY
-                      ;
+              .def_property_readonly("reaction_kind", [](const Boundary &line) {
+                return reaction_name(line.reaction_kind);
+              });
   py::class_<Node>(m, "PhaseDiagramNode")
 #define PROPERTY(name) .def_readonly(#name, &Node::name)
       PROPERTY(id) PROPERTY(gibbs_variance) PROPERTY(pt_nullity) PROPERTY(kind)
@@ -849,7 +829,6 @@ void bind_phase_diagram(py::module_ &m) {
       .def_readonly("is_provisional", &FieldPolygon::is_provisional)
       .def_readonly("outside_model_domain", &FieldPolygon::outside_model_domain)
       .def_readonly("phases", &FieldPolygon::phases)
-      .def_readonly("source_regions", &FieldPolygon::source_regions)
       .def_readonly("boundary_ids", &FieldPolygon::boundary_ids)
       .def_readonly("area", &FieldPolygon::area)
       .def_readonly("label_clearance", &FieldPolygon::label_clearance)
@@ -881,7 +860,6 @@ void bind_phase_diagram(py::module_ &m) {
       .def_readwrite("max_trace_steps", &ContourSettings::max_trace_steps);
   py::class_<ContourLine>(m, "PhaseDiagramContourLine")
       .def_readonly("field_number", &ContourLine::field_number)
-      .def_readonly("field_id", &ContourLine::field_id)
       .def_readonly("phases", &ContourLine::phases)
       .def_readonly("points", &ContourLine::points)
       .def_readonly("closed", &ContourLine::closed)
@@ -905,7 +883,6 @@ void bind_phase_diagram(py::module_ &m) {
         for (const auto &line : r.lines) {
           py::dict record;
           record["field_number"] = line.field_number;
-          record["field_id"] = line.field_id;
           record["phases"] = line.phases;
           record["closed"] = line.closed;
           record["termination"] = line.termination;
@@ -973,13 +950,7 @@ void bind_phase_diagram(py::module_ &m) {
       .def(py::init([](py::object previous,
                        std::vector<std::shared_ptr<Material>> phases,
                        Eigen::VectorXd x, Eigen::VectorXd y) {
-        Result saved;
-        if (py::isinstance<Result>(previous))
-          saved = previous.cast<Result>();
-        else if (py::isinstance<py::dict>(previous))
-          saved = saved_result(previous.cast<py::dict>(), true);
-        else
-          throw py::type_error("Supply a native result or saved dictionary.");
+        auto saved = calculation_result(previous);
         py::gil_scoped_release release;
         return std::make_unique<PropertyGridder>(
             std::move(saved), std::move(phases), std::move(x), std::move(y));
@@ -1006,14 +977,7 @@ void bind_phase_diagram(py::module_ &m) {
          const std::vector<std::shared_ptr<Material>> &phases,
          const std::vector<std::string> &properties, const Eigen::VectorXd &x,
          const Eigen::VectorXd &y, bool relaxed, bool store_solutions) {
-        Result saved;
-        if (py::isinstance<Result>(previous))
-          saved = previous.cast<Result>();
-        else if (py::isinstance<py::dict>(previous))
-          saved = saved_result(previous.cast<py::dict>(), true);
-        else
-          throw py::type_error(
-              "Supply a PhaseDiagramResult or saved JSON dictionary.");
+        auto saved = calculation_result(previous);
         py::gil_scoped_release release;
         return phase_diagram_grid(saved, phases, properties, x, y, relaxed,
                                   store_solutions);
@@ -1024,22 +988,8 @@ void bind_phase_diagram(py::module_ &m) {
       "phase_diagram_contours",
       [](py::object previous,
          const std::vector<std::shared_ptr<Material>> &phases,
-         py::object constraint, const ContourSettings &settings,
-         const std::optional<types::FormulaMap> &composition) {
-        Result saved;
-        if (py::isinstance<Result>(previous))
-          saved = previous.cast<Result>();
-        else if (py::isinstance<py::dict>(previous))
-          saved = saved_result(previous.cast<py::dict>(), true);
-        else
-          throw py::type_error("Supply a PhaseDiagramResult or its full saved "
-                               "JSON dictionary.");
-        if (composition) {
-          if (!saved.composition_start.empty() &&
-              saved.composition_start != *composition)
-            throw py::value_error("composition must match the saved bulk.");
-          saved.composition_start = *composition;
-        }
+         py::object constraint, const ContourSettings &settings) {
+        auto saved = calculation_result(previous);
         using C = equilibration::EqualityConstraint;
         ContourConstraintFactory factory;
         if (py::isinstance<C>(constraint)) {
@@ -1071,7 +1021,6 @@ void bind_phase_diagram(py::module_ &m) {
       },
       py::arg("result"), py::arg("phases"), py::arg("constraint"),
       py::kw_only(), py::arg("settings") = ContourSettings{},
-      py::arg("composition") = py::none(),
       R"doc(Calculate a property contour or mineral-composition isopleth within saved fields.
 
 constraint fixes the contour value, for example a garnet composition or total
@@ -1083,26 +1032,24 @@ Use the original candidate models in their original order. The calculation holds
 each saved field's assemblage and follows equilibrium to its outer ring or holes;
 it does not repeat phase discovery or validate the source field identification.
 Increase settings.seed_grid to assess discovery of disconnected contours.
-composition supplies the elemental bulk for legacy JSON without composition_start.
 )doc");
   m.def(
       "phase_diagram_field_polygons",
-      [](py::object object, double tolerance, bool close_domain,
-         bool merge_fields) {
+      [](py::object object, double tolerance, bool close_domain) {
         if (py::isinstance<Result>(object)) {
           const auto &result = object.cast<const Result &>();
           py::gil_scoped_release release;
-          return field_polygons(result, tolerance, close_domain, merge_fields);
+          return field_polygons(result, tolerance, close_domain);
         }
         if (!py::isinstance<py::dict>(object))
           throw py::type_error(
               "Supply a PhaseDiagramResult or its saved JSON dictionary.");
         auto result = saved_result(object.cast<py::dict>());
         py::gil_scoped_release release;
-        return field_polygons(result, tolerance, close_domain, merge_fields);
+        return field_polygons(result, tolerance, close_domain);
       },
       py::arg("result"), py::arg("tolerance") = 1.e-8,
-      py::arg("close_domain") = true, py::arg("merge_fields") = true,
+      py::arg("close_domain") = true,
       R"doc(Reconstruct closed assemblage fields from saved equilibrium boundaries.
 
 Accept a native result or saved dictionary; no equilibrium calculations are run.
@@ -1115,16 +1062,13 @@ Labels use perimeter reaction assemblages and saved equilibria. Inspect each
 polygon's is_provisional/has_open_boundary flags and the returned diagnostics.
 field_number is the one-based number used by plots, keys and field diagnostics.
 tolerance is a distance after rescaling both calculation axes to 0..1.
-close_domain permits the frame to close edge fields. merge_fields is retained
-for compatibility and has no effect.
+close_domain permits the frame to close edge fields.
 )doc");
   m.def(
       "verify_phase_diagram_critical_endpoints",
       [](py::object object,
          const std::vector<std::shared_ptr<Material>> &phases) {
-        auto result = py::isinstance<Result>(object)
-                          ? object.cast<Result>()
-                          : saved_result(object.cast<py::dict>(), true);
+        auto result = calculation_result(object);
         py::gil_scoped_release release;
         return verify_critical_endpoints(result, phases);
       },
@@ -1241,22 +1185,9 @@ pass reaction, mass-balance, site-bound and candidate-affinity validation.
           section.entropy_range = *ranges[2];
         if (ranges[3])
           section.volume_range = *ranges[3];
-        if (!section.fixed_coordinate && has_composition_axis(section.type)) {
-          for (std::size_t k = 0; k < 4; ++k)
-            if (static_cast<Coordinate>(k) != axes[0] && ranges[k] &&
-                (*ranges[k])[0] == (*ranges[k])[1]) {
-              if (section.fixed_coordinate)
-                throw py::value_error(
-                    "X diagrams require exactly one fixed coordinate.");
-              section.fixed_coordinate = static_cast<Coordinate>(k);
-              section.fixed_value = (*ranges[k])[0];
-            }
-          if (!section.fixed_coordinate)
-            throw py::value_error(
-                "Specify both diagram axes and one fixed thermodynamic "
-                "coordinate; PX "
-                "requires fixed temperature and TX fixed pressure by default.");
-        }
+        if (!section.fixed_coordinate && has_composition_axis(section.type))
+          throw py::value_error("Specify both diagram axes and one fixed "
+                                "thermodynamic coordinate.");
         pressure_range = ranges[0].value_or(std::array<double, 2>{0., 150.e9});
         temperature_range =
             ranges[1].value_or(std::array<double, 2>{1., 6000.});
@@ -1301,14 +1232,7 @@ finite sampling cannot prove discovery of every disconnected stability field.
          const std::optional<std::array<int, 2>> &resolution,
          bool reciprocal_volume,
          const std::optional<std::array<std::array<double, 2>, 2>> &region) {
-        Result saved;
-        if (py::isinstance<Result>(previous))
-          saved = previous.cast<Result>();
-        else if (py::isinstance<py::dict>(previous))
-          saved = saved_result(previous.cast<py::dict>(), true);
-        else
-          throw py::type_error("Supply a PhaseDiagramResult or its full saved "
-                               "JSON dictionary.");
+        auto saved = calculation_result(previous);
         auto opts =
             settings.is_none() ? saved.settings : settings.cast<Settings>();
         std::optional<LineResolution> line_resolution;

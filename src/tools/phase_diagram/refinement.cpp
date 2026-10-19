@@ -18,23 +18,6 @@
 #include <iostream>
 
 namespace burnman::phase_diagrams::detail {
-void separate_spacing_diagnostics(Result &result) {
-  const auto old_size = result.diagnostics.size();
-  erase_if(result.diagnostics, [&](const std::string &message) {
-    if (message.rfind("Boundary ", 0) != 0 ||
-        message.find(": requested line resolution was not reached on ") ==
-            std::string::npos)
-      return false;
-    if (std::find(result.spacing_diagnostics.begin(),
-                  result.spacing_diagnostics.end(),
-                  message) == result.spacing_diagnostics.end())
-      result.spacing_diagnostics.push_back(message);
-    return true;
-  });
-  if (result.diagnostics.size() != old_size)
-    result.resolved = result.diagnostics.empty();
-}
-
 void validate_line_resolution(const Result &result,
                               const LineResolution &resolution) {
   for (int count : resolution.axis_points)

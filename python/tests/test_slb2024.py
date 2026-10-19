@@ -448,18 +448,17 @@ def test_resumed_model_limit_remains_attached_to_recomputed_eos_envelope(example
     )
 
 
-def test_legacy_pyrolite_json_retains_eos_policy_and_failure_reasons(example):
+def test_saved_pyrolite_retains_eos_policy_and_failure_reasons(example):
     case = json.loads(
         (Path(__file__).parent / "data" / "pyrolite_model_limit.json").read_text()
     )
     saved = case["previous"]
-    saved.update(
-        excludes_invalid_eos=True,
+    saved["settings"] = dict(
+        exclude_invalid_eos=True,
         active_solution_faces=True,
         required_eos_phases=["opx"],
-        resolved=False,
-        diagnostics=["saved diagnostic"],
     )
+    saved.update(resolved=False, diagnostics=["saved diagnostic"])
     state = bm.stable_equilibrium(
         example["PYROLITE_COMPOSITION"].atomic_composition,
         example["candidate_phases"](),

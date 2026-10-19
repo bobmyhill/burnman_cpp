@@ -166,19 +166,19 @@ void verify_critical_endpoints(Result &result, Engine &engine) {
   }
 }
 
-void recover_boundary_labels(Result &result) {
-  const auto geometry = field_polygons(result);
+FieldPolygons recover_boundary_labels(Result &result) {
+  auto geometry = field_polygons(result);
   for (auto &line : result.boundaries)
     if (const auto it = geometry.boundary_sides.find(line.id);
         it != geometry.boundary_sides.end()) {
       line.side_a = it->second[0];
       line.side_b = it->second[1];
     }
+  return geometry;
 }
 
-std::vector<std::string> field_diagnostics(const Result &result,
-                                           Engine &engine) {
-  auto geometry = field_polygons(result, 1.e-8, true, false);
+std::vector<std::string> field_diagnostics(const Result &result, Engine &engine,
+                                           const FieldPolygons &geometry) {
   auto messages = geometry.diagnostics;
   for (const auto &line : result.boundaries)
     if (ambiguous_boundary(line) && !lies_on_calculation_frame(line, result))
@@ -319,13 +319,14 @@ Result verify_critical_endpoints(
   engine.temperature_bounds = result.temperature_range;
   // Regenerate the same derived diagnostics used after tracing. Preserve
   // every unrelated message, without matching hard-coded warning prefixes.
-  const auto old = detail::field_diagnostics(result, engine);
+  const auto old =
+      detail::field_diagnostics(result, engine, field_polygons(result));
   detail::erase_if(result.diagnostics, [&](const auto &message) {
     return std::find(old.begin(), old.end(), message) != old.end();
   });
   detail::verify_critical_endpoints(result, engine);
-  detail::recover_boundary_labels(result);
-  auto messages = detail::field_diagnostics(result, engine);
+  const auto graph = detail::recover_boundary_labels(result);
+  auto messages = detail::field_diagnostics(result, engine, graph);
   result.diagnostics.insert(result.diagnostics.end(), messages.begin(),
                             messages.end());
   result.equilibrium_solves += engine.equilibrium_solves;

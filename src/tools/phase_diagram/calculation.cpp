@@ -60,8 +60,7 @@ Result Tracer::calculate(const Result *previous,
   apply_model_domain();
   remove_retraced_spurs();
   recover_failed_seeds();
-  repair_and_refine_boundaries(true);
-  retrace_unstable_boundaries();
+  resolve_boundaries();
   // Recovery can add accepted frame endpoints after the first domain pass.
   detail::join_frame_limits(result, engine);
   if (detail::remove_metastable_parallel_lines(result, engine))
@@ -85,18 +84,9 @@ Tracer::Tracer(const types::FormulaMap &bulk,
   engine.physical_seed << (pr[0] + pr[1]) * .5, (tr[0] + tr[1]) * .5;
   auto axes = diagram_axes(section.type);
   if (has_composition_axis(section.type)) {
-    if (!engine.section.fixed_coordinate) {
-      if (section.type != DiagramType::PX && section.type != DiagramType::TX)
-        throw std::invalid_argument(
-            "X diagrams require one fixed thermodynamic coordinate.");
-      const auto fixed = section.type == DiagramType::PX ? tr : pr;
-      if (!std::isfinite(fixed[0]) || fixed[0] != fixed[1])
-        throw std::invalid_argument(
-            "PX requires fixed temperature; TX requires fixed pressure.");
-      engine.section.fixed_coordinate =
-          section.type == DiagramType::PX ? Coordinate::T : Coordinate::P;
-      engine.section.fixed_value = fixed[0];
-    }
+    if (!engine.section.fixed_coordinate)
+      throw std::invalid_argument(
+          "X diagrams require one fixed thermodynamic coordinate.");
     if (*engine.section.fixed_coordinate == axes[0] ||
         *engine.section.fixed_coordinate == Coordinate::X ||
         !std::isfinite(engine.section.fixed_value))
@@ -228,8 +218,6 @@ void Tracer::validate_previous_identity(const Result &previous) const {
 }
 
 void Tracer::collect_boundary_diagnostics() {
-  for (auto &n : result.nodes)
-    n.incident_lines.clear();
   for (auto &line : result.boundaries) {
     auto [back, forward] = boundary_statuses(line);
     if (unfinished_boundary(back))
@@ -239,8 +227,8 @@ void Tracer::collect_boundary_diagnostics() {
     if (unfinished_boundary(back) || unfinished_boundary(forward))
       result.diagnostics.push_back("Boundary " + std::to_string(line.id) +
                                    ": " + line.termination);
-    record_incident_line(result, line);
   }
+  rebuild_boundary_incidence(result);
   for (auto &state : result.samples)
     if (!state.success && !state.outside_model_domain)
       result.diagnostics.push_back("Unresolved seed: " + state.message);
@@ -255,8 +243,7 @@ void Tracer::verify_field_interiors() {
   // holes.
   if (line_resolution) {
     std::vector<Eigen::Vector2d> centres;
-    for (const auto &polygon :
-         field_polygons(result, 1.e-8, true, false).polygons)
+    for (const auto &polygon : field_polygons(result).polygons)
       if ((polygon.is_provisional || polygon.phases.empty()) &&
           !polygon.outside_model_domain && !polygon.has_open_boundary &&
           polygon.label_clearance > 0.)
@@ -283,11 +270,11 @@ Result Tracer::certify_result() {
                          polygon.boundary_ids.end());
   for (auto &line : result.boundaries)
     if (conflicting.count(line.id) && !ambiguous_boundary(line))
-      label(line, true);
+      label(line);
   // Certification changes endpoint diagnostics, never field geometry.
   detail::verify_critical_endpoints(result, engine);
-  detail::recover_boundary_labels(result);
-  auto messages = detail::field_diagnostics(result, engine);
+  const auto graph = detail::recover_boundary_labels(result);
+  auto messages = detail::field_diagnostics(result, engine, graph);
   result.diagnostics.insert(result.diagnostics.end(), messages.begin(),
                             messages.end());
   result.diagnostics.insert(result.diagnostics.end(),
@@ -320,11 +307,9 @@ refine_phase_diagram(const types::FormulaMap &bulk,
                      const std::vector<std::shared_ptr<Material>> &phases,
                      const Result &previous, const Settings &settings,
                      const std::optional<LineResolution> &resolution) {
-  auto saved = previous;
-  detail::separate_spacing_diagnostics(saved);
-  return detail::Tracer(bulk, phases, saved.pressure_range,
-                        saved.temperature_range, settings, saved.section)
-      .calculate(&saved, resolution);
+  return detail::Tracer(bulk, phases, previous.pressure_range,
+                        previous.temperature_range, settings, previous.section)
+      .calculate(&previous, resolution);
 }
 Result
 refine_phase_diagram(const types::FormulaMap &bulk,

@@ -27,28 +27,6 @@ import warnings
 from .. import _core, constants
 
 
-def _normalize_saved_diagnostics(data):
-    if "diagnostics" not in data:
-        return data
-    diagnostics = _core._normalize_phase_diagram_diagnostics(data["diagnostics"])
-    spacing = list(data.get("spacing_diagnostics", []))
-    structural = []
-    for message in diagnostics:
-        if message.startswith("Boundary ") and (
-            ": requested line resolution was not reached on " in message
-        ):
-            if message not in spacing:
-                spacing.append(message)
-        else:
-            structural.append(message)
-    data["diagnostics"] = structural
-    if len(structural) != len(diagnostics):
-        data["spacing_diagnostics"] = spacing
-        data["spacing_resolved"] = not spacing
-        data["resolved"] = not structural
-    return data
-
-
 def save_phase_diagram(result, path, *, metadata=None):
     """Save the calculated equilibria and reaction network; return the JSON path.
 
@@ -69,7 +47,7 @@ def save_phase_diagram(result, path, *, metadata=None):
     from pathlib import Path
 
     data = dict(result) if isinstance(result, Mapping) else result.to_dict()
-    data = _normalize_saved_diagnostics(dict(metadata or {}) | data)
+    data = dict(metadata or {}) | data
     text = json.dumps(data, indent=2, allow_nan=False, ensure_ascii=False) + "\n"
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -82,10 +60,7 @@ def load_phase_diagram(path):
 
     Return a dictionary usable for plotting, contours and refinement, with
     coordinates in native SI units. Candidate models are supplied separately
-    when calculating new points. Legacy Region indices in diagnostics are
-    translated to the same one-based Field numbers used by plots and keys.
-    Legacy spacing warnings move to ``spacing_diagnostics``; a diagram with
-    only these warnings is resolved. Other entries are preserved.
+    when calculating new points.
     Use ``PhaseDiagramResult.from_dict(data)`` if a native object is needed.
     """
     import json
@@ -95,7 +70,7 @@ def load_phase_diagram(path):
         data = json.load(source)
     if not isinstance(data, dict):
         raise ValueError("A saved phase diagram must be a JSON object.")
-    return _normalize_saved_diagnostics(data)
+    return data
 
 
 def _value(record, name, default=None):
@@ -879,8 +854,7 @@ def refine_phase_diagram(
     diagram axis, including later samples. ``thermodynamic_validation`` records
     checked/skipped pair counts and remaining violations; ``scope`` is
     ``aligned_samples`` or ``not_applicable`` for non-natural coordinates.
-    Older files report ``not_checked`` until audited. These comparisons do not
-    certify unsampled interiors or global stability.
+    These comparisons do not certify unsampled interiors or global stability.
 
     For an unresolved input, recovery can trim overshoots, reconcile duplicate
     traces and retrace suspect arcs, including those around provisional fields.
@@ -948,7 +922,6 @@ def plot_phase_diagram(
     show_nodes=False,
     show_unresolved=True,
     close_domain=True,
-    merge_fields=True,
     tolerance=1.0e-8,
     pressure_unit="kbar",
     temperature_unit="C",
@@ -976,7 +949,6 @@ def plot_phase_diagram(
     lets the calculation frame close fields at its edges; unfinished interior
     reactions are not extended to manufacture closure. Plotting runs no new
     equilibrium calculations.
-    ``merge_fields`` is retained for compatibility and has no effect.
     Boundaries where solution compositions switch remain visible even when
     both fields have the same assemblage names.
     Connected segments separating the same two assemblages form continuous
@@ -1056,9 +1028,7 @@ def plot_phase_diagram(
     diagram, names, order, density, per_atom, coordinates, native_coordinates = (
         _coordinate_transforms(result, **display_options)
     )
-    geometry = _core.phase_diagram_field_polygons(
-        result, tolerance, close_domain, merge_fields
-    )
+    geometry = _core.phase_diagram_field_polygons(result, tolerance, close_domain)
     if ax is None:
         _, ax = plt.subplots(figsize=(9, 8))
     fig = ax.figure
@@ -1256,12 +1226,8 @@ def plot_phase_diagram(
             labels.append("Unresolved field")
         if handles:
             ax.legend(handles, labels, fontsize=label_fontsize, loc="upper left")
-    pressure_range = _value(
-        result, "pressure_range", _value(result, "calculation_pressure_range_Pa")
-    )
-    temperature_range = _value(
-        result, "temperature_range", _value(result, "temperature_range_K")
-    )
+    pressure_range = _value(result, "pressure_range")
+    temperature_range = _value(result, "temperature_range")
     ranges = dict(
         P=pressure_range,
         T=temperature_range,

@@ -427,7 +427,8 @@
           "entropy": 316.9727350289944,
           "volume": 3.631278724746213e-05
         }
-      ]
+      ],
+      "reaction_kind": "replacement"
     },
     {
       "id": 1,
@@ -618,7 +619,8 @@
           "entropy": 316.97273502899617,
           "volume": 3.631278724746215e-05
         }
-      ]
+      ],
+      "reaction_kind": "replacement"
     },
     {
       "id": 2,
@@ -792,7 +794,8 @@
           "entropy": 337.5671822970214,
           "volume": 3.36522618593019e-05
         }
-      ]
+      ],
+      "reaction_kind": "replacement"
     },
     {
       "id": 3,
@@ -930,7 +933,8 @@
           "entropy": 302.64643930077796,
           "volume": 3.48256286856419e-05
         }
-      ]
+      ],
+      "reaction_kind": "replacement"
     },
     {
       "id": 4,
@@ -980,7 +984,8 @@
           "entropy": 316.97273502898935,
           "volume": 3.6312787247462126e-05
         }
-      ]
+      ],
+      "reaction_kind": "replacement"
     },
     {
       "id": 5,
@@ -1042,7 +1047,8 @@
           "entropy": 318.9726806376111,
           "volume": 3.3493379028056804e-05
         }
-      ]
+      ],
+      "reaction_kind": "replacement"
     },
     {
       "id": 6,
@@ -1204,7 +1210,8 @@
           "entropy": 302.64643930077784,
           "volume": 3.4778426091562646e-05
         }
-      ]
+      ],
+      "reaction_kind": "replacement"
     },
     {
       "id": 7,
@@ -1396,7 +1403,8 @@
           "entropy": 318.97268063759594,
           "volume": 3.34933790280567e-05
         }
-      ]
+      ],
+      "reaction_kind": "replacement"
     },
     {
       "id": 8,
@@ -1452,7 +1460,8 @@
           "entropy": 316.9727350290058,
           "volume": 3.6312787247462234e-05
         }
-      ]
+      ],
+      "reaction_kind": "replacement"
     }
   ],
   "fields": [],

@@ -173,10 +173,9 @@ class Tracer {
                                     Eigen::VectorXd direction, int &end_node,
                                     std::string &termination);
   // Identify the stable assemblage on each side of a solved reaction segment.
-  // Start with the equilibrium response; local probes provide additional
-  // evidence when degeneracy or solution replacement prevents a derivative-only
-  // decision.
-  void label(Boundary &line, bool response_only = false);
+  // Use the local equilibrium response; closed-loop perimeter constraints
+  // provide missing neighbours when the reaction is degenerate.
+  void label(Boundary &line);
   bool same_curve(const Boundary &first, const Boundary &second,
                   bool partial = false, bool require_equilibrium = false);
   bool complete_boundary(const Boundary &line) const;
@@ -221,14 +220,10 @@ class Tracer {
   void apply_model_domain();
   void remove_retraced_spurs();
   void recover_failed_seeds();
-  // Reconcile duplicate records, repair verified junction connections, then add
-  // boundary points if requested. The first pass transfers labels before
-  // pruning.
-  void repair_and_refine_boundaries(bool initial = false);
-  // Recalculate suspect reaction arcs and locally flagged provisional
-  // perimeters. Reuse ordinary phase-entry and junction discovery to supply
-  // missing branches.
-  void retrace_unstable_boundaries();
+  // Check the reaction graph and refine its accepted arcs. Suspect arcs are
+  // returned once to the ordinary tracing queue, then checked by the same
+  // process. Accepted, unrelated boundaries retain their saved equilibria.
+  void resolve_boundaries();
   // Record incomplete trace ends and failed equilibrium samples, rebuilding
   // node incidence from the surviving lines rather than stale trace history.
   void collect_boundary_diagnostics();

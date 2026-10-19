@@ -764,7 +764,8 @@
             }
           ]
         }
-      ]
+      ],
+      "reaction_kind": "unknown"
     },
     {
       "id": 8,
@@ -1426,7 +1427,8 @@
             }
           ]
         }
-      ]
+      ],
+      "reaction_kind": "phase_out"
     },
     {
       "id": 9,
@@ -2088,7 +2090,8 @@
             }
           ]
         }
-      ]
+      ],
+      "reaction_kind": "phase_out"
     },
     {
       "id": 10,
@@ -3088,7 +3091,8 @@
             }
           ]
         }
-      ]
+      ],
+      "reaction_kind": "phase_out"
     },
     {
       "id": 196,
@@ -3471,7 +3475,8 @@
             }
           ]
         }
-      ]
+      ],
+      "reaction_kind": "replacement"
     }
   ],
   "fields": [],

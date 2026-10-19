@@ -522,9 +522,8 @@ int Tracer::node(Assemblage &a, const std::vector<int> &ids,
 }
 
 void Tracer::separate_junctions() {
-  // Older traces merged nearby, thermodynamically different events. Their
-  // accepted endpoint states still locate each event; restore that topology
-  // without moving any thermodynamic point or drawing a guessed connection.
+  // Nearby events can have different equilibria. Reconcile each endpoint with
+  // its actual solved junction without moving points or guessing connections.
   for (auto &line : result.boundaries) {
     if (line.points.empty())
       continue;
@@ -1700,7 +1699,7 @@ Tracer::follow(std::shared_ptr<Assemblage> a, const Seed &seed,
   return points;
 }
 
-void Tracer::label(Boundary &line, bool response_only) {
+void Tracer::label(Boundary &line) {
   if (line.points.size() < 2 || lies_on_calculation_frame(line, result))
     return;
   double length = 0.;
@@ -1781,6 +1780,14 @@ void Tracer::label(Boundary &line, bool response_only) {
         line.side_a = neighbours[0];
         line.side_b = neighbours[1];
         line.is_solution_replacement = line.side_a == line.side_b;
+        auto absent = line.assemblage;
+        absent.erase(std::find(absent.begin(), absent.end(), line.zero_phase));
+        const auto full = engine.canonical_ids(line.assemblage),
+                   missing = engine.canonical_ids(absent);
+        line.reaction_kind = ((line.side_a == full && line.side_b == missing) ||
+                              (line.side_b == full && line.side_a == missing))
+                                 ? ReactionKind::phase_out
+                                 : ReactionKind::replacement;
         for (auto &state : limiting_states)
           if (state.success) {
             state.minimum_affinity = affinity;
@@ -1794,285 +1801,56 @@ void Tracer::label(Boundary &line, bool response_only) {
       break;
     } catch (const std::exception &) {
     }
-  if (response_only)
+  // Singular or partially oriented reactions retain only the evidence that
+  // was actually obtained. Closed field loops can identify their neighbours
+  // without a finite probe crossing an arbitrarily narrow intervening field.
+  if (!neighbours[0].empty())
+    line.side_a = neighbours[0];
+  if (!neighbours[1].empty())
+    line.side_b = neighbours[1];
+  if (anchor.phases.empty() || !ambiguous_boundary(line))
     return;
-  // An endpoint can lie on several phase lines at once. Keep the midpoint
-  // when no interior corrector verifies, using its interpolated warm start.
-  if (anchor.phases.empty()) {
-    anchor = line.points[segment - 1];
-    for (auto &state : anchor.phases)
-      for (const auto &other : line.points[segment].phases)
-        if (state.id == other.id) {
-          state.composition = .5 * (state.composition + other.composition);
-          state.amount = .5 * (state.amount + other.amount);
-        }
-  }
-  Eigen::Vector2d side(-along[1], along[0]);
-  std::vector<std::vector<int>> side_assemblages = {line.assemblage};
-  auto absent = line.assemblage;
-  absent.erase(std::find(absent.begin(), absent.end(), line.zero_phase));
-  if (!absent.empty())
-    side_assemblages.push_back(absent);
-  // At a phase replacement, two stoichiometrically indistinguishable
-  // amounts are interchangeable at coexistence. Try the opposite removal.
-  const auto formulae = engine.phase_formulae(line.assemblage, anchor.phases);
-  const bool observed_full_assemblage =
-      field_index.count(engine.canonical_ids(line.assemblage)) != 0;
-  Eigen::FullPivLU<Eigen::MatrixXd> variance(formulae);
-  variance.setThreshold(1.e-9);
-  if (variance.rank() < formulae.rows())
-    for (int removed : line.assemblage)
-      if (removed != line.zero_phase) {
-        auto subset = line.assemblage;
-        subset.erase(std::find(subset.begin(), subset.end(), removed));
-        if (!subset.empty())
-          side_assemblages.push_back(subset);
-      }
-  std::array<State, 2> side_states;
-  std::array<State, 2> previous_sides;
-  std::array<WorkState, 2> warm_sides;
-  line.is_solution_replacement = false;
-  const int base = line.zero_phase / engine.settings.max_phase_instances;
-  const bool replaces_solution =
-      std::count_if(line.assemblage.begin(), line.assemblage.end(),
-                    [&](int id) {
-                      return id / engine.settings.max_phase_instances == base;
-                    }) > 1;
-  auto branches = [&](const State &state) {
-    std::vector<int> ids;
-    const double total = total_amount(state.phases);
-    double separation = std::numeric_limits<double>::infinity();
-    for (auto &first : anchor.phases)
-      for (auto &second : anchor.phases)
-        if (first.candidate_index == base && second.candidate_index == base &&
-            first.id != second.id)
-          separation = std::min(
-              separation, (first.composition - second.composition).norm());
-    if (!std::isfinite(separation))
-      return ids;
-    for (auto &phase : state.phases)
-      if (phase.candidate_index == base &&
-          phase.amount > engine.settings.amount_tolerance * total) {
-        int closest = -1;
-        double distance = separation * .25;
-        for (auto &original : anchor.phases)
-          if (original.candidate_index == base &&
-              (phase.composition - original.composition).norm() < distance) {
-            closest = original.id;
-            distance = (phase.composition - original.composition).norm();
-          }
-        if (closest < 0)
-          return std::vector<int>{};
-        ids.push_back(closest);
-      }
-    std::sort(ids.begin(), ids.end());
-    return ids;
-  };
-  auto different_solution_branches = [&](const State &first,
-                                         const State &second) {
-    auto a = branches(first), b = branches(second);
-    return !a.empty() && !b.empty() && a != b;
-  };
-  auto immediate_neighbour = [&](const State &state) {
-    const auto ids = engine.active_phases(state);
-    // Finite equality tolerances can accept a probe still on a phase line.
-    // A PT field needs two Gibbs degrees of freedom, including both P and T.
-    if (result.section.type == DiagramType::PT &&
-        ids.size() > engine.components.size())
-      return false;
-    // For an observed full assemblage, independent phase amounts cannot
-    // exchange one zero phase for another across this edge. Such a probe
-    // has skipped the narrow full assemblage.
-    // Dependent amounts retain polymorph and compound-reaction replacements.
-    if (observed_full_assemblage &&
-        !has_composition_axis(result.section.type) &&
-        variance.rank() == formulae.rows())
-      return ids == engine.canonical_ids(line.assemblage) ||
-             ids == engine.canonical_ids(absent);
-    return has_composition_axis(result.section.type) ||
-           (std::includes(line.assemblage.begin(), line.assemblage.end(),
-                          ids.begin(), ids.end()) &&
-            !(replaces_solution && variance.rank() + 1 == formulae.rows() &&
-              ids.size() + 1 < line.assemblage.size()));
-  };
-  double next_offset = std::min(
-      std::max(engine.settings.node_tolerance * 4, 1.e-3), length * .125);
-  bool expanded_for_amount = false;
-  auto distinguishes_sides = [&]() {
-    if (!side_states[0].success || !side_states[1].success)
-      return false;
-    for (std::size_t slot = 0; slot < side_states.size(); ++slot)
-      if (!neighbours[slot].empty() &&
-          engine.active_phases(side_states[slot]) != neighbours[slot])
-        return false;
-    return engine.active_phases(side_states[0]) !=
-           engine.active_phases(side_states[1]);
-  };
-  const auto probe_accuracy =
+  // A bulk-composition section can meet a field containing phases absent
+  // from this reaction. The graph cannot discover that field from one arc.
+  // Solve its neighbours locally, retaining the response as a constraint:
+  // failure to recover a known side means the probe crossed another boundary.
+  const auto source = engine.canonical_ids(line.assemblage);
+  const auto accuracy =
       equilibrium_coordinate_tolerance(result.section.type, range);
-  for (int retry = 0; retry < 24; ++retry) {
-    const double offset = next_offset;
-    next_offset *= .5;
-    // Below native coordinate accuracy these are effectively the same
-    // equilibrium, even when floating-point coordinates still differ.
-    const Eigen::Vector2d displacement =
-        offset * side.cwiseAbs().cwiseProduct(range);
-    if (result.section.type == DiagramType::PT &&
-        (displacement.array() <= probe_accuracy.array()).all()) {
-      if (engine.settings.verbose)
-        std::cerr << "Boundary " << line.id
-                  << ": neighbour probes reached native coordinate accuracy.\n";
+  const Eigen::Vector2d normal(-along[1], along[0]);
+  double offset = std::min(std::max(engine.settings.node_tolerance * 4., 1.e-3),
+                           length * .125);
+  for (int retry = 0; retry < 24; ++retry, offset *= .5) {
+    if (((offset * normal.cwiseAbs().cwiseProduct(range)).array() <=
+         accuracy.array())
+            .all())
       break;
-    }
-    std::array<std::optional<State>, 2> discovered;
-    auto discover = [&](std::size_t slot, const Eigen::Vector2d &actual) {
-      // Inverse-section discovery can change the unplotted P/T and active
-      // faces between attempts. Retain its independent constrained searches;
-      // the neighbouring-state optimisation here is for P-T probes.
-      if (result.section.type != DiagramType::PT)
-        return engine.stable_at(actual).state;
-      if (!discovered[slot]) {
-        auto work = engine.stable_at(actual, warm_sides[slot].state.success
-                                                 ? &warm_sides[slot]
-                                                 : nullptr);
-        discovered[slot] = work.state;
-        if (work.state.success)
-          warm_sides[slot] = std::move(work);
-      }
-      return *discovered[slot];
-    };
-    double unresolved_fraction = 0.;
-    for (int sign : {-1, 1}) {
-      auto u = (centre + sign * offset * side).eval();
+    std::array<State, 2> states;
+    for (std::size_t slot = 0; slot < states.size(); ++slot) {
+      const auto u = (centre + (slot ? offset : -offset) * normal).eval();
       if (!inside(u))
         continue;
-      int slot = sign < 0 ? 0 : 1;
-      side_states[static_cast<std::size_t>(slot)] = State{};
-      auto actual = (origin + u.cwiseProduct(range)).eval();
-      for (auto &subset : side_assemblages)
-        try {
-          auto work = engine.fixed_at(
-              subset, anchor.phases, actual,
-              Eigen::Vector2d(anchor.pressure, anchor.temperature));
-          // A real entering phase can still lie below the reporting cutoff
-          // on this probe. Shrinking then makes both labels identical
-          // forever. Retain its unrounded fraction to choose one more distant
-          // probe.
-          if (!has_composition_axis(result.section.type) &&
-              !replaces_solution && variance.rank() == formulae.rows() &&
-              subset == line.assemblage && work.state.success) {
-            const double total = total_amount(work.state.phases);
-            for (const auto &phase : work.state.phases)
-              if (phase.id == line.zero_phase && phase.amount > 0. &&
-                  phase.amount <= engine.settings.amount_tolerance * total)
-                unresolved_fraction =
-                    std::max(unresolved_fraction, phase.amount / total);
-          }
-          // A finite-tolerance solve can retain a zero-amount boundary
-          // phase. Remove its chemical equations and reverify the actual
-          // field before using its compositions to identify a replacement.
-          while (work.state.success &&
-                 engine.active_phases(work.state).size() < work.ids.size()) {
-            auto surviving = present_phase_ids(
-                work.state.phases, engine.settings.amount_tolerance);
-            work = engine.fixed_at(
-                surviving, work.state.phases, actual,
-                Eigen::Vector2d(work.state.pressure, work.state.temperature));
-          }
-          if (!work.state.success ||
-              !engine.distinct(*work.assemblage, work.ids) ||
-              (result.section.type == DiagramType::PT &&
-               field_variance(*work.assemblage,
-                              engine.active_phases(work.state).size()) < 2) ||
-              !immediate_neighbour(work.state))
-            continue;
-          work.state.message = "Stable neighbouring field";
-          side_states[static_cast<std::size_t>(slot)] = work.state;
-          warm_sides[static_cast<std::size_t>(slot)] = std::move(work);
-          break;
-        } catch (const std::exception &) {
-        }
-      if (!side_states[static_cast<std::size_t>(slot)].success)
-        side_states[static_cast<std::size_t>(slot)] =
-            discover(static_cast<std::size_t>(slot), actual);
-    }
-    // Grow only for measured positive phase entry, bounded away from the
-    // line's endpoints. The usual immediate-neighbour checks still reject
-    // a probe that skips another phase field; subsequent retries shrink it.
-    if (!expanded_for_amount && unresolved_fraction > 0. &&
-        side_states[0].success && side_states[1].success &&
-        engine.active_phases(side_states[0]) ==
-            engine.active_phases(side_states[1])) {
-      expanded_for_amount = true;
-      const double larger = std::min(
-          length * .125,
-          offset * 4. * engine.settings.amount_tolerance / unresolved_fraction);
-      if (larger > offset * 1.5) {
-        if (engine.settings.verbose)
-          std::cerr << "Growing neighbour probe for phase " << line.zero_phase
-                    << ": fraction=" << unresolved_fraction
-                    << ", offset=" << offset << " -> " << larger << '\n';
-        next_offset = larger;
+      const auto probe_location = (origin + u.cwiseProduct(range)).eval();
+      auto work = engine.stable_at(probe_location);
+      if (!work.state.success)
         continue;
-      }
+      const auto ids = engine.active_phases(work.state);
+      if ((!neighbours[slot].empty() && ids != neighbours[slot]) ||
+          (!has_composition_axis(result.section.type) &&
+           !std::includes(source.begin(), source.end(), ids.begin(),
+                          ids.end())))
+        continue;
+      states[slot] = std::move(work.state);
     }
-    // Canonical IDs record how many copies survive, not which solution
-    // branch they occupy. Preserve a verified composition replacement
-    // instead of overwriting both sides with the same fresh LP root.
-    if (side_states[0].success && side_states[1].success &&
-        engine.active_phases(side_states[0]) ==
-            engine.active_phases(side_states[1]) &&
-        !different_solution_branches(side_states[0], side_states[1]))
-      for (int sign : {-1, 1}) {
-        auto u = (centre + sign * offset * side).eval();
-        if (inside(u)) {
-          auto actual = (origin + u.cwiseProduct(range)).eval();
-          side_states[sign < 0 ? 0 : 1] = discover(sign < 0 ? 0 : 1, actual);
-        }
-      }
-    // A normal probe can cross an entire thin neighbouring field. Its
-    // immediate assemblage must be drawn from the phases on this boundary;
-    // shrink the probe when a different boundary has already been crossed.
-    // A solution replacement exchanges one phase. Compound reactions can
-    // legitimately remove several phases together, so exclude them from
-    // this phase-count check.
-    for (auto &state : side_states)
-      if (state.success && !immediate_neighbour(state))
-        state = State{};
-    if (distinguishes_sides())
-      break;
-    // Each side can need a different perturbation to escape an active face
-    // while remaining inside its narrow field. Retain verified neighbours
-    // when the next, smaller probe fails on just one side.
-    for (std::size_t slot = 0; slot < side_states.size(); ++slot)
-      if (side_states[slot].success)
-        previous_sides[slot] = side_states[slot];
-      else if (previous_sides[slot].success)
-        side_states[slot] = previous_sides[slot];
-    if (distinguishes_sides())
-      break;
-    if (side_states[0].success && side_states[1].success &&
-        different_solution_branches(side_states[0], side_states[1])) {
-      line.is_solution_replacement = true;
-      break;
+    if (states[0].success && states[1].success &&
+        engine.active_phases(states[0]) != engine.active_phases(states[1])) {
+      line.side_a = engine.active_phases(states[0]);
+      line.side_b = engine.active_phases(states[1]);
+      for (const auto &state : states)
+        add_sample(state);
+      return;
     }
   }
-  for (std::size_t slot = 0; slot < side_states.size(); ++slot)
-    if (!neighbours[slot].empty() &&
-        engine.active_phases(side_states[slot]) != neighbours[slot])
-      side_states[slot] = State{};
-  if (side_states[0].success) {
-    line.side_a = engine.active_phases(side_states[0]);
-    add_sample(side_states[0]);
-  }
-  if (side_states[1].success) {
-    line.side_b = engine.active_phases(side_states[1]);
-    add_sample(side_states[1]);
-  }
-  if (ambiguous_boundary(line))
-    result.diagnostics.push_back("Boundary " + std::to_string(line.id) +
-                                 ": neighbouring fields could not be "
-                                 "distinguished within tolerances.");
 }
 
 bool Tracer::same_curve(const Boundary &first, const Boundary &second,
@@ -2337,9 +2115,7 @@ void Tracer::recover() {
           if (model_excluded(p))
             continue;
         }
-        // Older saved traces could finish at an identical-copy root and call
-        // it a junction. Such a point does not describe two coexisting
-        // phases.
+        // Identical solution copies cannot describe a coexistence junction.
         if (status != "solution critical point" && !line.points.empty() &&
             solution_separation(
                 (back ? line.points.front() : line.points.back()).phases) <=
@@ -2715,11 +2491,12 @@ void Tracer::reconcile_boundaries(bool transfer_labels_only) {
           bad.side_a = aligned ? good.side_a : good.side_b;
           bad.side_b = aligned ? good.side_b : good.side_a;
           bad.is_solution_replacement = good.is_solution_replacement;
+          bad.reaction_kind = good.reaction_kind;
         }
         duplicate = true;
         retain_curve(old, line);
         if (!same_sides && univariant)
-          label(old, true);
+          label(old);
         break;
       }
     }
@@ -2778,10 +2555,9 @@ void Tracer::apply_model_domain() {
 }
 
 void Tracer::remove_retraced_spurs() {
-  // Older junction correctors could return to the same node in both
-  // directions, leaving a collinear out-and-back spur. Replace it only
-  // when equilibrium and compositions verify that another edge covers it;
-  // the ordinary duplicate removal below then keeps that physical edge.
+  // An out-and-back trace can duplicate an accepted reaction arc. Replace it
+  // only when equilibrium and compositions verify that another edge covers it;
+  // ordinary duplicate removal then keeps that physical edge.
   for (auto &line : result.boundaries) {
     if (line.start_node < 0 || line.start_node != line.end_node ||
         line.points.size() < 3)
@@ -2860,35 +2636,38 @@ void Tracer::recover_failed_seeds() {
     }
 }
 
-void Tracer::repair_and_refine_boundaries(bool initial) {
-  reconcile_boundaries(initial);
-  repair_field_boundaries(
-      result, engine, [&](Boundary &line) { label(line); },
-      [&](Boundary &line, std::size_t k) {
-        return refine_segment(line, k, true);
-      },
-      [&](Boundary &line) { label(line, true); });
-  // Short duplicates may become verifiable only after recovering side labels.
-  reconcile_boundaries();
-  index_boundaries();
-  // Rebuild from surviving records; earlier failures may now be recovered.
-  result.diagnostics.clear();
-  result.spacing_diagnostics =
-      line_resolution
-          ? detail::refine_line_spacing(result, engine, *line_resolution,
-                                        [&](Boundary &line, std::size_t k) {
-                                          return refine_segment(line, k);
-                                        })
-          : std::vector<std::string>{};
-}
-
-void Tracer::retrace_unstable_boundaries() {
-  if (line_resolution)
-    for (int id : regional_retrace_lines(result, *line_resolution))
-      unstable_lines.insert(id);
-  // Retrace unstable chords or a requested region's conflicting arcs once;
-  // ordinary phase-entry recovery supplies their missing connections.
-  if (engine.settings.max_recovery_passes && !unstable_lines.empty()) {
+void Tracer::resolve_boundaries() {
+  for (int pass = 0; pass < 2; ++pass) {
+    reconcile_boundaries(pass == 0);
+    for (auto &line : result.boundaries)
+      if (line.reaction_kind == ReactionKind::unknown)
+        label(line);
+    repair_field_boundaries(
+        result, engine, [&](Boundary &line) { label(line); },
+        [&](Boundary &line, std::size_t k) {
+          return refine_segment(line, k, true);
+        });
+    // Short duplicates may become verifiable only after recovering side labels.
+    reconcile_boundaries();
+    index_boundaries();
+    // Rebuild from surviving records; earlier failures may now be recovered.
+    result.diagnostics.clear();
+    result.spacing_diagnostics =
+        line_resolution
+            ? detail::refine_line_spacing(result, engine, *line_resolution,
+                                          [&](Boundary &line, std::size_t k) {
+                                            return refine_segment(line, k);
+                                          })
+            : std::vector<std::string>{};
+    if (pass)
+      return;
+    if (line_resolution)
+      for (int id : regional_retrace_lines(result, *line_resolution))
+        unstable_lines.insert(id);
+    // Retrace unstable chords or a requested region's conflicting arcs once;
+    // ordinary phase-entry recovery supplies their missing connections.
+    if (!engine.settings.max_recovery_passes || unstable_lines.empty())
+      return;
     auto old = std::move(result.boundaries);
     result.boundaries.clear();
     for (auto &line : old)
@@ -2907,16 +2686,8 @@ void Tracer::retrace_unstable_boundaries() {
     unstable_lines.clear();
     attempted.clear();
     expanded.clear();
-    for (auto &n : result.nodes)
-      n.incident_lines.clear();
-    for (std::size_t i = 0; i < result.boundaries.size(); ++i) {
-      auto &line = result.boundaries[i];
-      line.id = burnman::utils::checked_int(i);
-      for (int n : {line.start_node, line.end_node})
-        if (n >= 0)
-          result.nodes.at(static_cast<std::size_t>(n))
-              .incident_lines.push_back(line.id);
-    }
+    index_boundaries();
+    rebuild_boundary_incidence(result);
     const auto saved_settings = engine.settings;
     if (line_resolution)
       engine.settings =
@@ -2925,7 +2696,6 @@ void Tracer::retrace_unstable_boundaries() {
     search();
     recover();
     engine.settings = saved_settings;
-    repair_and_refine_boundaries();
   }
 }
 
@@ -2938,9 +2708,9 @@ bool Tracer::prepare_previous(const Result &previous,
   result = previous;
   result.section = engine.section;
   result.settings = engine.settings;
-  // Older files can contain an entire saddle branch near a solvus. Such
-  // compositions pass finite affinity tolerance but cannot bound stable
-  // fields. Retain every arc with any locally stable saved state.
+  // Stationary saddle branches near a solvus can pass finite affinity
+  // tolerance but cannot bound stable fields. Retain every arc with any
+  // locally stable state.
   erase_if(result.boundaries, [&](const Boundary &line) {
     return !engine.direct_coordinates() && !line.points.empty() &&
            std::all_of(
@@ -2951,7 +2721,7 @@ bool Tracer::prepare_previous(const Result &previous,
                         !engine.distinct(*a, line.assemblage);
                });
   });
-  // An old phase-entry endpoint can contain an additional stationary copy
+  // A phase-entry endpoint can contain an additional stationary copy
   // that is a saddle or belongs to the same mixing basin. It is not a
   // junction: reopen the original reaction from its last accepted state.
   for (auto &line : result.boundaries) {
