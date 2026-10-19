@@ -70,11 +70,25 @@ def test_pyrolite_trace_faces_and_limiting_labels_repair_without_retracing(case)
 
 
 def check_boundary_equilibria(result):
+    settings = result.settings
+    # An X section interpolates bulks whose norms cannot exceed these endpoints.
+    bulk_norm = max(
+        np.linalg.norm(list(bulk.values()))
+        for bulk in (result.composition_start, result.composition_end)
+    )
     for line in result.boundaries:
         for point in line.points:
-            assert point.mass_balance_error < 1.0e-8
-            assert point.minimum_affinity >= -result.settings.affinity_tolerance
-            assert point.residual < 0.01
+            assert point.mass_balance_error <= settings.mass_balance_tolerance
+            assert point.minimum_affinity >= -settings.affinity_tolerance
+            # The saved residual is the Euclidean norm of reaction and mass
+            # equations. Engine.solve limits each reaction to 0.1*affinity_tol;
+            # the endmember count bounds their number, including reduced faces.
+            n_endmembers = sum(len(phase.composition) for phase in point.phases)
+            residual_bound = np.hypot(
+                np.sqrt(n_endmembers) * 0.1 * settings.affinity_tolerance,
+                bulk_norm * settings.mass_balance_tolerance,
+            )
+            assert 0.0 <= point.residual <= residual_bound
 
 
 def check_spacing(result, resolution, **units):

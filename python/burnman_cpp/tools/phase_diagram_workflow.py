@@ -33,9 +33,9 @@ from .potential_grid import (
     PotentialGrid,
     load_potential_grid,
     save_potential_grid,
+    infill_potential_grid,
+    smooth_potential_grid,
 )
-from .potential_infill import infill_potential_grid
-from .potential_smoothing import smooth_potential_grid
 
 _COORDINATES = dict(P="pressure", T="temperature", S="entropy", V="volume")
 
