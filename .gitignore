@@ -1,12 +1,16 @@
 # Temp files
 *~
 
+# Contrib files
+contrib/
+
 # Build files
 build/
 bin/
 
 # Dev testing
 dev-testing/
+.DS_Store
 
 # VS code configs
 .vscode/
