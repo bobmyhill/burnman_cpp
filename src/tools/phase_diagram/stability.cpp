@@ -1260,7 +1260,10 @@ EquilibriumSolve Engine::solve(Assemblage &a, ConstraintList &c,
   for (int k = 0; k < prm.phase_amount_indices.size(); ++k)
     tol[prm.phase_amount_indices[k]] = 1.e-9;
   tol.head<2>() = equilibrium_pt_tolerance();
-  tol *= tolerance_scale;
+  // Stricter reaction verification must not push Newton step tolerances
+  // below the precision of the thermodynamic derivatives. In particular,
+  // scaling 1e-12 composition steps to 1e-16 makes accepted equilibria
+  // backtrack on roundoff until the iteration limit.
   Eigen::VectorXd scales = Eigen::VectorXd::Ones(prm.n_parameters);
   scales[0] = 1.e9;
   scales[1] = 1000.;
@@ -1284,8 +1287,8 @@ EquilibriumSolve Engine::solve(Assemblage &a, ConstraintList &c,
       for (auto &group : fixed) {
         auto &constraint = group[0];
         auto derivative = constraint->derivative(s.x, a, s.x.size());
-        double allowance =
-            std::max(1.e-10, derivative.cwiseAbs().dot(tol) * 2.);
+        double allowance = std::max(1.e-10, derivative.cwiseAbs().dot(tol) *
+                                                2. * tolerance_scale);
         verified =
             verified && std::abs(constraint->evaluate(s.x, a)) <= allowance;
       }

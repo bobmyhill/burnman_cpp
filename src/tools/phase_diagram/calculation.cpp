@@ -63,7 +63,7 @@ Result Tracer::calculate(const Result *previous,
   resolve_boundaries();
   // Recovery can add accepted endpoints after the first domain pass.
   detail::join_frame_limits(result, engine);
-  detail::join_model_limits(result);
+  detail::join_model_limits(result, engine);
   if (detail::remove_metastable_parallel_lines(result, engine))
     index_boundaries();
   collect_boundary_diagnostics();
@@ -292,19 +292,17 @@ void Tracer::verify_field_interiors() {
 }
 
 Result Tracer::certify_result() {
-  // Geometry repair can change an arc's endpoints, active faces or retained
-  // sampling after its first side calculation. Refresh only the perimeters
-  // that still conflict; accepted fields need no additional solves.
-  std::set<int> conflicting;
-  for (const auto &polygon : field_polygons(result).polygons)
-    if (polygon.is_provisional && !polygon.has_open_boundary &&
-        !polygon.outside_model_domain)
-      conflicting.insert(polygon.boundary_ids.begin(),
-                         polygon.boundary_ids.end());
-  for (auto &line : result.boundaries)
-    if (conflicting.count(line.id) && !ambiguous_boundary(line))
-      label(line);
-  // Certification changes endpoint diagnostics, never field geometry.
+  // Domain attachment and removal of metastable records can change the
+  // final perimeter after tracing's repair pass. Reuse the same local repair
+  // before certification; relabelling a subset of its arcs can leave a spur
+  // with stale side evidence or an artificial hole between coarse chords.
+  repair_field_boundaries(
+      result, engine, [&](Boundary &line) { label(line); },
+      [&](Boundary &line, std::size_t k) {
+        return refine_segment(line, k, true);
+      });
+  index_boundaries();
+  // Verify endpoint diagnostics after the final geometry repair.
   detail::verify_critical_endpoints(result, engine);
   const auto graph = detail::recover_boundary_labels(result);
   auto messages = detail::field_diagnostics(result, engine, graph);

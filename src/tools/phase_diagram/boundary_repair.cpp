@@ -26,7 +26,8 @@
 namespace burnman::phase_diagrams::detail {
 namespace {
 PhaseStates junction_states(const std::vector<Boundary> &lines,
-                            const Node &event, PhaseStates phases = {}) {
+                            const Node &event) {
+  PhaseStates phases;
   std::pair<std::size_t, std::size_t> best{};
   for (const auto &peer : lines)
     if (!peer.points.empty() &&
@@ -82,9 +83,7 @@ void join_duplicate_junctions(Result &result, Engine &engine) {
       id = aliases.at(id);
     return id;
   };
-  auto compare = [&](const Node &a, const Node &z,
-                     const PhaseStates &first_seed,
-                     const PhaseStates &last_seed) {
+  auto compare = [&](const Node &a, const Node &z) {
     if (a.kind != "junction" || z.kind != "junction" || a.pt_nullity != 0 ||
         z.pt_nullity != 0 ||
         engine.canonical_ids(a.assemblage) !=
@@ -99,8 +98,8 @@ void join_duplicate_junctions(Result &result, Engine &engine) {
     if (node(a.id) == node(z.id))
       return;
     try {
-      auto first = junction_states(result.boundaries, a, first_seed),
-           last = junction_states(result.boundaries, z, last_seed);
+      auto first = junction_states(result.boundaries, a),
+           last = junction_states(result.boundaries, z);
       if (first.size() != a.assemblage.size() ||
           last.size() != z.assemblage.size())
         return;
@@ -136,12 +135,10 @@ void join_duplicate_junctions(Result &result, Engine &engine) {
                                   engine.settings.amount_tolerance) &&
           (equivalent(first, first) || equivalent(last, last));
       if (!matched) {
-        // Different active faces can hide one P-T invariant. Open their
+        // Different active faces can hide one equilibrium junction. Open their
         // union, retaining each limiting state's own compositions; joining
         // still requires two independent roots at the existing accuracy.
-        if (result.section.type != DiagramType::PT || a.gibbs_variance != 0 ||
-            z.gibbs_variance != 0 || !share_composition_faces(first, last) ||
-            !equivalent(first, last))
+        if (!share_composition_faces(first, last) || !equivalent(first, last))
           return;
       }
       const int x = node(a.id), y = node(z.id);
@@ -152,34 +149,14 @@ void join_duplicate_junctions(Result &result, Engine &engine) {
         std::cerr << "Junction comparison: " << error.what() << '\n';
     }
   };
-  for (const auto &b : result.boundaries)
-    if (b.start_node >= 0 && b.end_node >= 0 && b.start_node != b.end_node &&
-        b.points.size() >= 2)
-      compare(result.nodes.at(static_cast<std::size_t>(b.start_node)),
-              result.nodes.at(static_cast<std::size_t>(b.end_node)),
-              b.points.front().phases, b.points.back().phases);
-  if (!engine.direct_coordinates()) {
-    // Two recovered arms can end at different records of one event without
-    // a connecting arc. Proximity and zero-candidate identity only propose
-    // a comparison; the independently solved P,T,S,V and compositions above
-    // must still agree before any connection changes.
-    const auto active = active_boundary_nodes(result);
-    auto zeros = [&](const Node &n) {
-      auto ids = n.zero_phases;
-      for (int &id : ids)
-        id /= engine.settings.max_phase_instances;
-      std::sort(ids.begin(), ids.end());
-      return ids;
-    };
-    for (auto first = active.begin(); first != active.end(); ++first)
-      for (auto last = std::next(first); last != active.end(); ++last) {
-        const auto &a = result.nodes.at(static_cast<std::size_t>(*first)),
-                   &z = result.nodes.at(static_cast<std::size_t>(*last));
-        if (a.kind == "junction" && z.kind == "junction" &&
-            zeros(a) == zeros(z))
-          compare(a, z, {}, {});
-      }
-  }
+  // Separate recovered arms need not have a saved bridge or the same imposed
+  // zero phases. The independent roots above, including plotted S/V, decide
+  // whether these are two representations of the same equilibrium event.
+  const auto active = active_boundary_nodes(result);
+  for (auto first = active.begin(); first != active.end(); ++first)
+    for (auto last = std::next(first); last != active.end(); ++last)
+      compare(result.nodes.at(static_cast<std::size_t>(*first)),
+              result.nodes.at(static_cast<std::size_t>(*last)));
   std::set<int> contracted;
   for (auto &b : result.boundaries) {
     const bool bridge = b.start_node != b.end_node;
@@ -363,9 +340,7 @@ void retain_thin_loops(Result &result, Engine &engine) {
   for (std::size_t i = 0; i < result.boundaries.size(); ++i) {
     const auto &b = result.boundaries[i];
     if (b.start_node >= 0 && b.end_node >= 0 && b.start_node != b.end_node &&
-        b.points.size() > 1 &&
-        (result.section.type != DiagramType::PT ||
-         boundary_variance(b, result) >= 2))
+        b.points.size() > 1 && !univariant_reaction(b, result))
       pairs[std::minmax(b.start_node, b.end_node)].push_back(i);
   }
   for (const auto &[ends, lines] : pairs)
@@ -486,6 +461,18 @@ int boundary_variance(const Boundary &line, const Result &result) {
   return variance;
 }
 
+bool univariant_reaction(const Boundary &line, const Result &result) {
+  const auto full =
+      canonical_phase_ids(line.assemblage, result.settings.max_phase_instances);
+  return result.section.type == DiagramType::PT &&
+         ((line.reaction_kind == ReactionKind::replacement &&
+           canonical_phase_ids(line.side_a,
+                               result.settings.max_phase_instances) != full &&
+           canonical_phase_ids(line.side_b,
+                               result.settings.max_phase_instances) != full) ||
+          boundary_variance(line, result) == 1);
+}
+
 void repair_field_boundaries(
     Result &result, Engine &engine,
     const std::function<void(Boundary &)> &label,
@@ -504,8 +491,18 @@ void repair_field_boundaries(
           !polygon.outside_model_domain)
         conflicting.insert(polygon.boundary_ids.begin(),
                            polygon.boundary_ids.end());
+    // A stale label can order a neighbouring arc into a spur and hide it
+    // from the perimeter. Refresh all reactions at the affected junctions.
+    std::set<int> nodes;
+    for (const auto &line : result.boundaries)
+      if (conflicting.count(line.id))
+        for (int id : {line.start_node, line.end_node})
+          if (id >= 0)
+            nodes.insert(id);
     for (auto &line : result.boundaries)
-      if (conflicting.count(line.id) && !ambiguous_boundary(line))
+      if ((conflicting.count(line.id) || nodes.count(line.start_node) ||
+           nodes.count(line.end_node)) &&
+          !ambiguous_boundary(line))
         label(line);
   };
   refresh_conflicting_labels();
@@ -605,7 +602,8 @@ void repair_field_boundaries(
 // interior: the endpoints are stable nodes, so an endpoint test cannot reject
 // it, but a lower-energy phase (typically a second solvus copy) appears in
 // between. Probe interior points of lines that share both nodes with another
-// line, and drop those that fail while a parallel line passes.
+// line. Remove a record only when a corrected equilibrium proves instability
+// and a parallel record verifies stable; failed corrections remain unresolved.
 std::size_t remove_metastable_parallel_lines(Result &result, Engine &engine) {
   enum class Stability { stable, metastable, unresolved };
   const auto ranges = result.coordinate_ranges();
@@ -617,15 +615,13 @@ std::size_t remove_metastable_parallel_lines(Result &result, Engine &engine) {
   };
   auto stable_interior = [&](const Boundary &line) {
     if (line.points.size() < 2)
-      return engine.direct_coordinates() ? Stability::stable
-                                         : Stability::unresolved;
+      return Stability::unresolved;
     std::vector<double> lengths{0.};
     for (std::size_t k = 1; k < line.points.size(); ++k)
       lengths.push_back(lengths.back() +
                         (q(line.points[k]) - q(line.points[k - 1])).norm());
     if (lengths.back() <= 0.)
-      return engine.direct_coordinates() ? Stability::stable
-                                         : Stability::unresolved;
+      return Stability::unresolved;
     bool verified = true;
     for (double fraction : {.25, .5, .75}) {
       const double s = fraction * lengths.back();
@@ -637,7 +633,7 @@ std::size_t remove_metastable_parallel_lines(Result &result, Engine &engine) {
       const Eigen::Vector2d a = q(line.points[k - 1]), b = q(line.points[k]);
       const Eigen::Vector2d tangent = b - a;
       if (tangent.norm() < 1.e-12) {
-        verified = verified && engine.direct_coordinates();
+        verified = false;
         continue;
       }
       const Eigen::Vector2d target =
@@ -658,16 +654,10 @@ std::size_t remove_metastable_parallel_lines(Result &result, Engine &engine) {
                 ? engine.settings.affinity_tolerance
                 : std::min(engine.settings.affinity_tolerance, 1.e-5);
         if (!point) {
-          // Preserve the established P-T chord repair. Inverse sections can
-          // fail because a trace composition face needs reopening instead.
-          if (engine.direct_coordinates())
-            return Stability::metastable;
           verified = false;
         } else if (point->minimum_affinity < -tolerance)
           return Stability::metastable;
       } catch (const std::exception &) {
-        if (engine.direct_coordinates())
-          return Stability::metastable;
         verified = false;
       }
     }

@@ -179,6 +179,8 @@ TEST_CASE("Check reference conditions", "[eos][slb]") {
   params.eta_s_0 = 4.5;
   params.molar_mass = 0.04;
   params.napfu = 2;
+  params.bel_0 = 0.;
+  params.gel = 1.;
   eos::SLB2 slb2;
   eos::SLB3 slb3;
   eos::SLB3Conductive slb3_c;

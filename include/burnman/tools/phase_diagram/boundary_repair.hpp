@@ -22,15 +22,18 @@ struct Engine;
 /// Return -1 when suitable endpoint metadata is unavailable.
 int boundary_variance(const Boundary &, const Result &);
 
+/// A P-T reaction exchanging two limiting assemblages has no finite full field,
+/// even when frozen composition faces overestimate nominal Gibbs variance.
+bool univariant_reaction(const Boundary &, const Result &);
+
 /// Junction/endpoint IDs used by retained traces; also supports geometry-only
 /// input files whose nodes have no explicit endpoint references.
 std::set<int> active_boundary_nodes(const Result &);
 
 /// Re-solve interior points of alternative traces joining the same two nodes.
-/// Remove a failing trace only when a competing trace passes the checks.
-/// Inverse sections require verified metastability; a failed corrector
-/// leaves stability unresolved.
-/// sharing endpoints does not by itself make two curves duplicates.
+/// Remove a trace only when corrected equilibria verify its metastability and
+/// a competing trace verifies stable. Failed correctors leave stability
+/// unresolved in every section. Shared endpoints alone do not prove duplicates.
 /// Return the number of removed records.
 std::size_t remove_metastable_parallel_lines(Result &, Engine &);
 

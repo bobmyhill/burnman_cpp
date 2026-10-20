@@ -76,11 +76,10 @@ Eigen::VectorXd field_response(const Engine &engine, const Assemblage &a,
   }
   Eigen::JacobiSVD<Eigen::MatrixXd> svd(j, Eigen::ComputeThinU |
                                                Eigen::ComputeThinV);
-  // Latent S/V intervals can couple phase amounts to the intensive variables
-  // through a small but nonzero singular direction. Dropping it turns a
-  // regular field into a spurious reaction replacement. Use the same inverse
-  // rank accuracy as continuation_tangent and retain the residual check below.
-  svd.setThreshold(engine.direct_coordinates() ? 1.e-10 : 1.e-12);
+  // Trace site populations can make a unique field response ill-conditioned.
+  // Use the decomposition's numerical rank at matrix precision; a geometric
+  // continuation tolerance must not erase a finite latent response. Certify
+  // the solved equations below before using its orientation.
   if (svd.rank() != j.cols())
     return {};
   Eigen::VectorXd response = svd.solve(rhs);
@@ -89,20 +88,53 @@ Eigen::VectorXd field_response(const Engine &engine, const Assemblage &a,
   return scales.cwiseProduct(response);
 }
 
+// One mass-conserving reaction between the coexisting phase compositions.
+// Normalize its direction so the imposed zero-amount phase enters.
+std::optional<Eigen::VectorXd> reaction_vector(const Engine &engine,
+                                               const Assemblage &a,
+                                               const std::vector<int> &ids,
+                                               const PhaseStates &states,
+                                               int zero) {
+  const auto entry = std::find(ids.begin(), ids.end(), zero);
+  if (entry == ids.end())
+    return std::nullopt;
+  const auto formulae = engine.phase_formulae(ids, states);
+  Eigen::JacobiSVD<Eigen::MatrixXd> svd(formulae.transpose(),
+                                        Eigen::ComputeFullV);
+  svd.setThreshold(1.e-9);
+  if (formulae.rows() - svd.rank() != 1)
+    return std::nullopt;
+  Eigen::VectorXd reaction = svd.matrixV().rightCols(1);
+  const double entering = reaction[entry - ids.begin()];
+  if (std::abs(entering) < 1.e-9)
+    return std::nullopt;
+  if (entering < 0.)
+    reaction = -reaction;
+  double affinity = 0.;
+  for (std::size_t k = 0; k < ids.size(); ++k)
+    affinity += reaction[static_cast<Eigen::Index>(k)] *
+                a.get_phase(k)->get_molar_gibbs();
+  if (std::abs(affinity) >
+      engine.settings.affinity_tolerance * reaction.cwiseAbs().sum())
+    return std::nullopt;
+  return reaction;
+}
+
 int phase_entry_side(Engine &engine, Assemblage &a, const std::vector<int> &ids,
                      int zero, const EquilibriumSolve &s,
                      const Eigen::Vector2d &range,
-                     const Eigen::Vector2d &normal, int &full_side) {
+                     const Eigen::Vector2d &normal, int &full_side,
+                     std::vector<int> &absent) {
   auto entry = std::find(ids.begin(), ids.end(), zero);
   auto prm = engine.parameters(a);
   if (entry == ids.end() || ids.size() < 2 || s.x.size() != prm.n_parameters)
     return 0;
   auto states = engine.snapshot(a, ids);
   const double total = a.get_n_moles();
-  // A junction is not a regular arc, even if the file repeats it as a midpoint.
+  absent.clear();
   for (const auto &state : states)
-    if (state.id != zero && state.amount <= total * 1.e-10)
-      return 0;
+    if (state.id != zero && state.amount > total * 1.e-10)
+      absent.push_back(state.id);
   auto response = field_response(engine, a, s.J, range, normal);
   int response_sign = 0;
   if (response.size()) {
@@ -110,6 +142,16 @@ int phase_entry_side(Engine &engine, Assemblage &a, const std::vector<int> &ids,
     const double change = response[amount] / total;
     if (std::abs(change) > 1.e-9)
       response_sign = change > 0. ? 1 : -1;
+    // Bulk stoichiometry can require several phases to appear together.
+    // All currently absent amounts must grow into the same finite field.
+    for (std::size_t k = 0; k < states.size(); ++k)
+      if (states[k].amount <= total * 1.e-10 &&
+          response_sign *
+                  response[prm.phase_amount_indices[static_cast<Eigen::Index>(
+                      k)]] /
+                  total <=
+              1.e-9)
+        return 0;
   }
   full_side = response_sign;
   if (!response_sign) {
@@ -122,8 +164,8 @@ int phase_entry_side(Engine &engine, Assemblage &a, const std::vector<int> &ids,
     if (rank.rank() < formulae.rows())
       return 0;
   }
-  auto absent = ids;
-  absent.erase(absent.begin() + (entry - ids.begin()));
+  if (absent.empty())
+    return 0;
   auto other =
       engine.make_at(absent, states, engine.coordinates(a),
                      Eigen::Vector2d(a.get_pressure(), a.get_temperature()));
@@ -164,9 +206,6 @@ int phase_entry_side(Engine &engine, Assemblage &a, const std::vector<int> &ids,
   }
   const Eigen::VectorXd weights =
       formulae.transpose().completeOrthogonalDecomposition().solve(target);
-  if ((formulae.transpose() * weights - target).norm() >
-      1.e-10 * std::max(1., target.norm()))
-    return 0;
   Eigen::VectorXd derivatives(stoich.rows());
   Eigen::Index offset = 0;
   const auto counts = other->get_endmembers_per_phase();
@@ -192,9 +231,24 @@ int phase_entry_side(Engine &engine, Assemblage &a, const std::vector<int> &ids,
   }
   const auto material =
       a.get_phase(static_cast<std::size_t>(entry - ids.begin()));
-  const double derivative = material->get_molar_volume() * opposite[0] -
-                            material->get_molar_entropy() * opposite[1] -
-                            weights.dot(derivatives);
+  double derivative = material->get_molar_volume() * opposite[0] -
+                      material->get_molar_entropy() * opposite[1] -
+                      weights.dot(derivatives);
+  if ((formulae.transpose() * weights - target).norm() >
+      1.e-10 * std::max(1., target.norm())) {
+    // The omitted phase alone need not lie in the surviving field's span:
+    // periclase + akimotoite, for example, enter ringwoodite together.
+    auto reaction = reaction_vector(engine, a, ids, states, zero);
+    if (!reaction)
+      return 0;
+    derivative = 0.;
+    for (std::size_t k = 0; k < ids.size(); ++k) {
+      const auto phase = a.get_phase(k);
+      derivative += (*reaction)[static_cast<Eigen::Index>(k)] *
+                    (phase->get_molar_volume() * opposite[0] -
+                     phase->get_molar_entropy() * opposite[1]);
+    }
+  }
   if (!std::isfinite(derivative) || std::abs(derivative) <= 1.e-5)
     return 0;
   const int sign = derivative < 0. ? 1 : -1;
@@ -318,10 +372,11 @@ boundary_sides(Engine &engine, Assemblage &a, const std::vector<int> &ids,
   auto absent = ids;
   absent.erase(absent.begin() + (entry - ids.begin()));
   int full_side = 0;
-  int sign =
-      phase_entry_side(engine, a, ids, zero, s, range, normal, full_side);
+  int sign = phase_entry_side(engine, a, ids, zero, s, range, normal, full_side,
+                              absent);
+  const bool ordinary = absent.size() + 1 == ids.size();
   if (sign) {
-    kind(ReactionKind::phase_out);
+    kind(ordinary ? ReactionKind::phase_out : ReactionKind::replacement);
     return {engine.canonical_ids(sign > 0 ? absent : ids),
             engine.canonical_ids(sign > 0 ? ids : absent)};
   }
@@ -332,7 +387,7 @@ boundary_sides(Engine &engine, Assemblage &a, const std::vector<int> &ids,
   full.J.row(0).setZero();
   int field_rank = 0;
   continuation_tangent(engine, full, a, range, &field_rank);
-  if (!has_composition_axis(engine.section.type) && field_rank == 2)
+  if (!has_composition_axis(engine.section.type) && field_rank == 2 && ordinary)
     kind(ReactionKind::phase_out);
   if (engine.section.type != DiagramType::PT) {
     // Preserve the full branch's orientation even when the opposite field
@@ -355,32 +410,21 @@ boundary_sides(Engine &engine, Assemblage &a, const std::vector<int> &ids,
   for (const auto &state : states)
     if (state.id != zero && state.amount <= a.get_n_moles() * 1.e-10)
       return {};
-  auto formulae = engine.phase_formulae(ids, states);
-  Eigen::JacobiSVD<Eigen::MatrixXd> svd(formulae.transpose(),
-                                        Eigen::ComputeFullV);
-  svd.setThreshold(1.e-9);
-  if (formulae.rows() - svd.rank() != 1)
+  const auto extent_direction = reaction_vector(engine, a, ids, states, zero);
+  if (!extent_direction)
     return {};
-  Eigen::VectorXd reaction = svd.matrixV().rightCols(1);
-  Eigen::Index entering = entry - ids.begin();
-  if (std::abs(reaction[entering]) < 1.e-9)
-    return {};
-  if (reaction[entering] < 0.)
-    reaction = -reaction;
+  const Eigen::VectorXd &reaction = *extent_direction;
   double extent = std::numeric_limits<double>::infinity();
-  Eigen::VectorXd g(ids.size()), volume(ids.size()), entropy(ids.size());
+  Eigen::VectorXd volume(ids.size()), entropy(ids.size());
   for (Eigen::Index k = 0; k < reaction.size(); ++k) {
     auto phase = a.get_phase(static_cast<std::size_t>(k));
-    g[k] = phase->get_molar_gibbs();
     volume[k] = phase->get_molar_volume();
     entropy[k] = phase->get_molar_entropy();
     if (reaction[k] < -1.e-9)
       extent = std::min(extent, states[static_cast<std::size_t>(k)].amount /
                                     -reaction[k]);
   }
-  if (!std::isfinite(extent) || extent <= 0. ||
-      std::abs(reaction.dot(g)) >
-          engine.settings.affinity_tolerance * reaction.cwiseAbs().sum())
+  if (!std::isfinite(extent) || extent <= 0.)
     return {};
   std::vector<int> after;
   for (Eigen::Index k = 0; k < reaction.size(); ++k)
@@ -576,23 +620,36 @@ std::optional<PhaseStates> reaction_seed_amounts(const Engine &engine,
   if (present.empty())
     return std::nullopt;
   const auto formulae = engine.phase_formulae(present, warm);
-  Eigen::MatrixXd reduced(formulae.rows(), engine.components.size());
-  for (std::size_t k = 0; k < engine.components.size(); ++k)
-    reduced.col(static_cast<Eigen::Index>(k)) =
-        formulae.col(engine.components[k]);
-  try {
-    const auto lp = polytope::gibbs_linear_program(
-        reduced, Eigen::VectorXd::Zero(reduced.rows()), engine.b);
-    auto states = warm;
-    for (auto &phase : states) {
-      const auto it = std::find(present.begin(), present.end(), phase.id);
-      phase.amount =
-          it == present.end() ? 0. : lp.amounts[it - present.begin()];
-    }
-    return states;
-  } catch (const polytope::InfeasibleBulk &) {
+  // Fixed phase compositions can span fewer elements than the full model
+  // set. Exact rational equalities then reject even equilibria whose small
+  // residual satisfies the ordinary mass tolerance. Minimise the elemental
+  // mismatch with positive/negative slack amounts instead.
+  const Eigen::Index n = formulae.rows(), elements = formulae.cols();
+  Eigen::MatrixXd material(n + 2 * elements, elements);
+  material.topRows(n) = formulae;
+  material.middleRows(n, elements).setIdentity();
+  material.bottomRows(elements) =
+      -Eigen::MatrixXd::Identity(elements, elements);
+  Eigen::VectorXd cost = Eigen::VectorXd::Ones(material.rows());
+  cost.head(n).setZero();
+  const auto lp =
+      polytope::gibbs_linear_program(material, cost, engine.full_bulk);
+  const double tolerance =
+      engine.settings.mass_balance_tolerance * engine.full_bulk.norm();
+  if ((formulae.transpose() * lp.amounts.head(n) - engine.full_bulk).norm() >
+      tolerance) {
+    // L1 >= L2, and L1 <= sqrt(N)*L2. Only a minimum outside that band
+    // proves infeasibility at the configured Euclidean mass tolerance.
+    if (lp.gibbs <= std::sqrt(static_cast<double>(elements)) * tolerance)
+      throw std::runtime_error("Junction mass feasibility is inconclusive.");
     return std::nullopt;
   }
+  auto states = warm;
+  for (auto &phase : states) {
+    const auto it = std::find(present.begin(), present.end(), phase.id);
+    phase.amount = it == present.end() ? 0. : lp.amounts[it - present.begin()];
+  }
+  return states;
 }
 
 bool same_phase_compositions(const PhaseStates &a, const PhaseStates &b,
@@ -901,9 +958,8 @@ bool same_boundary_curve(Engine &engine, const Result &result,
     return follows_polyline(one.points, two.points, q,
                             engine.settings.node_tolerance * 2.);
   };
-  const bool univariant = result.section.type == DiagramType::PT &&
-                          boundary_variance(first, result) == 1 &&
-                          boundary_variance(second, result) == 1;
+  const bool univariant =
+      univariant_reaction(first, result) && univariant_reaction(second, result);
   if (partial && (first.start_node < 0 || first.end_node < 0)) {
     if (!near(first, second))
       return false;
@@ -932,8 +988,13 @@ bool same_boundary_curve(Engine &engine, const Result &result,
   if (!univariant && !partial && !require_equilibrium && near(first, second) &&
       near(second, first))
     return true;
-  const bool intensive_branch =
-      univariant && !partial && same_boundary_nodes(first, second, result);
+  auto shared_node = [&](int id) {
+    return id >= 0 && (id == second.start_node || id == second.end_node);
+  };
+  const bool shared_branch =
+      (univariant || first.zero_phase == second.zero_phase) &&
+      (partial ? shared_node(first.start_node) || shared_node(first.end_node)
+               : same_boundary_nodes(first, second, result));
   // No result means the starting state failed numerically. False means two
   // independently corrected equilibria actually disagree.
   auto verified = [&](const Boundary &one,
@@ -988,6 +1049,10 @@ bool same_boundary_curve(Engine &engine, const Result &result,
         if (univariant || require_equilibrium) {
           const auto weights = tangent.normalized().cwiseQuotient(range).eval();
           auto first_seed = target.phases, warm = closest->phases;
+          erase_if(first_seed, [&](const auto &p) {
+            return std::find(one.assemblage.begin(), one.assemblage.end(),
+                             p.id) == one.assemblage.end();
+          });
           erase_if(warm, [&](const auto &p) {
             return std::find(two.assemblage.begin(), two.assemblage.end(),
                              p.id) == two.assemblage.end();
@@ -995,26 +1060,29 @@ bool same_boundary_curve(Engine &engine, const Result &result,
           // Reaction extents can carry different saved active faces. Open
           // their union without copying compositions between independent
           // starting states, so a stale frozen site cannot define identity.
-          if (!share_composition_faces(first_seed, warm))
+          if (univariant && !share_composition_faces(first_seed, warm))
             return false;
+          // Identity needs more accurate roots than ordinary tracing: weak
+          // frozen-site affinities can otherwise leave two accepted states
+          // farther apart than the composition identity tolerance.
           auto left = boundary_point_at(
               engine, one, first_seed,
               diagram_coordinates(target, result.section.type), weights,
-              range * engine.settings.node_tolerance);
+              range * engine.settings.node_tolerance, 1.e-4);
           if (!left) {
-            if (intensive_branch)
+            if (shared_branch)
               continue;
             return std::nullopt;
           }
           auto right = boundary_point_at(
               engine, two, warm,
               diagram_coordinates(*left, result.section.type), weights,
-              range * engine.settings.node_tolerance);
+              range * engine.settings.node_tolerance, 1.e-4);
           // Match the independently corrected compositions before sharing a
           // seed. Otherwise a different intensive branch could be forced to
           // the reference root merely by copying its starting compositions.
           if (!right) {
-            if (intensive_branch)
+            if (shared_branch)
               continue;
             return std::nullopt;
           }
@@ -1039,7 +1107,7 @@ bool same_boundary_curve(Engine &engine, const Result &result,
                 diagram_coordinates(*left, result.section.type), weights,
                 equilibrium_pt_tolerance());
             if (!right) {
-              if (intensive_branch)
+              if (shared_branch)
                 continue;
               return std::nullopt;
             }
@@ -1072,18 +1140,19 @@ bool same_boundary_curve(Engine &engine, const Result &result,
           return false;
         ++checked;
       } catch (const std::exception &) {
-        if (!intensive_branch)
+        if (!shared_branch)
           return std::nullopt;
       }
     }
     return checked > 0 ? std::optional<bool>(true) : std::nullopt;
   };
-  // A regular univariant reaction with matching stable endpoints and
-  // independently corrected phase compositions is one intensive branch.
-  // Either direction can establish that identity; a cold, sparsely sampled
-  // record may not supply a usable Newton start in the reverse direction.
+  // Matching endpoints propose one branch with the same phase-out condition
+  // or alternate extents of a univariant reaction. A partial retrace also
+  // needs the complete geometrical coverage checked above. Require matching
+  // corrected equilibria; failed warm starts supply no evidence either way,
+  // whereas any actual disagreement vetoes the identification.
   const auto forward = verified(first, second);
-  if (intensive_branch) {
+  if (shared_branch) {
     if (forward == false)
       return false;
     const auto backward = verified(second, first);

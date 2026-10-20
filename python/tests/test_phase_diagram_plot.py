@@ -1560,6 +1560,24 @@ def test_eos_domain_mask_is_subdivided_and_never_gets_an_assemblage_colour():
     assert sum(p.area for p in result.polygons) == pytest.approx(1.0)
 
 
+@pytest.mark.parametrize("reverse", [False, True])
+def test_model_limit_fans_cannot_join_fields_through_the_excluded_domain(reverse):
+    data = json.loads(
+        (Path(__file__).parent / "data/phase_diagram_model_limit_fan.json").read_text()
+    )
+    if reverse:
+        data["excluded_regions"][0].reverse()
+        data["boundaries"].reverse()
+    geometry = bm.phase_diagram_field_polygons(data)
+    cold = np.array([12.5e9, 2.0])
+    box = np.array([1.0, 0.1])
+    containing = [p for p in geometry.polygons if p.contains_rectangle(cold, box)]
+    assert containing and all(p.outside_model_domain for p in containing)
+    # Accepted phase arcs can be tangent to an approximated model envelope.
+    # Their cyclic order must keep valid mineral fields outside the mask.
+    assert all(not p.phases for p in containing)
+
+
 def test_frame_roundoff_does_not_create_zero_kelvin_slivers():
     data = diagram(
         [line([(0.0, 2.0e-15), (0.4, 2.0e-15), (1.0, 0.0)], [0, 1], [0])],
