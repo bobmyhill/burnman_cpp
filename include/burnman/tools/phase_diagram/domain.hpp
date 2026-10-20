@@ -34,9 +34,9 @@ std::vector<Eigen::MatrixXd>
 excluded_model_regions(Engine &, const Eigen::Vector2d &origin,
                        const Eigen::Vector2d &range);
 
-/// Attach terminated traces to the saved EOS envelope within node tolerance,
-/// retaining their last verified equilibrium states.
-void join_model_limits(Result &);
+/// Correct terminated traces onto the saved EOS envelope within node tolerance,
+/// retaining the verified boundary equilibria at their model limits.
+void join_model_limits(Result &, Engine &);
 
 /// Re-solve near-frame endpoints at the exact calculation edge before joining.
 void join_frame_limits(Result &, Engine &);

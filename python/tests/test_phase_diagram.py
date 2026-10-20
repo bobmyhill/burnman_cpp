@@ -958,12 +958,22 @@ def test_resume_retains_conflicting_seed_assemblages_as_provisional_evidence(
     assert not recovered.resolved
     assert not recovered.boundaries
     assert {tuple(f.phases) for f in recovered.fields} == {(0,), (3,)}
-    assert recovered.to_dict()["samples"] == saved["samples"]
-    assert recovered.equilibrium_solves == saved["equilibrium_solves"]
+    samples = recovered.to_dict()["samples"]
+    assert samples[: len(saved["samples"])] == saved["samples"]
+    # Targeted interior verification may add evidence. It must preserve the
+    # conflicting accepted roots, rather than certify either as uniquely stable
+    # when their energy separation lies inside the configured affinity tolerance.
+    assert all(
+        s["success"]
+        and s["is_field_verification"]
+        and s["mass_balance_error"] <= opts.mass_balance_tolerance
+        and s["minimum_affinity"] >= -opts.affinity_tolerance
+        for s in samples[len(saved["samples"]) :]
+    )
     geometry = bm.phase_diagram_field_polygons(recovered)
     assert len(geometry.polygons) == 1
     assert geometry.polygons[0].is_provisional
-    assert geometry.polygons[0].phases == [0]
+    assert geometry.polygons[0].phases in ([0], [3])
 
 
 def test_pyrolite_small_lp_seed_grows_during_equilibrium_refinement():

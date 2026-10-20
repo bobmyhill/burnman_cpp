@@ -181,3 +181,29 @@ def test_pyrolite_entropy_coexistence_field_survives_failed_side_orientation():
     assert state.success, state.message
     assert sorted(p.id for p in state.phases) == expected
     assert not any("conflicting perimeter" in d for d in result.diagnostics)
+
+
+def test_trace_site_populations_preserve_a_finite_entropy_field_response():
+    data = json.loads(
+        (
+            Path(__file__).parent / "data/pyrolite_sp_trace_site_response.json"
+        ).read_text()
+    )
+    phases = [
+        getattr(SLB24, name)() for name in data["workflow"]["models"]["phase_names"]
+    ]
+    result = bm.refine_phase_diagram(
+        data["composition_start"],
+        phases,
+        data,
+        resolution=(2, 2),
+        region=(data["entropy_range"], data["pressure_range"]),
+        pressure_unit="Pa",
+    )
+    # Trace site populations make this regular three-garnet coexistence
+    # response stiff, but do not remove its finite extent in entropy.
+    boundary = result.boundaries[0]
+    full = (15, 18, 24, 33, 34, 35, 36, 72, 75)
+    absent = (15, 18, 24, 33, 34, 36, 72, 75)
+    assert {tuple(boundary.side_a), tuple(boundary.side_b)} == {full, absent}
+    assert boundary.reaction_kind == "phase_out"

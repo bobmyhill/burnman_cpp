@@ -197,8 +197,9 @@ enum class ReactionKind { unknown, phase_out, replacement };
 struct Boundary {
   int id = -1, zero_phase = -1, start_node = -1, end_node = -1;
   // A phase_out has a finite full-assemblage field and a field without
-  // zero_phase. A replacement exchanges limiting assemblages. Unknown means
-  // that the local equilibrium response has not established the reaction.
+  // zero_phase. A replacement stores verified limiting assemblages, including
+  // groups of phases that must appear together. Unknown means that the local
+  // equilibrium response has not established the reaction.
   ReactionKind reaction_kind = ReactionKind::unknown;
   // Verified exchange of distinct solution compositions at unchanged counts.
   bool is_solution_replacement = false;

@@ -963,10 +963,11 @@ void Tracer::expand(const Assemblage &a, const std::vector<int> &ids,
         auto subset = ids;
         subset.erase(std::find(subset.begin(), subset.end(), removed));
         auto trial = states;
-        if (result.section.type == DiagramType::PT && gibbs_variance == 0) {
-          // At a P-T invariant, compositions are fixed while reaction
-          // extents change. A mass-balance LP identifies feasible limiting
-          // mixtures before an expensive boundary Newton solve is queued.
+        if (result.section.type == DiagramType::PT && reduced_amount_variance) {
+          // At this P,T the coexisting compositions are fixed while reaction
+          // extents change, including on an active composition face with
+          // positive nominal variance. Reject mass-infeasible limiting
+          // mixtures before queueing their nonlinear boundary solves.
           try {
             auto balanced = reaction_seed_amounts(engine, subset, states, z);
             if (!balanced)
@@ -1722,12 +1723,49 @@ void Tracer::label(Boundary &line) {
       break;
     walked += span;
   }
+  // A cold active face can collapse a finite coexistence strip into a
+  // univariant limit. Prefer a verified interior state whose phase formulae
+  // are independent; a cold midpoint must not exclude its warmer full field.
+  std::optional<std::size_t> independent;
+  double conditioning = 0.;
+  auto dependent = [&](const BoundaryPoint &p) {
+    Eigen::JacobiSVD<Eigen::MatrixXd> svd(
+        engine.phase_formulae(line.assemblage, p.phases));
+    return svd.rank() < static_cast<Eigen::Index>(line.assemblage.size());
+  };
+  const bool collapsed =
+      !has_composition_axis(result.section.type) &&
+      (dependent(line.points[segment - 1]) || dependent(line.points[segment]));
+  for (std::size_t k = 1; collapsed && k + 1 < line.points.size(); ++k) {
+    const auto &states = line.points[k].phases;
+    const double total = total_amount(states);
+    if (std::any_of(states.begin(), states.end(), [&](const auto &phase) {
+          return phase.id != line.zero_phase &&
+                 std::find(line.assemblage.begin(), line.assemblage.end(),
+                           phase.id) != line.assemblage.end() &&
+                 phase.amount <= engine.settings.amount_tolerance * total;
+        }))
+      continue;
+    Eigen::JacobiSVD<Eigen::MatrixXd> svd(
+        engine.phase_formulae(line.assemblage, states));
+    if (svd.rank() == static_cast<Eigen::Index>(line.assemblage.size())) {
+      const double ratio =
+          svd.singularValues().minCoeff() / svd.singularValues().maxCoeff();
+      if (ratio > conditioning) {
+        conditioning = ratio;
+        independent = k;
+      }
+    }
+  }
+  if (independent)
+    segment = *independent + 1;
   auto left = normalise(line.points[segment - 1]);
   auto right = normalise(line.points[segment]);
   auto along = (right - left).eval();
   double span = along.norm();
   Eigen::Vector2d centre =
-      span > 0
+      independent ? left
+      : span > 0
           ? left + std::clamp((length * .5 - walked) / span, 0., 1.) * along
           : left;
   if (span < 1.e-10)
@@ -2465,15 +2503,13 @@ void Tracer::reconcile_boundaries(bool transfer_labels_only) {
       } else if (line.start_node < 0 || line.end_node < 0)
         continue;
       bool uncertain = ambiguous_boundary(line) || ambiguous_boundary(old);
-      const bool univariant = result.section.type == DiagramType::PT &&
-                              boundary_variance(line, result) == 1 &&
-                              boundary_variance(old, result) == 1;
+      const bool univariant =
+          univariant_reaction(line, result) && univariant_reaction(old, result);
       if ((!same_sides && !uncertain && !univariant) || !same_ends ||
           old.assemblage != line.assemblage)
         continue;
       const bool verify = !same_boundary_nodes(old, line) || uncertain ||
-                          line.zero_phase != old.zero_phase ||
-                          boundary_variance(line, result) == 1;
+                          line.zero_phase != old.zero_phase || univariant;
       if (same_curve(partial ? part : line, partial ? whole : old, partial,
                      verify || partial)) {
         // An equivalent retrace can have unreliable probes near a tiny
@@ -2518,7 +2554,7 @@ void Tracer::apply_model_domain() {
   separate_junctions();
   model_domain();
   detail::join_frame_limits(result, engine);
-  detail::join_model_limits(result);
+  detail::join_model_limits(result, engine);
   for (auto &state : result.samples)
     if (model_excluded(state)) {
       state.success = false;
@@ -2635,7 +2671,7 @@ void Tracer::recover_failed_seeds() {
 
 void Tracer::resolve_boundaries() {
   for (int pass = 0; pass < 2; ++pass) {
-    detail::join_model_limits(result);
+    detail::join_model_limits(result, engine);
     reconcile_boundaries(pass == 0);
     for (auto &line : result.boundaries)
       if (line.reaction_kind == ReactionKind::unknown)
@@ -2776,7 +2812,7 @@ bool Tracer::prepare_previous(const Result &previous,
     result.excluded_regions.clear();
   model_domain();
   detail::join_frame_limits(result, engine);
-  detail::join_model_limits(result);
+  detail::join_model_limits(result, engine);
   auto samples = std::move(result.samples);
   result.samples.clear();
   result.fields.clear();

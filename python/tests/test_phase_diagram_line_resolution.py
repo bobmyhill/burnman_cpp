@@ -392,8 +392,15 @@ def test_pyrolite_reaction_extent_repairs_keep_unverified_loops_unresolved(
         if geometry.polygons:
             assert not result.resolved and geometry.diagnostics
     else:
-        assert all(p.phases and not p.is_provisional for p in geometry.polygons)
-        assert len(result.boundaries) < len(data["boundaries"])
+        # These extents border finite ri+gt+ak+fp+bg+cf+capv+Fe fields.
+        # Retaining an independently unverified duplicate record is allowed;
+        # inventing a finite nine-phase reaction field is not.
+        expected = [6, 18, 27, 30, 33, 39, 45, 78]
+        assert geometry.polygons
+        assert all(
+            p.phases == expected and p.area > 0.0 and not p.is_provisional
+            for p in geometry.polygons
+        )
     for line in result.boundaries:
         for point in line.points:
             assert point.mass_balance_error <= result.settings.mass_balance_tolerance
@@ -418,8 +425,10 @@ def refine_pyrolite_fixture(data):
 
 
 @pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("extra_zero", [False, True])
 def test_equivalent_univariant_extents_need_a_verified_root_not_every_warm_start(
     reverse,
+    extra_zero,
 ):
     data = json.loads(
         (
@@ -428,6 +437,13 @@ def test_equivalent_univariant_extents_need_a_verified_root_not_every_warm_start
     )
     if reverse:
         transform_saved_traces(data, "reverse")
+    if extra_zero:
+        # A saved junction state can retain an additional zero-amount copy
+        # that is absent from this reaction's declared assemblage.
+        point = data["boundaries"][0]["points"][1]
+        phase = deepcopy(next(p for p in point["phases"] if p["id"] == 18))
+        phase.update(id=20, amount=0.0)
+        point["phases"].append(phase)
     result = refine_pyrolite_fixture(data)
     # Independent corrections identify the same intensive equilibrium with
     # different reaction extents (ri-out versus Fe-out). A failed Newton start
@@ -438,21 +454,116 @@ def test_equivalent_univariant_extents_need_a_verified_root_not_every_warm_start
 
 
 @pytest.mark.parametrize("reverse", [False, True])
-def test_equivalent_reactions_can_end_at_separate_model_limit_records(reverse):
+@pytest.mark.parametrize(
+    "fixture", ["model_limit_duplicates", "cold_reaction_duplicates"]
+)
+def test_equivalent_reactions_can_end_at_separate_model_limit_records(reverse, fixture):
     data = json.loads(
-        (
-            Path(__file__).parent / "data/pyrolite_pt_model_limit_duplicates.json"
-        ).read_text()
+        (Path(__file__).parent / f"data/pyrolite_pt_{fixture}.json").read_text()
     )
     if reverse:
         transform_saved_traces(data, "reverse")
     result = refine_pyrolite_fixture(data)
-    # These independently traced cpx-out records reach one cold model limit
+    # Independently traced cpx-out/ak-out records reach one cold model limit
     # with slightly different stopping temperatures and node IDs. Corrected
     # branch identity must remove the artificial lens without adding a field.
     assert len(result.boundaries) == 1
     assert all(n >= 0 for b in result.boundaries for n in (b.start_node, b.end_node))
     assert not any("corrector failed" in d for d in result.diagnostics)
+    check_boundary_equilibria(result)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_equivalent_junction_extents_reconnect_without_a_saved_bridge(reverse):
+    data = json.loads(
+        (Path(__file__).parent / "data/pyrolite_pt_detached_junctions.json").read_text()
+    )
+    if reverse:
+        transform_saved_traces(data, "reverse")
+    result = refine_pyrolite_fixture(data)
+    nodes = {n.id: n for n in result.nodes}
+    event_ids = {
+        n
+        for b in result.boundaries
+        for n in (b.start_node, b.end_node)
+        if n >= 0 and abs(nodes[n].temperature - 204.1229) < 0.01
+    }
+    assert len(event_ids) == 1
+    assert len(nodes[event_ids.pop()].incident_lines) >= 3
+    check_boundary_equilibria(result)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_cold_coexistence_retains_its_finite_warm_field(reverse):
+    data = json.loads(
+        (Path(__file__).parent / "data/pyrolite_pt_cold_coexistence.json").read_text()
+    )
+    if reverse:
+        transform_saved_traces(data, "reverse")
+    result = refine_pyrolite_fixture(data)
+    nodes = {n.id: n for n in result.nodes}
+    events = {
+        n
+        for b in result.boundaries
+        for n in (b.start_node, b.end_node)
+        if n >= 0 and abs(nodes[n].temperature - 97.0) < 1.0
+    }
+    assert len(events) == 2
+    # The cold portions collapse onto one active composition face, but opx
+    # and hpcpx have a finite coexistence strip near the warm endpoints.
+    full = [0, 9, 12, 13, 15, 18, 27, 39]
+    # The surrounding arms end where this fixture was extracted. Inspect the
+    # closed coexistence loop without those deliberately truncated arms.
+    closed = result.to_dict()
+    closed["boundaries"] = [b for b in closed["boundaries"] if b["id"] in (1, 2, 5)]
+    geometry = bm.phase_diagram_field_polygons(closed, close_domain=False)
+    assert any(p.phases == full and not p.is_provisional for p in geometry.polygons)
+    check_boundary_equilibria(result)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_cold_reactions_close_at_their_solved_model_limits(reverse):
+    data = json.loads(
+        (Path(__file__).parent / "data/pyrolite_pt_cold_model_limits.json").read_text()
+    )
+    if reverse:
+        transform_saved_traces(data, "reverse")
+    result = refine_pyrolite_fixture(data)
+    full = [0, 12, 13, 15, 18, 19, 27, 39]
+    geometry = bm.phase_diagram_field_polygons(result, close_domain=False)
+    assert any(p.phases == full and not p.is_provisional for p in geometry.polygons)
+    # At the cold limit the two reaction extents share P,T and compositions,
+    # though their phase amounts differ. They bound a finite warm field.
+    endpoints = [
+        p
+        for b in result.boundaries
+        for p in (b.points[0], b.points[-1])
+        if p.temperature < 6.0
+    ]
+    assert len(endpoints) == 2
+    assert all(abs(p.temperature - 5.0) < 1.0e-6 for p in endpoints)
+    assert abs(endpoints[0].pressure - endpoints[1].pressure) < 0.2
+    check_boundary_equilibria(result)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_coincident_phase_outs_do_not_create_a_perimeter_hole(reverse):
+    data = json.loads(
+        (
+            Path(__file__).parent / "data/pyrolite_pt_coincident_phase_outs.json"
+        ).read_text()
+    )
+    if reverse:
+        transform_saved_traces(data, "reverse")
+    result = refine_pyrolite_fixture(data)
+    # cpx-out and fp-out are extremely close. Their differently sampled
+    # chords must not cut a fictitious hole from this field.
+    geometry = bm.phase_diagram_field_polygons(result, close_domain=False)
+    field = next(
+        p for p in geometry.polygons if p.phases == [6, 18, 27, 30, 39, 60, 78]
+    )
+    assert not field.is_provisional
+    assert not field.holes
     check_boundary_equilibria(result)
 
 

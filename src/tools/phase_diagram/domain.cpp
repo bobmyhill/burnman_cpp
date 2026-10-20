@@ -12,6 +12,7 @@
 // ------------------------------------------------------
 
 #include "burnman/tools/phase_diagram/domain.hpp"
+#include "burnman/tools/phase_diagram/continuation.hpp"
 #include "burnman/tools/phase_diagram/stability.hpp"
 #include "burnman/utils/index_utils.hpp"
 #include <iostream>
@@ -51,7 +52,7 @@ std::pair<std::string, std::string> boundary_statuses(const Boundary &line) {
   second.erase(0, second.find_first_not_of(' '));
   return {line.termination.substr(0, split), second};
 }
-void join_model_limits(Result &result) {
+void join_model_limits(Result &result, Engine &engine) {
   const auto ranges = result.coordinate_ranges();
   const Eigen::Vector2d origin(ranges[0][0], ranges[1][0]);
   const Eigen::Vector2d range(ranges[0][1] - ranges[0][0],
@@ -68,7 +69,7 @@ void join_model_limits(Result &result) {
                           "model_domain_limit"))
         continue;
       auto &point = start ? line.points.front() : line.points.back();
-      const auto q = diagram_coordinates(point, result.section.type);
+      auto q = diagram_coordinates(point, result.section.type);
       auto u = normalise(q[0], q[1]);
       double distance = std::numeric_limits<double>::infinity();
       int region_index = -1, segment = -1;
@@ -104,6 +105,35 @@ void join_model_limits(Result &result) {
         continue;
       auto &ring =
           result.excluded_regions[static_cast<std::size_t>(region_index)];
+      // Locate the equilibrium on the envelope rather than bending the mask
+      // to a last accepted point. Distinct cold reaction extents can meet the
+      // same limit; even a small stopping error can reverse their field fan.
+      if (distance > 64. * std::numeric_limits<double>::epsilon()) {
+        const auto a = normalise(ring(segment - 1, 0), ring(segment - 1, 1)),
+                   b = normalise(ring(segment, 0), ring(segment, 1));
+        const Eigen::Vector2d delta = b - a;
+        if (delta.squaredNorm() == 0.)
+          continue;
+        const Eigen::Vector2d normal(-delta[1], delta[0]);
+        const Eigen::Vector2d target =
+            origin + (a + (u - a).dot(delta) / delta.squaredNorm() * delta)
+                         .cwiseProduct(range);
+        try {
+          auto corrected = boundary_point_at(
+              engine, line, point.phases, target,
+              normal.normalized().cwiseQuotient(range),
+              range * result.settings.node_tolerance * 2., 1.e-4);
+          if (corrected) {
+            point = std::move(*corrected);
+            q = diagram_coordinates(point, result.section.type);
+            u = normalise(q[0], q[1]);
+          }
+        } catch (const std::exception &) {
+        }
+        // A chord of a curved EOS envelope can lie outside the valid model
+        // domain. A failed correction cannot invalidate the last accepted
+        // equilibrium; retain it as a conservative support of that envelope.
+      }
       bool attached = false;
       for (int i = 0; i < ring.rows(); ++i)
         if ((normalise(ring(i, 0), ring(i, 1)) - u).norm() < 1.e-12)

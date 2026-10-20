@@ -101,7 +101,9 @@ struct Edge {
   bool solution_replacement = false;
   bool phase_boundary = false;
   bool latent_invariant = false;
-  bool frame_boundary = false;
+  bool domain_boundary = false;
+  // Eligible mineral domain lies left (+1) or right (-1) of a domain arc.
+  int domain_side = 0;
   // One retained polyline, with all reaction records merged into it.
   const Boundary *source = nullptr;
   std::map<const Boundary *, bool> observations{}; // follows record direction
@@ -110,7 +112,7 @@ struct Edge {
 // Infer one cyclic fan from stable side assemblages. Coarse endpoint chords
 // can reverse the apparent angular order of neighbouring branches.
 void link_junction(const std::vector<Index> &list, std::vector<Edge> &edges,
-                   bool frame, int copies) {
+                   bool domain, int copies) {
   if (list.empty())
     return;
   std::vector<Index> order(list.size());
@@ -147,11 +149,11 @@ void link_junction(const std::vector<Index> &list, std::vector<Edge> &edges,
   });
   // Parallel arcs can bound distinct thin fields. Their side assemblages,
   // rather than coarse endpoint chords, constrain the same cyclic fan. Pin
-  // frame arcs so the exterior stays connected; elsewhere pin one arc to
+  // domain arcs so the exterior stays connected; elsewhere pin one arc to
   // avoid checking cyclic rotations of the same ordering.
   std::vector<Index> slots;
   for (Index i = 0; i < order.size(); ++i)
-    if (frame ? !edges[list[i]].frame_boundary : i != 0)
+    if (domain ? !edges[list[i]].domain_boundary : i != 0)
       slots.push_back(i);
   auto choices = slots;
   if (reliable && order.size() <= 8)
@@ -465,8 +467,8 @@ class PolygonBuilder {
   // fields bounded by different reactions between the same endpoints.
   void add_edge(Ring path, const Phases &left, const Phases &right,
                 bool phase_boundary, bool replacement = false,
-                bool latent_invariant = false,
-                const Boundary *source = nullptr) {
+                bool latent_invariant = false, const Boundary *source = nullptr,
+                int domain_side = 0) {
     if (path.size() < 2)
       return;
     double length = 0.;
@@ -475,14 +477,7 @@ class PolygonBuilder {
           (vertices.points[path[i]] - vertices.points[path[i - 1]]).norm();
     if (length <= tolerance)
       return;
-    bool frame = false;
-    if (!phase_boundary)
-      for (int axis = 0; axis < 2; ++axis)
-        for (double value : {0., 1.})
-          frame =
-              frame || std::all_of(path.begin(), path.end(), [&](Index v) {
-                return std::abs(vertices.points[v][axis] - value) <= tolerance;
-              });
+    const bool frame = domain_side != 0;
     // Repeated records of the same complete arc are one graph edge. This
     // does not dissolve fields or compare unrelated, crossing chords.
     for (Index i = 0; i < edges.size(); i += 2) {
@@ -504,10 +499,9 @@ class PolygonBuilder {
           source && old.source &&
           canonical_assemblage(source->assemblage) ==
               canonical_assemblage(old.source->assemblage);
-      const bool univariant =
-          result.section.type == DiagramType::PT && same_reaction &&
-          detail::boundary_variance(*source, result) == 1 &&
-          detail::boundary_variance(*old.source, result) == 1;
+      const bool univariant = same_reaction &&
+                              detail::univariant_reaction(*source, result) &&
+                              detail::univariant_reaction(*old.source, result);
       bool same_branch =
           same_reaction &&
           (source->zero_phase >= 0 &&
@@ -546,8 +540,12 @@ class PolygonBuilder {
           edges[candidate ^ 1].labels.insert(right);
         old.phase_boundary = edges[candidate ^ 1].phase_boundary =
             old.phase_boundary || phase_boundary;
-        old.frame_boundary = edges[candidate ^ 1].frame_boundary =
-            old.frame_boundary || frame;
+        old.domain_boundary = edges[candidate ^ 1].domain_boundary =
+            old.domain_boundary || frame;
+        if (domain_side) {
+          old.domain_side = domain_side;
+          edges[candidate ^ 1].domain_side = -domain_side;
+        }
         if (source) {
           old.observations[source] = true;
           edges[candidate ^ 1].observations[source] = false;
@@ -571,7 +569,9 @@ class PolygonBuilder {
       forward.observations[source] = true;
       backward.observations[source] = false;
     }
-    forward.frame_boundary = backward.frame_boundary = frame;
+    forward.domain_boundary = backward.domain_boundary = frame;
+    forward.domain_side = domain_side;
+    backward.domain_side = -domain_side;
     endpoints.insert(forward.from);
     endpoints.insert(forward.to);
     edges.push_back(std::move(forward));
@@ -744,11 +744,13 @@ class PolygonBuilder {
         points.push_back(normalise(region(i, 0), region(i, 1)));
         path.push_back(vertices.insert(points.back()));
       }
+      const int valid_side = area(path, vertices.points) > 0. ? -1 : 1;
       for (Index i = 1; i < path.size(); ++i) {
         endpoints.insert(path[i - 1]);
         endpoints.insert(path[i]);
         if (!close_domain || !on_frame(points[i - 1], points[i]))
-          add_edge({path[i - 1], path[i]}, {}, {}, false);
+          add_edge({path[i - 1], path[i]}, {}, {}, false, false, false, nullptr,
+                   valid_side);
       }
       excluded.push_back(std::move(points));
     }
@@ -773,7 +775,8 @@ class PolygonBuilder {
                               vertices.points[b][1 - fixed];
       });
       for (Index i = 1; i < ordered.size(); ++i)
-        add_edge({ordered[i - 1], ordered[i]}, {}, {}, false);
+        add_edge({ordered[i - 1], ordered[i]}, {}, {}, false, false, false,
+                 nullptr, 1);
     }
   }
   // Order outgoing arcs at each vertex and set the next arc around each field.
@@ -784,37 +787,47 @@ class PolygonBuilder {
     for (std::size_t i = 0; i < edges.size(); ++i)
       outgoing[edges[i].from].push_back(i);
     for (auto &list : outgoing) {
-      std::sort(list.begin(), list.end(), [&](Index a, Index b) {
-        auto direction = [&](Index edge) -> Point {
-          const auto &path = edges[edge].path;
-          for (Index i = 1; i < path.size(); ++i) {
-            Point delta = vertices.points[path[i]] - vertices.points[path[0]];
-            if (delta.norm() > tolerance) {
-              // The exterior frame connects to itself. A phase arc tangent to
-              // it belongs to the interior fan, even when coarse chords overlap
-              // the frame. Only the ordering changes; saved points stay intact.
-              if (!edges[edge].frame_boundary)
-                for (int axis = 0; axis < 2; ++axis) {
-                  if (std::abs(vertices.points[path[0]][axis]) <= tolerance)
-                    delta[axis] =
-                        std::max(std::abs(delta[axis]), delta.norm() * 1.e-12);
-                  if (std::abs(vertices.points[path[0]][axis] - 1.) <=
-                      tolerance)
-                    delta[axis] =
-                        -std::max(std::abs(delta[axis]), delta.norm() * 1.e-12);
-                }
-              return delta;
-            }
-          }
-          return Point::Zero();
+      std::map<Index, double> angles;
+      std::vector<double> left, right;
+      for (Index edge : list) {
+        const auto &path = edges[edge].path;
+        Point delta = Point::Zero();
+        for (Index i = 1; i < path.size(); ++i) {
+          delta = vertices.points[path[i]] - vertices.points[path[0]];
+          if (delta.norm() > tolerance)
+            break;
+        }
+        const double angle = std::atan2(delta.y(), delta.x());
+        angles[edge] = angle;
+        if (edges[edge].domain_side > 0)
+          left.push_back(angle);
+        if (edges[edge].domain_side < 0)
+          right.push_back(angle);
+      }
+      // Frame and model-envelope arcs delimit the eligible angular sector.
+      // A tangent phase chord can stray across an approximated envelope;
+      // order it just inside that sector without moving equilibrium points.
+      if (left.size() == 1 && right.size() == 1) {
+        const double turn = 2. * std::acos(-1.);
+        auto relative = [&](double angle) {
+          return std::fmod(angle - left[0] + turn, turn);
         };
-        Point da = direction(a), db = direction(b);
-        return std::atan2(da.y(), da.x()) < std::atan2(db.y(), db.x());
-      });
+        const double width = relative(right[0]);
+        for (auto &[edge, angle] : angles) {
+          angle = relative(angle);
+          if (!edges[edge].domain_side && width > 0.) {
+            const double margin = std::min(1.e-12, width * .25);
+            angle =
+                angle > width
+                    ? (turn - angle < angle - width ? margin : width - margin)
+                    : std::clamp(angle, margin, width - margin);
+          }
+        }
+      }
+      std::sort(list.begin(), list.end(),
+                [&](Index a, Index b) { return angles[a] < angles[b]; });
       if (!list.empty()) {
-        const auto p = vertices.points[edges[list.front()].from];
-        bool frame = (p.array().abs() <= tolerance).any() ||
-                     ((p.array() - 1.).abs() <= tolerance).any();
+        bool frame = !left.empty() || !right.empty();
         link_junction(list, edges, frame, result.settings.max_phase_instances);
       }
     }

@@ -481,6 +481,58 @@ TEST_CASE("Reaction entropy and volume orient singular P-T boundaries",
         1); // Side identification performs no solves.
 }
 
+TEST_CASE("Parallel-line removal needs thermodynamic evidence of instability",
+          "[phase_diagram]") {
+  namespace ps = phase_diagrams;
+  const bool correctable = GENERATE(false, true);
+  auto base = minerals::HGP18::per();
+  auto hot = std::make_shared<Mineral>(make_combined_mineral(
+      {*base}, Eigen::ArrayXd::Ones(1), {22500., 20., -.5e-6}, "hot"));
+  auto suspect = std::make_shared<Mineral>(
+      make_combined_mineral({*base}, Eigen::ArrayXd::Ones(1),
+                            correctable ? Eigen::Vector3d(25000., 20., -.5e-6)
+                                        : Eigen::Vector3d(10000., 0., 0.),
+                            "suspect"));
+  ps::Settings settings;
+  settings.max_phase_instances = 1;
+  ps::detail::Engine engine({{"Mg", 1.}, {"O", 1.}}, {base, hot, suspect},
+                            settings);
+  ps::Result result;
+  result.pressure_range = {0., 10.e9};
+  result.temperature_range = {500., 1500.};
+  engine.pressure_bounds = result.pressure_range;
+  engine.temperature_bounds = result.temperature_range;
+  // The saved graph proposes two records between the same vertices. Each
+  // record must correct independently before it supplies stability evidence.
+  for (int phase : {1, 2}) {
+    ps::Boundary line;
+    line.id = phase - 1;
+    line.start_node = 0;
+    line.end_node = 1;
+    line.assemblage = {0, phase};
+    line.zero_phase = phase;
+    for (double pressure : {1.e9, 9.e9}) {
+      ps::BoundaryPoint point;
+      point.pressure = pressure;
+      point.temperature = (22500. - .5e-6 * pressure) / 20.;
+      for (int id : line.assemblage) {
+        ps::PhaseState state;
+        state.id = state.candidate_index = id;
+        state.amount = id == 0 ? 1. : 0.;
+        state.composition = Eigen::VectorXd::Ones(1);
+        point.phases.push_back(state);
+      }
+      line.points.push_back(point);
+    }
+    result.boundaries.push_back(line);
+  }
+  const auto removed =
+      ps::detail::remove_metastable_parallel_lines(result, engine);
+  CHECK(removed == (correctable ? 1 : 0));
+  CHECK(result.boundaries.size() == (correctable ? 1 : 2));
+  CHECK(result.boundaries.front().assemblage == std::vector<int>{0, 1});
+}
+
 TEST_CASE("Shared composition faces retain independent limiting populations",
           "[phase_diagram]") {
   namespace ps = phase_diagrams;
@@ -606,6 +658,7 @@ TEST_CASE("Boundary correction releases an obsolete composition face",
 TEST_CASE("Compound reaction limiting states preserve positive trace sites",
           "[phase_diagram]") {
   namespace ps = phase_diagrams;
+  const double accuracy = GENERATE(1., 1.e-4);
   const double epsilon = 2.e-8;
   auto per = minerals::HGP18::per();
   auto first = std::make_shared<Mineral>(make_combined_mineral(
@@ -643,8 +696,13 @@ TEST_CASE("Compound reaction limiting states preserve positive trace sites",
   auto c = ps::detail::constraints(
       std::make_unique<equilibration::PhaseFractionConstraint>(0, 0., prm),
       std::make_unique<equilibration::PressureConstraint>(1.e9));
-  auto solved = engine.solve(*a, c);
+  auto solved = engine.solve(*a, c, true, accuracy);
   REQUIRE(solved.success);
+  CHECK(ps::detail::reaction_residual(*a) <=
+        settings.affinity_tolerance * .1 * accuracy);
+  // Strict verification must converge, rather than accepting a stalled
+  // 150-iteration solve afterwards from its small physical residual.
+  CHECK(solved.n_iterations < 150);
   std::array<ps::State, 2> limiting;
   auto sides = ps::detail::boundary_sides(engine, *a, {0, 1, 2}, 0, solved,
                                           {1.e9, 1000.}, {0., 1.}, &limiting);
@@ -660,7 +718,7 @@ TEST_CASE("Compound reaction limiting states preserve positive trace sites",
   }
 }
 
-TEST_CASE("Invariant reaction amounts reject an infeasible outgoing mixture",
+TEST_CASE("Reaction amounts reject an infeasible outgoing mixture",
           "[phase_diagram]") {
   namespace ps = phase_diagrams;
   auto per = minerals::HGP18::per();
@@ -685,6 +743,48 @@ TEST_CASE("Invariant reaction amounts reject an infeasible outgoing mixture",
   CHECK_THAT((*feasible)[0].amount, Catch::Matchers::WithinAbs(0., 1.e-12));
   CHECK_THAT((*feasible)[1].amount, Catch::Matchers::WithinAbs(.5, 1.e-12));
   CHECK_THAT((*feasible)[2].amount, Catch::Matchers::WithinAbs(.5, 1.e-12));
+  CHECK(engine.equilibrium_solves == 0);
+  CHECK(engine.minimization_calls == 0);
+}
+
+TEST_CASE("Junction mass feasibility uses the equilibrium mass tolerance",
+          "[phase_diagram]") {
+  namespace ps = phase_diagrams;
+  const double oxygen_error = GENERATE(1.e-12, 1.e-4);
+  auto per = minerals::HGP18::per();
+  auto polymorph = std::make_shared<Mineral>(make_combined_mineral(
+      {*per}, Eigen::ArrayXd::Ones(1), {10000., 10., 0.}, "polymorph"));
+  ps::Settings settings;
+  settings.max_phase_instances = 1;
+  // The full candidate set spans Fe oxidation; the proposed outgoing phases
+  // occupy a smaller chemical subspace. Roundoff must not make that branch
+  // infeasible, while a physically significant oxygen excess still must.
+  ps::detail::Engine engine(
+      {{"Mg", .5}, {"Fe", .5}, {"O", 1. + oxygen_error}},
+      {per, polymorph, minerals::HGP18::wu(), minerals::HGP18::hem()},
+      settings);
+  ps::detail::PhaseStates states;
+  for (int id = 0; id < 3; ++id) {
+    ps::PhaseState p;
+    p.id = p.candidate_index = id;
+    p.amount = id == 2 ? .5 : .25;
+    p.composition = Eigen::VectorXd::Ones(1);
+    states.push_back(p);
+  }
+  auto feasible =
+      ps::detail::reaction_seed_amounts(engine, {0, 1, 2}, states, 0);
+  REQUIRE(bool(feasible) == (oxygen_error < settings.mass_balance_tolerance));
+  if (feasible) {
+    Eigen::VectorXd amounts(3);
+    for (int i = 0; i < 3; ++i)
+      amounts[i] = (*feasible)[static_cast<std::size_t>(i)].amount;
+    CHECK(amounts[0] == 0.);
+    CHECK((amounts.array() >= 0.).all());
+    CHECK((engine.phase_formulae({0, 1, 2}, *feasible).transpose() * amounts -
+           engine.full_bulk)
+              .norm() <=
+          settings.mass_balance_tolerance * engine.full_bulk.norm());
+  }
   CHECK(engine.equilibrium_solves == 0);
   CHECK(engine.minimization_calls == 0);
 }
@@ -996,45 +1096,65 @@ TEST_CASE("Calculation-frame reactions do not include nearby interior curves",
   CHECK_FALSE(ps::detail::lies_on_calculation_frame(line, result));
 }
 
-TEST_CASE(
-    "Recovered reactions terminate at the model mask without extending them",
-    "[phase_diagram]") {
+TEST_CASE("Recovered reactions correct onto the model mask",
+          "[phase_diagram]") {
   namespace ps = phase_diagrams;
   ps::Result result;
   result.pressure_range = {0., 25.e9};
   result.temperature_range = {0., 2500.};
+  result.settings.max_phase_instances = 1;
+  auto first = minerals::SLB24::periclase();
+  auto second = std::make_shared<Mineral>(make_combined_mineral(
+      {*first}, Eigen::ArrayXd::Ones(1), {2700., 0., -.5e-6}, "dense"));
+  ps::detail::Engine engine({{"Mg", 1.}, {"O", 1.}}, {first, second},
+                            result.settings);
+  engine.pressure_bounds = result.pressure_range;
+  engine.temperature_bounds = result.temperature_range;
   Eigen::MatrixXd mask(5, 2);
   mask << 0., 0., 25.e9, 0., 25.e9, 5., 0., 5., 0., 0.;
   result.excluded_regions = {mask};
   ps::Boundary line;
   line.termination = "corrector failed; corrector failed";
+  line.assemblage = {0, 1};
+  line.zero_phase = 1;
   ps::BoundaryPoint interior, cold;
-  interior.pressure = 4.9e9;
+  interior.pressure = cold.pressure = 5.4e9;
   interior.temperature = 143.;
-  cold.pressure = 5.4e9;
   cold.temperature = 5.000001;
+  for (int id : line.assemblage) {
+    ps::PhaseState phase;
+    phase.id = phase.candidate_index = id;
+    phase.amount = id == 0 ? 1. : 0.;
+    phase.composition = Eigen::VectorXd::Ones(1);
+    interior.phases.push_back(phase);
+    cold.phases.push_back(phase);
+  }
   line.points = {interior, cold};
   result.boundaries = {line};
-  ps::detail::join_model_limits(result);
+  ps::detail::join_model_limits(result, engine);
   const auto &joined = result.boundaries.front();
   CHECK(joined.start_node == -1);
   REQUIRE(joined.end_node >= 0);
   CHECK(joined.termination == "corrector failed; model domain limit");
   const auto &node = result.nodes.at(static_cast<std::size_t>(joined.end_node));
   CHECK(node.kind == "model_domain_limit");
-  CHECK(node.pressure == cold.pressure);
-  CHECK(node.temperature == cold.temperature);
+  CHECK_THAT(node.pressure, Catch::Matchers::WithinAbs(5.4e9, .2));
+  CHECK_THAT(node.temperature, Catch::Matchers::WithinAbs(5., 1.e-6));
   CHECK(joined.points.size() == line.points.size());
   CHECK(joined.points.front().temperature == interior.temperature);
-  CHECK(joined.points.back().temperature == cold.temperature);
-  // Repeated finalisation retains the same connection and accepted points.
-  ps::detail::join_model_limits(result);
+  CHECK(joined.points.back().mass_balance_error <=
+        result.settings.mass_balance_tolerance);
+  CHECK(joined.points.back().minimum_affinity >=
+        -result.settings.affinity_tolerance);
+  // Repeated finalisation retains the verified connection. A later, slightly
+  // warmer stopping point must again be corrected rather than moving the mask.
+  ps::detail::join_model_limits(result, engine);
   CHECK(result.nodes.size() == 1);
   CHECK(result.boundaries.front().end_node == joined.end_node);
   result.boundaries.front().points.back().temperature += 1.e-5;
-  ps::detail::join_model_limits(result);
-  CHECK(result.nodes.front().temperature ==
-        result.boundaries.front().points.back().temperature);
+  ps::detail::join_model_limits(result, engine);
+  CHECK_THAT(result.nodes.front().temperature,
+             Catch::Matchers::WithinAbs(5., 1.e-6));
 }
 
 TEST_CASE(
