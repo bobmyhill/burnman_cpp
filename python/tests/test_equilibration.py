@@ -235,12 +235,14 @@ def test_solve_for_temperature(solution, constraint_type, property_name):
     assert assemblage.temperature == pytest.approx(1800.0, rel=1e-8)
 
 
-def test_per_parameter_tolerances(two_phase_assemblage):
+@pytest.mark.parametrize("stagnation_iterations", [0, 5])
+def test_per_parameter_tolerances(two_phase_assemblage, stagnation_iterations):
     result = bm.equilibrate(
         COMPOSITION,
         two_phase_assemblage,
         [bm.PressureConstraint(100.0e9), bm.TemperatureConstraint(2000.0)],
         tol=[1.0, 1.0e-6, 1.0e-9, 1.0e-9, 1.0e-9, 1.0e-9],
+        stagnation_iterations=stagnation_iterations,
     )
     solve = result.sol_array.item()
     assert solve.success, solve.message

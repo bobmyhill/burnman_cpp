@@ -65,6 +65,14 @@ struct DampedNewtonSettings {
       };
   Eigen::VectorXd
       parameter_tolerances; ///< Optional per-parameter Newton step tolerances
+  /**
+   * Consecutive iterations without progress before returning failure code 4.
+   * Zero disables this check. During this window, total parameter movement
+   * must stay within the step tolerances and the Newton correction, measured
+   * in those same units, must not decrease beyond floating-point roundoff.
+   * This detects stagnation; it does not relax successful convergence.
+   */
+  int stagnation_iterations = 0;
 };
 
 /**
@@ -118,6 +126,7 @@ struct DampedNewtonResult {
    * 1 : Failure (lambda reached its minimum bound)
    * 2 : Failure (descent direction violates constraints)
    * 3 : Failure (maximum iterations reached)
+   * 4 : Failure (numerical stagnation, when enabled)
    */
   int code = -1;
 

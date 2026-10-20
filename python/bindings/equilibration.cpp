@@ -275,7 +275,7 @@ void bind_equilibration(py::module_ &m) {
              &groups,
          const std::vector<FreeVectorMap> &free_vectors,
          const py::object &tolerance, bool store_iterates, int max_iterations,
-         bool verbose) {
+         bool verbose, int stagnation_iterations) {
         check_composition(assemblage, composition, free_vectors);
         if (max_iterations <= 0)
           throw std::invalid_argument("max_iterations must be positive.");
@@ -327,11 +327,11 @@ void bind_equilibration(py::module_ &m) {
         // helper above.
         return equilibrate(composition, assemblage, constraints, free_vectors,
                            tol, store_iterates, false, max_iterations, verbose,
-                           parameter_tolerances);
+                           parameter_tolerances, {}, stagnation_iterations);
       },
       py::arg("composition"), py::arg("assemblage"),
       py::arg("equality_constraints"), py::arg("free_compositional_vectors"),
       py::arg("tol"), py::arg("store_iterates"), py::arg("max_iterations"),
-      py::arg("verbose"));
+      py::arg("verbose"), py::arg("stagnation_iterations") = 0);
 }
 } // namespace burnman::python

@@ -159,6 +159,7 @@ def equilibrate(
     store_iterates=False,
     max_iterations=100,
     verbose=False,
+    stagnation_iterations=0,
 ):
     """Find an assemblage's equilibrium state subject to equality constraints.
 
@@ -168,6 +169,9 @@ def equilibrate(
     array). ``result.prm`` describes the unknowns. Each solve exposes success,
     message, x, F and J, and optionally iteration_history. ``tol`` is an
     absolute Newton-step tolerance, either scalar or one value per parameter.
+    ``stagnation_iterations`` optionally stops repeated negligible movements
+    without an improving Newton correction, returning failure code 4. Zero
+    disables this check; the successful-convergence criteria are unchanged.
 
     The assemblage and its phases are mutated. To apply one grid result, call
     ``set_composition_and_state_from_parameters(assemblage, solve.x)``.
@@ -186,6 +190,7 @@ def equilibrate(
         store_iterates,
         max_iterations,
         verbose,
+        stagnation_iterations,
     )
 
 

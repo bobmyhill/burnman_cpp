@@ -1304,10 +1304,13 @@ EquilibriumSolve Engine::solve(Assemblage &a, ConstraintList &c,
   };
   // Preserve the established continuation path when it verifies. Retry from
   // the original accepted state if an ill-conditioned constraint walk fails.
+  // Stop repeated negligible steps so failed branches can reach that retry.
+  constexpr int stagnation_iterations = 5;
   try {
     ++equilibrium_solves;
-    auto result = equilibrate(composition, a, fixed, vectors, 1.e-9, false,
-                              false, 150, false, tol);
+    auto result =
+        equilibrate(composition, a, fixed, vectors, 1.e-9, false, false, 150,
+                    false, tol, {}, stagnation_iterations);
     auto s = result.sol_array(0);
     if (verify(s))
       return s;
@@ -1318,7 +1321,7 @@ EquilibriumSolve Engine::solve(Assemblage &a, ConstraintList &c,
     set_coordinate(a, base_x);
   ++equilibrium_solves;
   auto result = equilibrate(composition, a, fixed, vectors, 1.e-9, false, false,
-                            150, false, tol, scales);
+                            150, false, tol, scales, stagnation_iterations);
   auto s = result.sol_array(0);
   verify(s);
   return s;

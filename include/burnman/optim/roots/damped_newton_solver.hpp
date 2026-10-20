@@ -187,6 +187,12 @@ private:
    */
   bool is_converged(const DampedNewtonSolverState &state) const;
 
+  /// Step tolerances shared by convergence and stagnation checks.
+  Eigen::ArrayXd step_tolerances(Eigen::Index size) const;
+
+  /// Track negligible movement without a decreasing Newton correction.
+  void check_stagnation(DampedNewtonSolverState &state) const;
+
   /**
    * @brief Posteriori step-size control loop
    *

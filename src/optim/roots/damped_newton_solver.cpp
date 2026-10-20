@@ -34,10 +34,16 @@ DampedNewtonResult DampedNewtonSolver::solve(
     throw std::invalid_argument(
         "Parameter tolerances must match x and be positive and finite.");
   }
+  if (settings.stagnation_iterations < 0)
+    throw std::invalid_argument("stagnation_iterations must be nonnegative.");
 
   // Make solution result and solver iteration state objects
   DampedNewtonResult sol;
   DampedNewtonSolverState state{x0, F_func, linear_constraints};
+  if (settings.stagnation_iterations) {
+    state.progress_x = state.x;
+    state.progress_F = state.F;
+  }
 
   if (this->settings.store_iterates) {
     // Initialise Iterates in-place
@@ -50,7 +56,7 @@ DampedNewtonResult DampedNewtonSolver::solve(
   // Main loop
   while (state.n_iterations < this->settings.max_iterations &&
          !state.minimum_lambda && !state.persistent_bound_violation &&
-         !state.converged) {
+         !state.converged && !state.stagnated) {
     state.J = J_func(state.x);
     state.luJ.compute(state.J);
     state.dx = state.luJ.solve(-state.F);
@@ -79,6 +85,9 @@ DampedNewtonResult DampedNewtonSolver::solve(
     state.converged = is_converged(state);
     state.require_posteriori_loop = !state.converged;
     posteriori_loop(state);
+    if (settings.stagnation_iterations && !state.converged &&
+        !state.minimum_lambda && !state.persistent_bound_violation)
+      check_stagnation(state);
 
     // Store history
     // TODO: factor out store_iteration?
@@ -125,12 +134,15 @@ void DampedNewtonSolver::update_lambda(DampedNewtonSolverState &state) const {
   state.lambda = std::max(lambda_j, state.lambda_bounds.first);
 }
 
+Eigen::ArrayXd DampedNewtonSolver::step_tolerances(Eigen::Index size) const {
+  return settings.parameter_tolerances.size()
+             ? settings.parameter_tolerances.array().eval()
+             : Eigen::ArrayXd::Constant(size, settings.tol);
+}
+
 bool DampedNewtonSolver::is_converged(
     const DampedNewtonSolverState &state) const {
-  const Eigen::ArrayXd tolerances =
-      settings.parameter_tolerances.size()
-          ? settings.parameter_tolerances.array().eval()
-          : Eigen::ArrayXd::Constant(state.x.size(), settings.tol);
+  const auto tolerances = step_tolerances(state.x.size());
   bool simplified_step_below_tol =
       (state.dxbar_j.array().abs() < tolerances).all();
   bool full_step_below_tol =
@@ -138,6 +150,33 @@ bool DampedNewtonSolver::is_converged(
   bool lambda_is_max =
       std::abs(state.lambda - state.lambda_bounds.second) < this->settings.eps;
   return simplified_step_below_tol && full_step_below_tol && lambda_is_max;
+}
+
+void DampedNewtonSolver::check_stagnation(
+    DampedNewtonSolverState &state) const {
+  const auto tolerances = step_tolerances(state.x.size());
+  bool progress =
+      ((state.x - state.progress_x).array().abs() > tolerances).any();
+  if (!progress) {
+    // Compare both residuals through the same Jacobian. Corrections have
+    // parameter units, avoiding a norm that mixes e.g. Pa and J/mol.
+    const double before =
+        (state.luJ.solve(state.progress_F).array() / tolerances)
+            .abs()
+            .maxCoeff();
+    const double after =
+        (state.luJ.solve(state.F).array() / tolerances).abs().maxCoeff();
+    progress = !std::isfinite(before) || !std::isfinite(after) ||
+               after < before * (1. - settings.eps);
+  }
+  if (progress) {
+    state.progress_x = state.x;
+    state.progress_F = state.F;
+    state.stagnant_iterations = 0;
+  } else {
+    state.stagnated =
+        ++state.stagnant_iterations >= settings.stagnation_iterations;
+  }
 }
 
 void DampedNewtonSolver::constrain_step_to_feasible_region(
@@ -372,6 +411,11 @@ void DampedNewtonSolver::make_termination_info(
       sol.message =
           std::string("The descent vector crosses the constraints with ") +
           "the following indices: " + s + ".";
+    } else if (state.stagnated) {
+      sol.code = 4;
+      sol.message = "The solver stagnated without convergence for " +
+                    std::to_string(settings.stagnation_iterations) +
+                    " iterations.";
     } else if (state.n_iterations == this->settings.max_iterations) {
       sol.code = 3;
       sol.message = "The solver reached max_iterations (" +

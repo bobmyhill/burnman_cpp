@@ -54,6 +54,9 @@ struct DampedNewtonSolverState {
   bool minimum_lambda = false;
   bool persistent_bound_violation = false;
   bool require_posteriori_loop = true;
+  Eigen::VectorXd progress_x, progress_F; ///< Last meaningful progress.
+  int stagnant_iterations = 0;
+  bool stagnated = false;
   // Constructor to store const refs
   DampedNewtonSolverState(
       const Eigen::VectorXd &x0,
