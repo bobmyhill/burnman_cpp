@@ -30,14 +30,13 @@
 
 namespace burnman::equilibration {
 
-EquilibrateResult
-equilibrate(const types::FormulaMap &composition, Assemblage &assemblage,
-            const ConstraintList &equality_constraints,
-            const std::vector<FreeVectorMap> &free_compositional_vectors,
-            double tol, bool store_iterates, bool store_assemblage,
-            int max_iterations, bool verbose,
-            const Eigen::VectorXd &parameter_tolerances,
-            const Eigen::VectorXd &parameter_scales) {
+EquilibrateResult equilibrate(
+    const types::FormulaMap &composition, Assemblage &assemblage,
+    const ConstraintList &equality_constraints,
+    const std::vector<FreeVectorMap> &free_compositional_vectors, double tol,
+    bool store_iterates, bool store_assemblage, int max_iterations,
+    bool verbose, const Eigen::VectorXd &parameter_tolerances,
+    const Eigen::VectorXd &parameter_scales, int stagnation_iterations) {
   // Check compositions of solutions set
   // TODO:: could implement a has_composition() for convenience here
   for (std::size_t i = 0;
@@ -145,6 +144,7 @@ equilibrate(const types::FormulaMap &composition, Assemblage &assemblage,
   solver_settings.max_iterations = max_iterations;
   solver_settings.tol = tol;
   solver_settings.parameter_tolerances = parameter_tolerances;
+  solver_settings.stagnation_iterations = stagnation_iterations;
   if (scaled) {
     const Eigen::VectorXd physical_tolerances =
         parameter_tolerances.size()

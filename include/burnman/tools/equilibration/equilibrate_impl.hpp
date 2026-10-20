@@ -61,6 +61,8 @@ namespace equilibration {
  * @param parameter_scales Optional positive physical units per solver
  * parameter. Internally equilibrates Jacobian rows; results remain in physical
  * units.
+ * @param stagnation_iterations Consecutive iterations without meaningful
+ * progress before returning failure. Zero disables this optional check.
  * @return EquilibrateResult with solution and parameters.
  */
 EquilibrateResult
@@ -71,7 +73,8 @@ equilibrate(const types::FormulaMap &composition, Assemblage &assemblage,
             bool store_assemblage = true, int max_iterations = 100,
             bool verbose = false,
             const Eigen::VectorXd &parameter_tolerances = Eigen::VectorXd(),
-            const Eigen::VectorXd &parameter_scales = Eigen::VectorXd());
+            const Eigen::VectorXd &parameter_scales = Eigen::VectorXd(),
+            int stagnation_iterations = 0);
 
 } // namespace equilibration
 } // namespace burnman
