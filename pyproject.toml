@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "burnman_cpp"
-version = "0.2.0"
+version = "0.3.0"
 authors = [{name = "The BurnMan Team", email = "bob.myhill@bristol.ac.uk"}]
 description = "Python bindings for the BurnMan C++ mineral physics library"
 readme = "README.md"
@@ -13,12 +13,14 @@ license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 dependencies = ["numpy>=1.23", "scipy>=1.9"]
 classifiers = [
-    "Operating System :: OS Independent",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
 ]
 
 [project.optional-dependencies]
@@ -36,6 +38,7 @@ sdist.include = [
   "/python/bindings/*.cpp", "/python/bindings/*.hpp",
   "/python/burnman_cpp/**/*.py", "/python/tests/*.py", "/examples/*.py",
   "/tools/export_example_minerals.py",
+  "/tools/build_wheel_dependencies.py",
 ]
 sdist.exclude = [".venv/**", "build/**", "bin/**", "*.csv", "benchmark-report.xml", "**/__pycache__/**"]
 
@@ -44,3 +47,19 @@ testpaths = ["python/tests"]
 
 [tool.black]
 target-version = ["py310"]
+
+[tool.cibuildwheel]
+build = "cp3{10,11,12,13,14,15}-*"
+skip = "*-musllinux_* *-win*"
+test-extras = ["test"]
+test-command = "python -m pytest {project}/python/tests/test_wheel_metadata.py {project}/python/tests/test_bindings.py {project}/python/tests/test_equilibration.py {project}/python/tests/test_stable_equilibrium.py {project}/python/tests/test_polytope.py -q"
+
+[tool.cibuildwheel.linux]
+manylinux-x86_64-image = "manylinux_2_28"
+manylinux-aarch64-image = "manylinux_2_28"
+before-all = "dnf install -y autoconf automake libtool && python3 {project}/tools/build_wheel_dependencies.py --prefix /tmp/burnman-wheel-deps"
+environment = { CC="gcc", CXX="g++", CFLAGS="", CXXFLAGS="", LDFLAGS="", CMAKE_ARGS="-DBURNMAN_WHEEL_DEPENDENCIES=/tmp/burnman-wheel-deps", CMAKE_BUILD_PARALLEL_LEVEL="2" }
+
+[tool.cibuildwheel.macos]
+before-all = "brew install autoconf automake libtool && python3 {project}/tools/build_wheel_dependencies.py --prefix /tmp/burnman-wheel-deps"
+environment = { CC="clang", CXX="clang++", CFLAGS="", CXXFLAGS="", LDFLAGS="", MACOSX_DEPLOYMENT_TARGET="11.0", CMAKE_ARGS="-DBURNMAN_WHEEL_DEPENDENCIES=/tmp/burnman-wheel-deps", CMAKE_BUILD_PARALLEL_LEVEL="2" }

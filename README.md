@@ -22,7 +22,22 @@ Python authors (as of 2025, from the [BurnMan README](https://github.com/geodyna
 * Juliane Dannberg
 * Rene Gassmoeller
 
-## Requirements
+## Installation
+
+### Published Python wheels
+
+Install the published package with:
+
+```sh
+python -m pip install --upgrade pip
+python -m pip install burnman_cpp
+```
+
+If no matching wheel is available, pip builds from source and needs the dependencies below.
+
+### Building from source
+
+Source builds require:
 
 - A C++17 compiler, such as GCC or Clang.
 - CMake 3.18 or newer.
@@ -30,10 +45,6 @@ Python authors (as of 2025, from the [BurnMan README](https://github.com/geodyna
   library (`cddgmp`), and GMP.
 - Python 3.10 or newer and its development headers for the Python package.
 - Catch2 3.4 or newer for C++ tests and benchmarks.
-
-## Installation
-
-### Native dependencies
 
 On Ubuntu:
 
@@ -50,8 +61,6 @@ dependencies with [Homebrew](https://brew.sh):
 xcode-select --install
 brew install python cmake eigen gsl nlopt cddlib gmp catch2
 ```
-
-### Python package
 
 Clone the repository:
 
