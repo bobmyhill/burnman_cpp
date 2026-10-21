@@ -9,7 +9,11 @@ if(APPLE AND NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET AND
   set(CMAKE_OSX_DEPLOYMENT_TARGET "${BURNMAN_HOST_MACOS_VERSION}"
       CACHE STRING "Minimum supported macOS version")
 endif()
-project(burnman_cpp VERSION 0.1.0 LANGUAGES CXX)
+# Keep the installed package metadata and native __version__ in agreement.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/pyproject.toml" BURNMAN_VERSION_LINE
+     REGEX "^version = ")
+string(REGEX MATCH "[0-9]+\\.[0-9]+\\.[0-9]+" BURNMAN_VERSION "${BURNMAN_VERSION_LINE}")
+project(burnman_cpp VERSION ${BURNMAN_VERSION} LANGUAGES CXX)
 
 option(BURNMAN_BUILD_PYTHON "Build the Python extension" ON)
 option(BURNMAN_BUILD_TESTS "Build the C++ unit tests" OFF)
@@ -31,6 +35,11 @@ function(burnman_compiler_warnings target)
 endfunction()
 
 # Let CMake find standard Homebrew installations as well as system packages.
+set(BURNMAN_WHEEL_DEPENDENCIES "" CACHE PATH "Private prefix for wheel dependencies")
+if(BURNMAN_WHEEL_DEPENDENCIES)
+  list(PREPEND CMAKE_PREFIX_PATH "${BURNMAN_WHEEL_DEPENDENCIES}")
+  set(GSL_ROOT_DIR "${BURNMAN_WHEEL_DEPENDENCIES}")
+endif()
 if(APPLE)
   list(APPEND CMAKE_PREFIX_PATH /opt/homebrew /usr/local)
 endif()
@@ -77,6 +86,13 @@ if(BURNMAN_BUILD_PYTHON)
   target_compile_definitions(_core PRIVATE BURNMAN_VERSION="${PROJECT_VERSION}")
   burnman_compiler_warnings(_core)
   install(TARGETS _core LIBRARY DESTINATION burnman_cpp RUNTIME DESTINATION burnman_cpp)
+  if(BURNMAN_WHEEL_DEPENDENCIES)
+    # Let the wheel repair tool find libraries that use relative install names.
+    set_target_properties(_core PROPERTIES
+                          INSTALL_RPATH "${BURNMAN_WHEEL_DEPENDENCIES}/lib")
+    install(DIRECTORY "${BURNMAN_WHEEL_DEPENDENCIES}/share/licenses/"
+            DESTINATION burnman_cpp/native_licenses)
+  endif()
 endif()
 
 if(BURNMAN_BUILD_TESTS OR BURNMAN_BUILD_BENCHMARKS)
