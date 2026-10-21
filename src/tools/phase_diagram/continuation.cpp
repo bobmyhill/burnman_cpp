@@ -1057,10 +1057,10 @@ bool same_boundary_curve(Engine &engine, const Result &result,
             return std::find(two.assemblage.begin(), two.assemblage.end(),
                              p.id) == two.assemblage.end();
           });
-          // Reaction extents can carry different saved active faces. Open
+          // Independent traces can carry different saved active faces. Open
           // their union without copying compositions between independent
           // starting states, so a stale frozen site cannot define identity.
-          if (univariant && !share_composition_faces(first_seed, warm))
+          if (!share_composition_faces(first_seed, warm))
             return false;
           // Identity needs more accurate roots than ordinary tracing: weak
           // frozen-site affinities can otherwise leave two accepted states
@@ -1152,6 +1152,10 @@ bool same_boundary_curve(Engine &engine, const Result &result,
   // corrected equilibria; failed warm starts supply no evidence either way,
   // whereas any actual disagreement vetoes the identification.
   const auto forward = verified(first, second);
+  // A partial retrace must lie on the whole curve. The reverse requirement
+  // would incorrectly demand that its short arc also covers the whole curve.
+  if (partial)
+    return forward.value_or(false);
   if (shared_branch) {
     if (forward == false)
       return false;
@@ -1159,7 +1163,6 @@ bool same_boundary_curve(Engine &engine, const Result &result,
     return backward != false &&
            (forward.value_or(false) || backward.value_or(false));
   }
-  return forward.value_or(false) &&
-         (partial || verified(second, first).value_or(false));
+  return forward.value_or(false) && verified(second, first).value_or(false);
 }
 } // namespace burnman::phase_diagrams::detail

@@ -2473,6 +2473,9 @@ void Tracer::model_domain() {
 }
 
 void Tracer::reconcile_boundaries(bool transfer_labels_only) {
+  auto returns_to_node = [](const Boundary &line) {
+    return line.start_node >= 0 && line.start_node == line.end_node;
+  };
   std::vector<Boundary> unique;
   for (auto &line : result.boundaries) {
     bool duplicate = false;
@@ -2484,11 +2487,18 @@ void Tracer::reconcile_boundaries(bool transfer_labels_only) {
         continue;
       bool same_sides = same_boundary_sides(old, line);
       bool same_ends = same_boundary_nodes(old, line, result);
-      const bool partial = complete_boundary(line) != complete_boundary(old);
-      auto &part = complete_boundary(line) ? old : line;
-      auto &whole = complete_boundary(line) ? line : old;
+      const bool unfinished = complete_boundary(line) != complete_boundary(old);
+      // An out-and-back trace can be complete at its shared starting node
+      // while covering only part of another boundary. Verify its entire arc
+      // just as for an unfinished retrace; a genuine closed loop must survive.
+      const bool partial =
+          unfinished || returns_to_node(line) != returns_to_node(old);
+      const bool line_is_part =
+          unfinished ? !complete_boundary(line) : returns_to_node(line);
+      auto &part = line_is_part ? line : old;
+      auto &whole = line_is_part ? old : line;
       if (partial) {
-        // An unfinished retrace is removable only when an anchored,
+        // A partial retrace is removable only when an anchored,
         // completed record covers its entire equilibrium branch.
         auto shares = [&](int node) {
           return node >= 0 &&
@@ -2527,7 +2537,13 @@ void Tracer::reconcile_boundaries(bool transfer_labels_only) {
           bad.reaction_kind = good.reaction_kind;
         }
         duplicate = true;
-        retain_curve(old, line);
+        // Keep the whole arc even if its covered retrace has more samples.
+        if (partial && !line_is_part) {
+          const int id = old.id;
+          old = std::move(line);
+          old.id = id;
+        } else if (!partial)
+          retain_curve(old, line);
         if (!same_sides && univariant)
           label(old);
         break;

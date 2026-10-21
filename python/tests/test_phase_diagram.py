@@ -410,7 +410,8 @@ def test_resume_refines_curved_chords_only_when_resolution_is_requested():
         assert p.residual < 0.01
 
 
-def test_resume_removes_a_verified_retraced_part_of_a_curved_boundary():
+@pytest.mark.parametrize("reverse_order", [False, True])
+def test_resume_removes_a_verified_retraced_part_of_a_curved_boundary(reverse_order):
     phases = curved_phases()
     opts = settings()
     opts.max_recovery_passes = 0
@@ -430,10 +431,12 @@ def test_resume_removes_a_verified_retraced_part_of_a_curved_boundary():
         line,
         id=1,
         end_node=line["start_node"],
-        points=[original[0], original[3], original[0]],
+        points=original[:6] + original[4::-1],
         termination="junction; junction",
     )
     saved["boundaries"].append(duplicate)
+    if reverse_order:
+        saved["boundaries"].reverse()
     saved["resolved"] = False  # Request repair of the injected retrace.
     assert not any(
         p.has_open_boundary for p in bm.phase_diagram_field_polygons(saved).polygons

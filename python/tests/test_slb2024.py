@@ -458,15 +458,31 @@ def test_resumed_model_limit_remains_attached_to_recomputed_eos_envelope(example
         previous,
         opts,
     )
-    point = result.boundaries[0].points[0 if case["start"] else -1]
+    line = result.boundaries[0]
+    point = line.points[0 if case["start"] else -1]
     saved = previous["boundaries"][0]["points"][0 if case["start"] else -1]
-    assert (
-        point.pressure == saved["pressure"]
-        and point.temperature == saved["temperature"]
-    )
     location = np.array([point.pressure, point.temperature])
+    scale = np.ptp(np.asarray(result.coordinate_ranges), axis=1)
+    # Rebuilding the EOS envelope may re-correct a nearby saved endpoint onto
+    # that envelope. Verify the accepted equilibrium and its attachment rather
+    # than requiring the old numerical stopping point to remain unchanged.
+    assert (
+        np.linalg.norm((location - [saved["pressure"], saved["temperature"]]) / scale)
+        <= 2.0 * opts.node_tolerance
+    )
+    assert point.mass_balance_error <= opts.mass_balance_tolerance
+    n_endmembers = sum(len(phase.composition) for phase in point.phases)
+    assert point.residual <= np.hypot(
+        np.sqrt(n_endmembers) * 0.1 * opts.affinity_tolerance,
+        np.linalg.norm(list(result.composition_start.values()))
+        * opts.mass_balance_tolerance,
+    )
+    assert point.minimum_affinity >= -opts.affinity_tolerance
+    node_id = line.start_node if case["start"] else line.end_node
+    node = result.nodes[node_id]
+    assert (node.pressure, node.temperature) == (point.pressure, point.temperature)
     assert any(
-        np.min(np.linalg.norm((ring - location) / [150.0e9, 4000.0], axis=1)) < 1.0e-12
+        np.min(np.linalg.norm((ring - location) / scale, axis=1)) < 1.0e-12
         for ring in result.excluded_regions
     )
     # The common serializer keeps the envelope, original compositions and
@@ -481,7 +497,7 @@ def test_resumed_model_limit_remains_attached_to_recomputed_eos_envelope(example
     )
     assert resumed.settings.required_eos_phases == ["opx"]
     assert any(
-        np.min(np.linalg.norm((ring - location) / [150.0e9, 4000.0], axis=1)) < 1.0e-12
+        np.min(np.linalg.norm((ring - location) / scale, axis=1)) < 1.0e-12
         for ring in resumed.excluded_regions
     )
 
