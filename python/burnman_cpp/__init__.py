@@ -280,6 +280,12 @@ from .tools.phase_diagram import (
     refine_phase_diagram,
 )
 from .tools.contours import phase_diagram_contour_levels
+from .tools.equilibrium_path import (
+    EquilibriumPath,
+    calculate_equilibrium_path,
+    sample_equilibrium_path,
+    plot_mode_box,
+)
 from .tools.properties import (
     phase_diagram_grid,
     phase_diagram_grid_chunks,
@@ -297,6 +303,10 @@ from ._core import (
 )
 
 __all__ += [
+    "EquilibriumPath",
+    "calculate_equilibrium_path",
+    "sample_equilibrium_path",
+    "plot_mode_box",
     "phase_diagram_grid",
     "phase_diagram_grid_chunks",
     "load_property_grid_chunks",

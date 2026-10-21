@@ -1141,6 +1141,31 @@ does not suppress attempts from a valid endpoint. Every accepted state must stil
 pass reaction, mass-balance, site-bound and candidate-affinity validation.
 )doc");
   m.def(
+      "_equilibrium_path",
+      [](const types::FormulaMap &bulk,
+         const std::vector<std::shared_ptr<Material>> &phases,
+         const std::vector<Eigen::Vector2d> &coordinates,
+         const std::string &variables, const Settings &settings,
+         const std::array<double, 2> &pressure_range,
+         const std::array<double, 2> &temperature_range,
+         const std::vector<std::string> &properties, bool relaxed,
+         types::AveragingType averaging_scheme) {
+        const auto type = diagram_type(variables);
+        auto result = [&] {
+          py::gil_scoped_release release;
+          return equilibrium_path(bulk, phases, coordinates, type, settings,
+                                  pressure_range, temperature_range, properties,
+                                  relaxed, averaging_scheme);
+        }();
+        return py::make_tuple(result.states, result.values,
+                              result.property_diagnostics,
+                              result.equilibrium_solves);
+      },
+      py::arg("composition"), py::arg("phases"), py::arg("coordinates"),
+      py::arg("variables"), py::arg("settings"), py::arg("pressure_range"),
+      py::arg("temperature_range"), py::arg("properties"), py::arg("relaxed"),
+      py::arg("averaging_scheme"));
+  m.def(
       "phase_diagram",
       [](const types::FormulaMap &composition,
          const std::vector<std::shared_ptr<Material>> &phases,

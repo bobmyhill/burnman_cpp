@@ -1,6 +1,15 @@
 Performance benchmarks
 ======================
 
+Scientific reference comparisons are kept alongside the timing benchmarks:
+
+- [Stixrude & Lithgow-Bertelloni (2024), Figure 13](stixrude_2024_figure13/README.md):
+  pyrolite phase modes, native iron and ferropericlase spin along a 1600 K
+  surface isentrope, with overlays on the published panels and saved equilibria.
+- [Stixrude & Lithgow-Bertelloni (2024), Figure 14](stixrude_2024_figure14/README.md):
+  three lower-mantle shear-velocity profiles, relaxed pyrolite expansivity and
+  phase boundaries, with a 1400 K isentrope plus a basal erfc thermal layer.
+
 `core/` and `eos/` contain the Catch2 performance benchmarks. They build into
 their own executable and reuse the fixtures in `tests/include/`. Unit tests
 build separately. The Python scripts time pure Python BurnMan, process native

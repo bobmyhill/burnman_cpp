@@ -103,4 +103,28 @@ State stable_equilibrium_at(
     const std::array<double, 2> &pressure_range = {0., 150.e9},
     const std::array<double, 2> &temperature_range = {1., 6000.});
 
+/// Equilibrate ordered points using one phase-discovery workspace and the last
+/// successful state as a warm start. Each point fixes the selected two P,T,S,V
+/// coordinates; phase amounts/compositions may change and competing phases are
+/// checked at every point. Failures retain their diagnostics, without inserting
+/// interpolated states. Candidate materials are cloned, as for a single seed.
+struct EquilibriumPath {
+  std::vector<State> states;
+  std::map<std::string, Eigen::VectorXd> values;
+  std::vector<std::string> property_diagnostics;
+  int equilibrium_solves = 0;
+};
+
+/// Optional properties are evaluated on the accepted assemblages, preserving
+/// their active composition bases. They perform no extra equilibrium solves.
+EquilibriumPath equilibrium_path(
+    const types::FormulaMap &composition,
+    const std::vector<std::shared_ptr<Material>> &candidates,
+    const std::vector<Eigen::Vector2d> &coordinates, DiagramType type,
+    const Settings &settings = Settings{},
+    const std::array<double, 2> &pressure_range = {0., 150.e9},
+    const std::array<double, 2> &temperature_range = {1., 6000.},
+    const std::vector<std::string> &properties = {}, bool relaxed = true,
+    types::AveragingType averaging_scheme = types::AveragingType::VRH);
+
 } // namespace burnman::phase_diagrams
