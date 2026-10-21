@@ -11,13 +11,14 @@
 //
 // ------------------------------------------------------
 
-// Numerical snapshots: Python BurnMan 39b582cd23954fabd3bdbbee6526a522b1d97bc9.
+// Numerical snapshots: Python BurnMan e2cfac31052273b3fa9d5ce905978e97723005e9.
 // Reproduce with tools/check_reference_data.py; see docs/reference_data.md.
 #include "burnman/core/equation_of_state.hpp"
 #include "burnman/core/mineral.hpp"
 #include "burnman/eos/birch_murnaghan.hpp"
 #include "burnman/eos/components/excess_params.hpp"
 #include "burnman/eos/mie_grueneisen_debye.hpp"
+#include "burnman/minerals/datasets.hpp"
 #include "burnman/utils/types/mineral_params.hpp"
 #include "burnman/utils/types/simple_types.hpp"
 #include "tolerances.hpp"
@@ -29,6 +30,26 @@
 
 using namespace Catch::Matchers;
 using namespace burnman;
+
+TEST_CASE("SLB2024 Landau mineral responses follow entropy and volume",
+          "[core][mineral][prop_mod]") {
+  const double P = 2.0e9, T = 300.0, dT = 0.01;
+  for (auto mineral : {minerals::SLB24::qtz(), minerals::SLB24::neph()}) {
+    CAPTURE(mineral->get_name());
+    mineral->set_state(P, T);
+    const double cp = mineral->get_molar_heat_capacity_p();
+    const double alpha = mineral->get_thermal_expansivity();
+    const double volume = mineral->get_molar_volume();
+    mineral->set_state(P, T + dT);
+    const double sp = mineral->get_molar_entropy();
+    const double vp = mineral->get_molar_volume();
+    mineral->set_state(P, T - dT);
+    const double sm = mineral->get_molar_entropy();
+    const double vm = mineral->get_molar_volume();
+    CHECK_THAT(cp, WithinRel(T * (sp - sm) / (2.0 * dT), 1.0e-6));
+    CHECK_THAT(alpha, WithinRel((vp - vm) / (2.0 * dT * volume), 1.0e-6));
+  }
+}
 
 TEST_CASE("Set method", "[core][mineral]") {
   Mineral test_mineral;

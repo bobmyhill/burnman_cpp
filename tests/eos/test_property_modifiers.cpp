@@ -11,13 +11,14 @@
 //
 // ------------------------------------------------------
 
-// Numerical snapshots: Python BurnMan 39b582cd23954fabd3bdbbee6526a522b1d97bc9.
+// Numerical snapshots: Python BurnMan e2cfac31052273b3fa9d5ce905978e97723005e9.
 // Reproduce with tools/check_reference_data.py; see docs/reference_data.md.
 #include "burnman/eos/components/excess_params.hpp"
 #include "burnman/eos/components/property_modifiers.hpp"
 #include "tolerances.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <utility>
 
 using namespace Catch::Matchers;
 using namespace burnman;
@@ -124,55 +125,34 @@ TEST_CASE("Test Landau HP", "[prop_mod][eos]") {
   }
 }
 
-TEST_CASE("Test Landau SLB", "[prop_mod][eos]") {
-  double P = 1.0e11;
-  double T = 1000.0;
-
-  SECTION("Landau SLB A") {
-    double G_ref = -1333.333333333334;
-    double dGdT_ref = 2.5;
-    double dGdP_ref = -5e-08;
-    double d2GdT2_ref = -0.0005952380952380953;
-    double d2GdP2_ref = -8.333333333333332e-19;
-    double d2GdPdT_ref = 1.1904761904761904e-11;
-    eos::excesses::LandauSLB2022Params params = {800.0, 1.0e-7, 5.0};
-    eos::excesses::Excesses calc_excess =
-        eos::excesses::compute_excesses(P, T, params);
-    CHECK_THAT(calc_excess.G,
-               WithinRel(G_ref, tol_rel) || WithinAbs(G_ref, tol_abs));
-    CHECK_THAT(calc_excess.dGdT,
-               WithinRel(dGdT_ref, tol_rel) || WithinAbs(dGdT_ref, tol_abs));
-    CHECK_THAT(calc_excess.dGdP,
-               WithinRel(dGdP_ref, tol_rel) || WithinAbs(dGdP_ref, tol_abs));
-    CHECK_THAT(calc_excess.d2GdT2, WithinRel(d2GdT2_ref, tol_rel) ||
-                                       WithinAbs(d2GdT2_ref, tol_abs));
-    CHECK_THAT(calc_excess.d2GdP2, WithinRel(d2GdP2_ref, tol_rel) ||
-                                       WithinAbs(d2GdP2_ref, tol_abs));
-    CHECK_THAT(calc_excess.d2GdPdT, WithinRel(d2GdPdT_ref, tol_rel) ||
-                                        WithinAbs(d2GdPdT_ref, tol_abs));
-  }
-  SECTION("Landau SLB B") {
-    double G_ref = -929.380272332839;
-    double dGdT_ref = 1.7700320038632995;
-    double dGdP_ref = -3.5400640077266006e-08;
-    double d2GdT2_ref = -0.0005769913639656223;
-    double d2GdP2_ref = -6.154574548966636e-19;
-    double d2GdPdT_ref = 1.1539827279312444e-11;
-    eos::excesses::LandauSLB2022Params params = {1200.0, 1.0e-7, 5.0};
-    eos::excesses::Excesses calc_excess =
-        eos::excesses::compute_excesses(P, T, params);
-    CHECK_THAT(calc_excess.G,
-               WithinRel(G_ref, tol_rel) || WithinAbs(G_ref, tol_abs));
-    CHECK_THAT(calc_excess.dGdT,
-               WithinRel(dGdT_ref, tol_rel) || WithinAbs(dGdT_ref, tol_abs));
-    CHECK_THAT(calc_excess.dGdP,
-               WithinRel(dGdP_ref, tol_rel) || WithinAbs(dGdP_ref, tol_abs));
-    CHECK_THAT(calc_excess.d2GdT2, WithinRel(d2GdT2_ref, tol_rel) ||
-                                       WithinAbs(d2GdT2_ref, tol_abs));
-    CHECK_THAT(calc_excess.d2GdP2, WithinRel(d2GdP2_ref, tol_rel) ||
-                                       WithinAbs(d2GdP2_ref, tol_abs));
-    CHECK_THAT(calc_excess.d2GdPdT, WithinRel(d2GdPdT_ref, tol_rel) ||
-                                        WithinAbs(d2GdPdT_ref, tol_abs));
+TEST_CASE("SLB2022 Landau derivatives follow the Gibbs energy",
+          "[prop_mod][eos]") {
+  const auto check = [](double actual, double numerical) {
+    CHECK_THAT(actual, WithinRel(numerical, 1.0e-6));
+  };
+  for (const double Tc_0 : {800.0, 1200.0}) {
+    const eos::excesses::LandauSLB2022Params params{Tc_0, 1.0e-7, 5.0};
+    const double Tc = Tc_0 + params.V_D * 2.0e9 / params.S_D;
+    // Smooth ordered, near-transition, disordered and capped-order branches.
+    for (const auto &[P, T] : {std::pair{0.0, 300.0},
+                               {2.0e9, 300.0},
+                               {2.0e9, Tc - 10.0},
+                               {2.0e9, Tc + 100.0},
+                               {1.0e12, 300.0}}) {
+      CAPTURE(Tc_0, P, T);
+      const double dP = 1.0e5, dT = 0.01;
+      const auto ex = eos::excesses::compute_excesses(P, T, params);
+      const auto pp = eos::excesses::compute_excesses(P + dP, T, params);
+      const auto pm = eos::excesses::compute_excesses(P - dP, T, params);
+      const auto tp = eos::excesses::compute_excesses(P, T + dT, params);
+      const auto tm = eos::excesses::compute_excesses(P, T - dT, params);
+      check(ex.dGdP, (pp.G - pm.G) / (2.0 * dP));
+      check(ex.dGdT, (tp.G - tm.G) / (2.0 * dT));
+      check(ex.d2GdP2, (pp.dGdP - pm.dGdP) / (2.0 * dP));
+      check(ex.d2GdT2, (tp.dGdT - tm.dGdT) / (2.0 * dT));
+      check(ex.d2GdPdT, (pp.dGdT - pm.dGdT) / (2.0 * dP));
+      check(ex.d2GdPdT, (tp.dGdP - tm.dGdP) / (2.0 * dT));
+    }
   }
 }
 
