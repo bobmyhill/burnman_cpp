@@ -545,6 +545,9 @@ def audit_modifiers(audit):
         sections = blocks(body, "section") or [("", 0, len(body))]
         for name, section_start, section_end in sections:
             section = body[section_start:section_end]
+            # Derivative-consistency tests have no stored Python snapshots.
+            if not re.search(r"\bdouble\s+\w+_ref\s*=", section):
+                continue
             match = re.search(
                 r"excesses::(\w+Params)\s+params\s*=\s*\{([^}]+)\}", section
             )

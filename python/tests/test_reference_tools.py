@@ -44,13 +44,14 @@ def test_ps1994_audit_accepts_roundoff_and_reformatting(ps1994_audit):
         ("0.04140096296511458", "0.04150096296511458", "volume"),
         ("-338143.8857849859", "-338143.8856849859", "Gibbs energy"),
         ("35.58984708602805, 2}", "35.58984708602805, 3}", "stable roots"),
-        ("39b582cd23954fabd3bdbbee6526a522b1d97bc9", "invalid_commit", "provenance"),
+        (None, "invalid_commit", "provenance"),
     ],
 )
 def test_ps1994_audit_rejects_changed_physics_or_provenance(
     ps1994_audit, original, changed, message
 ):
     audit, stored = ps1994_audit
+    original = audit.POLICY["commit"] if original is None else original
     generated = stored.replace(original, changed, 1)
     assert generated != stored
     with pytest.raises((AssertionError, ValueError), match=message):

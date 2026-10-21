@@ -153,9 +153,10 @@ Excesses compute_excesses(double pressure, double temperature,
           G_disordered;
       dGdT = params.S_D * Q2 + dGdT_disordered;
       dGdP = -params.V_D * Q2 + dGdP_disordered;
-      d2GdT2 = -0.5 * params.S_D / (Tc * Q2);
+      // Q^4 = (Tc - T) / Tc_0, so the curvature uses the fixed Tc_0.
+      d2GdT2 = -0.5 * params.S_D / (params.Tc_0 * Q2);
       d2GdP2 = -0.5 * params.V_D * params.V_D / (params.S_D * params.Tc_0 * Q2);
-      d2GdPdT = 0.5 * params.V_D / (Tc * Q2);
+      d2GdPdT = 0.5 * params.V_D / (params.Tc_0 * Q2);
     } else {
       G = params.S_D * ((temperature - Tc) * 4.0 + params.Tc_0 * 64.0 / 3.0) +
           G_disordered;

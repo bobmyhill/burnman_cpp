@@ -11,7 +11,7 @@
 //
 // ------------------------------------------------------
 
-// Numerical snapshots: Python BurnMan 39b582cd23954fabd3bdbbee6526a522b1d97bc9.
+// Numerical snapshots: Python BurnMan e2cfac31052273b3fa9d5ce905978e97723005e9.
 // Reproduce with tools/check_reference_data.py; see docs/reference_data.md.
 #include "burnman/core/assemblage.hpp"
 #include "burnman/utils/types/simple_types.hpp"
