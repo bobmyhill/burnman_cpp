@@ -13,7 +13,6 @@
 """Separate drivers for phase diagrams/equilibria and potential-grid processing."""
 
 from dataclasses import dataclass, field
-from importlib import import_module
 from pathlib import Path
 from time import perf_counter
 import json
@@ -21,6 +20,7 @@ import json
 import numpy as np
 
 from .. import _core
+from ..minerals import load_dataset
 from .phase_diagram import plot_phase_diagram, save_phase_diagram
 from .phase_diagram_helpers import _figure_formats, save_figure
 from .properties import (
@@ -91,56 +91,6 @@ def _counts(values, name):
     ):
         raise ValueError(f"{name} must contain two integer counts >= 2.")
     return tuple(int(n) for n in counts)
-
-
-def _candidates(dataset, phase_names):
-    """Select ordinary solution models and pure phases, collapsing aliases.
-
-    Omit pure endmembers already contained in a selected solution. An explicit
-    phase_names sequence overrides this automatic catalogue selection and its
-    order is preserved. A calibrated ModelSet can also be supplied directly.
-    """
-    if isinstance(dataset, str):
-        dataset = import_module(f"burnman_cpp.minerals.{dataset}")
-    if hasattr(dataset, "phases"):
-        if phase_names is not None:
-            raise ValueError("phase_names cannot override a ModelSet.")
-        return list(dataset.phases), dataset.to_dict()
-    if phase_names is not None:
-        names = list(phase_names)
-        if not names or len(set(names)) != len(names):
-            raise ValueError("phase_names must be nonempty and unique.")
-        return [getattr(dataset, name)() for name in names], dict(
-            dataset=dataset.__name__, phase_names=names
-        )
-    selected = {}
-    for name in sorted(vars(dataset)):
-        factory = getattr(dataset, name)
-        if name.startswith("_") or not callable(factory):
-            continue
-        # Dataset exports include constructors as well as mineral factories.
-        if getattr(factory, "__module__", None) != dataset.__name__:
-            continue
-        material = factory()
-        if isinstance(material, _core.RelaxedSolution):
-            continue
-        selected.setdefault(material.name, (name, material))
-    endmembers = {
-        name
-        for _, phase in selected.values()
-        if isinstance(phase, _core.Solution)
-        for name in phase.endmember_names
-    }
-    selected = [
-        (name, phase)
-        for name, phase in selected.values()
-        if isinstance(phase, _core.Solution) or phase.name not in endmembers
-    ]
-    if not selected:
-        raise ValueError("The dataset contains no candidate mineral factories.")
-    return [p for _, p in selected], dict(
-        dataset=dataset.__name__, phase_names=[n for n, _ in selected]
-    )
 
 
 def _corner(corner, variables, composition, phases, settings, search):
@@ -484,7 +434,7 @@ def calculate_phase_diagram_grid(
     directory = Path(output_dir)
     if directory.exists() and any(directory.iterdir()):
         raise FileExistsError(f"Calculation directory is not empty: {directory}")
-    phases, provenance = _candidates(dataset, phase_names)
+    phases, provenance = load_dataset(dataset, phase_names)
     opts = (
         _core.PhaseDiagramSettings.from_dict(settings.to_dict())
         if settings

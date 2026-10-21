@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import SLB24
+from burnman_cpp.minerals import SLB24, load_dataset
 from burnman_cpp.tools import phase_diagram_workflow as workflow
 
 
@@ -232,11 +232,15 @@ def test_unmet_boundary_spacing_warns_without_blocking_gridding(
     assert report["gridding_started"] and report["diagnostics"] == run.diagnostics
 
 
-def test_catalogue_aliases_and_endmembers_are_not_duplicated():
-    phases, provenance = workflow._candidates("SLB24", None)
+@pytest.mark.parametrize("dataset", ["SLB24", SLB24])
+def test_catalogue_aliases_and_endmembers_are_not_duplicated(dataset):
+    phases, provenance = load_dataset(dataset)
     assert phases and len({p.name for p in phases}) == len(phases)
     assert {p.name for p in phases} <= SLB24.phase_aliases.keys()
     assert len(provenance["phase_names"]) == len(phases)
+    assert [getattr(SLB24, name)().name for name in provenance["phase_names"]] == [
+        phase.name for phase in phases
+    ]
     assert not any(isinstance(p, bm.RelaxedSolution) for p in phases)
     endmembers = {
         name for p in phases if isinstance(p, bm.Solution) for name in p.endmember_names
