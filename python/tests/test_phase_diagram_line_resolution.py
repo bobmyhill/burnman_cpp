@@ -20,6 +20,7 @@ import runpy
 
 import numpy as np
 import pytest
+from scipy.linalg import qr
 import burnman_cpp as bm
 from conftest import oxide_params
 from test_phase_diagram import crossing_phases, curved_phases, pure, settings
@@ -465,15 +466,27 @@ def test_equivalent_reactions_can_end_at_separate_model_limit_records(
         (Path(__file__).parent / f"data/pyrolite_pt_{fixture}.json").read_text()
     )
     if different_faces:
-        # The same saved garnet equilibrium can be represented with its full
-        # composition space or a frozen face. Identity must compare roots on
-        # the union, without copying either starting composition to the other.
+        # Open the union of the observed garnet faces on one trace. A full
+        # identity basis would also unfreeze sites absent from every saved
+        # equilibrium, introducing stiff directions at these cold endpoints.
+        rows = np.unique(
+            np.vstack(
+                [
+                    phase["composition_basis"]
+                    for line in data["boundaries"]
+                    for point in line["points"]
+                    for phase in point["phases"]
+                    if phase["candidate_index"] == 6
+                ]
+            ),
+            axis=0,
+        )
+        _, _, pivots = qr(rows.T, pivoting=True)
+        basis = rows[pivots[: np.linalg.matrix_rank(rows)]].tolist()
         for point in data["boundaries"][0]["points"]:
             for phase in point["phases"]:
                 if phase["candidate_index"] == 6:
-                    phase["composition_basis"] = np.eye(
-                        len(phase["composition"])
-                    ).tolist()
+                    phase["composition_basis"] = basis
     if reverse:
         transform_saved_traces(data, "reverse")
     result = refine_pyrolite_fixture(data)
