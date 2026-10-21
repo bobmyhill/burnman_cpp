@@ -1,0 +1,41 @@
+{
+  "paper": "https://doi.org/10.1093/gji/ggae126",
+  "source_pdf_sha256": "d9be3fae9b3184fa2f6a6f54583e8680b82ff25eefaf1195ee59d8dfb591d4c1",
+  "pdf_page": 15,
+  "printed_page": 1713,
+  "viewbox": [
+    55,
+    40,
+    235,
+    170
+  ],
+  "height_frame_pdf_points": [
+    47.496114,
+    186.886113
+  ],
+  "temperature_ticks_K": [
+    1000,
+    2000,
+    3000,
+    4000
+  ],
+  "temperature_tick_centres_pdf_points": [
+    186.566462,
+    208.038275,
+    229.515082,
+    251.025847
+  ],
+  "raster_transform": [
+    0.359703,
+    0,
+    0,
+    0.359654,
+    182.234745,
+    47.45017
+  ],
+  "raster_dimensions": [
+    254,
+    389
+  ],
+  "green_threshold": "G > R+35, G > B+35, R < 140, B < 160; columns 0:240"
+}

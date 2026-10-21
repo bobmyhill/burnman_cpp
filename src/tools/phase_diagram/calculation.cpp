@@ -16,6 +16,7 @@
 #include "burnman/tools/phase_diagram/consistency.hpp"
 #include "burnman/tools/phase_diagram/domain.hpp"
 #include "burnman/tools/phase_diagram/polygons.hpp"
+#include "burnman/tools/phase_diagram/properties.hpp"
 #include "burnman/tools/phase_diagram/tracing.hpp"
 #include "burnman/tools/phase_diagram/verification.hpp"
 #include "burnman/utils/index_utils.hpp"
@@ -356,22 +357,45 @@ State stable_equilibrium_at(
     const Eigen::Vector2d &coordinates, DiagramType type,
     const Settings &settings, const std::array<double, 2> &pressure_range,
     const std::array<double, 2> &temperature_range) {
+  return equilibrium_path(bulk, candidates, {coordinates}, type, settings,
+                          pressure_range, temperature_range)
+      .states.front();
+}
+
+EquilibriumPath
+equilibrium_path(const types::FormulaMap &bulk,
+                 const std::vector<std::shared_ptr<Material>> &candidates,
+                 const std::vector<Eigen::Vector2d> &coordinates,
+                 DiagramType type, const Settings &settings,
+                 const std::array<double, 2> &pressure_range,
+                 const std::array<double, 2> &temperature_range,
+                 const std::vector<std::string> &properties, bool relaxed,
+                 types::AveragingType averaging_scheme) {
+  const auto supported = thermodynamic_property_names();
+  for (const auto &name : properties)
+    if (std::find(supported.begin(), supported.end(), name) == supported.end())
+      throw std::invalid_argument("Unknown scalar thermodynamic property: " +
+                                  name);
   const auto axes = diagram_axes(type);
   if (axes[1] == Coordinate::X)
     throw std::invalid_argument(
         "Select two of P, T, S and V for a fixed bulk.");
-  for (int i = 0; i < 2; ++i) {
-    const auto axis = axes[static_cast<std::size_t>(i)];
-    const double value = coordinates[i];
-    if (!std::isfinite(value) ||
-        ((axis == Coordinate::P || axis == Coordinate::T) && value < 0.) ||
-        (axis == Coordinate::T && value == 0. &&
-         !settings.active_solution_faces) ||
-        (axis == Coordinate::V && value <= 0.))
-      throw std::invalid_argument(
-          "Equilibrium coordinates must be finite: P,T >= 0 and V > 0; "
-          "T=0 requires active_solution_faces.");
-  }
+  if (coordinates.empty())
+    throw std::invalid_argument(
+        "An equilibrium path needs at least one point.");
+  for (const auto &point : coordinates)
+    for (int i = 0; i < 2; ++i) {
+      const auto axis = axes[static_cast<std::size_t>(i)];
+      const double value = point[i];
+      if (!std::isfinite(value) ||
+          ((axis == Coordinate::P || axis == Coordinate::T) && value < 0.) ||
+          (axis == Coordinate::T && value == 0. &&
+           !settings.active_solution_faces) ||
+          (axis == Coordinate::V && value <= 0.))
+        throw std::invalid_argument(
+            "Equilibrium coordinates must be finite: P,T >= 0 and V > 0; "
+            "T=0 requires active_solution_faces.");
+    }
   for (const auto &bounds : {pressure_range, temperature_range})
     if (!std::isfinite(bounds[0]) || !std::isfinite(bounds[1]) ||
         bounds[0] < 0. || bounds[1] < bounds[0])
@@ -384,7 +408,39 @@ State stable_equilibrium_at(
   engine.temperature_bounds = temperature_range;
   engine.physical_seed << .5 * (pressure_range[0] + pressure_range[1]),
       .5 * (temperature_range[0] + temperature_range[1]);
-  return engine.stable_at(coordinates).state;
+  EquilibriumPath result;
+  result.states.reserve(coordinates.size());
+  for (const auto &name : properties)
+    result.values[name] =
+        Eigen::VectorXd::Constant(static_cast<Eigen::Index>(coordinates.size()),
+                                  std::numeric_limits<double>::quiet_NaN());
+  detail::WorkState warm;
+  const auto interval = std::max(std::size_t{1}, coordinates.size() / 20);
+  for (const auto &point : coordinates) {
+    auto next = engine.stable_at(point, warm.state.success ? &warm : nullptr);
+    const auto index = static_cast<Eigen::Index>(result.states.size());
+    result.states.push_back(next.state);
+    if (next.state.success && !next.state.outside_model_domain) {
+      next.assemblage->set_averaging_scheme(averaging_scheme);
+      for (const auto &name : properties)
+        try {
+          result.values[name][index] =
+              assemblage_properties(*next.assemblage, {name}, relaxed).at(name);
+        } catch (const std::exception &e) {
+          result.property_diagnostics.push_back(
+              "Point " + std::to_string(index) + ": " + name + ": " + e.what());
+        }
+    }
+    if (next.state.success)
+      warm = std::move(next);
+    if (settings.verbose && (result.states.size() % interval == 0 ||
+                             result.states.size() == coordinates.size()))
+      std::cout << "Path point " << result.states.size() << "/"
+                << coordinates.size() << "; " << engine.equilibrium_solves
+                << " equilibrium solves" << std::endl;
+  }
+  result.equilibrium_solves = engine.equilibrium_solves;
+  return result;
 }
 
 State stable_equilibrium(
