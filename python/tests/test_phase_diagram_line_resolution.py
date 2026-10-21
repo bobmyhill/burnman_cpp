@@ -454,13 +454,26 @@ def test_equivalent_univariant_extents_need_a_verified_root_not_every_warm_start
 
 
 @pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("different_faces", [False, True])
 @pytest.mark.parametrize(
     "fixture", ["model_limit_duplicates", "cold_reaction_duplicates"]
 )
-def test_equivalent_reactions_can_end_at_separate_model_limit_records(reverse, fixture):
+def test_equivalent_reactions_can_end_at_separate_model_limit_records(
+    reverse, different_faces, fixture
+):
     data = json.loads(
         (Path(__file__).parent / f"data/pyrolite_pt_{fixture}.json").read_text()
     )
+    if different_faces:
+        # The same saved garnet equilibrium can be represented with its full
+        # composition space or a frozen face. Identity must compare roots on
+        # the union, without copying either starting composition to the other.
+        for point in data["boundaries"][0]["points"]:
+            for phase in point["phases"]:
+                if phase["candidate_index"] == 6:
+                    phase["composition_basis"] = np.eye(
+                        len(phase["composition"])
+                    ).tolist()
     if reverse:
         transform_saved_traces(data, "reverse")
     result = refine_pyrolite_fixture(data)
