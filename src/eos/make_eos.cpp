@@ -18,6 +18,7 @@
 #include "burnman/eos/mie_grueneisen_debye.hpp"
 #include "burnman/eos/modified_tait.hpp"
 #include "burnman/eos/slb.hpp"
+#include "burnman/eos/spock.hpp"
 #include "burnman/eos/vinet.hpp"
 #include <stdexcept>
 
@@ -32,6 +33,8 @@ std::shared_ptr<EquationOfState> make_eos(types::EOSType eos_type) {
     return std::make_shared<BM2>();
   case types::EOSType::BM3:
     return std::make_shared<BM3>();
+  case types::EOSType::SPOCK:
+    return std::make_shared<SPOCK>();
   case types::EOSType::MT:
     return std::make_shared<MT>();
   case types::EOSType::MGD2:

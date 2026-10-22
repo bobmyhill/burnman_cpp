@@ -23,6 +23,8 @@ inline constexpr const char *eos_string(burnman::types::EOSType eos_type) {
     return "BM2";
   case burnman::types::EOSType::BM3:
     return "BM3";
+  case burnman::types::EOSType::SPOCK:
+    return "SPOCK";
   case burnman::types::EOSType::MT:
     return "MT";
   case burnman::types::EOSType::Vinet:

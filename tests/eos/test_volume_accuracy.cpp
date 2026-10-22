@@ -21,7 +21,7 @@ using namespace Catch::Matchers;
 
 TEST_CASE("Volume solves scale accuracy with molar volume", "[eos][roots]") {
   auto type = GENERATE(types::EOSType::BM3, types::EOSType::Vinet,
-                       types::EOSType::MGD3);
+                       types::EOSType::MGD3, types::EOSType::SPOCK);
   auto reference_volume = GENERATE(1.124e-6, 1.124e-5, 9.0e-4);
   auto temperature = GENERATE(300.0, 1000.0);
   auto ratio = GENERATE(0.91, 0.67);
@@ -29,6 +29,8 @@ TEST_CASE("Volume solves scale accuracy with molar volume", "[eos][roots]") {
   params.V_0 = reference_volume;
   params.K_0 = 161.0e9;
   params.Kprime_0 = 3.8;
+  params.Kdprime_0 = -0.02e-9;
+  params.Kprime_inf = 5.0 / 3.0;
   params.molar_mass = 0.0403;
   params.napfu = 2;
   params.debye_0 = 773.0;

@@ -75,6 +75,7 @@ _EOS_NAMES = {
     "mt": EOSType.MT,
     "bm2": EOSType.BM2,
     "bm3": EOSType.BM3,
+    "spock": EOSType.SPOCK,
     "mgd2": EOSType.MGD2,
     "mgd3": EOSType.MGD3,
     "hp_tmt": EOSType.HPTMT,
