@@ -1,8 +1,8 @@
 name: Wheels
 
 on:
-  pull_request:
-    types: [closed]
+  push:
+    branches: [main]
     paths:
       - CMakeLists.txt
       - pyproject.toml
@@ -21,11 +21,11 @@ defaults:
 
 jobs:
   sdist:
-    if: github.event.pull_request.merged == true
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
       - uses: actions/setup-python@v7
         with:
