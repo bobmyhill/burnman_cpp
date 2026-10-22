@@ -324,6 +324,18 @@ Result verify_critical_endpoints(
   detail::erase_if(result.diagnostics, [&](const auto &message) {
     return std::find(old.begin(), old.end(), message) != old.end();
   });
+  // Full native snapshots index their nodes contiguously. Cropped networks
+  // can retain original IDs and connections to omitted exterior boundaries;
+  // their incidence cannot be reconstructed from this partial record alone.
+  bool indexed_graph = true;
+  for (std::size_t i = 0; i < result.nodes.size(); ++i)
+    indexed_graph = indexed_graph && result.nodes[i].id == static_cast<int>(i);
+  for (const auto &line : result.boundaries)
+    for (int id : {line.start_node, line.end_node})
+      indexed_graph = indexed_graph && (id < 0 || static_cast<std::size_t>(id) <
+                                                      result.nodes.size());
+  if (indexed_graph)
+    detail::rebuild_boundary_incidence(result);
   detail::verify_critical_endpoints(result, engine);
   const auto graph = detail::recover_boundary_labels(result);
   auto messages = detail::field_diagnostics(result, engine, graph);

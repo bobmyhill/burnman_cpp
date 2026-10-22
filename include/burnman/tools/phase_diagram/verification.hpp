@@ -20,6 +20,8 @@ namespace burnman::phase_diagrams {
 /// original candidate models in their original order. Return a copy with
 /// updated certificates/diagnostics, preserving traces, samples and unrelated
 /// messages. A geometric endpoint alone does not certify critical behaviour.
+/// Rebuild node incidence for indexed snapshots. Crops retaining original,
+/// non-contiguous IDs preserve their saved exterior connections.
 Result verify_critical_endpoints(
     const Result &previous,
     const std::vector<std::shared_ptr<Material>> &candidates);
