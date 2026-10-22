@@ -50,7 +50,8 @@ enum class EOSType {
   SLB2,
   SLB3,
   SLB3Conductive,
-  SLB3Stishovite
+  SLB3Stishovite,
+  SPOCK
 };
 
 /**
