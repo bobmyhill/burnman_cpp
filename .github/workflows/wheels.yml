@@ -2,6 +2,7 @@ name: Wheels
 
 on:
   pull_request:
+    types: [closed]
     paths:
       - CMakeLists.txt
       - pyproject.toml
@@ -10,9 +11,6 @@ on:
       - python/**
       - tools/build_wheel_dependencies.py
       - .github/workflows/wheels.yml
-  push:
-    tags: ["v*"]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -23,6 +21,7 @@ defaults:
 
 jobs:
   sdist:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -48,8 +47,6 @@ jobs:
         os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, macos-15-intel]
     runs-on: ${{ matrix.os }}
     env:
-      # Pull requests test each architecture; releases/manual runs build every ABI.
-      CIBW_BUILD: ${{ github.event_name == 'pull_request' && 'cp312-*' || 'cp3{10,11,12,13,14,15}-*' }}
       CIBW_ARCHS: native
     steps:
       - uses: actions/download-artifact@v7
