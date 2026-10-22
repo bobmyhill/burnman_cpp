@@ -30,6 +30,7 @@ PYBIND11_MODULE(_core, m) {
   py::register_exception<burnman::exceptions::NotImplementedError>(
       m, "NotImplementedError", PyExc_NotImplementedError);
   burnman::python::bind_params(m);
+  burnman::python::bind_eos(m);
   burnman::python::bind_materials(m);
   burnman::python::bind_composition(m);
   burnman::python::bind_combined(m);

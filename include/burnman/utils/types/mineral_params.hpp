@@ -15,10 +15,23 @@
 #define BURNMAN_UTILS_TYPES_MINERAL_PARAMS_HPP_INCLUDED
 
 #include "burnman/utils/types/simple_types.hpp"
+#include <memory>
 #include <optional>
 #include <string>
 
 namespace burnman {
+class EquationOfState;
+namespace eos {
+namespace debye_temperature_models {
+class DebyeTemperatureModelBase;
+}
+namespace anharmonic_prefactor_models {
+class AnharmonicPrefactorModel;
+}
+namespace anharmonic_thermal_models {
+class AnharmonicThermalModelBase;
+}
+} // namespace eos
 namespace types {
 
 /**
@@ -93,6 +106,17 @@ struct MineralParams {
   // Electronic parameters (SLB Conductive)
   std::optional<double> bel_0;
   std::optional<double> gel;
+
+  // Components and parameters of the modular MGD equation of state.
+  std::shared_ptr<EquationOfState> reference_eos;
+  std::shared_ptr<eos::debye_temperature_models::DebyeTemperatureModelBase>
+      debye_temperature_model;
+  std::shared_ptr<eos::anharmonic_prefactor_models::AnharmonicPrefactorModel>
+      anharmonic_prefactor_model;
+  std::shared_ptr<eos::anharmonic_thermal_models::AnharmonicThermalModelBase>
+      anharmonic_thermal_model;
+  std::optional<double> c_1, c_2, q_1, q_2;
+  std::optional<double> a_anh, b_anh, c_anh, m_anh, mu_anh, sigma_anh;
 
   // Order of expansion (DKS)
   std::optional<int> order_theta;

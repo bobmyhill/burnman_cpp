@@ -20,6 +20,11 @@ from collections.abc import Mapping
 
 from . import _core
 from . import constants
+from . import (
+    debye_temperature_models,
+    anharmonic_prefactor_models,
+    anharmonic_thermal_models,
+)
 from ._core import (
     AsymmetricRegularSolution,
     Assemblage,
@@ -78,6 +83,8 @@ _EOS_NAMES = {
     "spock": EOSType.SPOCK,
     "mgd2": EOSType.MGD2,
     "mgd3": EOSType.MGD3,
+    "modular_mgd": EOSType.ModularMGD,
+    "modular_mgd_with_anharmonicity": EOSType.ModularMGDWithAnharmonicity,
     "hp_tmt": EOSType.HPTMT,
     "hptmt": EOSType.HPTMT,
     "hp_tmtl": EOSType.HPTMTL,
@@ -129,6 +136,8 @@ def mineral_params(params=None, **kwargs):
             raise ValueError(f"Unknown mineral parameter: {key!r}")
         if name == "equation_of_state" and value is not None:
             value = eos_type(value)
+        elif name == "reference_eos" and isinstance(value, (str, EOSType)):
+            value = make_eos(value)
         elif name == "Cp" and value is not None and not isinstance(value, CpParams):
             value = CpParams(*value)
         setattr(result, name, value)
@@ -196,6 +205,9 @@ def equilibrate(
 
 
 __all__ = [
+    "debye_temperature_models",
+    "anharmonic_prefactor_models",
+    "anharmonic_thermal_models",
     "constants",
     "MaterialPolytope",
     "composite_polytope_at_constrained_composition",
