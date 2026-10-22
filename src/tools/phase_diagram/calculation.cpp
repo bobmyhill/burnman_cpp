@@ -303,6 +303,10 @@ Result Tracer::certify_result() {
         return refine_segment(line, k, true);
       });
   index_boundaries();
+  // The final repair can merge nodes, split arcs or remove boundary records
+  // after collect_boundary_diagnostics() rebuilt these connections. Certify
+  // the retained graph rather than stale tracing history.
+  rebuild_boundary_incidence(result);
   // Verify endpoint diagnostics after the final geometry repair.
   detail::verify_critical_endpoints(result, engine);
   const auto graph = detail::recover_boundary_labels(result);
