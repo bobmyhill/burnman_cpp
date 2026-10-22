@@ -33,6 +33,10 @@ inline constexpr const char *eos_string(burnman::types::EOSType eos_type) {
     return "MGD2";
   case burnman::types::EOSType::MGD3:
     return "MGD3";
+  case burnman::types::EOSType::ModularMGD:
+    return "ModularMGD";
+  case burnman::types::EOSType::ModularMGDWithAnharmonicity:
+    return "ModularMGDWithAnharmonicity";
   case burnman::types::EOSType::SLB2:
     return "SLB2";
   case burnman::types::EOSType::SLB3:

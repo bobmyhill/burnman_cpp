@@ -12,6 +12,10 @@
 // ------------------------------------------------------
 
 #include "bindings.hpp"
+#include "burnman/core/equation_of_state.hpp"
+#include "burnman/eos/components/anharmonic_prefactor_models.hpp"
+#include "burnman/eos/components/anharmonic_thermal_models.hpp"
+#include "burnman/eos/components/debye_temperature_models.hpp"
 #include "burnman/utils/types/mineral_params.hpp"
 
 namespace burnman::python {
@@ -26,6 +30,9 @@ void bind_params(py::module_ &m) {
       .value("SPOCK", EOSType::SPOCK)
       .value("MGD2", EOSType::MGD2)
       .value("MGD3", EOSType::MGD3)
+      .value("ModularMGD", EOSType::ModularMGD)
+      .value("ModularMGDWithAnharmonicity",
+             EOSType::ModularMGDWithAnharmonicity)
       .value("HPTMT", EOSType::HPTMT)
       .value("HPTMTL", EOSType::HPTMTL)
       .value("SLB2", EOSType::SLB2)
@@ -94,6 +101,20 @@ void bind_params(py::module_ &m) {
   PARAM(T_einstein);
   PARAM(bel_0);
   PARAM(gel);
+  PARAM(reference_eos);
+  PARAM(debye_temperature_model);
+  PARAM(anharmonic_prefactor_model);
+  PARAM(anharmonic_thermal_model);
+  PARAM(c_1);
+  PARAM(c_2);
+  PARAM(q_1);
+  PARAM(q_2);
+  PARAM(a_anh);
+  PARAM(b_anh);
+  PARAM(c_anh);
+  PARAM(m_anh);
+  PARAM(mu_anh);
+  PARAM(sigma_anh);
   PARAM(order_theta);
   PARAM(order_f);
   PARAM(Tel_0);

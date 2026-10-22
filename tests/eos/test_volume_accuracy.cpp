@@ -11,6 +11,7 @@
 //
 // ------------------------------------------------------
 
+#include "burnman/eos/components/debye_temperature_models.hpp"
 #include "burnman/eos/make_eos.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -20,8 +21,9 @@ using namespace burnman;
 using namespace Catch::Matchers;
 
 TEST_CASE("Volume solves scale accuracy with molar volume", "[eos][roots]") {
-  auto type = GENERATE(types::EOSType::BM3, types::EOSType::Vinet,
-                       types::EOSType::MGD3, types::EOSType::SPOCK);
+  auto type =
+      GENERATE(types::EOSType::BM3, types::EOSType::Vinet, types::EOSType::MGD3,
+               types::EOSType::SPOCK, types::EOSType::ModularMGD);
   auto reference_volume = GENERATE(1.124e-6, 1.124e-5, 9.0e-4);
   auto temperature = GENERATE(300.0, 1000.0);
   auto ratio = GENERATE(0.91, 0.67);
@@ -36,6 +38,10 @@ TEST_CASE("Volume solves scale accuracy with molar volume", "[eos][roots]") {
   params.debye_0 = 773.0;
   params.grueneisen_0 = 1.5;
   params.q_0 = 1.5;
+  params.T_0 = 300.0;
+  params.reference_eos = eos::make_eos(types::EOSType::BM3);
+  params.debye_temperature_model =
+      std::make_shared<eos::debye_temperature_models::PowerLawGammaSimple>();
   auto eos = eos::make_eos(type);
   eos->validate_parameters(params);
   const double target_volume = ratio * reference_volume;

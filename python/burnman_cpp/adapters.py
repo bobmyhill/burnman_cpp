@@ -86,6 +86,43 @@ def from_burnman(phase):
         # These optional fields describe provenance, not the EOS.
         params.pop("param_uncertainties", None)
         params.pop("property_modifiers", None)
+        # Convert modular MGD component objects to their native equivalents.
+        if "reference_eos" in params:
+            from . import (
+                make_eos,
+                debye_temperature_models,
+                anharmonic_prefactor_models,
+                anharmonic_thermal_models,
+            )
+
+            reference_name = type(params["reference_eos"]).__name__
+            reference_names = {
+                "BM2": "bm2",
+                "BM3": "bm3",
+                "Vinet": "vinet",
+                "MT": "mt",
+                "SPOCK": "spock",
+            }
+            if reference_name not in reference_names:
+                raise ValueError(f"Unsupported reference EoS: {reference_name}")
+            params["reference_eos"] = make_eos(reference_names[reference_name])
+            for key, module in (
+                ("debye_temperature_model", debye_temperature_models),
+                ("anharmonic_prefactor_model", anharmonic_prefactor_models),
+                ("anharmonic_thermal_model", anharmonic_thermal_models),
+            ):
+                if key not in params:
+                    continue
+                component = params[key]
+                component_name = type(component).__name__
+                native_type = getattr(module, component_name, None)
+                if (
+                    not type(component).__module__.startswith("burnman.eos.")
+                    or native_type is None
+                    or component_name.endswith(("Base", "Model"))
+                ):
+                    raise ValueError(f"Unsupported {key}: {component_name}")
+                params[key] = native_type()
         if params["equation_of_state"] == "pitzer-sterner":
             expected = burnman.minerals.HP_2011_fluids.H2O().params
             if params.keys() != expected.keys() or any(

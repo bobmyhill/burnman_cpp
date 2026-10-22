@@ -14,7 +14,6 @@
 #include "bindings.hpp"
 #include "burnman/core/assemblage.hpp"
 #include "burnman/core/mineral.hpp"
-#include "burnman/eos/make_eos.hpp"
 
 namespace burnman::python {
 using namespace pybind11::literals;
@@ -227,32 +226,5 @@ void bind_materials(py::module_ &m) {
   bind_property<Assemblage>(assemblage, "reaction_affinities",
                             "get_reaction_affinities",
                             &Assemblage::get_reaction_affinities, true);
-
-  py::class_<EquationOfState, std::shared_ptr<EquationOfState>>(
-      m, "EquationOfState")
-      .def("validate_parameters", &EquationOfState::validate_parameters,
-           py::arg("params"))
-      .def(
-          "compute_volume",
-          [](EquationOfState &self, double pressure, double temperature,
-             types::MineralParams params) {
-            check_pt(pressure, temperature);
-            self.validate_parameters(params);
-            return self.compute_volume(pressure, temperature, params);
-          },
-          py::arg("pressure"), py::arg("temperature"), py::arg("params"))
-      .def(
-          "compute_pressure",
-          [](EquationOfState &self, double temperature, double volume,
-             types::MineralParams params) {
-            check_pt(0.0, temperature);
-            if (!std::isfinite(volume) || volume <= 0.0)
-              throw std::invalid_argument(
-                  "Volume must be positive and finite.");
-            self.validate_parameters(params);
-            return self.compute_pressure(temperature, volume, params);
-          },
-          py::arg("temperature"), py::arg("volume"), py::arg("params"));
-  m.def("make_eos", &eos::make_eos, py::arg("method"));
 }
 } // namespace burnman::python

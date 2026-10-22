@@ -71,6 +71,7 @@ if(BURNMAN_BUILD_PYTHON)
   pybind11_add_module(_core
     python/bindings/module.cpp
     python/bindings/params.cpp
+    python/bindings/eos.cpp
     python/bindings/materials.cpp
     python/bindings/composition.cpp
     python/bindings/combined.cpp
