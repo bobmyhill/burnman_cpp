@@ -74,6 +74,7 @@ if(BURNMAN_BUILD_PYTHON)
     python/bindings/eos.cpp
     python/bindings/materials.cpp
     python/bindings/composition.cpp
+    python/bindings/equilibrated_composite.cpp
     python/bindings/combined.cpp
     python/bindings/modifiers.cpp
     python/bindings/solutions.cpp

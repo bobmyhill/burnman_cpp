@@ -1,6 +1,18 @@
+// ------------------------------------------------------
+//
 // SPDX-License-Identifier: GPL-3.0-or-later
-// SPDX-FileCopyrightText: Copyright (C) 2026 by the BurnMan Team.
+//
+// SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
+//
+// This file is part of BurnMan.
+//
+// Detailed license information governing the source code
+// and contributions can be found in the LICENSE document.
+//
+// ------------------------------------------------------
+
 #include "burnman/tools/phase_diagram/properties.hpp"
+#include "burnman/core/equilibrated_composite.hpp"
 #include "burnman/core/relaxed_solution.hpp"
 #include "burnman/tools/phase_diagram/consistency.hpp"
 #include "burnman/tools/phase_diagram/polygons.hpp"
@@ -479,6 +491,11 @@ std::vector<std::string> thermodynamic_property_names() {
 std::map<std::string, double>
 assemblage_properties(const Assemblage &a,
                       const std::vector<std::string> &names, bool relaxed) {
+  // This material already supplies relaxed derivatives through its getters.
+  // Evaluate its ordinary snapshot to apply the requested relaxation once.
+  if (const auto *equilibrated =
+          dynamic_cast<const EquilibratedComposite *>(&a))
+    return assemblage_properties(*equilibrated->snapshot(), names, relaxed);
   validate_properties(names);
   for (Eigen::Index i = 0; i < a.get_n_phases(); ++i)
     if (a.get_phase<RelaxedSolution>(static_cast<std::size_t>(i)))

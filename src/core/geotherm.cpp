@@ -12,6 +12,7 @@
 // ------------------------------------------------------
 
 #include "burnman/core/geotherm.hpp"
+#include "burnman/core/assemblage.hpp"
 #include "burnman/core/material.hpp"
 #include "burnman/optim/roots/brent.hpp"
 #include "geotherm_data.hpp"
@@ -27,6 +28,17 @@
 namespace burnman::geotherm {
 namespace {
 using Array = Eigen::ArrayXd;
+
+// Equilibrating composites may change the number of formula-unit moles as
+// reactions proceed. Follow the entropy of the fixed bulk, rather than its
+// changing entropy per current mole. For ordinary composites this factor is
+// constant and leaves the existing adiabat unchanged.
+double entropy_of_bulk(const Material &material) {
+  const auto *assemblage = dynamic_cast<const Assemblage *>(&material);
+  const double amount =
+      assemblage && assemblage->has_n_moles() ? assemblage->get_n_moles() : 1.0;
+  return amount * material.get_molar_entropy();
+}
 
 void check_table(const Array &coordinates, const Array &temperatures) {
   if (coordinates.size() == 0 || coordinates.size() != temperatures.size() ||
@@ -108,7 +120,7 @@ struct EntropyResidual {
 
   double operator()(double temperature) const {
     rock.set_state(pressure, temperature);
-    const double residual = entropy - rock.get_molar_entropy();
+    const double residual = entropy - entropy_of_bulk(rock);
     if (!std::isfinite(residual))
       throw std::runtime_error("Nonfinite entropy while solving the adiabat.");
     return residual;
@@ -258,7 +270,7 @@ Array adiabatic_profile(const Array &pressures, Material &rock, double T_0,
     return Array(0);
   const double anchor = P_0.value_or(pressures[0]);
   rock.set_state(anchor, T_0);
-  const double entropy = rock.get_molar_entropy();
+  const double entropy = entropy_of_bulk(rock);
   const double ratio = rock.get_grueneisen_parameter() /
                        rock.get_isentropic_bulk_modulus_reuss();
   if (!std::isfinite(entropy) || !std::isfinite(ratio))

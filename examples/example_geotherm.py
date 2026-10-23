@@ -11,20 +11,40 @@
 #
 # ------------------------------------------------------
 
-"""Compare tabulated terrestrial geotherms, a material adiabat and a Mars profile.
+"""Compare Earth geotherms, periclase and pyrolite adiabats, and a Mars profile.
 
+Both adiabats use a potential temperature of 1620 K at 0 GPa.
 Run with ``python examples/example_geotherm.py`` (requires matplotlib).
 """
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from burnman_cpp import geotherm, seismic
-from burnman_cpp.minerals import SLB11
+from burnman_cpp import Composition, EquilibratedComposite, geotherm
+from burnman_cpp.minerals import SLB24
+
+# Dry pyrolite: relative oxide masses in kg.
+PYROLITE_COMPOSITION = Composition(
+    dict(
+        SiO2=45.0e-3,
+        MgO=38.88e-3,
+        FeO=8.05e-3,
+        Fe2O3=0.18e-3,
+        CaO=3.18e-3,
+        Al2O3=4.0e-3,
+        Na2O=0.13e-3,
+        Cr2O3=0.57e-3,
+    ),
+    "mass",
+)
+PYROLITE_COMPOSITION.renormalize("mass", "total", 0.1)
+
+POTENTIAL_TEMPERATURE = 1620.0
+REFERENCE_PRESSURE = 0.0
 
 
 def main():
-    earth_depths = np.linspace(270e3, 2800e3, 250)
+    earth_depths = np.linspace(270e3, 2800e3, 200)
     profiles = [
         geotherm.BrownShankland(),
         geotherm.Anderson(),
@@ -34,22 +54,44 @@ def main():
         geotherm.Anzellini2013(),
     ]
     fig, axes = plt.subplots(1, 2, figsize=(11, 6))
+    print(
+        f"Adiabats: potential temperature {POTENTIAL_TEMPERATURE:.0f} K "
+        f"at {REFERENCE_PRESSURE / 1e9:.0f} GPa."
+    )
     print("Temperatures at 1000 km depth:")
     for profile in profiles:
         temperatures = profile.temperatures(earth_depths)
         axes[0].plot(temperatures, earth_depths / 1e3, label=type(profile).__name__)
         print(f"{type(profile).__name__:20s} {profile.temperatures(1000e3):8.2f} K")
 
-    anchor_depth, anchor_temperature = 270e3, 1600.0
-    anchor_pressure = seismic.prem_model.pressure(anchor_depth)
     adiabat = geotherm.AdiabaticGeotherm(
-        SLB11.periclase(), anchor_temperature, anchor_pressure
+        SLB24.periclase(), POTENTIAL_TEMPERATURE, REFERENCE_PRESSURE
     )
     axes[0].plot(
         adiabat.temperatures(earth_depths),
         earth_depths / 1e3,
         "k--",
         label="Periclase adiabat",
+    )
+
+    earth_depths = np.linspace(270e3, 2800e3, 12)
+    pyrolite = EquilibratedComposite(PYROLITE_COMPOSITION, SLB24, name="Pyrolite")
+    pyrolite_adiabat = geotherm.AdiabaticGeotherm(
+        pyrolite, POTENTIAL_TEMPERATURE, REFERENCE_PRESSURE
+    )
+    # Each temperature calculation allows phases and their compositions to change.
+    print("Calculating the equilibrated pyrolite adiabat...", flush=True)
+    pyrolite_temperatures = pyrolite_adiabat.temperatures(earth_depths)
+    axes[0].plot(
+        pyrolite_temperatures,
+        earth_depths / 1e3,
+        marker="o",
+        color="tab:red",
+        linewidth=2.0,
+        label="Equilibrated pyrolite adiabat (SLB24, 12 points)",
+    )
+    print(
+        f"{'Equilibrated pyrolite':20s} {pyrolite_adiabat.temperatures(1000e3):8.2f} K"
     )
     axes[0].set(title="Earth", xlabel="Temperature (K)", ylabel="Depth (km)")
     axes[0].legend(fontsize=8)
