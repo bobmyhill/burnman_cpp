@@ -11,13 +11,19 @@
 # and contributions can be found in the LICENSE document.
 #
 # ------------------------------------------------------
-"""Shared SLB2024 Table 1 compositions and candidate catalogue for benchmarks."""
+"""Shared SLB2024 compositions, candidate materials and PREM reference."""
 
 import gzip
 import json
 
+import numpy as np
+
 import burnman_cpp as bm
 from burnman_cpp.minerals import SLB24
+
+PREM = bm.seismic.PREM()
+# The first liquid layer marks the core-mantle boundary in PREM.
+CMB_DEPTH = float(PREM.table_depth[np.flatnonzero(PREM.table_vs == 0.0)[0]])
 
 TABLE1 = {
     "pyrolite": dict(

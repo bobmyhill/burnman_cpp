@@ -28,9 +28,7 @@ import burnman_cpp as bm
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
-from stixrude_2024 import bulk_composition, candidate_phases
-
-PREM = HERE.parent / "stixrude_2024_figure13/reference/prem_depth_pressure.txt"
+from stixrude_2024 import CMB_DEPTH, PREM, bulk_composition, candidate_phases
 
 
 def boundary_layer_temperature(
@@ -92,14 +90,11 @@ def calculate_geotherm(output_dir, *, points=601):
     """
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    prem = np.loadtxt(PREM)
     bulk, phases = bulk_composition("pyrolite"), candidate_phases()
     surface = bm.stable_equilibrium(bulk.atomic_composition, phases, 0.0, 1400.0)
     if not surface.success or surface.outside_model_domain:
         raise RuntimeError(surface.message)
-    pressure_range = np.interp(
-        [prem[-1, 0] - 600e3, prem[-1, 0]], prem[:, 0], prem[:, 1]
-    )
+    pressure_range = PREM.pressure([CMB_DEPTH - 600e3, CMB_DEPTH])
     path = bm.calculate_equilibrium_path(
         bulk,
         phases,
@@ -111,7 +106,7 @@ def calculate_geotherm(output_dir, *, points=601):
     if not path.success.all():
         raise RuntimeError("; ".join(path.diagnostics))
     pressure, isentrope = path.coordinates("P")[::-1], path.coordinates("T")[::-1]
-    height = (prem[-1, 0] - np.interp(pressure, prem[:, 1], prem[:, 0])) / 1000
+    height = (CMB_DEPTH - PREM.depth(pressure)) / 1000
     # The endpoint is the CMB equilibrium itself, not a temperature extrapolation.
     cmb_isentrope_temperature = isentrope[0]
     prescribed = boundary_layer_temperature(

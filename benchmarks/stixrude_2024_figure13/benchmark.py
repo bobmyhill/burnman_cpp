@@ -37,7 +37,13 @@ PAPER = "https://doi.org/10.1093/gji/ggae126"
 
 # Share the published bulk and complete candidate catalogue with Figure 14.
 sys.path.insert(0, str(HERE.parent))
-from stixrude_2024 import bulk_composition, candidate_phases, save_equilibrium_path
+from stixrude_2024 import (
+    CMB_DEPTH,
+    PREM,
+    bulk_composition,
+    candidate_phases,
+    save_equilibrium_path,
+)
 
 
 def pyrolite_composition():
@@ -207,20 +213,20 @@ def main():
     if not surface.success or surface.outside_model_domain:
         raise RuntimeError(surface.message)
     print(f"Surface entropy: {surface.entropy:.9f} J/K per 100 g", flush=True)
-    prem = np.loadtxt(HERE / "reference" / "prem_depth_pressure.txt")
+    cmb_pressure = PREM.pressure(CMB_DEPTH)
     path = bm.calculate_equilibrium_path(
         bulk,
         phases,
         {"P": 0.0, "S": surface.entropy},
-        {"P": float(prem[-1, 1]), "S": surface.entropy},
+        {"P": cmb_pressure, "S": surface.entropy},
         n_points=args.points,
         settings=settings,
         temperature_range=(1400.0, 4500.0),
     )
     fractions = path.fractions()
-    target_pressure = np.linspace(0.0, prem[-1, 1], args.points)
+    target_pressure = np.linspace(0.0, cmb_pressure, args.points)
     pressure = path.coordinates("P")
-    depth = np.interp(target_pressure, prem[:, 1], prem[:, 0]) / 1e3
+    depth = PREM.depth(target_pressure) / 1e3
     metal_indices = [
         j for j, name in enumerate(path.phase_names) if name.startswith("Fe-")
     ]
@@ -263,7 +269,7 @@ def main():
         dataset="SLB24",
         burnman_cpp_version=bm.__version__,
         settings=settings.to_dict(),
-        pressure_range_Pa=[0.0, float(prem[-1, 1])],
+        pressure_range_Pa=[0.0, cmb_pressure],
         temperature_search_range_K=[1400.0, 4500.0],
         entropy_J_per_K=surface.entropy,
         n_points=args.points,

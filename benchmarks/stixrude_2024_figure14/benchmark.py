@@ -33,20 +33,21 @@ import burnman_cpp as bm
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 from stixrude_2024 import (
+    CMB_DEPTH,
+    PREM,
     bulk_composition,
     candidate_phases,
     FERRIC_FRACTIONS,
     save_equilibrium_path,
 )
-from stixrude_2024_figure14.geotherm import calculate_geotherm, PREM
+from stixrude_2024_figure14.geotherm import calculate_geotherm
 
 COLORS = dict(pyrolite="red", harzburgite="#009900", basalt="#003eff")
 
 
 def height_at_pressure(pressure):
     """Convert pressure to km above the mantle-side PREM CMB."""
-    prem = np.loadtxt(PREM)
-    return (prem[-1, 0] - np.interp(pressure, prem[:, 1], prem[:, 0])) / 1000
+    return (CMB_DEPTH - PREM.depth(pressure)) / 1000
 
 
 def plot_figure(data, diagram, output_dir):
@@ -128,10 +129,7 @@ def plot_figure(data, diagram, output_dir):
         high = thermal.transData.inverted().transform(
             centre + [half_width, half_height]
         )
-        prem = np.loadtxt(PREM)
-        pressures = np.interp(
-            prem[-1, 0] - np.array([low[1], high[1]]) * 1000, prem[:, 0], prem[:, 1]
-        )
+        pressures = PREM.pressure(CMB_DEPTH - np.array([low[1], high[1]]) * 1000)
         half_size = [max(abs(pressures - pressure)), 0.5 * (high[0] - low[0])]
         if not polygon.contains_rectangle(polygon.label_position, half_size):
             continue
