@@ -47,7 +47,7 @@ public:
       bool warm_start = true);
   ~EquilibratedComposite() override;
 
-  void set_state(double pressure, double temperature) override;
+  void set_state(double new_pressure, double new_temperature) override;
   void set_method(types::EOSType method) override;
   void set_method(std::shared_ptr<EquationOfState> method) override;
   void set_averaging_scheme(types::AveragingType scheme);
@@ -97,6 +97,6 @@ private:
   struct Impl;
   std::unique_ptr<Impl> impl_;
   void require_equilibrium() const;
-  double property(const std::string &name) const;
+  double property(const std::string &property_name) const;
 };
 } // namespace burnman

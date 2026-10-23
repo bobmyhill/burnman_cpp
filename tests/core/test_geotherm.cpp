@@ -46,9 +46,9 @@ TEST_CASE(
     "[geotherm]") {
   class ChangingAmounts : public burnman::Assemblage {
   public:
-    void set_state(double pressure, double temperature) override {
-      burnman::Material::set_state(pressure, temperature);
-      set_n_moles(1.0 + pressure / 1.0e10);
+    void set_state(double new_pressure, double new_temperature) override {
+      burnman::Material::set_state(new_pressure, new_temperature);
+      set_n_moles(1.0 + new_pressure / 1.0e10);
     }
 
   protected:
