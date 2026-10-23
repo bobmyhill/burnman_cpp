@@ -13,6 +13,8 @@
 
 #include "burnman/eos/make_eos.hpp"
 #include "burnman/eos/birch_murnaghan.hpp"
+#include "burnman/eos/dks_liquid.hpp"
+#include "burnman/eos/dks_solid.hpp"
 #include "burnman/eos/hp.hpp"
 #include "burnman/eos/hp_liquid.hpp"
 #include "burnman/eos/mie_grueneisen_debye.hpp"
@@ -46,6 +48,10 @@ std::shared_ptr<EquationOfState> make_eos(types::EOSType eos_type) {
     return std::make_shared<ModularMGD>();
   case types::EOSType::ModularMGDWithAnharmonicity:
     return std::make_shared<ModularMGDWithAnharmonicity>();
+  case types::EOSType::DKS_S:
+    return std::make_shared<DKS_S>();
+  case types::EOSType::DKS_L:
+    return std::make_shared<DKS_L>();
   case types::EOSType::SLB2:
     return std::make_shared<SLB2>();
   case types::EOSType::SLB3:

@@ -21,8 +21,10 @@
  * mb50NCKFMASHTO (Green et al. 2016), mp50NCKFMASHTO metapelite models,
  * HGP_2018_ds633 and ig50NCKFMASHTOCr (Holland et al. 2018),
  * HPx_ds636, ig51W24 (Weller et al. 2024) and ig51G25 (Green et al. 2025),
- * SLB_2024 (Stixrude & Lithgow-Bertelloni 2024, doi:10.1093/gji/ggae126).
- * Legacy HGP18 melt pseudo-species Alsi2 is renamed Alsitwo to preserve pjd=1.
+ * SLB_2024 (Stixrude & Lithgow-Bertelloni 2024, doi:10.1093/gji/ggae126),
+ * DKS_2013_solids and DKS_2013_liquids (de Koker et al. 2013,
+ * doi:10.1016/j.epsl.2012.11.026). Legacy HGP18 melt pseudo-species Alsi2 is
+ * renamed Alsitwo to preserve pjd=1.
  */
 #include "burnman/minerals/datasets.hpp"
 #include "burnman/core/combined_mineral.hpp"
@@ -24588,6 +24590,321 @@ Mineral endmember_1080() {
       {eos::excesses::LinearParams{0.0, -0.0, 95000.0}});
   return m;
 }
+
+Mineral endmember_1081() {
+  Mineral m;
+  m.params.Cv = 77.94230433;
+  m.params.E_0 = -2274840.2139999997;
+  m.params.K_0 = 181486727105.82358;
+  m.params.Kdprime_0 = -3.776400076562578e-11;
+  m.params.Kprime_0 = 5.292979646422778;
+  m.params.S_0 = 166.8222552;
+  m.params.T_0 = 3000.0;
+  m.params.V_0 = 1.513e-05;
+  m.params.equation_of_state = types::EOSType::DKS_S;
+  m.params.eta_s_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.389501259;
+  m.params.molar_mass = 0.0600843;
+  m.params.napfu = 2.0;
+  m.params.name = "stishovite";
+  m.params.q_0 = 1.33202555;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("stishovite");
+  return m;
+}
+
+Mineral endmember_1082() {
+  Mineral m;
+  m.params.Cv = 133.8111589;
+  m.params.E_0 = -3355012.7819999997;
+  m.params.K_0 = 167066911316.49207;
+  m.params.Kdprime_0 = -2.4655198810018805e-11;
+  m.params.Kprime_0 = 4.19294951056697;
+  m.params.S_0 = 338.4574347;
+  m.params.T_0 = 3000.0;
+  m.params.V_0 = 2.705e-05;
+  m.params.equation_of_state = types::EOSType::DKS_S;
+  m.params.eta_s_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 3.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.893754815;
+  m.params.molar_mass = 0.1003887;
+  m.params.napfu = 2.0;
+  m.params.name = "perovskite";
+  m.params.q_0 = 1.48780973;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("perovskite");
+  return m;
+}
+
+Mineral endmember_1083() {
+  Mineral m;
+  m.params.Cv = 49.04715075;
+  m.params.E_0 = -1164949.141;
+  m.params.K_0 = 109833574725.1749;
+  m.params.Kdprime_0 = -4.465840718846227e-11;
+  m.params.Kprime_0 = 4.625212697294325;
+  m.params.S_0 = 119.8358648;
+  m.params.T_0 = 2000.0;
+  m.params.V_0 = 1.223e-05;
+  m.params.equation_of_state = types::EOSType::DKS_S;
+  m.params.eta_s_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 1.0}};
+  m.params.grueneisen_0 = 1.412003694;
+  m.params.molar_mass = 0.040304400000000004;
+  m.params.napfu = 2.0;
+  m.params.name = "periclase";
+  m.params.q_0 = 0.6317609916;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("periclase");
+  return m;
+}
+
+Mineral endmember_1084() {
+  Mineral m;
+  m.params.order_f = 5;
+  m.params.order_theta = 2;
+  m.params.T_0 = 3000.0;
+  m.params.Tel_0 = 5651.204964;
+  m.params.V_0 = 2.78e-05;
+  m.params.a = std::vector<std::vector<double>>{
+      {-1945931.56, 455028.6309, -216602.8187},
+      {-226683.5978, -200585.046, 73077.65325},
+      {2015652.8699999999, 441534.0414, 892122.09},
+      {48369729.919999994, 20701699.540000003, -1228478.753},
+      {-651587652.0, -128258723.7, 0.0},
+      {4100181286.0, 0.0, 0.0}};
+  m.params.el_V_0 = 1e-06;
+  m.params.equation_of_state = types::EOSType::DKS_L;
+  m.params.eta = -0.2783503528;
+  m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
+  m.params.m = 0.91;
+  m.params.molar_mass = 0.0600843;
+  m.params.napfu = 3.0;
+  m.params.name = "SiO2_liquid";
+  m.params.xi = 0.8639433047;
+  m.params.zeta_0 = 0.0004266056389;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("SiO2_liquid");
+  return m;
+}
+
+Mineral endmember_1085() {
+  Mineral m;
+  m.params.order_f = 3;
+  m.params.order_theta = 2;
+  m.params.T_0 = 3000.0;
+  m.params.Tel_0 = 2194.563521;
+  m.params.V_0 = 4.18e-05;
+  m.params.a = std::vector<std::vector<double>>{
+      {-2984241.2970000003, 601808.8234, -328367.174},
+      {-380983.9126, 7626.381912, 402471.6495},
+      {7307697.53, 6251230.413000001, 0.0},
+      {38737464.17, -23578935.689999998, 0.0}};
+  m.params.el_V_0 = 3.89008e-05;
+  m.params.equation_of_state = types::EOSType::DKS_L;
+  m.params.eta = -0.775354875;
+  m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 3.0}, {"Si", 1.0}};
+  m.params.m = 0.83;
+  m.params.molar_mass = 0.1003887;
+  m.params.napfu = 5.0;
+  m.params.name = "MgSiO3_liquid";
+  m.params.xi = -0.08859010337;
+  m.params.zeta_0 = 0.008009960983;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("MgSiO3_liquid");
+  return m;
+}
+
+Mineral endmember_1086() {
+  Mineral m;
+  m.params.order_f = 3;
+  m.params.order_theta = 2;
+  m.params.T_0 = 3000.0;
+  m.params.Tel_0 = 1699.783718;
+  m.params.V_0 = 6.75e-05;
+  m.params.a = std::vector<std::vector<double>>{
+      {-4958560.203, 1089553.108, -603146.6364000001},
+      {-607663.5229, -443965.4989, 1425929.331},
+      {9125144.702, 10927508.5, -4055024.972},
+      {62485192.33, -27738081.099999998, 0.0}};
+  m.params.el_V_0 = 0.0001080643234;
+  m.params.equation_of_state = types::EOSType::DKS_L;
+  m.params.eta = -0.4712864331;
+  m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 5.0}, {"Si", 2.0}};
+  m.params.m = 0.79;
+  m.params.molar_mass = 0.160473;
+  m.params.napfu = 8.0;
+  m.params.name = "MgSi2O5_liquid";
+  m.params.xi = 0.7754599642;
+  m.params.zeta_0 = 0.02219035084;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("MgSi2O5_liquid");
+  return m;
+}
+
+Mineral endmember_1087() {
+  Mineral m;
+  m.params.order_f = 3;
+  m.params.order_theta = 2;
+  m.params.T_0 = 3000.0;
+  m.params.Tel_0 = 2085.530204;
+  m.params.V_0 = 9.35e-05;
+  m.params.a = std::vector<std::vector<double>>{
+      {-6925370.617, 1439840.307, -780683.5127000001},
+      {-832045.5172, -264775.4561, 1444654.23},
+      {12287352.24, 8145563.062999999, -2360783.6309999996},
+      {78558470.91, -13036841.44, 0.0}};
+  m.params.el_V_0 = 0.0001080643234;
+  m.params.equation_of_state = types::EOSType::DKS_L;
+  m.params.eta = -0.4804823168;
+  m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 7.0}, {"Si", 3.0}};
+  m.params.m = 0.86;
+  m.params.molar_mass = 0.2205573;
+  m.params.napfu = 11.0;
+  m.params.name = "MgSi3O7_liquid";
+  m.params.xi = 0.4506392324;
+  m.params.zeta_0 = 0.02273836197;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("MgSi3O7_liquid");
+  return m;
+}
+
+Mineral endmember_1088() {
+  Mineral m;
+  m.params.order_f = 4;
+  m.params.order_theta = 2;
+  m.params.T_0 = 3000.0;
+  m.params.Tel_0 = 2037.798559;
+  m.params.V_0 = 0.000146;
+  m.params.a = std::vector<std::vector<double>>{
+      {-10813781.26, 2642979.4790000003, -1226314.792},
+      {-1297292.175, -1085821.183, 1252739.819},
+      {19993663.81, 18886404.75, 2844969.895},
+      {49132582.38, -54556118.37, 0.0},
+      {528358850.9, 0.0, 0.0}};
+  m.params.el_V_0 = 0.00015;
+  m.params.equation_of_state = types::EOSType::DKS_L;
+  m.params.eta = -0.6209203711;
+  m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 11.0}, {"Si", 5.0}};
+  m.params.m = 0.77;
+  m.params.molar_mass = 0.34072589999999997;
+  m.params.napfu = 17.0;
+  m.params.name = "MgSi5O11_liquid";
+  m.params.xi = 0.4033708612;
+  m.params.zeta_0 = 0.03318133543;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("MgSi5O11_liquid");
+  return m;
+}
+
+Mineral endmember_1089() {
+  Mineral m;
+  m.params.order_f = 3;
+  m.params.order_theta = 2;
+  m.params.T_0 = 3000.0;
+  m.params.Tel_0 = 2228.185561;
+  m.params.V_0 = 5.84e-05;
+  m.params.a = std::vector<std::vector<double>>{
+      {-3944769.208, 880046.0994, -456314.0461},
+      {-531797.5963999999, 118740.9191, 519361.22729999997},
+      {11401473.98, 12132526.1, 0.0},
+      {55778070.08, -48733224.589999996, 0.0}};
+  m.params.el_V_0 = 5.23613e-05;
+  m.params.equation_of_state = types::EOSType::DKS_L;
+  m.params.eta = -0.464192202;
+  m.params.formula = types::FormulaMap{{"Mg", 2.0}, {"O", 4.0}, {"Si", 1.0}};
+  m.params.m = 0.75;
+  m.params.molar_mass = 0.14069310000000002;
+  m.params.napfu = 7.0;
+  m.params.name = "Mg2SiO4_liquid";
+  m.params.xi = 1.175924196;
+  m.params.zeta_0 = 0.01101820277;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Mg2SiO4_liquid");
+  return m;
+}
+
+Mineral endmember_1090() {
+  Mineral m;
+  m.params.order_f = 3;
+  m.params.order_theta = 2;
+  m.params.T_0 = 3000.0;
+  m.params.Tel_0 = 2230.685379;
+  m.params.V_0 = 0.0001005;
+  m.params.a = std::vector<std::vector<double>>{
+      {-6945262.972, 1466115.121, -841833.0982},
+      {-905865.6523, 260308.3362, 1120541.194},
+      {18498284.619999997, 14752474.11, 0.0},
+      {89795957.29, -55594623.08, 0.0}};
+  m.params.el_V_0 = 0.0001080643234;
+  m.params.equation_of_state = types::EOSType::DKS_L;
+  m.params.eta = -0.3689626876;
+  m.params.formula = types::FormulaMap{{"Mg", 3.0}, {"O", 7.0}, {"Si", 2.0}};
+  m.params.m = 0.79;
+  m.params.molar_mass = 0.2410818;
+  m.params.napfu = 12.0;
+  m.params.name = "Mg3Si2O7_liquid";
+  m.params.xi = 1.129966677;
+  m.params.zeta_0 = 0.02603891379;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Mg3Si2O7_liquid");
+  return m;
+}
+
+Mineral endmember_1091() {
+  Mineral m;
+  m.params.order_f = 3;
+  m.params.order_theta = 2;
+  m.params.T_0 = 3000.0;
+  m.params.Tel_0 = 1662.606581;
+  m.params.V_0 = 0.0001075;
+  m.params.a = std::vector<std::vector<double>>{
+      {-6721181.931, 1800764.267, -753901.9177999999},
+      {-1008922.6710000001, 2169612.789, 127598.9699},
+      {25856005.700000003, 17933400.61, 570062.2605},
+      {103374734.5, -80394407.32, 0.0}};
+  m.params.el_V_0 = 0.0001080643234;
+  m.params.equation_of_state = types::EOSType::DKS_L;
+  m.params.eta = -0.9693629899;
+  m.params.formula = types::FormulaMap{{"Mg", 5.0}, {"O", 7.0}, {"Si", 1.0}};
+  m.params.m = 0.64;
+  m.params.molar_mass = 0.2616063;
+  m.params.napfu = 13.0;
+  m.params.name = "Mg5SiO7_liquid";
+  m.params.xi = 0.2784006205;
+  m.params.zeta_0 = 0.0163355197;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Mg5SiO7_liquid");
+  return m;
+}
+
+Mineral endmember_1092() {
+  Mineral m;
+  m.params.order_f = 3;
+  m.params.order_theta = 2;
+  m.params.T_0 = 3000.0;
+  m.params.Tel_0 = 1620.106387;
+  m.params.V_0 = 1.646e-05;
+  m.params.a = std::vector<std::vector<double>>{
+      {-925267.7296000001, 260821.17429999998, -88300.35696},
+      {-155324.0992, 466372.2398, 50725.208340000005},
+      {5323167.666999999, 1997967.054, 71899.89255},
+      {10473878.790000001, -9914621.337000001, 0.0}};
+  m.params.el_V_0 = 1.620953559e-05;
+  m.params.equation_of_state = types::EOSType::DKS_L;
+  m.params.eta = -0.986457555;
+  m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 1.0}};
+  m.params.m = 0.63;
+  m.params.molar_mass = 0.040304400000000004;
+  m.params.napfu = 2.0;
+  m.params.name = "MgO_liquid";
+  m.params.xi = 0.411459446;
+  m.params.zeta_0 = 0.002194565772;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("MgO_liquid");
+  return m;
+}
 } // namespace
 
 namespace HP11 {
@@ -32956,4 +33273,56 @@ std::shared_ptr<Solution> cd_G25() {
   return solution;
 }
 } // namespace IG25
+
+namespace DKS_2013_solids {
+std::shared_ptr<Mineral> stishovite() {
+  return std::make_shared<Mineral>(endmember_1081());
+}
+
+std::shared_ptr<Mineral> perovskite() {
+  return std::make_shared<Mineral>(endmember_1082());
+}
+
+std::shared_ptr<Mineral> periclase() {
+  return std::make_shared<Mineral>(endmember_1083());
+}
+} // namespace DKS_2013_solids
+
+namespace DKS_2013_liquids {
+std::shared_ptr<Mineral> SiO2_liquid() {
+  return std::make_shared<Mineral>(endmember_1084());
+}
+
+std::shared_ptr<Mineral> MgSiO3_liquid() {
+  return std::make_shared<Mineral>(endmember_1085());
+}
+
+std::shared_ptr<Mineral> MgSi2O5_liquid() {
+  return std::make_shared<Mineral>(endmember_1086());
+}
+
+std::shared_ptr<Mineral> MgSi3O7_liquid() {
+  return std::make_shared<Mineral>(endmember_1087());
+}
+
+std::shared_ptr<Mineral> MgSi5O11_liquid() {
+  return std::make_shared<Mineral>(endmember_1088());
+}
+
+std::shared_ptr<Mineral> Mg2SiO4_liquid() {
+  return std::make_shared<Mineral>(endmember_1089());
+}
+
+std::shared_ptr<Mineral> Mg3Si2O7_liquid() {
+  return std::make_shared<Mineral>(endmember_1090());
+}
+
+std::shared_ptr<Mineral> Mg5SiO7_liquid() {
+  return std::make_shared<Mineral>(endmember_1091());
+}
+
+std::shared_ptr<Mineral> MgO_liquid() {
+  return std::make_shared<Mineral>(endmember_1092());
+}
+} // namespace DKS_2013_liquids
 } // namespace burnman::minerals

@@ -28,6 +28,8 @@ void bind_params(py::module_ &m) {
       .value("BM2", EOSType::BM2)
       .value("BM3", EOSType::BM3)
       .value("SPOCK", EOSType::SPOCK)
+      .value("DKS_S", EOSType::DKS_S)
+      .value("DKS_L", EOSType::DKS_L)
       .value("MGD2", EOSType::MGD2)
       .value("MGD3", EOSType::MGD3)
       .value("ModularMGD", EOSType::ModularMGD)
@@ -121,6 +123,12 @@ void bind_params(py::module_ &m) {
   PARAM(zeta_0);
   PARAM(xi);
   PARAM(eta);
+  PARAM(el_V_0);
+  PARAM(spin_a);
+  PARAM(spin_b);
+  PARAM(dks_s_power_law_grueneisen);
+  params.def_readwrite("O_theta", &MineralParams::order_theta);
+  params.def_readwrite("O_f", &MineralParams::order_f);
   PARAM(delta_0);
   PARAM(delta_1);
   PARAM(b_0);

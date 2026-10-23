@@ -3,12 +3,17 @@ Performance benchmarks
 
 Scientific reference comparisons are kept alongside the timing benchmarks:
 
+- [de Koker, Karki & Stixrude (2013), nine liquid compositions](dekoker_2013/README.md):
+  direct native EOS comparisons with supplement Figures S2–S10 and Table 1.
 - [Stixrude & Lithgow-Bertelloni (2024), Figure 13](stixrude_2024_figure13/README.md):
   pyrolite phase modes, native iron and ferropericlase spin along a 1600 K
   surface isentrope, with overlays on the published panels and saved equilibria.
 - [Stixrude & Lithgow-Bertelloni (2024), Figure 14](stixrude_2024_figure14/README.md):
   three lower-mantle shear-velocity profiles, relaxed pyrolite expansivity and
   phase boundaries, with a 1400 K isentrope plus a basal erfc thermal layer.
+
+The illustrative [de Koker mixing and melting reconstruction](../examples/example_dekoker_2013.py)
+is an example, separate from the nine-composition EOS benchmark.
 
 `core/` and `eos/` contain the Catch2 performance benchmarks. They build into
 their own executable and reuse the fixtures in `tests/include/`. Unit tests

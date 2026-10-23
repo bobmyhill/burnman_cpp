@@ -53,7 +53,9 @@ enum class EOSType {
   SLB3Stishovite,
   SPOCK,
   ModularMGD,
-  ModularMGDWithAnharmonicity
+  ModularMGDWithAnharmonicity,
+  DKS_S,
+  DKS_L
 };
 
 /**

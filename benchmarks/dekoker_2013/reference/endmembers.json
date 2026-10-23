@@ -1,0 +1,931 @@
+{
+  "source": "de Koker, Karki & Stixrude (2013), doi:10.1016/j.epsl.2012.11.026",
+  "source_pdf_sha256": "4305789b83447f1e999498b55d21edfc1276e6074e68305851ac19113f67c113",
+  "reference_state": {
+    "pressure_Pa": 0,
+    "temperature_K": 3000
+  },
+  "units": "Per mole of the named formula; volume cm3/mol, pressure GPa, energy kJ/mol; Cv/Cp divided by total atoms * R",
+  "compositions": [
+    {
+      "composition": "MgO",
+      "pdf_page": 17,
+      "supplement_figure": "S2",
+      "temperatures_K": [
+        2000,
+        3000,
+        4000,
+        5000,
+        6000,
+        7000,
+        10000
+      ],
+      "crop": [
+        100,
+        453.1796875,
+        495,
+        622.15625
+      ],
+      "panels": {
+        "P": {
+          "bounds": [
+            158.69140620000002,
+            462.40625,
+            282.4414062,
+            586.15625
+          ],
+          "volume_ticks_cm3_mol": [
+            [
+              9,
+              181.1328125
+            ],
+            [
+              18,
+              282.4414062
+            ]
+          ],
+          "quantity_ticks": [
+            [
+              0,
+              581.2070312
+            ],
+            [
+              240,
+              462.40625
+            ]
+          ]
+        },
+        "E": {
+          "bounds": [
+            294.5039062,
+            462.1796875,
+            418.2539062,
+            585.9296875
+          ],
+          "volume_ticks_cm3_mol": [
+            [
+              9,
+              316.9453125
+            ],
+            [
+              18,
+              418.2539062
+            ]
+          ],
+          "quantity_ticks": [
+            [
+              -1200,
+              585.9296875
+            ],
+            [
+              -300,
+              474.5546875
+            ]
+          ]
+        }
+      },
+      "table_1": {
+        "volume_cm3_mol": {
+          "value": 16.46,
+          "printed_uncertainty": 0.01
+        },
+        "K_T_GPa": {
+          "value": 33.49,
+          "printed_uncertainty": 0.05
+        },
+        "entropy_J_mol_K": {
+          "value": 174.1,
+          "printed_uncertainty": 0.2
+        },
+        "Cv_per_nR": {
+          "value": 3.6,
+          "printed_uncertainty": 0.2
+        },
+        "Cp_per_nR": {
+          "value": 4.5,
+          "printed_uncertainty": 0.3
+        },
+        "grueneisen": {
+          "value": 0.87,
+          "printed_uncertainty": 0.01
+        }
+      }
+    },
+    {
+      "composition": "Mg5SiO7",
+      "pdf_page": 18,
+      "supplement_figure": "S3",
+      "temperatures_K": [
+        2000,
+        3000,
+        4000,
+        6000,
+        8000
+      ],
+      "crop": [
+        100,
+        165.1875,
+        495,
+        334.1015625
+      ],
+      "panels": {
+        "P": {
+          "bounds": [
+            158.6210938,
+            174.3515625,
+            282.37109380000004,
+            298.1015625
+          ],
+          "volume_ticks_cm3_mol": [
+            [
+              60,
+              180.7304688
+            ],
+            [
+              100,
+              254.65234380000004
+            ]
+          ],
+          "quantity_ticks": [
+            [
+              0,
+              293.64453119999996
+            ],
+            [
+              200,
+              182.6015625
+            ]
+          ]
+        },
+        "E": {
+          "bounds": [
+            294.52734380000004,
+            174.1875,
+            418.27734380000004,
+            297.9375
+          ],
+          "volume_ticks_cm3_mol": [
+            [
+              60,
+              316.63671880000004
+            ],
+            [
+              100,
+              390.55859380000004
+            ]
+          ],
+          "quantity_ticks": [
+            [
+              -8000,
+              286.0546875
+            ],
+            [
+              -4000,
+              190.8515625
+            ]
+          ]
+        }
+      },
+      "table_1": {
+        "volume_cm3_mol": {
+          "value": 107.5,
+          "printed_uncertainty": 0.01
+        },
+        "K_T_GPa": {
+          "value": 24.33,
+          "printed_uncertainty": 0.02
+        },
+        "entropy_J_mol_K": {
+          "value": 1125.4,
+          "printed_uncertainty": 0.5
+        },
+        "Cv_per_nR": {
+          "value": 3.9,
+          "printed_uncertainty": 0.1
+        },
+        "Cp_per_nR": {
+          "value": 4.8,
+          "printed_uncertainty": 0.2
+        },
+        "grueneisen": {
+          "value": 0.66,
+          "printed_uncertainty": 0.01
+        }
+      }
+    },
+    {
+      "composition": "Mg2SiO4",
+      "pdf_page": 18,
+      "supplement_figure": "S4",
+      "temperatures_K": [
+        2000,
+        3000,
+        4000,
+        6000
+      ],
+      "crop": [
+        100,
+        465.8398438,
+        495,
+        634.5898438
+      ],
+      "panels": {
+        "P": {
+          "bounds": [
+            158.6796875,
+            474.8398438,
+            282.4296875,
+            598.5898438
+          ],
+          "volume_ticks_cm3_mol": [
+            [
+              30,
+              176.3359375
+            ],
+            [
+              60,
+              264.7734375
+            ]
+          ],
+          "quantity_ticks": [
+            [
+              0,
+              592.9804688
+            ],
+            [
+              200,
+              480.4492188
+            ]
+          ]
+        },
+        "E": {
+          "bounds": [
+            294.46875,
+            474.8398438,
+            418.21875,
+            598.5898438
+          ],
+          "volume_ticks_cm3_mol": [
+            [
+              30,
+              312.125
+            ],
+            [
+              60,
+              400.5664062
+            ]
+          ],
+          "quantity_ticks": [
+            [
+              -4500,
+              577.9648437999999
+            ],
+            [
+              -3000,
+              489.5234375
+            ]
+          ]
+        }
+      },
+      "table_1": {
+        "volume_cm3_mol": {
+          "value": 58.4,
+          "printed_uncertainty": 0.08
+        },
+        "K_T_GPa": {
+          "value": 19.5,
+          "printed_uncertainty": 0.09
+        },
+        "entropy_J_mol_K": {
+          "value": 595.1,
+          "printed_uncertainty": 0.3
+        },
+        "Cv_per_nR": {
+          "value": 4.1,
+          "printed_uncertainty": 0.4
+        },
+        "Cp_per_nR": {
+          "value": 4.4,
+          "printed_uncertainty": 0.5
+        },
+        "grueneisen": {
+          "value": 0.31,
+          "printed_uncertainty": 0.01
+        }
+      }
+    },
+    {
+      "composition": "Mg3Si2O7",
+      "pdf_page": 19,
+      "supplement_figure": "S5",
+      "temperatures_K": [
+        2000,
+        3000,
+        4000,
+        6000
+      ],
+      "crop": [
+        100,
+        164.94140619999996,
+        495,
+        333.4609375
+      ],
+      "panels": {
+        "P": {
+          "bounds": [
+            159.6210938,
+            173.94140619999996,
+            283.140625,
+            297.4609375
+          ],
+          "volume_ticks_cm3_mol": [
+            [
+              40,
+              166.8671875
+            ],
+            [
+              120,
+              283.140625
+            ]
+          ],
+          "quantity_ticks": [
+            [
+              0,
+              294.328125
+            ],
+            [
+              240,
+              187.28125
+            ]
+          ]
+        },
+        "E": {
+          "bounds": [
+            294.9882812,
+            173.94140619999996,
+            418.5078125,
+            297.4609375
+          ],
+          "volume_ticks_cm3_mol": [
+            [
+              40,
+              302.234375
+            ],
+            [
+              120,
+              418.5078125
+            ]
+          ],
+          "quantity_ticks": [
+            [
+              -8000,
+              284.44921880000004
+            ],
+            [
+              -5000,
+              186.94921879999993
+            ]
+          ]
+        }
+      },
+      "table_1": {
+        "volume_cm3_mol": {
+          "value": 100.5,
+          "printed_uncertainty": 0.08
+        },
+        "K_T_GPa": {
+          "value": 18.35,
+          "printed_uncertainty": 0.04
+        },
+        "entropy_J_mol_K": {
+          "value": 1010.8,
+          "printed_uncertainty": 0.5
+        },
+        "Cv_per_nR": {
+          "value": 4.2,
+          "printed_uncertainty": 0.2
+        },
+        "Cp_per_nR": {
+          "value": 4.5,
+          "printed_uncertainty": 0.3
+        },
+        "grueneisen": {
+          "value": 0.31,
+          "printed_uncertainty": 0.01
+        }
+      }
+    },
+    {
+      "composition": "MgSiO3",
+      "pdf_page": 19,
+      "supplement_figure": "S6",
+      "temperatures_K": [
+        2000,
+        3000,
+        4000,
+        6000,
+        8000
+      ],
+      "crop": [
+        100,
+        465.78515619999996,
+        495,
+        634.703125
+      ],
+      "panels": {
+        "P": {
+          "bounds": [
+            158.8671875,
+            474.953125,
+            282.6171875,
+            598.703125
+          ],
+          "volume_ticks_cm3_mol": [
+            [
+              20,
+              176.5234375
+            ],
+            [
+              50,
+              282.6171875
+            ]
+          ],
+          "quantity_ticks": [
+            [
+              0,
+              594.4140625
+            ],
+            [
+              240,
+              490.1367188
+            ]
+          ]
+        },
+        "E": {
+          "bounds": [
+            294.8476562,
+            474.78515619999996,
+            418.5976562,
+            598.5351562
+          ],
+          "volume_ticks_cm3_mol": [
+            [
+              20,
+              312.5
+            ],
+            [
+              50,
+              418.5976562
+            ]
+          ],
+          "quantity_ticks": [
+            [
+              -3500,
+              584.8398437999999
+            ],
+            [
+              -1500,
+              474.78515619999996
+            ]
+          ]
+        }
+      },
+      "table_1": {
+        "volume_cm3_mol": {
+          "value": 41.8,
+          "printed_uncertainty": 0.1
+        },
+        "K_T_GPa": {
+          "value": 17.2,
+          "printed_uncertainty": 0.1
+        },
+        "entropy_J_mol_K": {
+          "value": 415.3,
+          "printed_uncertainty": 0.2
+        },
+        "Cv_per_nR": {
+          "value": 4.2,
+          "printed_uncertainty": 0.4
+        },
+        "Cp_per_nR": {
+          "value": 4.4,
+          "printed_uncertainty": 0.4
+        },
+        "grueneisen": {
+          "value": 0.27,
+          "printed_uncertainty": 0.01
+        }
+      }
+    },
+    {
+      "composition": "MgSi2O5",
+      "pdf_page": 20,
+      "supplement_figure": "S7",
+      "temperatures_K": [
+        2000,
+        3000,
+        4000,
+        6000,
+        8000
+      ],
+      "crop": [
+        100,
+        165.12890619999996,
+        495,
+        333.8203125
+      ],
+      "panels": {
+        "P": {
+          "bounds": [
+            159.4492188,
+            174.12890619999996,
+            282.96875,
+            297.6484375
+          ],
+          "volume_ticks_cm3_mol": [
+            [
+              30,
+              178.0625
+            ],
+            [
+              75,
+              282.96875
+            ]
+          ],
+          "quantity_ticks": [
+            [
+              0,
+              293.3671875
+            ],
+            [
+              240,
+              189.28125
+            ]
+          ]
+        },
+        "E": {
+          "bounds": [
+            294.8164062,
+            174.30078119999996,
+            418.33984380000004,
+            297.8203125
+          ],
+          "volume_ticks_cm3_mol": [
+            [
+              30,
+              313.4296875
+            ],
+            [
+              75,
+              418.33984380000004
+            ]
+          ],
+          "quantity_ticks": [
+            [
+              -6000,
+              294.36328119999996
+            ],
+            [
+              -3000,
+              191.4296875
+            ]
+          ]
+        }
+      },
+      "table_1": {
+        "volume_cm3_mol": {
+          "value": 67.5,
+          "printed_uncertainty": 0.09
+        },
+        "K_T_GPa": {
+          "value": 12.92,
+          "printed_uncertainty": 0.06
+        },
+        "entropy_J_mol_K": {
+          "value": 641.1,
+          "printed_uncertainty": 0.5
+        },
+        "Cv_per_nR": {
+          "value": 4.5,
+          "printed_uncertainty": 0.3
+        },
+        "Cp_per_nR": {
+          "value": 4.5,
+          "printed_uncertainty": 0.4
+        },
+        "grueneisen": {
+          "value": 0.12,
+          "printed_uncertainty": 0.01
+        }
+      }
+    },
+    {
+      "composition": "MgSi3O7",
+      "pdf_page": 20,
+      "supplement_figure": "S8",
+      "temperatures_K": [
+        2000,
+        3000,
+        4000,
+        6000,
+        8000
+      ],
+      "crop": [
+        100,
+        465.96875,
+        495,
+        634.5898438
+      ],
+      "panels": {
+        "P": {
+          "bounds": [
+            159.2304688,
+            475.0703125,
+            282.75,
+            598.5898438
+          ],
+          "volume_ticks_cm3_mol": [
+            [
+              30,
+              159.2304688
+            ],
+            [
+              120,
+              282.75
+            ]
+          ],
+          "quantity_ticks": [
+            [
+              0,
+              596.2851562
+            ],
+            [
+              240,
+              482.1523438
+            ]
+          ]
+        },
+        "E": {
+          "bounds": [
+            294.87109380000004,
+            474.96875,
+            418.390625,
+            598.4882812
+          ],
+          "volume_ticks_cm3_mol": [
+            [
+              30,
+              294.87109380000004
+            ],
+            [
+              120,
+              418.390625
+            ]
+          ],
+          "quantity_ticks": [
+            [
+              -8000,
+              585.640625
+            ],
+            [
+              -4000,
+              482.7109375
+            ]
+          ]
+        }
+      },
+      "table_1": {
+        "volume_cm3_mol": {
+          "value": 93.5,
+          "printed_uncertainty": 0.08
+        },
+        "K_T_GPa": {
+          "value": 12.53,
+          "printed_uncertainty": 0.06
+        },
+        "entropy_J_mol_K": {
+          "value": 859.3,
+          "printed_uncertainty": 0.7
+        },
+        "Cv_per_nR": {
+          "value": 4.4,
+          "printed_uncertainty": 0.3
+        },
+        "Cp_per_nR": {
+          "value": 4.6,
+          "printed_uncertainty": 0.4
+        },
+        "grueneisen": {
+          "value": 0.18,
+          "printed_uncertainty": 0.01
+        }
+      }
+    },
+    {
+      "composition": "MgSi5O11",
+      "pdf_page": 21,
+      "supplement_figure": "S9",
+      "temperatures_K": [
+        2000,
+        3000,
+        4000,
+        5000,
+        6000,
+        8000
+      ],
+      "crop": [
+        100,
+        165.4375,
+        495,
+        334.0625
+      ],
+      "panels": {
+        "P": {
+          "bounds": [
+            159.046875,
+            174.4375,
+            282.5664062,
+            297.95703119999996
+          ],
+          "volume_ticks_cm3_mol": [
+            [
+              60,
+              165.3085938
+            ],
+            [
+              150,
+              276.30859380000004
+            ]
+          ],
+          "quantity_ticks": [
+            [
+              0,
+              293.83984380000004
+            ],
+            [
+              200,
+              177.3984375
+            ]
+          ]
+        },
+        "E": {
+          "bounds": [
+            294.8164062,
+            174.5390625,
+            418.33984380000004,
+            298.0625
+          ],
+          "volume_ticks_cm3_mol": [
+            [
+              60,
+              301.078125
+            ],
+            [
+              150,
+              412.078125
+            ]
+          ],
+          "quantity_ticks": [
+            [
+              -13000,
+              287.68359380000004
+            ],
+            [
+              -7000,
+              183.26953119999996
+            ]
+          ]
+        }
+      },
+      "table_1": {
+        "volume_cm3_mol": {
+          "value": 146.0,
+          "printed_uncertainty": 0.01
+        },
+        "K_T_GPa": {
+          "value": 13.06,
+          "printed_uncertainty": 0.05
+        },
+        "entropy_J_mol_K": {
+          "value": 1283.2,
+          "printed_uncertainty": 1.7
+        },
+        "Cv_per_nR": {
+          "value": 4.5,
+          "printed_uncertainty": 0.2
+        },
+        "Cp_per_nR": {
+          "value": 4.6,
+          "printed_uncertainty": 0.3
+        },
+        "grueneisen": {
+          "value": 0.1,
+          "printed_uncertainty": 0.01
+        }
+      }
+    },
+    {
+      "composition": "SiO2",
+      "pdf_page": 21,
+      "supplement_figure": "S10",
+      "temperatures_K": [
+        2000,
+        3000,
+        4000,
+        5000,
+        6000,
+        7000
+      ],
+      "crop": [
+        100,
+        465.95703119999996,
+        495,
+        634.53125
+      ],
+      "panels": {
+        "P": {
+          "bounds": [
+            159.22265620000002,
+            474.95703119999996,
+            282.7421875,
+            598.4765625
+          ],
+          "volume_ticks_cm3_mol": [
+            [
+              10,
+              165.1523438
+            ],
+            [
+              30,
+              282.7421875
+            ]
+          ],
+          "quantity_ticks": [
+            [
+              0,
+              593.2070312
+            ],
+            [
+              200,
+              488.1328125
+            ]
+          ]
+        },
+        "E": {
+          "bounds": [
+            294.9375,
+            475.0117188,
+            418.4570312,
+            598.53125
+          ],
+          "volume_ticks_cm3_mol": [
+            [
+              10,
+              300.8671875
+            ],
+            [
+              30,
+              418.4570312
+            ]
+          ],
+          "quantity_ticks": [
+            [
+              -2400,
+              586.8398438
+            ],
+            [
+              -1200,
+              479.4609375
+            ]
+          ]
+        }
+      },
+      "table_1": {
+        "volume_cm3_mol": {
+          "value": 27.8,
+          "printed_uncertainty": 0.2
+        },
+        "K_T_GPa": {
+          "value": 6.2,
+          "printed_uncertainty": 0.3
+        },
+        "entropy_J_mol_K": {
+          "value": 205.5,
+          "printed_uncertainty": 0.5
+        },
+        "Cv_per_nR": {
+          "value": 4.6,
+          "printed_uncertainty": 0.2
+        },
+        "Cp_per_nR": {
+          "value": 4.6,
+          "printed_uncertainty": 0.2
+        },
+        "grueneisen": {
+          "value": 0.06,
+          "printed_uncertainty": 0.02
+        }
+      }
+    }
+  ]
+}

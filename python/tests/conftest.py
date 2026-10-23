@@ -34,6 +34,16 @@ def pytest_sessionstart(session):
         raise pytest.UsageError(str(exc)) from exc
 
 
+@pytest.fixture(autouse=True)
+def dks_s_original_fortran_reference(monkeypatch):
+    """The optional clean reference pin predates the DKS_S thermal-law fix."""
+    if find_spec("burnman") is not None:
+        import burnman
+        from dks_fortran_reference import install_fortran_reference
+
+        install_fortran_reference(burnman, monkeypatch)
+
+
 def oxide_params(element="Mg", energy_shift=0.0):
     """SLB3 endmembers with matching elastic properties and variable free energy."""
     return {

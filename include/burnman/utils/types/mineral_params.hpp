@@ -15,6 +15,7 @@
 #define BURNMAN_UTILS_TYPES_MINERAL_PARAMS_HPP_INCLUDED
 
 #include "burnman/utils/types/simple_types.hpp"
+#include <array>
 #include <memory>
 #include <optional>
 #include <string>
@@ -96,8 +97,8 @@ struct MineralParams {
   std::optional<double> q_0;
   std::optional<double> a_0; // alpha_0
   std::optional<double> dKdT_0;
-  std::optional<double> m; // DKS free param
-  std::optional<double> a; // DKS free param
+  std::optional<double> m;                           // DKS free param
+  std::optional<std::vector<std::vector<double>>> a; // DKS bonding coefficients
   std::optional<double>
       eta_s_0; // for shear strain derivative of grueneisen parameter (SLB, DKS)
   std::optional<double>
@@ -129,6 +130,11 @@ struct MineralParams {
   std::optional<double> zeta_0;
   std::optional<double> xi;
   std::optional<double> eta;
+  std::optional<double> el_V_0;
+  std::optional<std::array<double, 2>> spin_a;
+  std::optional<std::array<double, 4>> spin_b;
+  // Original Fortran thermal law (default true); false selects finite strain.
+  std::optional<bool> dks_s_power_law_grueneisen;
 
   // Brosh-CALPHAD fitting parameters
   std::optional<double> delta_0;

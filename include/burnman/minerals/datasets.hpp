@@ -21,8 +21,10 @@
  * mb50NCKFMASHTO (Green et al. 2016), mp50NCKFMASHTO metapelite models,
  * HGP_2018_ds633 and ig50NCKFMASHTOCr (Holland et al. 2018),
  * HPx_ds636, ig51W24 (Weller et al. 2024) and ig51G25 (Green et al. 2025),
- * SLB_2024 (Stixrude & Lithgow-Bertelloni 2024, doi:10.1093/gji/ggae126).
- * Legacy HGP18 melt pseudo-species Alsi2 is renamed Alsitwo to preserve pjd=1.
+ * SLB_2024 (Stixrude & Lithgow-Bertelloni 2024, doi:10.1093/gji/ggae126),
+ * DKS_2013_solids and DKS_2013_liquids (de Koker et al. 2013,
+ * doi:10.1016/j.epsl.2012.11.026). Legacy HGP18 melt pseudo-species Alsi2 is
+ * renamed Alsitwo to preserve pjd=1.
  */
 #pragma once
 #include "burnman/core/mineral.hpp"
@@ -1491,4 +1493,22 @@ std::shared_ptr<Solution> amp_G16();
 std::shared_ptr<Solution> ep_H11();
 std::shared_ptr<Solution> cd_G25();
 } // namespace IG25
+
+namespace DKS_2013_solids {
+std::shared_ptr<Mineral> stishovite();
+std::shared_ptr<Mineral> perovskite();
+std::shared_ptr<Mineral> periclase();
+} // namespace DKS_2013_solids
+
+namespace DKS_2013_liquids {
+std::shared_ptr<Mineral> SiO2_liquid();
+std::shared_ptr<Mineral> MgSiO3_liquid();
+std::shared_ptr<Mineral> MgSi2O5_liquid();
+std::shared_ptr<Mineral> MgSi3O7_liquid();
+std::shared_ptr<Mineral> MgSi5O11_liquid();
+std::shared_ptr<Mineral> Mg2SiO4_liquid();
+std::shared_ptr<Mineral> Mg3Si2O7_liquid();
+std::shared_ptr<Mineral> Mg5SiO7_liquid();
+std::shared_ptr<Mineral> MgO_liquid();
+} // namespace DKS_2013_liquids
 } // namespace burnman::minerals
