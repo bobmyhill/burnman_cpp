@@ -37,6 +37,7 @@ sdist.include = [
   "/CMakeLists.txt", "/include/**/*.hpp", "/src/**/*.cpp", "/src/**/*.hpp",
   "/python/bindings/*.cpp", "/python/bindings/*.hpp",
   "/python/burnman_cpp/**/*.py", "/python/tests/*.py", "/examples/*.py",
+  "/python/burnman_cpp/data/input_seismic/*", "/tools/export_seismic_data.py",
   "/benchmarks/dekoker_2013/*.py", "/benchmarks/dekoker_2013/README.md",
   "/benchmarks/dekoker_2013/reference/**",
   "/benchmarks/stixrude_2024_figure13/**",
@@ -59,7 +60,7 @@ target-version = ["py310"]
 build = "cp3{10,11,12,13,14,15}-*"
 skip = "*-musllinux_* *-win*"
 test-extras = ["test"]
-test-command = "python -m pytest {project}/python/tests/test_wheel_metadata.py {project}/python/tests/test_bindings.py {project}/python/tests/test_equilibration.py {project}/python/tests/test_stable_equilibrium.py {project}/python/tests/test_polytope.py -q"
+test-command = "python -m pytest {project}/python/tests/test_wheel_metadata.py {project}/python/tests/test_bindings.py {project}/python/tests/test_seismic.py {project}/python/tests/test_equilibration.py {project}/python/tests/test_stable_equilibrium.py {project}/python/tests/test_polytope.py -q"
 
 [tool.cibuildwheel.linux]
 manylinux-x86_64-image = "manylinux_2_28"

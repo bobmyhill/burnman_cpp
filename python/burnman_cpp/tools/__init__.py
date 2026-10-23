@@ -13,6 +13,8 @@
 
 """Native numerical tools and optional plotting helpers."""
 
+from . import seismic
+
 from .equilibrium_path import (
     EquilibriumPath,
     calculate_equilibrium_path,
@@ -53,6 +55,7 @@ from .phase_diagram_helpers import (
 )
 
 __all__ = [
+    "seismic",
     "EquilibriumPath",
     "calculate_equilibrium_path",
     "sample_equilibrium_path",
