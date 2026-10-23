@@ -27,6 +27,7 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
+from stixrude_2024 import CMB_DEPTH, PREM
 from stixrude_2024_figure13.overlay import SVG, _element, _curve, _label
 
 
@@ -120,9 +121,6 @@ def make_overlay(grid_path, diagram_path, output_dir):
         data = {k: archive[k] for k in archive.files}
     saved = json.loads(diagram_path.read_text())
     diagram = saved.get("result", saved)
-    prem = np.loadtxt(
-        HERE.parent / "stixrude_2024_figure13/reference/prem_depth_pressure.txt"
-    )
     output = _element(
         "svg", width="1410pt", height="1188pt", viewBox="55 30 235 198", version="1.1"
     )
@@ -184,9 +182,7 @@ def make_overlay(grid_path, diagram_path, output_dir):
             for boundary in diagram["boundaries"]:
                 pressure = [p["pressure"] for p in boundary["points"]]
                 temperature = [p["temperature"] for p in boundary["points"]]
-                height = (
-                    prem[-1, 0] - np.interp(pressure, prem[:, 1], prem[:, 0])
-                ) / 1000
+                height = (CMB_DEPTH - PREM.depth(pressure)) / 1000
                 group.append(
                     _element(
                         "path",

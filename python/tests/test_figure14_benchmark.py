@@ -24,6 +24,22 @@ import burnman_cpp as bm
 BENCHMARKS = Path(__file__).parents[2] / "benchmarks"
 
 
+def test_native_prem_keeps_the_mantle_cmb_and_pressure_height_coordinates():
+    pytest.importorskip("matplotlib")
+    source = runpy.run_path(str(BENCHMARKS / "stixrude_2024_figure14/benchmark.py"))
+    prem, cmb_depth = source["PREM"], source["CMB_DEPTH"]
+    assert isinstance(prem, bm.seismic.PREM)
+    assert cmb_depth == 2891e3
+    assert prem.pressure(cmb_depth) == pytest.approx(135.751e9, abs=1e-3)
+    height = np.linspace(0.0, 600.0, 601)
+    pressure = prem.pressure(cmb_depth - height * 1000)
+    np.testing.assert_allclose(
+        source["height_at_pressure"](pressure), height, rtol=0.0, atol=1e-9
+    )
+    assert source["height_at_pressure"](135.751e9) == 0.0
+    assert source["height_at_pressure"](102.10632e9) == pytest.approx(600.0)
+
+
 @pytest.mark.parametrize("lithology", ["pyrolite", "harzburgite", "basalt"])
 def test_table1_bulks_conserve_cation_ratios_and_initial_ferric_fraction(lithology):
     source = runpy.run_path(str(BENCHMARKS / "stixrude_2024.py"))
