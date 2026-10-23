@@ -20,6 +20,13 @@
 
 namespace burnman {
 
+std::shared_ptr<Material> Assemblage::copy() const {
+  auto result = std::make_shared<Assemblage>(*this);
+  for (auto &phase : result->phases)
+    phase = phase->copy();
+  return result;
+}
+
 void Assemblage::reset_cache() {
   // Reset cached Material & CompositeMaterial properties
   CompositeMaterial::reset_cache();

@@ -99,6 +99,7 @@ def from_burnman(phase):
             reference_names = {
                 "BM2": "bm2",
                 "BM3": "bm3",
+                "BM4": "bm4",
                 "Vinet": "vinet",
                 "MT": "mt",
                 "SPOCK": "spock",
@@ -140,7 +141,12 @@ def from_burnman(phase):
             known = MineralParams()
             for key in params:
                 if not hasattr(
-                    known, {"n": "napfu", "Debye_0": "debye_0"}.get(key, key)
+                    known,
+                    {
+                        "n": "napfu",
+                        "Debye_0": "debye_0",
+                        "Kprime_prime_0": "Kdprime_0",
+                    }.get(key, key),
                 ):
                     raise ValueError(
                         f"Unsupported parameter {key!r} in {phase.name!r}."

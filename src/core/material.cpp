@@ -13,16 +13,98 @@
 
 #include "burnman/core/material.hpp"
 #include "burnman/utils/exceptions.hpp"
+#include <cstdlib>
+#include <map>
 #include <typeinfo>
+#if defined(__GNUG__)
+#include <cxxabi.h>
+#endif
 
 namespace burnman {
+
+std::shared_ptr<Material> Material::copy() const {
+  throw_not_implemented_error("copy");
+}
+
+double Material::get_property(const std::string &property_name) const {
+  using Getter = double (Material::*)() const;
+  static const std::map<std::string, Getter> getters = {
+#define PROPERTY(name) {#name, &Material::get_##name}
+      PROPERTY(pressure),
+      PROPERTY(temperature),
+      PROPERTY(molar_mass),
+      PROPERTY(molar_internal_energy),
+      PROPERTY(molar_gibbs),
+      PROPERTY(molar_helmholtz),
+      PROPERTY(molar_volume),
+      PROPERTY(density),
+      PROPERTY(molar_entropy),
+      PROPERTY(molar_enthalpy),
+      PROPERTY(isothermal_bulk_modulus_reuss),
+      PROPERTY(isentropic_bulk_modulus_reuss),
+      PROPERTY(isothermal_compressibility_reuss),
+      PROPERTY(isentropic_compressibility_reuss),
+      PROPERTY(shear_modulus),
+      PROPERTY(p_wave_velocity),
+      PROPERTY(bulk_sound_velocity),
+      PROPERTY(shear_wave_velocity),
+      PROPERTY(grueneisen_parameter),
+      PROPERTY(thermal_expansivity),
+      PROPERTY(molar_heat_capacity_v),
+      PROPERTY(molar_heat_capacity_p),
+      PROPERTY(isentropic_thermal_gradient),
+#undef PROPERTY
+      {"P", &Material::get_pressure},
+      {"T", &Material::get_temperature},
+      {"energy", &Material::get_molar_internal_energy},
+      {"gibbs", &Material::get_molar_gibbs},
+      {"helmholtz", &Material::get_molar_helmholtz},
+      {"F", &Material::get_molar_helmholtz},
+      {"V", &Material::get_molar_volume},
+      {"rho", &Material::get_density},
+      {"S", &Material::get_molar_entropy},
+      {"H", &Material::get_molar_enthalpy},
+      {"K_T", &Material::get_isothermal_bulk_modulus_reuss},
+      {"K_S", &Material::get_isentropic_bulk_modulus_reuss},
+      {"beta_T", &Material::get_isothermal_compressibility_reuss},
+      {"beta_S", &Material::get_isentropic_compressibility_reuss},
+      {"G", &Material::get_shear_modulus},
+      {"v_p", &Material::get_p_wave_velocity},
+      {"v_s", &Material::get_shear_wave_velocity},
+      {"v_phi", &Material::get_bulk_sound_velocity},
+      {"gr", &Material::get_grueneisen_parameter},
+      {"alpha", &Material::get_thermal_expansivity},
+      {"C_v", &Material::get_molar_heat_capacity_v},
+      {"C_p", &Material::get_molar_heat_capacity_p}};
+  const auto found = getters.find(property_name);
+  if (found == getters.end())
+    throw std::invalid_argument("Unknown scalar material property: " +
+                                property_name);
+  if (!has_state() && property_name != "molar_mass")
+    throw std::runtime_error(
+        "Set the material state before evaluating properties.");
+  return (this->*found->second)();
+}
 
 [[noreturn]] void
 Material::throw_not_implemented_error(const std::string &method) const {
   throw exceptions::NotImplementedError(get_class_name(), method);
 }
 
-std::string Material::get_class_name() const { return typeid(*this).name(); }
+std::string Material::get_class_name() const {
+  std::string class_name = typeid(*this).name();
+#if defined(__GNUG__)
+  const std::unique_ptr<char, decltype(&std::free)> demangled(
+      abi::__cxa_demangle(class_name.c_str(), nullptr, nullptr, nullptr),
+      &std::free);
+  if (demangled)
+    class_name = demangled.get();
+#endif
+  const auto namespace_end = class_name.rfind("::");
+  return namespace_end == std::string::npos
+             ? class_name
+             : class_name.substr(namespace_end + 2);
+}
 
 void Material::reset_cache() {
   formula.reset();

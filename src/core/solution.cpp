@@ -22,6 +22,13 @@
 
 namespace burnman {
 
+std::shared_ptr<Material> Solution::copy() const {
+  auto result = std::make_shared<Solution>(*this);
+  if (solution_model)
+    result->solution_model = solution_model->clone();
+  return result;
+}
+
 void Solution::reset_cache() {
   // Reset cached Material & CompositeMaterial properties
   CompositeMaterial::reset_cache();

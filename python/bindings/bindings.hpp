@@ -39,6 +39,8 @@ void bind_utils(py::module_ &m);
 void bind_phase_diagram(py::module_ &m);
 void bind_seismic(py::module_ &m);
 void bind_geotherm(py::module_ &m);
+void bind_layer(py::module_ &m);
+void bind_planet(py::module_ &m);
 void bind_equilibrated_composite(py::module_ &m);
 eos::excesses::ExcessParamVector parse_modifiers(const py::iterable &modifiers);
 

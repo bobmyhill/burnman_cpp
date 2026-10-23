@@ -33,6 +33,9 @@ void bind_materials(py::module_ &m) {
            py::arg("method"))
       .def("reset_cache", &Material::reset_cache)
       .def("reset", &Material::reset_cache)
+      .def("copy", &Material::copy,
+           "Return an independent Material class object with the same state "
+           "and composition.")
       .def("clear_computed_properties", &Material::clear_computed_properties)
       .def("has_state", &Material::has_state)
       .def("set_name", &Material::set_name, py::arg("name"))

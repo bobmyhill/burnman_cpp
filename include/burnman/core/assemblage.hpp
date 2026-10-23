@@ -51,6 +51,7 @@ class Assemblage : public CompositeMaterial {
 
 public:
   virtual ~Assemblage() = default;
+  std::shared_ptr<Material> copy() const override;
 
   // Override of reset_cache to include additional solution properties
   void reset_cache() override;

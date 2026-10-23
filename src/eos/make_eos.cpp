@@ -36,6 +36,8 @@ std::shared_ptr<EquationOfState> make_eos(types::EOSType eos_type) {
     return std::make_shared<BM2>();
   case types::EOSType::BM3:
     return std::make_shared<BM3>();
+  case types::EOSType::BM4:
+    return std::make_shared<BM4>();
   case types::EOSType::SPOCK:
     return std::make_shared<SPOCK>();
   case types::EOSType::MT:

@@ -166,6 +166,33 @@ public:
                         const types::MineralParams &params) const override;
 };
 
+/** Fourth-order Birch-Murnaghan compression with zero shear modulus.
+ * Kdprime_0 is d²K/dP² at the reference state, in Pa⁻¹.
+ */
+class BM4 : public BM3 {
+public:
+  void validate_parameters(types::MineralParams &params) override;
+  double compute_volume(double pressure, double temperature,
+                        const types::MineralParams &params) const override;
+  double compute_pressure(double temperature, double volume,
+                          const types::MineralParams &params) const override;
+  double compute_isothermal_bulk_modulus_reuss(
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
+  double compute_isentropic_bulk_modulus_reuss(
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
+  double
+  compute_shear_modulus(double pressure, double temperature, double volume,
+                        const types::MineralParams &params) const override;
+  double compute_molar_internal_energy(
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
+  double compute_helmholtz_free_energy(
+      double pressure, double temperature, double volume,
+      const types::MineralParams &params) const override;
+};
+
 } // namespace eos
 } // namespace burnman
 

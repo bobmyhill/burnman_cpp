@@ -19,6 +19,7 @@ namespace burnman {
 /// with the relaxed thermal derivatives used by Python BurnMan.
 class RelaxedSolution : public Solution {
 public:
+  std::shared_ptr<Material> copy() const override;
   RelaxedSolution(Solution solution, const Eigen::MatrixXd &relaxation_vectors,
                   const Eigen::MatrixXd &unrelaxed_vectors);
   void set_composition(const Eigen::ArrayXd &fractions) override;

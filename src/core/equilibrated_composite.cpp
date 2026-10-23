@@ -54,6 +54,24 @@ EquilibratedComposite::EquilibratedComposite(
 }
 EquilibratedComposite::~EquilibratedComposite() = default;
 
+std::shared_ptr<Material> EquilibratedComposite::copy() const {
+  auto result = std::make_shared<EquilibratedComposite>(
+      impl_->engine.bulk, get_candidate_phases(), get_settings(), get_relaxed(),
+      get_averaging_scheme(), get_warm_start());
+  result->impl_->attempted = impl_->attempted;
+  result->impl_->engine.potential_seed = impl_->engine.potential_seed;
+  if (impl_->accepted) {
+    auto accepted = *impl_->accepted;
+    accepted.assemblage = impl_->engine.copy_assemblage(*accepted.assemblage);
+    static_cast<Assemblage &>(*result) = *accepted.assemblage;
+    result->Assemblage::set_averaging_scheme(impl_->scheme);
+    result->Assemblage::reset_cache();
+    result->impl_->accepted = std::move(accepted);
+  }
+  result->set_name(get_name());
+  return result;
+}
+
 void EquilibratedComposite::require_equilibrium() const {
   if (!impl_->accepted || !has_state())
     throw std::runtime_error("Call set_state(pressure, temperature) before "

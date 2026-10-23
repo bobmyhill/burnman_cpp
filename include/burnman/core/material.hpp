@@ -56,6 +56,11 @@ public:
   // Virtual destructor may be needed for cleanup in derived classes
   virtual ~Material() = default;
 
+  /// An independent Material class object with the same composition and state.
+  virtual std::shared_ptr<Material> copy() const;
+  /// Read a scalar thermodynamic property, including its conventional alias.
+  double get_property(const std::string &property_name) const;
+
   /**
    * @brief Clears the property cache
    *

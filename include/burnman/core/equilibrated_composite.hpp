@@ -46,6 +46,7 @@ public:
       types::AveragingType averaging_scheme = types::AveragingType::VRH,
       bool warm_start = true);
   ~EquilibratedComposite() override;
+  std::shared_ptr<Material> copy() const override;
 
   void set_state(double new_pressure, double new_temperature) override;
   void set_method(types::EOSType method) override;
