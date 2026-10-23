@@ -21,6 +21,9 @@
 #include <variant>
 
 namespace burnman {
+std::shared_ptr<Material> Mineral::copy() const {
+  return std::make_shared<Mineral>(*this);
+}
 
 std::string Mineral::get_name() const {
   if (has_custom_name()) {

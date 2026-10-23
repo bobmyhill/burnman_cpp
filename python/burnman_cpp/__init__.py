@@ -22,6 +22,8 @@ from . import _core
 from . import constants
 from .classes import seismic, geotherm
 from .classes.equilibratedcomposite import EquilibratedComposite
+from .classes.layer import Layer, BoundaryLayerPerturbation
+from .classes.planet import Planet
 from . import (
     debye_temperature_models,
     anharmonic_prefactor_models,
@@ -82,6 +84,7 @@ _EOS_NAMES = {
     "mt": EOSType.MT,
     "bm2": EOSType.BM2,
     "bm3": EOSType.BM3,
+    "bm4": EOSType.BM4,
     "spock": EOSType.SPOCK,
     "dks_s": EOSType.DKS_S,
     "dks_l": EOSType.DKS_L,
@@ -130,6 +133,7 @@ def mineral_params(params=None, **kwargs):
     aliases = {
         "n": "napfu",
         "Debye_0": "debye_0",
+        "Kprime_prime_0": "Kdprime_0",
         "O_theta": "order_theta",
         "O_f": "order_f",
     }
@@ -214,6 +218,9 @@ def equilibrate(
 
 
 __all__ = [
+    "Layer",
+    "Planet",
+    "BoundaryLayerPerturbation",
     "EquilibratedComposite",
     "seismic",
     "geotherm",

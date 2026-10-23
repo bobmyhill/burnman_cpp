@@ -27,6 +27,7 @@ void bind_params(py::module_ &m) {
       .value("MT", EOSType::MT)
       .value("BM2", EOSType::BM2)
       .value("BM3", EOSType::BM3)
+      .value("BM4", EOSType::BM4)
       .value("SPOCK", EOSType::SPOCK)
       .value("DKS_S", EOSType::DKS_S)
       .value("DKS_L", EOSType::DKS_L)

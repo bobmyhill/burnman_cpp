@@ -16,6 +16,12 @@
 #include <nlopt.hpp>
 
 namespace burnman {
+
+std::shared_ptr<Material> RelaxedSolution::copy() const {
+  auto result = std::make_shared<RelaxedSolution>(*this);
+  result->set_solution_model(get_solution_model()->clone());
+  return result;
+}
 RelaxedSolution::RelaxedSolution(Solution solution,
                                  const Eigen::MatrixXd &relaxation_vectors,
                                  const Eigen::MatrixXd &unrelaxed_vectors)

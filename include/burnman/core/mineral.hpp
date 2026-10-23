@@ -48,6 +48,7 @@ namespace burnman {
  */
 class Mineral : public Material {
 public:
+  std::shared_ptr<Material> copy() const override;
   /**
    * @brief Parameters for the mineral.
    */

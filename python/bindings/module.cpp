@@ -43,5 +43,7 @@ PYBIND11_MODULE(_core, m) {
   burnman::python::bind_phase_diagram(m);
   burnman::python::bind_seismic(m);
   burnman::python::bind_geotherm(m);
+  burnman::python::bind_layer(m);
+  burnman::python::bind_planet(m);
   burnman::python::bind_equilibrated_composite(m);
 }

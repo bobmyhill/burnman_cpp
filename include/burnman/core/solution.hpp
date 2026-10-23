@@ -55,6 +55,7 @@ class Solution : public CompositeMaterial {
 
 public:
   virtual ~Solution() = default;
+  std::shared_ptr<Material> copy() const override;
 
   // Override of reset_cache to include additional solution properties
   void reset_cache() override;

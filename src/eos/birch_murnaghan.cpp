@@ -20,6 +20,99 @@
 
 namespace burnman::eos {
 
+namespace {
+double fourth_order_pressure(double volume,
+                             const types::MineralParams &params) {
+  const double f = .5 * (std::pow(*params.V_0 / volume, 2. / 3.) - 1.);
+  const double xi = .75 * (4. - *params.Kprime_0);
+  const double zeta =
+      .375 * (*params.K_0 * *params.Kdprime_0 +
+              *params.Kprime_0 * (*params.Kprime_0 - 7.) + 143. / 9.);
+  return 3. * *params.K_0 * f * std::pow(1. + 2. * f, 2.5) *
+             (1. - 2. * xi * f + 4. * zeta * f * f) +
+         *params.P_0;
+}
+double fourth_order_residual(double volume, void *data) {
+  const auto &state = *static_cast<gsl_params::SolverParams_P *>(data);
+  return fourth_order_pressure(volume, state.params) - state.pressure;
+}
+} // namespace
+void BM4::validate_parameters(types::MineralParams &params) {
+  utils::fallback_to_default(params.G_0, 0.0);
+  utils::fallback_to_default(params.Gprime_0, 0.0);
+  BM3::validate_parameters(params);
+  utils::require_set(params.Kdprime_0, "Kdprime_0");
+  if (!std::isfinite(*params.Kdprime_0))
+    throw std::invalid_argument("Kdprime_0 must be finite.");
+  if (params.F_0)
+    params.E_0 = params.F_0;
+}
+double BM4::compute_pressure(double, double volume,
+                             const types::MineralParams &params) const {
+  return fourth_order_pressure(volume, params);
+}
+double BM4::compute_volume(double pressure, double,
+                           const types::MineralParams &params) const {
+  gsl_params::SolverParams_P state{params, pressure};
+  // Expand from V_0 along the stable compression or expansion branch.
+  double lower = *params.V_0, upper = *params.V_0;
+  if (pressure == *params.P_0)
+    return *params.V_0;
+  for (int i = 0; i < 200; ++i) {
+    if (pressure > *params.P_0)
+      lower *= .95;
+    else
+      upper *= 1.01;
+    if (fourth_order_residual(lower, &state) *
+            fourth_order_residual(upper, &state) <=
+        0.)
+      return optim::roots::brent(&fourth_order_residual, state, lower, upper,
+                                 1.e-14 * *params.V_0);
+  }
+  throw std::runtime_error(
+      "Cannot bracket a stable fourth-order Birch-Murnaghan volume.");
+}
+double BM4::compute_isothermal_bulk_modulus_reuss(
+    double, double, double volume, const types::MineralParams &params) const {
+  const double f = .5 * (std::pow(*params.V_0 / volume, 2. / 3.) - 1.);
+  const double xi = .75 * (4. - *params.Kprime_0);
+  const double zeta =
+      .375 * (*params.K_0 * *params.Kdprime_0 +
+              *params.Kprime_0 * (*params.Kprime_0 - 7.) + 143. / 9.);
+  return *params.K_0 * std::pow(1. + 2. * f, 2.5) *
+         (5. * f * (1. - 2. * xi * f + 4. * zeta * f * f) +
+          (1. + 2. * f) * (1. - 4. * xi * f + 12. * zeta * f * f));
+}
+double BM4::compute_isentropic_bulk_modulus_reuss(
+    double pressure, double temperature, double volume,
+    const types::MineralParams &params) const {
+  return compute_isothermal_bulk_modulus_reuss(pressure, temperature, volume,
+                                               params);
+}
+double BM4::compute_shear_modulus(double, double, double,
+                                  const types::MineralParams &) const {
+  return 0.;
+}
+double
+BM4::compute_molar_internal_energy(double, double, double volume,
+                                   const types::MineralParams &params) const {
+  const double f = .5 * (std::pow(*params.V_0 / volume, 2. / 3.) - 1.);
+  const double xi = .75 * (4. - *params.Kprime_0);
+  const double zeta =
+      .375 * (*params.K_0 * *params.Kdprime_0 +
+              *params.Kprime_0 * (*params.Kprime_0 - 7.) + 143. / 9.);
+  return *params.E_0 +
+         4.5 * *params.K_0 * *params.V_0 * f * f *
+             (1. - (4. / 3.) * xi * f + 2. * zeta * f * f) +
+         *params.P_0 * (*params.V_0 - volume);
+}
+double
+BM4::compute_helmholtz_free_energy(double pressure, double temperature,
+                                   double volume,
+                                   const types::MineralParams &params) const {
+  return compute_molar_internal_energy(pressure, temperature, volume, params);
+}
+
 void BM3::validate_parameters(types::MineralParams &params) {
   // Check for required keys
   utils::require_set(params.V_0, "V_0");
