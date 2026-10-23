@@ -38,6 +38,7 @@ void bind_polytope(py::module_ &m);
 void bind_utils(py::module_ &m);
 void bind_phase_diagram(py::module_ &m);
 void bind_seismic(py::module_ &m);
+void bind_geotherm(py::module_ &m);
 eos::excesses::ExcessParamVector parse_modifiers(const py::iterable &modifiers);
 
 inline void check_state(const Material &material) {

@@ -81,6 +81,7 @@ if(BURNMAN_BUILD_PYTHON)
     python/bindings/utils.cpp
     python/bindings/model_sets.cpp
     python/bindings/seismic.cpp
+    python/bindings/geotherm.cpp
     python/bindings/polytope.cpp
     python/bindings/phase_diagram.cpp
     python/bindings/equilibration.cpp)

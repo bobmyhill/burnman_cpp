@@ -20,7 +20,7 @@ from collections.abc import Mapping
 
 from . import _core
 from . import constants
-from .classes import seismic
+from .classes import seismic, geotherm
 from . import (
     debye_temperature_models,
     anharmonic_prefactor_models,
@@ -214,6 +214,7 @@ def equilibrate(
 
 __all__ = [
     "seismic",
+    "geotherm",
     "debye_temperature_models",
     "anharmonic_prefactor_models",
     "anharmonic_thermal_models",
