@@ -41,4 +41,5 @@ PYBIND11_MODULE(_core, m) {
   burnman::python::bind_polytope(m);
   burnman::python::bind_utils(m);
   burnman::python::bind_phase_diagram(m);
+  burnman::python::bind_seismic(m);
 }
