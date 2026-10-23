@@ -11,6 +11,7 @@
 //
 // ------------------------------------------------------
 
+#include "burnman/core/assemblage.hpp"
 #include "burnman/core/geotherm.hpp"
 #include "burnman/core/material.hpp"
 #include "burnman/core/mineral.hpp"
@@ -39,6 +40,37 @@ protected:
   }
 };
 } // namespace
+
+TEST_CASE(
+    "Composite adiabats conserve bulk entropy when formula-unit amounts change",
+    "[geotherm]") {
+  class ChangingAmounts : public burnman::Assemblage {
+  public:
+    void set_state(double pressure, double temperature) override {
+      burnman::Material::set_state(pressure, temperature);
+      set_n_moles(1.0 + pressure / 1.0e10);
+    }
+
+  protected:
+    double compute_molar_entropy() const override {
+      return (100.0 * std::log(get_temperature() / 1000.0) -
+              10.0 * std::log((get_pressure() + 1.0e9) / 1.0e9)) /
+             get_n_moles();
+    }
+    double compute_grueneisen_parameter() const override { return 1.0; }
+    double compute_isentropic_bulk_modulus_reuss() const override {
+      return 10.0 * (get_pressure() + 1.0e9);
+    }
+  } rock;
+  const Array pressures = (Array(3) << 2e9, 8e9, 3e9).finished();
+  const auto temperatures = adiabatic_profile(pressures, rock, 1500.0);
+  for (Eigen::Index i = 0; i < pressures.size(); ++i)
+    CHECK(temperatures[i] ==
+          Approx(1500.0 * std::pow((pressures[i] + 1.0e9) / 3.0e9, 0.1))
+              .epsilon(1e-12));
+  CHECK(rock.get_pressure() == 2e9);
+  CHECK(rock.get_n_moles() == Approx(1.2));
+}
 
 TEST_CASE("Tabulated geotherms match the upstream reference temperatures",
           "[geotherm]") {

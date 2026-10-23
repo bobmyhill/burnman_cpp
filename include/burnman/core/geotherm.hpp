@@ -25,11 +25,11 @@ class Material;
 
 namespace burnman::geotherm {
 
-/** Tabulated depth-temperature geotherm, following classes/geotherm.py.
+/** Tabulated depth-temperature geotherm.
  * Depths use metres and temperatures use kelvin. Coordinates must be finite,
  * nonempty and sorted in increasing order; repeated coordinates are allowed.
  * Queries outside the tabulation throw. At a repeated coordinate the shallower
- * row is selected, matching BurnMan's lookup_and_interpolate().
+ * row is selected.
  */
 class Geotherm {
 public:
@@ -111,10 +111,12 @@ public:
                              depth_to_pressure_model = nullptr);
 };
 
-/** Material adiabat anchored at (P_0, T_0), with constant molar entropy.
+/** Material adiabat anchored at (P_0, T_0), with constant entropy of the bulk.
  * The material is shared and its state is set to the anchor on evaluation,
- * matching Python BurnMan. Composition remains fixed; this does not perform
- * phase-equilibrium calculations. Concurrent evaluations of a shared material
+ * whenever it is evaluated. Ordinary materials retain their composition;
+ * EquilibratedComposite re-minimises at each state. For an Assemblage, entropy
+ * includes n_moles so reaction-induced changes in formula-unit counts do not
+ * change the prescribed entropy. Concurrent evaluations of a shared material
  * require external synchronisation.
  */
 class AdiabaticGeotherm : public GeothermFromPressures {
@@ -130,10 +132,10 @@ public:
   temperatures_from_pressures(const Eigen::ArrayXd &pressures) const override;
 };
 
-/// Solve constant entropy using a gamma*T/K_S estimate and a bracketed root.
-/// P_0 defaults to the first requested pressure. Requests may be unordered or
-/// repeated. The material is left at (P_0, T_0); empty requests leave it
-/// unchanged.
+/// Solve constant bulk entropy using a gamma*T/K_S estimate and a bracketed
+/// root. P_0 defaults to the first requested pressure. Requests may be
+/// unordered or repeated. The material is left at (P_0, T_0); empty requests
+/// leave it unchanged.
 Eigen::ArrayXd adiabatic_profile(const Eigen::ArrayXd &pressures,
                                  Material &rock, double T_0,
                                  std::optional<double> P_0 = std::nullopt);
