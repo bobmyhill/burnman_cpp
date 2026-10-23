@@ -1465,5 +1465,26 @@ void bind_minerals(py::module_ &m) {
   IG25.def("amp_G16", &minerals::IG25::amp_G16);
   IG25.def("ep_H11", &minerals::IG25::ep_H11);
   IG25.def("cd_G25", &minerals::IG25::cd_G25);
+  auto DKS_2013_solids = catalog.def_submodule("DKS_2013_solids");
+  DKS_2013_solids.def("stishovite", &minerals::DKS_2013_solids::stishovite);
+  DKS_2013_solids.def("perovskite", &minerals::DKS_2013_solids::perovskite);
+  DKS_2013_solids.def("periclase", &minerals::DKS_2013_solids::periclase);
+  auto DKS_2013_liquids = catalog.def_submodule("DKS_2013_liquids");
+  DKS_2013_liquids.def("SiO2_liquid", &minerals::DKS_2013_liquids::SiO2_liquid);
+  DKS_2013_liquids.def("MgSiO3_liquid",
+                       &minerals::DKS_2013_liquids::MgSiO3_liquid);
+  DKS_2013_liquids.def("MgSi2O5_liquid",
+                       &minerals::DKS_2013_liquids::MgSi2O5_liquid);
+  DKS_2013_liquids.def("MgSi3O7_liquid",
+                       &minerals::DKS_2013_liquids::MgSi3O7_liquid);
+  DKS_2013_liquids.def("MgSi5O11_liquid",
+                       &minerals::DKS_2013_liquids::MgSi5O11_liquid);
+  DKS_2013_liquids.def("Mg2SiO4_liquid",
+                       &minerals::DKS_2013_liquids::Mg2SiO4_liquid);
+  DKS_2013_liquids.def("Mg3Si2O7_liquid",
+                       &minerals::DKS_2013_liquids::Mg3Si2O7_liquid);
+  DKS_2013_liquids.def("Mg5SiO7_liquid",
+                       &minerals::DKS_2013_liquids::Mg5SiO7_liquid);
+  DKS_2013_liquids.def("MgO_liquid", &minerals::DKS_2013_liquids::MgO_liquid);
 }
 } // namespace burnman::python

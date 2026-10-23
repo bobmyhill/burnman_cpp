@@ -39,6 +39,8 @@ from .._core.minerals import (
     IG24,
     IG25,
     SLB24,
+    DKS_2013_solids,
+    DKS_2013_liquids,
     model_sets,
 )
 
@@ -54,6 +56,8 @@ __all__ = [
     "IG24",
     "IG25",
     "SLB24",
+    "DKS_2013_solids",
+    "DKS_2013_liquids",
     "model_sets",
 ]
 

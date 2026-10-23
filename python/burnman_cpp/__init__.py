@@ -81,6 +81,8 @@ _EOS_NAMES = {
     "bm2": EOSType.BM2,
     "bm3": EOSType.BM3,
     "spock": EOSType.SPOCK,
+    "dks_s": EOSType.DKS_S,
+    "dks_l": EOSType.DKS_L,
     "mgd2": EOSType.MGD2,
     "mgd3": EOSType.MGD3,
     "modular_mgd": EOSType.ModularMGD,
@@ -123,7 +125,12 @@ def mineral_params(params=None, **kwargs):
     values = dict(params or {})
     values.update(kwargs)
     result = MineralParams()
-    aliases = {"n": "napfu", "Debye_0": "debye_0"}
+    aliases = {
+        "n": "napfu",
+        "Debye_0": "debye_0",
+        "O_theta": "order_theta",
+        "O_f": "order_f",
+    }
     used = set()
     for key, value in values.items():
         name = aliases.get(key, key)

@@ -37,6 +37,8 @@ DATASETS = {
     "HPx_ds636": "HPx_ds636",
     "IG24": "ig51W24",
     "IG25": "ig51G25",
+    "DKS_2013_solids": "DKS_2013_solids",
+    "DKS_2013_liquids": "DKS_2013_liquids",
 }
 
 
@@ -231,6 +233,8 @@ def test_every_factory_matches_python_burnman(group, name, value, state):
         if group.startswith("SLB")
         else [(1.0e5, 700.0), (3.0e9, 1200.0)]
     )[state]
+    if group.startswith("DKS"):
+        pressure, temperature = [(1.0e5, 3000.0), (136.0e9, 6000.0)][state]
     for phase in (native, reference):
         phase.set_state(pressure, temperature)
     assert native.name == reference.name
@@ -241,6 +245,10 @@ def test_every_factory_matches_python_burnman(group, name, value, state):
     # SciPy's upstream Nelder-Mead spin minima have finite composition accuracy.
     relaxed = isinstance(reference, burnman.RelaxedSolution)
     rtol = 3.0e-5 if relaxed else 8.0e-8
+    if group.startswith("DKS"):
+        # Upstream retains SciPy's absolute 2e-12 volume tolerance;
+        # test_dks.py resolves those same roots for tighter checks.
+        rtol = 2.0e-6
     bw = finite_differences(reference, "ordering")
     liquid = finite_differences(reference, "liquid")
     water = finite_differences(reference, "water")

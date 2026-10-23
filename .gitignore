@@ -29,3 +29,4 @@ examples/*_output/
 /benchmark-report.xml
 /python_assemblage_benchmarks.csv
 /python_mineral_benchmarks.csv
+benchmarks/*/results/
