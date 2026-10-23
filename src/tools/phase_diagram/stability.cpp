@@ -1297,8 +1297,12 @@ EquilibriumSolve Engine::solve(Assemblage &a, ConstraintList &c,
         s.code = 0;
         s.message = "Equilibrium verified from reaction, mass, equality and "
                     "site-bound residuals.";
-      } else if (!verified)
+      } else if (!verified) {
+        if (s.success)
+          s.message = "Equilibrium verification failed: reaction, mass, "
+                      "equality or site-bound residual exceeds tolerance.";
         s.success = false;
+      }
     }
     return s.success;
   };
@@ -1306,25 +1310,39 @@ EquilibriumSolve Engine::solve(Assemblage &a, ConstraintList &c,
   // the original accepted state if an ill-conditioned constraint walk fails.
   // Stop repeated negligible steps so failed branches can reach that retry.
   constexpr int stagnation_iterations = 5;
-  try {
+  auto refine = [&](const Eigen::VectorXd &parameter_scales) {
     ++equilibrium_solves;
     auto result =
         equilibrate(composition, a, fixed, vectors, 1.e-9, false, false, 150,
-                    false, tol, {}, stagnation_iterations);
+                    false, tol, parameter_scales, stagnation_iterations);
     auto s = result.sol_array(0);
-    if (verify(s))
+    // Small parameter steps can leave trace-site chemical potentials above
+    // the stricter reaction tolerance. Continue from this independent root
+    // before discarding it; rebuilding its face can lose trace populations.
+    // Each correction retains the same constraints and residual checks.
+    for (int correction = 0; correction < 3; ++correction) {
+      const bool converged = s.success;
+      if (verify(s) || !converged || tolerance_scale == 1.)
+        return s;
+      ++equilibrium_solves;
+      result =
+          equilibrate(composition, a, fixed, vectors, 1.e-9, false, false, 5,
+                      false, tol, parameter_scales, stagnation_iterations);
+      s = result.sol_array(0);
+    }
+    verify(s);
+    return s;
+  };
+  try {
+    auto s = refine({});
+    if (s.success)
       return s;
   } catch (const std::exception &) {
   }
   set_composition_and_state_from_parameters(a, initial);
   if (varying)
     set_coordinate(a, base_x);
-  ++equilibrium_solves;
-  auto result = equilibrate(composition, a, fixed, vectors, 1.e-9, false, false,
-                            150, false, tol, scales, stagnation_iterations);
-  auto s = result.sol_array(0);
-  verify(s);
-  return s;
+  return refine(scales);
 }
 Eigen::VectorXd Engine::potentials(const Assemblage &a) const {
   auto stoich = a.get_stoichiometric_matrix();
