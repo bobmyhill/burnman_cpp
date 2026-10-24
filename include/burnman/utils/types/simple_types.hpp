@@ -56,7 +56,8 @@ enum class EOSType {
   ModularMGDWithAnharmonicity,
   DKS_S,
   DKS_L,
-  BM4
+  BM4,
+  CORK
 };
 
 /**

@@ -13,6 +13,7 @@
 
 #include "burnman/eos/make_eos.hpp"
 #include "burnman/eos/birch_murnaghan.hpp"
+#include "burnman/eos/cork.hpp"
 #include "burnman/eos/dks_liquid.hpp"
 #include "burnman/eos/dks_solid.hpp"
 #include "burnman/eos/hp.hpp"
@@ -66,6 +67,8 @@ std::shared_ptr<EquationOfState> make_eos(types::EOSType eos_type) {
     return std::make_shared<HP_TMTL>();
   case types::EOSType::HPTMT:
     return std::make_shared<HP_TMT>();
+  case types::EOSType::CORK:
+    return std::make_shared<CORK>();
   default:
     throw std::invalid_argument("Unknown EOS type!");
   }

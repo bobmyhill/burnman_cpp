@@ -96,6 +96,7 @@ _EOS_NAMES = {
     "hptmt": EOSType.HPTMT,
     "hp_tmtl": EOSType.HPTMTL,
     "hptmtl": EOSType.HPTMTL,
+    "cork": EOSType.CORK,
     "slb2": EOSType.SLB2,
     "slb3": EOSType.SLB3,
     "slb3-conductive": EOSType.SLB3Conductive,
@@ -120,6 +121,8 @@ def mineral_params(params=None, **kwargs):
 
     Accepts BurnMan's ``n`` and ``Debye_0`` as aliases for ``napfu`` and
     ``debye_0``. Atom counts may be fractional. ``Cp`` accepts four coefficients.
+    ``cork_params`` accepts the four coefficient rows ``[a_0, a_1]``,
+    ``[b]``, ``[c_0, c_1]`` and ``[d_0, d_1]``, or a ``CorkParams`` object.
     """
     if isinstance(params, MineralParams):
         if kwargs:
@@ -153,6 +156,25 @@ def mineral_params(params=None, **kwargs):
             value = make_eos(value)
         elif name == "Cp" and value is not None and not isinstance(value, CpParams):
             value = CpParams(*value)
+        elif (
+            name == "cork_params"
+            and value is not None
+            and not isinstance(value, CorkParams)
+        ):
+            if tuple(len(row) for row in value) not in ((2, 1, 2, 2), (2, 2, 2, 2)):
+                raise ValueError(
+                    "cork_params requires four rows with two coefficients each, "
+                    "except the second row may contain only b."
+                )
+            value = CorkParams(
+                value[0][0],
+                value[0][1],
+                value[1][0],
+                value[2][0],
+                value[2][1],
+                value[3][0],
+                value[3][1],
+            )
         setattr(result, name, value)
     return result
 
