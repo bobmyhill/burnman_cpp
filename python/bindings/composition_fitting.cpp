@@ -36,6 +36,47 @@ site_occupancies or site_formula(). Thermodynamic properties are unavailable.
            py::arg("endmember_element_formulae"),
            py::arg("endmember_site_formulae"));
   composition.def(
+      "fit_composition_to_solution",
+      [](const Solution &solution,
+         const std::vector<std::string> &fitted_variables,
+         const Eigen::VectorXd &variable_values,
+         const std::optional<Eigen::MatrixXd> &variable_covariances,
+         const py::object &variable_conversions, bool normalize) {
+        optim::VariableConversions conversions;
+        if (!variable_conversions.is_none())
+          for (const auto &entry : variable_conversions.cast<py::dict>())
+            conversions.emplace_back(
+                entry.first.cast<std::string>(),
+                entry.second.cast<std::map<std::string, double>>());
+        return optim::fit_composition_to_solution(
+            solution, fitted_variables, variable_values, variable_covariances,
+            conversions, normalize);
+      },
+      py::arg("solution"), py::arg("fitted_variables"),
+      py::arg("variable_values"), py::arg("variable_covariances"),
+      py::arg("variable_conversions") = py::none(), py::arg("normalize") = true,
+      R"doc(Fit molar compositional observations to a Solution class object.
+
+fitted_variables contains elements such as Fe, site species such as Fef_B,
+or user-defined variables. variable_values contains their observed molar
+amounts. variable_covariances is the observation covariance matrix, or None
+for unit covariance. The weighted design must have full column rank.
+
+variable_conversions maps each new name to a dictionary of known variables
+and their coefficients, for example {'Mg_equal': {'Mg_A': 1., 'Mg_B': -1.}}.
+Conversions may use previously defined variables in dictionary order.
+Observed amounts with magnitude below 1e-10 impose exact zero constraints.
+Site occupancies must be nonnegative; endmember coordinates may be signed.
+The solution's composition and state are not changed.
+
+Return (molar_fractions, covariance_matrix, residual). Let x, Cx and rx be the
+fitted endmember amounts, their unconstrained covariance and weighted sum of
+squared residuals. If normalize is True, set s=sum(x), p=x/s, C0=Cx/s**2 and
+residual=rx/s; s must be positive. Otherwise p=x, C0=Cx and residual=rx.
+The returned covariance is J @ C0 @ J.T, where J=I-p[:,None]. It is not
+conditioned on active compositional constraints.
+)doc");
+  composition.def(
       "fit_phase_proportions_to_bulk_composition",
       &optim::fit_phase_proportions_to_bulk_composition,
       py::arg("phase_compositions"), py::arg("bulk_composition"),

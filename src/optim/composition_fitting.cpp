@@ -14,6 +14,7 @@
 #include "burnman/optim/composition_fitting.hpp"
 #include "burnman/utils/chemistry_utils.hpp"
 #include "burnman/utils/exceptions.hpp"
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 
@@ -91,6 +92,24 @@ composition_endmembers(const std::vector<std::string> &element_formulae,
   }
   return endmembers;
 }
+
+Eigen::MatrixXd unique_nonzero_rows(const Eigen::MatrixXd &rows) {
+  std::vector<Eigen::RowVectorXd> unique;
+  for (Eigen::Index i = 0; i < rows.rows(); ++i) {
+    if ((rows.row(i).array().abs() <= 1.e-10).all())
+      continue;
+    const auto duplicate = std::find_if(
+        unique.begin(), unique.end(), [&](const Eigen::RowVectorXd &row) {
+          return (row.array() == rows.row(i).array()).all();
+        });
+    if (duplicate == unique.end())
+      unique.push_back(rows.row(i));
+  }
+  Eigen::MatrixXd result(static_cast<Eigen::Index>(unique.size()), rows.cols());
+  for (std::size_t i = 0; i < unique.size(); ++i)
+    result.row(static_cast<Eigen::Index>(i)) = unique[i];
+  return result;
+}
 } // namespace
 
 DummyCompositionSolution::DummyCompositionSolution(
@@ -136,6 +155,104 @@ void DummyCompositionSolution::set_composition(
     throw std::invalid_argument(
         "Molar fractions must give nonnegative site occupancies.");
   Solution::set_composition(fractions);
+}
+
+LeastSquaresResult fit_composition_to_solution(
+    const Solution &solution, const std::vector<std::string> &fitted_variables,
+    const Eigen::VectorXd &variable_values,
+    const std::optional<Eigen::MatrixXd> &variable_covariances,
+    const VariableConversions &variable_conversions, bool normalize) {
+  if (!solution.get_solution_model())
+    throw std::invalid_argument(
+        "The solution must have an endmember site model.");
+  if (fitted_variables.empty() ||
+      static_cast<Eigen::Index>(fitted_variables.size()) !=
+          variable_values.size() ||
+      !variable_values.allFinite())
+    throw std::invalid_argument(
+        "Fitted variables require one finite observed amount per name.");
+
+  auto solution_variables = solution.get_elements();
+  const auto site_names = solution.get_site_names();
+  solution_variables.insert(solution_variables.end(), site_names.begin(),
+                            site_names.end());
+  const auto n_endmembers = solution.get_n_endmembers();
+  const auto n_variables = static_cast<Eigen::Index>(solution_variables.size());
+  Eigen::MatrixXd solution_matrix = Eigen::MatrixXd::Zero(
+      n_endmembers,
+      n_variables + static_cast<Eigen::Index>(variable_conversions.size()));
+  solution_matrix.leftCols(solution.get_n_elements()) =
+      solution.get_stoichiometric_matrix();
+  solution_matrix.middleCols(solution.get_n_elements(),
+                             static_cast<Eigen::Index>(site_names.size())) =
+      solution.get_endmember_n_occupancies().matrix();
+
+  std::map<std::string, Eigen::Index> indices;
+  for (Eigen::Index i = 0; i < n_variables; ++i)
+    indices.emplace(solution_variables[static_cast<std::size_t>(i)], i);
+  const auto variable_index = [&](const std::string &name) {
+    const auto found = indices.find(name);
+    if (found == indices.end())
+      throw std::invalid_argument("Unknown compositional variable: " + name);
+    return found->second;
+  };
+  Eigen::Index column = n_variables;
+  for (const auto &[name, terms] : variable_conversions) {
+    if (name.empty() || indices.count(name))
+      throw std::invalid_argument(
+          "New compositional variable names must be nonempty and unique: " +
+          name);
+    for (const auto &[variable, coefficient] : terms) {
+      if (!std::isfinite(coefficient))
+        throw std::invalid_argument(
+            "Variable conversion coefficients must be finite.");
+      solution_matrix.col(column) +=
+          coefficient * solution_matrix.col(variable_index(variable));
+    }
+    indices.emplace(name, column++);
+  }
+
+  Eigen::MatrixXd A(variable_values.size(), n_endmembers);
+  for (Eigen::Index i = 0; i < A.rows(); ++i)
+    A.row(i) =
+        solution_matrix
+            .col(variable_index(fitted_variables[static_cast<std::size_t>(i)]))
+            .transpose();
+
+  // Every explicitly absent component imposes an exact equality, including
+  // repeated observations of the same compositional variable.
+  Eigen::MatrixXd zero_amounts(A.rows(), n_endmembers);
+  Eigen::Index n_zero = 0;
+  for (Eigen::Index i = 0; i < A.rows(); ++i)
+    if (std::abs(variable_values[i]) < 1.e-10)
+      zero_amounts.row(n_zero++) = A.row(i);
+  const Eigen::MatrixXd S = unique_nonzero_rows(zero_amounts.topRows(n_zero));
+  const Eigen::MatrixXd T = unique_nonzero_rows(
+      -solution.get_endmember_occupancies().matrix().transpose());
+  const LinearConstraints equality_constraints{S,
+                                               Eigen::VectorXd::Zero(S.rows())};
+  const LinearConstraints inequality_constraints{
+      T, Eigen::VectorXd::Zero(T.rows())};
+  auto [popt, pcov, residual] = weighted_constrained_least_squares(
+      A, variable_values, variable_covariances, equality_constraints,
+      inequality_constraints);
+
+  if (normalize) {
+    const double sum = popt.sum();
+    if (!std::isfinite(sum) || sum <= 0.)
+      throw std::invalid_argument("Cannot normalize a composition with a "
+                                  "nonpositive total endmember amount.");
+    popt /= sum;
+    pcov /= sum * sum;
+    residual /= sum;
+  }
+  const Eigen::MatrixXd dpdx =
+      Eigen::MatrixXd::Identity(n_endmembers, n_endmembers) -
+      popt * Eigen::RowVectorXd::Ones(n_endmembers);
+  pcov = (dpdx * pcov * dpdx.transpose()).eval();
+  if (!popt.allFinite() || !pcov.allFinite() || !std::isfinite(residual))
+    throw std::runtime_error("The fitted composition exceeds numerical range.");
+  return {popt, pcov, residual};
 }
 
 LeastSquaresResult fit_phase_proportions_to_bulk_composition(

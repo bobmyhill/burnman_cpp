@@ -15,7 +15,12 @@
 
 from .._core.optimize.composition_fitting import (
     DummyCompositionSolution,
+    fit_composition_to_solution,
     fit_phase_proportions_to_bulk_composition,
 )
 
-__all__ = ["DummyCompositionSolution", "fit_phase_proportions_to_bulk_composition"]
+__all__ = [
+    "DummyCompositionSolution",
+    "fit_composition_to_solution",
+    "fit_phase_proportions_to_bulk_composition",
+]
