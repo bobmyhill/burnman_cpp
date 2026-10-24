@@ -19,6 +19,9 @@
 #include <optional>
 
 namespace burnman {
+namespace phase_diagrams::detail {
+struct WorkState;
+}
 
 /** A composite whose phases and compositions are discovered at every state.
  * Minimises Gibbs energy at fixed bulk composition, pressure and temperature,
@@ -49,6 +52,11 @@ public:
   std::shared_ptr<Material> copy() const override;
 
   void set_state(double new_pressure, double new_temperature) override;
+  /// Solve temperature, phase amounts and compositions at fixed pressure and
+  /// Hugoniot energy balance. Reference energy/volume are in J/kg and m³/kg.
+  void set_state_with_hugoniot(double pressure, double reference_pressure,
+                               double reference_energy, double reference_volume,
+                               double temperature_guess);
   void set_method(types::EOSType method) override;
   void set_method(std::shared_ptr<EquationOfState> method) override;
   void set_averaging_scheme(types::AveragingType scheme);
@@ -99,5 +107,6 @@ private:
   std::unique_ptr<Impl> impl_;
   void require_equilibrium() const;
   double property(const std::string &property_name) const;
+  void accept_state(phase_diagrams::detail::WorkState next);
 };
 } // namespace burnman

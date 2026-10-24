@@ -297,6 +297,17 @@ public:
    */
   Eigen::VectorXd get_reaction_affinities() const;
 
+  /// Partial molar volumes and entropies of all endmembers, in phase order.
+  Eigen::ArrayXd get_endmember_partial_volumes() const;
+  Eigen::ArrayXd get_endmember_partial_entropies() const;
+  /// Define chemical components representable by the assemblage endmembers.
+  void set_components(const std::vector<types::FormulaMap> &components);
+  /// Component chemical potentials (J/mol); requires reaction equilibrium.
+  /// Components outside the span of the current endmember formulae raise an
+  /// error because their chemical potentials are not defined.
+  Eigen::ArrayXd
+  chemical_potential(const std::vector<types::FormulaMap> &components = {});
+
 protected:
   // Overrides of defaults from Material
   double compute_molar_internal_energy() const override;
@@ -338,6 +349,7 @@ private:
 
   // Vector of pointers to phases in the assemblage
   std::vector<std::shared_ptr<Material>> phases;
+  std::optional<Eigen::MatrixXd> component_array;
 
   // Unique pointer to averaging scheme
   std::shared_ptr<averaging::AveragingScheme> averaging_scheme;

@@ -91,6 +91,25 @@ protected:
   double value_;
 };
 
+/** Energy balance across a shock, expressed on a fixed mass basis.
+ * Reference energy and volume are specific quantities (J/kg and m³/kg).
+ * Uses U-U0 = (P-P0)(V0-V)/2.
+ */
+class HugoniotConstraint : public EqualityConstraint {
+public:
+  HugoniotConstraint(double reference_pressure, double reference_energy,
+                     double reference_volume);
+  std::unique_ptr<EqualityConstraint> clone() const override;
+  double evaluate(const Eigen::VectorXd &x,
+                  const Assemblage &assemblage) const override;
+  Eigen::VectorXd derivative(const Eigen::VectorXd &x,
+                             const Assemblage &assemblage,
+                             Eigen::Index J_size) const override;
+
+private:
+  double pressure_, energy_, volume_;
+};
+
 class PTEllipseConstraint : public EqualityConstraint {
 public:
   PTEllipseConstraint(const Eigen::Vector2d &centre,

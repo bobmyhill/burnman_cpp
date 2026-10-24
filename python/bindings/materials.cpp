@@ -242,5 +242,45 @@ void bind_materials(py::module_ &m) {
   bind_property<Assemblage>(assemblage, "reaction_affinities",
                             "get_reaction_affinities",
                             &Assemblage::get_reaction_affinities, true);
+  assemblage
+      .def("set_components", &Assemblage::set_components, py::arg("components"),
+           "Define component formulae as linear sums of the assemblage "
+           "endmembers.")
+      .def(
+          "chemical_potential",
+          [](Assemblage &self,
+             const std::optional<std::vector<types::FormulaMap>> &components) {
+            return self.chemical_potential(
+                components.value_or(std::vector<types::FormulaMap>{}));
+          },
+          py::arg("components") = py::none(),
+          "Return component chemical potentials in J/mol. The assemblage must "
+          "be equilibrated. Components outside the span of its endmember "
+          "formulae have undefined chemical potentials and raise an error.");
+  assemblage
+      .def_property(
+          "equilibrium_tolerance", &Assemblage::get_equilibrium_tolerance,
+          [](Assemblage &self, double value) {
+            if (!std::isfinite(value) || value < 0.)
+              throw std::invalid_argument(
+                  "Equilibrium tolerance must be finite and nonnegative.");
+            self.set_equilibrium_tolerance(value);
+          })
+      .def_property_readonly("equilibrated", [](const Assemblage &self) {
+        check_state(self);
+        const auto affinities = self.get_reaction_affinities();
+        return affinities.allFinite() &&
+               (affinities.array().abs() <= self.get_equilibrium_tolerance())
+                   .all();
+      });
+  bind_property<Assemblage>(assemblage, "endmember_partial_gibbs",
+                            "get_endmember_partial_gibbs",
+                            &Assemblage::get_partial_gibbs, true);
+  bind_property<Assemblage>(assemblage, "endmember_partial_volumes",
+                            "get_endmember_partial_volumes",
+                            &Assemblage::get_endmember_partial_volumes, true);
+  bind_property<Assemblage>(assemblage, "endmember_partial_entropies",
+                            "get_endmember_partial_entropies",
+                            &Assemblage::get_endmember_partial_entropies, true);
 }
 } // namespace burnman::python
