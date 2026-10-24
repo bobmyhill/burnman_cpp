@@ -34,6 +34,7 @@ PYBIND11_MODULE(_core, m) {
   burnman::python::bind_materials(m);
   burnman::python::bind_composition(m);
   burnman::python::bind_combined(m);
+  burnman::python::bind_chemistry(m);
   burnman::python::bind_solutions(m);
   burnman::python::bind_minerals(m);
   burnman::python::bind_model_sets(m);

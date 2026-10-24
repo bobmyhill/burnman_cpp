@@ -13,7 +13,9 @@
 
 #include "burnman/core/assemblage.hpp"
 #include "burnman/core/mineral.hpp"
+#include "burnman/core/solution.hpp"
 #include "burnman/utils/chemistry_utils.hpp"
+#include <Eigen/QR>
 #include <cmath>
 #include <stdexcept>
 #include <string>
@@ -37,6 +39,7 @@ void Assemblage::reset_cache() {
 }
 
 void Assemblage::clear_computed_properties() {
+  component_array.reset();
   // Reset CompositeMaterial properties
   // CompositeMaterial::clear_computed_properties calls
   // Material::clear_computed_properties, which calls
@@ -445,6 +448,102 @@ Eigen::ArrayXd Assemblage::convert_mass_to_molar_fractions(
   Eigen::ArrayXd moles =
       mass_fractions / map_phases_to_array(&Material::get_molar_mass);
   return moles / moles.sum();
+}
+
+Eigen::ArrayXd Assemblage::get_endmember_partial_volumes() const {
+  Eigen::ArrayXd values(get_n_endmembers());
+  Eigen::Index start = 0;
+  for (const auto &phase : phases) {
+    if (const auto *solution = dynamic_cast<const Solution *>(phase.get())) {
+      const auto partial = solution->get_partial_volumes();
+      values.segment(start, partial.size()) = partial;
+      start += partial.size();
+    } else if (const auto *assemblage =
+                   dynamic_cast<const Assemblage *>(phase.get())) {
+      const auto partial = assemblage->get_endmember_partial_volumes();
+      values.segment(start, partial.size()) = partial;
+      start += partial.size();
+    } else {
+      values[start++] = phase->get_molar_volume();
+    }
+  }
+  return values;
+}
+
+Eigen::ArrayXd Assemblage::get_endmember_partial_entropies() const {
+  Eigen::ArrayXd values(get_n_endmembers());
+  Eigen::Index start = 0;
+  for (const auto &phase : phases) {
+    if (const auto *solution = dynamic_cast<const Solution *>(phase.get())) {
+      const auto partial = solution->get_partial_entropies();
+      values.segment(start, partial.size()) = partial;
+      start += partial.size();
+    } else if (const auto *assemblage =
+                   dynamic_cast<const Assemblage *>(phase.get())) {
+      const auto partial = assemblage->get_endmember_partial_entropies();
+      values.segment(start, partial.size()) = partial;
+      start += partial.size();
+    } else {
+      values[start++] = phase->get_molar_entropy();
+    }
+  }
+  return values;
+}
+
+void Assemblage::set_components(
+    const std::vector<types::FormulaMap> &components) {
+  if (components.empty() || get_n_elements() == 0)
+    throw std::invalid_argument("Supply at least one component formula.");
+  const auto &element_names = get_elements();
+  Eigen::MatrixXd target = Eigen::MatrixXd::Zero(
+      get_n_elements(), static_cast<Eigen::Index>(components.size()));
+  for (std::size_t i = 0; i < components.size(); ++i) {
+    for (const auto &[element, amount] : components[i]) {
+      const auto found =
+          std::find(element_names.begin(), element_names.end(), element);
+      if (!std::isfinite(amount) ||
+          (found == element_names.end() && amount != 0.))
+        throw std::invalid_argument(
+            "Component is not defined by the assemblage.");
+      if (found != element_names.end())
+        target(found - element_names.begin(), static_cast<Eigen::Index>(i)) =
+            amount;
+    }
+  }
+  const Eigen::MatrixXd stoichiometry = get_stoichiometric_matrix().transpose();
+  // Test each component independently of its formula-unit scale. A small
+  // undefined component must not pass an absolute mass-residual tolerance.
+  const Eigen::RowVectorXd scales = target.cwiseAbs().colwise().maxCoeff();
+  if ((scales.array() == 0.).any())
+    throw std::invalid_argument("Component formulae must be nonzero.");
+  target.array().rowwise() /= scales.array();
+  Eigen::MatrixXd amounts =
+      stoichiometry.completeOrthogonalDecomposition().solve(target);
+  if ((stoichiometry * amounts - target).cwiseAbs().maxCoeff() > 1.e-10)
+    throw std::invalid_argument("Component is not defined by the assemblage.");
+  amounts.array().rowwise() *= scales.array();
+  component_array = std::move(amounts);
+}
+
+Eigen::ArrayXd Assemblage::chemical_potential(
+    const std::vector<types::FormulaMap> &components) {
+  if (!has_state())
+    throw std::runtime_error(
+        "Set the assemblage state before computing chemical potentials.");
+  const auto affinities = get_reaction_affinities();
+  if (!affinities.allFinite() ||
+      (affinities.array().abs() > get_equilibrium_tolerance()).any())
+    throw std::runtime_error(
+        "Chemical potentials require an equilibrated assemblage.");
+  if (!components.empty())
+    set_components(components);
+  if (!component_array)
+    throw std::runtime_error(
+        "Call set_components() or supply component formulae.");
+  const Eigen::ArrayXd potentials = get_partial_gibbs();
+  if (!potentials.isFinite().all())
+    throw std::runtime_error("Endmember chemical potentials must be finite.");
+  return (component_array->transpose() * potentials.matrix()).array();
 }
 
 } // namespace burnman

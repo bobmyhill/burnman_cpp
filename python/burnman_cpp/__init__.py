@@ -24,6 +24,7 @@ from .classes import seismic, geotherm
 from .classes.equilibratedcomposite import EquilibratedComposite
 from .classes.layer import Layer, BoundaryLayerPerturbation
 from .classes.planet import Planet
+from ._core.partitioning import calculate_nakajima_fp_pv_partition_coefficient
 from . import (
     debye_temperature_models,
     anharmonic_prefactor_models,
@@ -240,6 +241,7 @@ def equilibrate(
 
 
 __all__ = [
+    "calculate_nakajima_fp_pv_partition_coefficient",
     "Layer",
     "Planet",
     "BoundaryLayerPerturbation",

@@ -29,6 +29,7 @@ void bind_params(py::module_ &m);
 void bind_eos(py::module_ &m);
 void bind_materials(py::module_ &m);
 void bind_composition(py::module_ &m);
+void bind_chemistry(py::module_ &m);
 void bind_solutions(py::module_ &m);
 void bind_equilibration(py::module_ &m);
 void bind_combined(py::module_ &m);

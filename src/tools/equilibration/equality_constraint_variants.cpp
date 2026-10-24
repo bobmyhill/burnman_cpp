@@ -15,6 +15,7 @@
 #include "burnman/core/assemblage.hpp"
 #include "burnman/core/solution.hpp"
 #include <algorithm>
+#include <cmath>
 #include <iterator>
 #include <numeric>
 #include <stdexcept>
@@ -29,6 +30,66 @@ TemperatureConstraint::TemperatureConstraint(double value) : value_(value) {}
 EntropyConstraint::EntropyConstraint(double value) : value_(value) {}
 
 VolumeConstraint::VolumeConstraint(double value) : value_(value) {}
+
+HugoniotConstraint::HugoniotConstraint(double reference_pressure,
+                                       double reference_energy,
+                                       double reference_volume)
+    : pressure_(reference_pressure), energy_(reference_energy),
+      volume_(reference_volume) {
+  if (!std::isfinite(pressure_) || !std::isfinite(energy_) ||
+      !std::isfinite(volume_) || volume_ <= 0.)
+    throw std::invalid_argument("Hugoniot reference quantities must be finite "
+                                "and specific volume positive.");
+}
+
+std::unique_ptr<EqualityConstraint> HugoniotConstraint::clone() const {
+  return std::make_unique<HugoniotConstraint>(*this);
+}
+
+double HugoniotConstraint::evaluate(const Eigen::VectorXd &x,
+                                    const Assemblage &a) const {
+  const double work = .5 * (x[0] - pressure_);
+  return a.get_n_moles() *
+         (a.get_molar_internal_energy() + work * a.get_molar_volume() -
+          (energy_ + work * volume_) * a.get_molar_mass());
+}
+
+Eigen::VectorXd HugoniotConstraint::derivative(const Eigen::VectorXd &x,
+                                               const Assemblage &a,
+                                               Eigen::Index size) const {
+  Eigen::VectorXd row = Eigen::VectorXd::Zero(size);
+  const double half_sum = .5 * (x[0] + pressure_);
+  const double work = .5 * (x[0] - pressure_);
+  const double q = energy_ + work * volume_;
+  const double v = a.get_molar_volume(), n = a.get_n_moles();
+  const double alpha = a.get_thermal_expansivity();
+  row[0] = n * (v * (.5 + half_sum / a.get_isothermal_bulk_modulus_reuss() -
+                     x[1] * alpha) -
+                .5 * volume_ * a.get_molar_mass());
+  row[1] = n * (a.get_molar_heat_capacity_p() - half_sum * v * alpha);
+  Eigen::Index j = 2;
+  for (std::size_t k = 0; k < a.get_endmembers_per_phase().size(); ++k) {
+    const Eigen::Index count = a.get_endmembers_per_phase()[k];
+    const auto phase = a.get_phase(k);
+    row[j] = phase->get_molar_internal_energy() +
+             work * phase->get_molar_volume() - q * phase->get_molar_mass();
+    if (count > 1) {
+      const auto solution = a.get_phase<Solution>(k);
+      Eigen::ArrayXd partial = solution->get_partial_gibbs() +
+                               x[1] * solution->get_partial_entropies() -
+                               half_sum * solution->get_partial_volumes();
+      const auto &endmembers = solution->get_solution_model()->endmembers;
+      for (Eigen::Index i = 0; i < count; ++i)
+        partial[i] -=
+            q * endmembers[static_cast<std::size_t>(i)].get_molar_mass();
+      row.segment(j + 1, count - 1) =
+          n * a.get_molar_fractions()[static_cast<Eigen::Index>(k)] *
+          (partial.tail(count - 1) - partial[0]).matrix();
+    }
+    j += count;
+  }
+  return row;
+}
 
 PTEllipseConstraint::PTEllipseConstraint(const Eigen::Vector2d &centre,
                                          const Eigen::Vector2d &scaling)
