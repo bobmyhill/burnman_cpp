@@ -42,6 +42,10 @@ DATASETS = {
     "SLB_2005": "SLB_2005",
     "SLB_2011_ZSB_2013": "SLB_2011_ZSB_2013",
     "SLB_2022": "SLB_2022",
+    "HHPH_2013": "HHPH_2013",
+    "HP_2011_fluids": "HP_2011_fluids",
+    "ig50NCKFMASTOCr": "ig50NCKFMASTOCr",
+    "mp50KFMASH": "mp50KFMASH",
 }
 
 
@@ -185,7 +189,7 @@ def test_ordering_derivatives_match_python_gibbs(
     )
 
 
-@pytest.mark.parametrize("group", ["IG18", "IG24", "IG25"])
+@pytest.mark.parametrize("group", ["IG18", "IG24", "IG25", "ig50NCKFMASTOCr"])
 def test_kjd_bulk_modulus_matches_python_volume_derivative(group):
     reference = copy.deepcopy(getattr(burnman.minerals, DATASETS[group]).kjd)
     native = getattr(minerals, group).kjd()

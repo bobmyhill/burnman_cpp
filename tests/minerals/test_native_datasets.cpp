@@ -22,6 +22,46 @@ using namespace burnman;
 using namespace burnman::equilibration;
 using namespace Catch::Matchers;
 
+TEST_CASE("Holland-Powell catalogues are available natively",
+          "[native_datasets][hp_catalogues]") {
+  auto forsterite = minerals::HHPH_2013::fo();
+  forsterite->set_state(3.e9, 1200.);
+  REQUIRE(forsterite->uncertainties.has_value());
+  CHECK(forsterite->uncertainties->at("err_H_0") == 530.);
+  CHECK_THAT(forsterite->get_molar_gibbs(),
+             WithinRel(-2265260.073550752, 8.e-8));
+  CHECK_THAT(forsterite->get_molar_volume(),
+             WithinRel(4.4010342070895766e-5, 8.e-8));
+
+  auto opx = minerals::ig50NCKFMASTOCr::opx();
+  CHECK(opx->get_n_endmembers() == 9);
+  auto fractions = Eigen::ArrayXd::LinSpaced(9, 1., 9.).eval();
+  opx->set_composition(fractions / fractions.sum());
+  opx->set_state(3.e9, 1200.);
+  CHECK_THAT(opx->get_molar_gibbs(), WithinRel(-3136623.9588750037, 8.e-8));
+  CHECK_THAT(opx->get_molar_volume(), WithinRel(6.256664540469748e-5, 8.e-8));
+
+  auto garnet = minerals::mp50KFMASH::g();
+  CHECK(garnet->get_n_endmembers() == 2);
+  garnet->set_composition((Eigen::Array2d() << 1. / 3., 2. / 3.).finished());
+  garnet->set_state(3.e9, 1200.);
+  CHECK_THAT(garnet->get_formula().at("Mg"), WithinAbs(1., 1.e-12));
+  CHECK_THAT(garnet->get_formula().at("Fe"), WithinAbs(2., 1.e-12));
+  CHECK_THAT(garnet->get_molar_gibbs(), WithinRel(-5977613.101188105, 8.e-8));
+  CHECK(minerals::mp50KFMASH::liq()->get_n_endmembers() == 6);
+
+  auto co2 = minerals::HP_2011_fluids::CO2();
+  CHECK(co2->params.equation_of_state == types::EOSType::CORK);
+  co2->set_state(1.e8, 800.);
+  CHECK_THAT(co2->get_molar_gibbs(), WithinRel(-529151.9636299624, 2.e-12));
+  CHECK(co2->get_shear_modulus() == 0.);
+  auto water = minerals::HP_2011_fluids::H2O();
+  water->set_state(1.e8, 800.);
+  CHECK(water->get_name() == "H2O");
+  CHECK(std::isfinite(water->get_molar_gibbs()));
+  CHECK(water->get_molar_volume() > 0.);
+}
+
 TEST_CASE("Legacy SLB catalogues retain the published data limits",
           "[native_datasets][slb_catalogues]") {
   auto slb05 = minerals::SLB_2005::mg_bridgmanite();
