@@ -281,8 +281,10 @@ def test_optional_python_covariance_and_misfit_parity(with_state):
     )
 
 
-def test_optional_python_estimated_conditions_and_statistics():
+@pytest.mark.parametrize("pressure_scaling", [1e6, 1e7])
+def test_optional_python_estimated_conditions_and_statistics(pressure_scaling):
     burnman = pytest.importorskip("burnman")
+    from scipy.linalg import sqrtm
     from burnman.tools import thermobarometry as reference
 
     actual, data = olivine_wadsleyite()
@@ -296,26 +298,60 @@ def test_optional_python_estimated_conditions_and_statistics():
     expected = burnman.Composite([ol, wad], [0.5, 0.5])
     expected.state_priors = actual.state_priors
     expected.state_inverse_covariances = actual.state_inverse_covariances
-    native_result = thermo.estimate_conditions(actual, data, True, [14e9, 1400])
-    python_result = reference.estimate_conditions(expected, data, True, [14e9, 1400])
-    assert native_result.success and python_result.success
-    assert_allclose(
-        (native_result.x - python_result.x) / [5e5, 0.1],
-        [0, 0],
-        atol=1,
-        rtol=0,
+    native_result = thermo.estimate_conditions(
+        actual, data, True, [14e9, 1400], P_scaling=pressure_scaling
     )
-    for field in [
-        "fun",
-        "xcov",
-        "dadx",
-        "acov",
-        "weighted_affinities",
-        "var",
-        "xcorr",
-        "reduced_chisqr",
-        "fit",
-    ]:
+    python_result = reference.estimate_conditions(
+        expected, data, True, [14e9, 1400], P_scaling=pressure_scaling
+    )
+    assert native_result.success and python_result.success
+    # Different finite-difference gradients and stopping criteria shift the
+    # NLopt and SciPy estimates slightly along the correlated P-T uncertainty.
+    # Allow 2% of the joint one-sigma uncertainty, retaining the independent
+    # misfit and covariance checks below.
+    condition_error = np.linalg.solve(
+        np.linalg.cholesky(python_result.xcov), native_result.x - python_result.x
+    )
+    assert np.linalg.norm(condition_error) < 0.02
+
+    # Compare state-dependent statistics at identical conditions; small shifts
+    # in fitted P and T can change individual reaction residuals appreciably.
+    expected.set_state(*native_result.x)
+    R = actual.reaction_matrix_for_optimization
+    assert_allclose(
+        native_result.fun,
+        reference.assemblage_affinity_misfit(expected, R, data)
+        + reference.assemblage_state_misfit(expected),
+        rtol=1e-8,
+        atol=1e-10,
+    )
+    covariance = reference.assemblage_affinity_covariance_matrix(expected, R, data)
+    dadx = (
+        R
+        @ np.array(
+            [expected.endmember_partial_volumes, -expected.endmember_partial_entropies]
+        ).T
+    )
+    xcov = np.linalg.pinv(
+        dadx.T @ np.linalg.pinv(covariance) @ dadx + expected.state_inverse_covariances
+    )
+    var = np.sqrt(np.diag(xcov))
+    affinities = R @ expected.endmember_partial_gibbs
+    statistics = {
+        "acov": covariance,
+        "dadx": dadx,
+        "xcov": xcov,
+        "var": var,
+        "xcorr": xcov / np.outer(var, var),
+        "affinities": affinities,
+        "weighted_affinities": np.linalg.pinv(sqrtm(covariance)) @ affinities,
+    }
+    for field, value in statistics.items():
+        assert_allclose(
+            getattr(native_result, field), value, rtol=1e-6, atol=1e-10, err_msg=field
+        )
+
+    for field in ["fun", "reduced_chisqr", "fit"]:
         assert_allclose(
             getattr(native_result, field),
             getattr(python_result, field),
