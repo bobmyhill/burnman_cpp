@@ -52,6 +52,7 @@ from burnman.tools.solution import transform_solution_to_new_basis
 from burnman_reference import REFERENCE, ROOT, verify_reference
 
 CPP_HEADER = (ROOT / "contrib/utilities/cpp_header.txt").read_text() + "\n"
+COVARIANCE_DATASETS = {"HP11", "HGP18", "HPx_ds636"}
 
 
 def literal(value):
@@ -423,6 +424,14 @@ def main():
                 )
                 headers.append(f"std::shared_ptr<Mineral> {name}();")
             bind.append(f'  {group}.def("{name}", &minerals::{group}::{name});')
+        if group in COVARIANCE_DATASETS:
+            headers.append("CovarianceData cov();")
+            bind.append(
+                f'  {group}.def("cov", []() {{ return covariance_dict(minerals::{group}::cov()); }},'
+                ' "Return endmember zero-point energy covariances in (J/mol)². '
+                "The endmember_names list gives the row and column ordering. "
+                'Each call returns independent data.");'
+            )
         definitions.append(
             f"namespace {group} {{\n"
             + "\n".join(functions)
@@ -451,12 +460,12 @@ def main():
     )
     header = (
         notice
-        + '#pragma once\n#include "burnman/core/mineral.hpp"\n#include "burnman/core/solution.hpp"\n\nnamespace burnman::minerals {\n'
+        + '#pragma once\n#include "burnman/core/mineral.hpp"\n#include "burnman/core/solution.hpp"\n#include "burnman/minerals/covariance.hpp"\n\nnamespace burnman::minerals {\n'
         + "\n".join(declarations)
         + "} // namespace burnman::minerals\n"
     )
     binding = CPP_HEADER + (
-        '#include "bindings.hpp"\n#include "burnman/minerals/datasets.hpp"\n#include "burnman/minerals/phase_aliases.hpp"\n\nnamespace burnman::python {\nvoid bind_minerals(py::module_& m) {\n  auto catalog = m.def_submodule("minerals", "Native factories for complete published mineral datasets.");\n'
+        '#include "bindings.hpp"\n#include "burnman/minerals/datasets.hpp"\n#include "burnman/minerals/phase_aliases.hpp"\n\nnamespace burnman::python {\nnamespace {\npy::dict covariance_dict(minerals::CovarianceData data) {\n  py::dict result;\n  result["endmember_names"] = std::move(data.endmember_names);\n  result["covariance_matrix"] = std::move(data.covariance_matrix);\n  return result;\n}\n} // namespace\nvoid bind_minerals(py::module_& m) {\n  auto catalog = m.def_submodule("minerals", "Native factories for complete published mineral datasets.");\n'
         + "\n".join(bindings)
         + "\n}\n} // namespace burnman::python\n"
     )

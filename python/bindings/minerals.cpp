@@ -16,6 +16,14 @@
 #include "burnman/minerals/phase_aliases.hpp"
 
 namespace burnman::python {
+namespace {
+py::dict covariance_dict(minerals::CovarianceData data) {
+  py::dict result;
+  result["endmember_names"] = std::move(data.endmember_names);
+  result["covariance_matrix"] = std::move(data.covariance_matrix);
+  return result;
+}
+} // namespace
 void bind_minerals(py::module_ &m) {
   auto catalog = m.def_submodule(
       "minerals", "Native factories for complete published mineral datasets.");
@@ -242,6 +250,11 @@ void bind_minerals(py::module_ &m) {
   HP11.def("abL", &minerals::HP11::abL);
   HP11.def("neL", &minerals::HP11::neL);
   HP11.def("lcL", &minerals::HP11::lcL);
+  HP11.def(
+      "cov", []() { return covariance_dict(minerals::HP11::cov()); },
+      "Return endmember zero-point energy covariances in (J/mol)². The "
+      "endmember_names list gives the row and column ordering. Each call "
+      "returns independent data.");
   auto HGP18 = catalog.def_submodule("HGP18");
   HGP18.def("fo", &minerals::HGP18::fo);
   HGP18.def("fa", &minerals::HGP18::fa);
@@ -513,6 +526,11 @@ void bind_minerals(py::module_ &m) {
   HGP18.def("silicate_melt", &minerals::HGP18::silicate_melt);
   HGP18.def("CMS_melt", &minerals::HGP18::CMS_melt);
   HGP18.def("MS_melt", &minerals::HGP18::MS_melt);
+  HGP18.def(
+      "cov", []() { return covariance_dict(minerals::HGP18::cov()); },
+      "Return endmember zero-point energy covariances in (J/mol)². The "
+      "endmember_names list gives the row and column ordering. Each call "
+      "returns independent data.");
   auto MB16 = catalog.def_submodule("MB16");
   MB16.def("cats_nood", &minerals::MB16::cats_nood);
   MB16.def("hem_nood", &minerals::MB16::hem_nood);
@@ -1312,6 +1330,11 @@ void bind_minerals(py::module_ &m) {
   HPx_ds636.def("ksL", &minerals::HPx_ds636::ksL);
   HPx_ds636.def("ruL", &minerals::HPx_ds636::ruL);
   HPx_ds636.def("bdyL", &minerals::HPx_ds636::bdyL);
+  HPx_ds636.def(
+      "cov", []() { return covariance_dict(minerals::HPx_ds636::cov()); },
+      "Return endmember zero-point energy covariances in (J/mol)². The "
+      "endmember_names list gives the row and column ordering. Each call "
+      "returns independent data.");
   auto IG24 = catalog.def_submodule("IG24");
   IG24.def("geik_nood", &minerals::IG24::geik_nood);
   IG24.def("herc_nood", &minerals::IG24::herc_nood);

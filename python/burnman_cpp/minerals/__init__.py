@@ -25,6 +25,7 @@ provides metapelite solutions. These catalogues retain their original names.
 The older datasets have no reference free energies; SLB_2011_ZSB_2013 also
 omits chemical formulae. Its elastic and thermal properties remain available.
 Materials created from the same dataset are independent of one another.
+HP11.cov(), HGP18.cov() and HPx_ds636.cov() provide endmember energy covariances.
 SLB24.phase_aliases maps original model names to preferred plot abbreviations.
 model_sets provides matched collections with calibration metadata.
 load_dataset selects candidate models for equilibrium and phase discovery.
@@ -91,7 +92,7 @@ for _name in __all__:
 def _named_materials(dataset):
     for name in sorted(vars(dataset)):
         material_class = getattr(dataset, name)
-        if name.startswith("_") or not callable(material_class):
+        if name.startswith("_") or name == "cov" or not callable(material_class):
             continue
         if getattr(material_class, "__module__", None) != dataset.__name__:
             continue

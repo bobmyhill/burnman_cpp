@@ -26,7 +26,7 @@ classifiers = [
 [project.optional-dependencies]
 test = ["pytest>=7"]
 examples = ["matplotlib>=3.6"]
-reference = ["burnman>=2.1"]
+reference = ["burnman>=2.1", "h5py>=3.8"]
 
 [tool.scikit-build]
 minimum-version = "0.11"
@@ -39,11 +39,13 @@ sdist.include = [
   "/python/burnman_cpp/**/*.py", "/python/tests/*.py", "/examples/*.py",
   "/python/burnman_cpp/data/input_seismic/*", "/tools/export_seismic_data.py",
   "/python/burnman_cpp/data/input_geotherm/*", "/tools/export_geotherm_data.py",
+  "/src/data/input_covariance/*.h5",
   "/benchmarks/dekoker_2013/*.py", "/benchmarks/dekoker_2013/README.md",
   "/benchmarks/dekoker_2013/reference/**",
   "/benchmarks/stixrude_2024_figure13/**",
   "/benchmarks/stixrude_2024_figure14/**", "/benchmarks/stixrude_2024.py",
   "/tools/export_example_minerals.py",
+  "/tools/export_covariance_data.py",
   "/tools/build_wheel_dependencies.py",
 ]
 sdist.exclude = [
@@ -61,7 +63,7 @@ target-version = ["py310"]
 build = "cp3{10,11,12,13,14,15}-*"
 skip = "*-musllinux_* *-win*"
 test-extras = ["test"]
-test-command = "python -m pytest {project}/python/tests/test_wheel_metadata.py {project}/python/tests/test_bindings.py {project}/python/tests/test_chemistry.py {project}/python/tests/test_seismic.py {project}/python/tests/test_geotherm.py {project}/python/tests/test_layer_planet.py {project}/python/tests/test_equilibrated_composite.py {project}/python/tests/test_equilibration.py {project}/python/tests/test_stable_equilibrium.py {project}/python/tests/test_polytope.py -q"
+test-command = "python -m pytest {project}/python/tests/test_wheel_metadata.py {project}/python/tests/test_bindings.py {project}/python/tests/test_chemistry.py {project}/python/tests/test_covariance.py {project}/python/tests/test_seismic.py {project}/python/tests/test_geotherm.py {project}/python/tests/test_layer_planet.py {project}/python/tests/test_equilibrated_composite.py {project}/python/tests/test_equilibration.py {project}/python/tests/test_stable_equilibrium.py {project}/python/tests/test_polytope.py -q"
 
 [tool.cibuildwheel.linux]
 manylinux-x86_64-image = "manylinux_2_28"
