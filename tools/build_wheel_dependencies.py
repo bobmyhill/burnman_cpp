@@ -44,6 +44,14 @@ SOURCES = {
         "https://github.com/stevengj/nlopt/archive/refs/tags/v2.10.1.tar.gz",
         "30d13ce16da119db3e987784f7864e35a562ec62c186352fae55cd003e6c58ff",
     ),
+    "zlib": (
+        "https://zlib.net/fossils/zlib-1.3.2.tar.gz",
+        "bb329a0a2cd0274d05519d61c667c062e06990d72e125ee2dfa8de64f0119d16",
+    ),
+    "hdf5": (
+        "https://github.com/HDFGroup/hdf5/releases/download/hdf5_1.14.6/hdf5-1.14.6.tar.gz",
+        "e4defbac30f50d64e1556374aa49e574417c9e72c6b1de7a4ff88c4b1bea6e9b",
+    ),
 }
 
 
@@ -58,8 +66,17 @@ def source_tree(name, work, env):
         raise RuntimeError(f"Checksum mismatch: {archive}")
     source = work / name
     source.mkdir(exist_ok=True)
+    # The HDF5 release archive has an additional leading './' component.
+    strip_components = 2 if name == "hdf5" else 1
     subprocess.run(
-        ["tar", "xf", str(archive), "--strip-components=1", "-C", str(source)],
+        [
+            "tar",
+            "xf",
+            str(archive),
+            f"--strip-components={strip_components}",
+            "-C",
+            str(source),
+        ],
         check=True,
         env=env,
     )
@@ -102,11 +119,10 @@ def build_dependencies(prefix, work, jobs):
 
     for name in SOURCES:
         source = source_tree(name, work, env)
-        if name in {"eigen", "nlopt"}:
-            options = (
-                ["-DBUILD_TESTING=OFF", "-DEIGEN_BUILD_DOC=OFF"]
-                if name == "eigen"
-                else [
+        if name in {"eigen", "nlopt", "zlib", "hdf5"}:
+            options = {
+                "eigen": ["-DBUILD_TESTING=OFF", "-DEIGEN_BUILD_DOC=OFF"],
+                "nlopt": [
                     f"-DNLOPT_{feature}=OFF"
                     for feature in [
                         "PYTHON",
@@ -117,8 +133,25 @@ def build_dependencies(prefix, work, jobs):
                         "SWIG",
                         "TESTS",
                     ]
-                ]
-            )
+                ],
+                "zlib": ["-DZLIB_BUILD_TESTING=OFF", "-DZLIB_BUILD_STATIC=OFF"],
+                "hdf5": [
+                    "-DBUILD_TESTING=OFF",
+                    "-DBUILD_STATIC_LIBS=OFF",
+                    "-DHDF5_BUILD_CPP_LIB=OFF",
+                    "-DHDF5_BUILD_FORTRAN=OFF",
+                    "-DHDF5_BUILD_JAVA=OFF",
+                    "-DHDF5_BUILD_TOOLS=OFF",
+                    "-DHDF5_BUILD_EXAMPLES=OFF",
+                    "-DHDF5_BUILD_HL_LIB=OFF",
+                    "-DHDF5_ENABLE_PARALLEL=OFF",
+                    "-DHDF5_ENABLE_THREADSAFE=ON",
+                    "-DHDF5_ENABLE_Z_LIB_SUPPORT=ON",
+                    "-DHDF5_ENABLE_SZIP_SUPPORT=OFF",
+                    "-DHDF5_ENABLE_ROS3_VFD=OFF",
+                    f"-DZLIB_ROOT={prefix}",
+                ],
+            }[name]
             run(
                 "cmake",
                 "-S",

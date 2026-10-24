@@ -43,7 +43,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             cmake g++ catch2 libeigen3-dev libgsl-dev \
-            libcdd-dev libgmp-dev libnlopt-cxx-dev
+            libcdd-dev libgmp-dev libnlopt-cxx-dev libhdf5-dev
 
       - name: Configure benchmarks
         run: |

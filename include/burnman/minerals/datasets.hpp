@@ -33,6 +33,7 @@
 #pragma once
 #include "burnman/core/mineral.hpp"
 #include "burnman/core/solution.hpp"
+#include "burnman/minerals/covariance.hpp"
 
 namespace burnman::minerals {
 namespace HP11 {
@@ -258,6 +259,7 @@ std::shared_ptr<Mineral> kspL();
 std::shared_ptr<Mineral> abL();
 std::shared_ptr<Mineral> neL();
 std::shared_ptr<Mineral> lcL();
+CovarianceData cov();
 } // namespace HP11
 
 namespace HGP18 {
@@ -531,6 +533,7 @@ std::shared_ptr<Mineral> h2o1L();
 std::shared_ptr<Solution> silicate_melt();
 std::shared_ptr<Solution> CMS_melt();
 std::shared_ptr<Solution> MS_melt();
+CovarianceData cov();
 } // namespace HGP18
 
 namespace MB16 {
@@ -1339,6 +1342,7 @@ std::shared_ptr<Mineral> neL();
 std::shared_ptr<Mineral> ksL();
 std::shared_ptr<Mineral> ruL();
 std::shared_ptr<Mineral> bdyL();
+CovarianceData cov();
 } // namespace HPx_ds636
 
 namespace IG24 {
