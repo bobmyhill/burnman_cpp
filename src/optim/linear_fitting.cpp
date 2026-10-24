@@ -253,6 +253,39 @@ Vector constrained_fit(const Matrix &A, const Vector &b, const Matrix &D,
     // Accept a numerical stopping limit only after checking the optimum.
   }
   x = Eigen::Map<const Vector>(parameters.data(), x.size());
+  if (x.allFinite()) {
+    // Refine the fit with the active bounds held at equality. This resolves
+    // small remaining gradients when design columns are nearly dependent.
+    std::vector<Eigen::Index> active;
+    for (Eigen::Index i = 0; i < D.rows(); ++i)
+      if (std::abs(D.row(i).dot(x) - d[i]) <=
+          1.e-8 * constraint_scale(D, d, x, i))
+        active.push_back(i);
+    Matrix C(static_cast<Eigen::Index>(active.size()), x.size());
+    Vector c(static_cast<Eigen::Index>(active.size()));
+    for (std::size_t i = 0; i < active.size(); ++i) {
+      C.row(static_cast<Eigen::Index>(i)) = D.row(active[i]);
+      c[static_cast<Eigen::Index>(i)] = d[active[i]];
+    }
+    try {
+      const auto [point, basis] = equality_space(C, c);
+      const Vector refined =
+          point +
+          basis * least_squares(objective.matrix * basis,
+                                objective.values - objective.matrix * point);
+      const double previous =
+          (objective.matrix * x - objective.values).squaredNorm();
+      const double next =
+          (objective.matrix * refined - objective.values).squaredNorm();
+      if (feasible(D, d, refined) &&
+          next <= previous + 1.e-12 * (1. + previous) &&
+          stationary(objective.matrix, objective.values, D, d, refined))
+        x = refined;
+    } catch (const std::invalid_argument &) {
+      // Nearby opposing bounds can be active within numerical tolerances
+      // without defining a common equality. Retain the original fit.
+    }
+  }
   if (!feasible(D, d, x))
     throw std::invalid_argument("Linear constraints are infeasible or could "
                                 "not be satisfied to numerical precision.");

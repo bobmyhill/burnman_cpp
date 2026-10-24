@@ -13,6 +13,6 @@
 
 """Statistical fitting of observations and their uncertainties."""
 
-from . import linear_fitting
+from . import linear_fitting, composition_fitting
 
-__all__ = ["linear_fitting"]
+__all__ = ["linear_fitting", "composition_fitting"]
