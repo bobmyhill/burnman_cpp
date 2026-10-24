@@ -1,12 +1,16 @@
-# Copyright (c) 2025 Benedict Heinen
+# ------------------------------------------------------
 #
-# This file is part of burnman_cpp and is licensed under the
-# GNU General Public License v3.0 or later. See the LICENSE file
-# or <https://www.gnu.org/licenses/> for details.
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
-# burnman_cpp is based on BurnMan: <https://geodynamics.github.io/burnman/>
+# SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
 #
-# ------------------- END OF LICENSE SECTION -----------------
+# This file is part of BurnMan.
+#
+# Detailed license information governing the source code
+# and contributions can be found in the LICENSE document.
+#
+# ------------------------------------------------------
+
 # The native sources implement a library; Catch2 supplies main() for tests.
 TARGET_LIBRARY := libburnman.a
 TEST_EXEC := run_tests
@@ -14,6 +18,8 @@ BENCHMARK_EXEC := run_benchmarks
 
 # Compiler
 CXX := g++
+CMAKE ?= cmake
+PKG_CONFIG ?= pkg-config
 
 # Directories
 CWD := $(shell pwd)
@@ -32,11 +38,14 @@ INCLUDE_DIR_TEST := $(TEST_DIR)/include
 # GSL on MacOS installed via brew is in /opt/homebrew/lib
 EXTRA_INCLUDE ?= $(wildcard /opt/homebrew/include /opt/homebrew/include/eigen3 /opt/homebrew/opt/gsl/include /usr/local/include /usr/local/include/eigen3 /usr/include/eigen3)
 EXTRA_LIB ?= $(wildcard /usr/local/lib /opt/homebrew/lib)
-LDFLAGS_COMMON := -lgsl -lgslcblas -lcddgmp -lgmp -lnlopt -lm
+# Override these flags when HDF5 is installed outside pkg-config's search path.
+HDF5_CFLAGS ?= $(shell $(PKG_CONFIG) --cflags hdf5)
+HDF5_LIBS ?= $(shell $(PKG_CONFIG) --libs hdf5)
+LDFLAGS_COMMON := -lgsl -lgslcblas -lcddgmp -lgmp -lnlopt $(HDF5_LIBS) -lm
 LDFLAGS_TEST := -lCatch2Main -lCatch2
 
 # Expand to paths
-INCLUDE_FLAGS_COMMON := -I$(INCLUDE_DIR) $(addprefix -isystem , $(EXTRA_INCLUDE))
+INCLUDE_FLAGS_COMMON := -I$(INCLUDE_DIR) $(HDF5_CFLAGS) $(addprefix -isystem , $(EXTRA_INCLUDE))
 INCLUDE_FLAGS_TEST := -I$(INCLUDE_DIR_TEST)
 LIB_PATHS := $(addprefix -L, $(EXTRA_LIB))
 
@@ -94,6 +103,12 @@ ifeq ($(PROFILE), 1)
 	MODE_BUILD_DIR := $(MODE_BUILD_DIR)-profile
 endif
 
+# Covariance images are generated for this build mode before their reader.
+COVARIANCE_BUILD_DIR := $(MODE_BUILD_DIR)/generated
+COVARIANCE_EMBED_SCRIPT := $(CWD)/cmake/EmbedCovariance.cmake
+COVARIANCE_HEADERS := $(addprefix $(COVARIANCE_BUILD_DIR)/,HP11_covariance_data.hpp HGP18_covariance_data.hpp HPx_ds636_covariance_data.hpp)
+CPPFLAGS += -I$(COVARIANCE_BUILD_DIR)
+
 # Find source files
 SOURCES := $(shell find $(SRC_DIR) -name '*.cpp')
 TEST_SOURCES := $(shell find $(TEST_DIR) -name '*.cpp')
@@ -114,6 +129,15 @@ BENCHMARK_TARGET := $(BIN_DIR)/$(BENCHMARK_EXEC)$(BIN_SUFFIX)
 
 # Default rule
 all: $(TARGET)
+
+$(COVARIANCE_BUILD_DIR)/HP11_covariance_data.hpp: $(SRC_DIR)/data/input_covariance/HP_2011_ds62_cov.h5
+$(COVARIANCE_BUILD_DIR)/HGP18_covariance_data.hpp: $(SRC_DIR)/data/input_covariance/HGP_2018_ds633_cov.h5
+$(COVARIANCE_BUILD_DIR)/HPx_ds636_covariance_data.hpp: $(SRC_DIR)/data/input_covariance/HPx_ds636_cov.h5
+
+$(COVARIANCE_HEADERS): $(COVARIANCE_EMBED_SCRIPT)
+	$(CMAKE) "-DNAME=$(patsubst %_covariance_data.hpp,%,$(notdir $@))" "-DINPUT=$(filter %.h5,$^)" "-DOUTPUT=$@" -P "$(COVARIANCE_EMBED_SCRIPT)"
+
+$(MODE_BUILD_DIR)/src/data/covariance.o: $(COVARIANCE_HEADERS)
 
 # Archive the native library; linking an executable would require main().
 $(TARGET) : $(OBJECTS) | $(BIN_DIR)

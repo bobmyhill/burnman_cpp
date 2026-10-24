@@ -69,18 +69,20 @@ target_link_libraries(burnman_core PUBLIC ${HDF5_LIBRARIES})
 
 # Embed the HDF5 file images for standalone C++ and installed Python use.
 # CMake performs this step without requiring h5py or a Python interpreter.
-function(burnman_embed_covariance name dataset)
+function(burnman_covariance_data name dataset)
   set(input "${CMAKE_CURRENT_SOURCE_DIR}/src/data/input_covariance/${dataset}_cov.h5")
-  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${input}")
-  file(READ "${input}" bytes HEX)
-  string(REGEX REPLACE "(..)" "0x\\1," bytes "${bytes}")
-  file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
-  file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/generated/${name}_covariance_data.hpp" CONTENT
-    "// Generated from ${dataset}_cov.h5.\n#pragma once\nnamespace burnman::minerals::detail {\ninline constexpr unsigned char ${name}_covariance_data[] = {${bytes}};\n}\n")
+  set(output "${CMAKE_CURRENT_BINARY_DIR}/generated/${name}_covariance_data.hpp")
+  set(script "${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedCovariance.cmake")
+  add_custom_command(OUTPUT "${output}"
+    COMMAND "${CMAKE_COMMAND}" "-DNAME=${name}" "-DINPUT=${input}"
+            "-DOUTPUT=${output}" -P "${script}"
+    DEPENDS "${input}" "${script}"
+    VERBATIM)
+  target_sources(burnman_core PRIVATE "${output}")
 endfunction()
-burnman_embed_covariance(HP11 HP_2011_ds62)
-burnman_embed_covariance(HGP18 HGP_2018_ds633)
-burnman_embed_covariance(HPx_ds636 HPx_ds636)
+burnman_covariance_data(HP11 HP_2011_ds62)
+burnman_covariance_data(HGP18 HGP_2018_ds633)
+burnman_covariance_data(HPx_ds636 HPx_ds636)
 target_include_directories(burnman_core PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 set_target_properties(burnman_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 burnman_compiler_warnings(burnman_core)
