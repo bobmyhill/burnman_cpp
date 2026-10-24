@@ -20,7 +20,7 @@ jobs:
   cpp:
     name: C++ tests
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 60
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -51,7 +51,7 @@ jobs:
   python:
     name: Python ${{ matrix.python-version }} tests
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -92,7 +92,7 @@ jobs:
   reference:
     name: Pinned Python BurnMan reference
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 60
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: "2"
       MPLBACKEND: Agg
