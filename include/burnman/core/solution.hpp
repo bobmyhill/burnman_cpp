@@ -176,6 +176,19 @@ public:
    */
   std::vector<std::string> get_site_names() const;
 
+  /// Fractional occupancies of species on each site, in site_names order.
+  Eigen::ArrayXd get_site_occupancies() const;
+
+  /** Molar chemical formula with fractional site occupancies.
+   *
+   * precision is the number of decimal places. print_absent_species controls
+   * whether species with zero occupancy are included. Optional site_occupancies
+   * replace the current occupancies, using the same order as site_names.
+   */
+  std::string site_formula(int precision = 2, bool print_absent_species = true,
+                           const std::optional<Eigen::ArrayXd>
+                               &site_occupancies = std::nullopt) const;
+
   /**
    * @brief Retrieves molar excess gibbs free energy the of the solid solution.
    *

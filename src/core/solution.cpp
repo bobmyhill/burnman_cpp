@@ -17,6 +17,9 @@
 #include "burnman/utils/constants.hpp"
 #include "burnman/utils/matrix_utils.hpp"
 #include <cmath>
+#include <iomanip>
+#include <locale>
+#include <sstream>
 #include <stdexcept>
 #include <utility>
 
@@ -119,6 +122,49 @@ Eigen::ArrayXXd Solution::get_endmember_n_occupancies() const {
 
 std::vector<std::string> Solution::get_site_names() const {
   return this->solution_model->get_site_names();
+}
+
+Eigen::ArrayXd Solution::get_site_occupancies() const {
+  if (molar_fractions.size() != get_n_endmembers())
+    throw std::runtime_error(
+        "Set the molar fractions before requesting site occupancies.");
+  return (solution_model->get_endmember_occupancies().matrix().transpose() *
+          molar_fractions.matrix())
+      .array();
+}
+
+std::string Solution::site_formula(
+    int precision, bool print_absent_species,
+    const std::optional<Eigen::ArrayXd> &site_occupancies) const {
+  if (precision < 0)
+    throw std::invalid_argument("Formula precision must be nonnegative.");
+  const Eigen::ArrayXd occupancies =
+      site_occupancies ? *site_occupancies : get_site_occupancies();
+  if (occupancies.size() != solution_model->get_n_occupancies() ||
+      !occupancies.isFinite().all())
+    throw std::invalid_argument(
+        "Site occupancies must be finite and match site_names.");
+  const auto &empty_formula = solution_model->get_empty_formula();
+  std::ostringstream site_formula_stream;
+  site_formula_stream.imbue(std::locale::classic());
+  site_formula_stream << std::fixed << std::setprecision(precision);
+  std::size_t position = 0;
+  Eigen::Index i = 0;
+  for (const auto &site : solution_model->get_sites()) {
+    const auto opening = empty_formula.find('[', position);
+    site_formula_stream << empty_formula.substr(position, opening - position)
+                        << '[';
+    for (const auto &species : site) {
+      const double occupancy =
+          std::abs(occupancies[i]) < 1.e-12 ? 0. : occupancies[i];
+      if (print_absent_species || occupancy != 0.)
+        site_formula_stream << species << occupancy;
+      ++i;
+    }
+    position = opening + 1;
+  }
+  site_formula_stream << empty_formula.substr(position);
+  return site_formula_stream.str();
 }
 
 // Public getter functions with caching

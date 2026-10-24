@@ -11,10 +11,11 @@
 #
 # ------------------------------------------------------
 
-"""Fit nonnegative phase amounts to a bulk chemical composition."""
+"""Chemical compositions, site occupancies and nonnegative phase amounts."""
 
 from .._core.optimize.composition_fitting import (
+    DummyCompositionSolution,
     fit_phase_proportions_to_bulk_composition,
 )
 
-__all__ = ["fit_phase_proportions_to_bulk_composition"]
+__all__ = ["DummyCompositionSolution", "fit_phase_proportions_to_bulk_composition"]

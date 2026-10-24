@@ -13,9 +13,30 @@
 
 #pragma once
 
+#include "burnman/core/solution.hpp"
 #include "burnman/optim/linear_fitting.hpp"
 
 namespace burnman::optim {
+/** A Solution class object for chemical compositions without a thermodynamic
+ * model.
+ *
+ * Supply elemental and crystallographic site formulae in the same endmember
+ * order, for example {"Mg2SiO4", "Fe2SiO4"} and {"[Mg]2SiO4", "[Fe]2SiO4"}.
+ * Elemental stoichiometry and endmember site occupancies are available
+ * immediately.
+ * Set the endmember molar fractions before requesting the bulk formula or
+ * site occupancies. Thermodynamic properties are unavailable.
+ */
+class DummyCompositionSolution : public Solution {
+public:
+  DummyCompositionSolution(
+      const std::vector<std::string> &endmember_element_formulae,
+      const std::vector<std::string> &endmember_site_formulae);
+
+  std::shared_ptr<Material> copy() const override;
+  void set_composition(const Eigen::ArrayXd &molar_fractions) override;
+};
+
 /** Fit nonnegative phase amounts to a bulk composition by least squares.
  *
  * phase_compositions has one row per chemical component and one column per
