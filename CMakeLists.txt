@@ -97,6 +97,7 @@ if(BURNMAN_BUILD_PYTHON)
     python/bindings/materials.cpp
     python/bindings/composition.cpp
     python/bindings/linear_fitting.cpp
+    python/bindings/composition_fitting.cpp
     python/bindings/chemistry.cpp
     python/bindings/equilibrated_composite.cpp
     python/bindings/combined.cpp
