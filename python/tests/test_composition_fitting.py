@@ -21,8 +21,10 @@ import pytest
 from scipy.optimize import nnls
 
 import burnman_cpp as bm
+from burnman_cpp import minerals
 from burnman_cpp.optimize.composition_fitting import (
     DummyCompositionSolution,
+    fit_composition_to_solution,
     fit_phase_proportions_to_bulk_composition as fit,
 )
 
@@ -56,6 +58,186 @@ COMPOSITION_CASES = [
     (["CaCO3"], ["Ca[C][O]3"], [1.0]),
     (["MgO", "Mg2O2"], ["[Mg]O", "[Mg]2O2"], [0.3, 0.7]),
 ]
+
+
+@pytest.mark.parametrize("normalize", [False, True])
+def test_solution_fit_amounts_covariance_and_residual(normalize):
+    solution = DummyCompositionSolution(["MgO", "FeO"], ["[Mg]O", "[Fe]O"])
+    assert (
+        bm.optimize.composition_fitting.fit_composition_to_solution
+        is fit_composition_to_solution
+    )
+    amounts = np.array([7 / 3, 19 / 3])
+    sum_amounts = 26 / 3
+    expected = amounts / sum_amounts if normalize else amounts
+    # The information from independent Mg, Fe and O observations is [[2,1],[1,2]].
+    amount_covariance = np.array([[2, -1], [-1, 2]]) / 3
+    projection = np.eye(2) - expected[:, None]
+    expected_covariance = projection @ amount_covariance @ projection.T
+    if normalize:
+        expected_covariance /= sum_amounts**2
+    actual = fit_composition_to_solution(
+        solution, ["Mg", "Fe", "O"], [2, 6, 9], None, normalize=normalize
+    )
+    assert_allclose(actual[0], expected, rtol=1e-12)
+    assert_allclose(actual[1], expected_covariance, rtol=1e-12)
+    assert_allclose(actual[2], 1 / 26 if normalize else 1 / 3, rtol=1e-12)
+    assert solution.molar_fractions.size == 0
+    assert not solution.has_state()
+
+
+def test_converted_variables_honor_coefficients_and_definition_order():
+    solution = DummyCompositionSolution(
+        ["MgFeSiO4", "MgFeSiO4"], ["[Mg][Fe]SiO4", "[Fe][Mg]SiO4"]
+    )
+    conversions = {
+        "twice_Mg": {"Mg_A": 2.0},
+        "Mg_equal": {"twice_Mg": 0.5, "Mg_B": -1.0},
+    }
+    amounts, covariance, residual = fit_composition_to_solution(
+        solution, ["Mg_A", "Mg_B", "Mg_equal"], [0.8, 0.2, 0], None, conversions
+    )
+    assert_allclose(amounts, [0.5, 0.5], atol=1e-12)
+    assert_allclose(covariance, np.array([[1, -1], [-1, 1]]) / 6, atol=1e-12)
+    assert_allclose(residual, 0.18, rtol=1e-12)
+    assert conversions["Mg_equal"] == {"twice_Mg": 0.5, "Mg_B": -1.0}
+
+
+def test_solution_fit_constrains_sites_and_permits_signed_endmembers():
+    solution = DummyCompositionSolution(
+        ["Mg1/2Fe1/2O", "FeO"], ["[Mg1/2Fe1/2]O", "[Fe]O"]
+    )
+    amounts, _, residual = fit_composition_to_solution(
+        solution, ["Mg", "Fe"], [1, 0], np.eye(2)
+    )
+    assert_allclose(amounts, [2, -1], atol=1e-12)
+    assert residual < 1e-24
+    solution.set_composition(amounts)
+    assert_allclose(solution.site_occupancies, [1, 0], atol=1e-12)
+
+    oxides = DummyCompositionSolution(["MgO", "FeO"], ["[Mg]O", "[Fe]O"])
+    amounts, _, _ = fit_composition_to_solution(oxides, ["Mg", "Fe"], [-0.2, 1], None)
+    assert_allclose(amounts, [0, 1], atol=1e-12)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_repeated_observations_still_enforce_explicit_absence(reverse):
+    solution = DummyCompositionSolution(["MgO", "FeO"], ["[Mg]O", "[Fe]O"])
+    observations = [1, 0, 1] if not reverse else [0, 1, 1]
+    amounts, _, residual = fit_composition_to_solution(
+        solution, ["Mg", "Mg", "Fe"], observations, None
+    )
+    assert_allclose(amounts, [0, 1], atol=1e-12)
+    assert_allclose(residual, 1.0, rtol=1e-12)
+
+
+def test_zero_total_is_only_returned_without_normalization():
+    solution = DummyCompositionSolution(["MgO", "FeO"], ["[Mg]O", "[Fe]O"])
+    with pytest.raises(ValueError, match="nonpositive total"):
+        fit_composition_to_solution(solution, ["Mg", "Fe"], [0, 0], None)
+    amounts, covariance, residual = fit_composition_to_solution(
+        solution, ["Mg", "Fe"], [0, 0], None, normalize=False
+    )
+    assert_allclose(amounts, [0, 0], atol=0)
+    assert_allclose(covariance, np.eye(2), atol=0)
+    assert residual == 0
+
+
+@pytest.mark.parametrize("real_model", [False, True])
+@pytest.mark.parametrize("normalize", [False, True])
+@pytest.mark.parametrize("covariance_kind", ["identity", "correlated"])
+def test_optional_solution_fit_python_burnman_parity(
+    real_model, normalize, covariance_kind
+):
+    burnman = pytest.importorskip("burnman")
+    pytest.importorskip("cvxpy")
+    from burnman.optimize.composition_fitting import (
+        DummyCompositionSolution as ReferenceSolution,
+        fit_composition_to_solution as reference_fit,
+    )
+
+    elements, sites, _ = COMPOSITION_CASES[1]
+    actual_solution = (
+        minerals.JH15.garnet()
+        if real_model
+        else DummyCompositionSolution(elements, sites)
+    )
+    expected_solution = (
+        burnman.minerals.JH_2015.garnet()
+        if real_model
+        else ReferenceSolution(elements, sites)
+    )
+    # Record a composition and state to check that fitting does not change them.
+    actual_solution.set_composition([0.2] * 5)
+    actual_solution.set_state(1e9, 1000)
+    variables = ["Fe", "Ca", "Mg", "Cr", "Al", "Si", "Fe3+"]
+    covariance = np.eye(7) * 0.01**2
+    if covariance_kind == "correlated":
+        covariance += 2e-5
+    observations = np.random.RandomState(100).multivariate_normal(
+        [1.1, 2.0, 0, 0, 1.9, 3.0, 0.1], covariance
+    )
+    conversions = {"Fe3+": {"Fef_B": 1.0}}
+    actual = fit_composition_to_solution(
+        actual_solution, variables, observations, covariance, conversions, normalize
+    )
+    expected = reference_fit(
+        expected_solution, variables, observations, covariance, conversions, normalize
+    )
+    assert_allclose(actual[0], expected[0], rtol=1e-6, atol=1e-9)
+    assert_allclose(actual[1], expected[1], rtol=1e-6, atol=1e-12)
+    assert_allclose(actual[2], expected[2], rtol=1e-6, atol=1e-8)
+    assert_allclose(actual_solution.molar_fractions, [0.2] * 5)
+    assert actual_solution.pressure == 1e9
+    assert actual_solution.temperature == 1000
+    # The same fitting information is supplied by a composition-only solution.
+    equivalent = fit_composition_to_solution(
+        DummyCompositionSolution(elements, sites),
+        variables,
+        observations,
+        covariance,
+        conversions,
+        normalize,
+    )
+    for value, comparison in zip(actual, equivalent):
+        assert_allclose(value, comparison, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize(
+    "variables,values,covariance",
+    [
+        ([], [], None),
+        (["Mg", "Fe"], [1], None),
+        (["Mg", "Fe"], [1, np.nan], None),
+        (["Mg", "Fe"], [1, 2], np.eye(3)),
+        (["Mg", "Fe"], [1, 2], [[1, 0], [0, -1]]),
+        (["Mg", "Fe"], [1, 2], [[1, np.nan], [np.nan, 1]]),
+        (["Mg", "unknown"], [1, 2], None),
+        (["Mg"], [1], None),
+    ],
+)
+def test_solution_fit_rejects_invalid_observations(variables, values, covariance):
+    solution = DummyCompositionSolution(["MgO", "FeO"], ["[Mg]O", "[Fe]O"])
+    with pytest.raises(ValueError):
+        fit_composition_to_solution(solution, variables, values, covariance)
+
+
+@pytest.mark.parametrize(
+    "conversions",
+    [
+        {"Mg": {"Fe": 1.0}},
+        {"": {"Fe": 1.0}},
+        {"extra": {"unknown": 1.0}},
+        {"extra": {"extra": 1.0}},
+        {"first": {"second": 1.0}, "second": {"Fe": 1.0}},
+        {"extra": {"Fe": np.nan}},
+        {"extra": {"Fe": np.inf}},
+    ],
+)
+def test_solution_fit_rejects_undefined_or_invalid_conversions(conversions):
+    solution = DummyCompositionSolution(["MgO", "FeO"], ["[Mg]O", "[Fe]O"])
+    with pytest.raises(ValueError):
+        fit_composition_to_solution(solution, ["Mg", "Fe"], [1, 2], None, conversions)
 
 
 def test_dummy_composition_solution_chemistry_and_composition_changes():

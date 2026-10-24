@@ -15,13 +15,98 @@
 #include "burnman/utils/exceptions.hpp"
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <cmath>
 #include <stdexcept>
 
 using burnman::optim::DummyCompositionSolution;
+using burnman::optim::fit_composition_to_solution;
 using burnman::optim::fit_phase_proportions_to_bulk_composition;
 using Catch::Approx;
 using Matrix = Eigen::MatrixXd;
 using Vector = Eigen::VectorXd;
+
+TEST_CASE("Solution fitting normalizes molar amounts and projects covariance",
+          "[composition_fitting]") {
+  DummyCompositionSolution solution({"MgO", "FeO"}, {"[Mg]O", "[Fe]O"});
+  const Vector observations = (Vector(3) << 2., 6., 9.).finished();
+  const auto [amounts, raw_covariance, raw_residual] =
+      fit_composition_to_solution(solution, {"Mg", "Fe", "O"}, observations,
+                                  std::nullopt, {}, false);
+  CHECK(amounts[0] == Approx(7. / 3.));
+  CHECK(amounts[1] == Approx(19. / 3.));
+  CHECK(raw_residual == Approx(1. / 3.));
+  const Matrix amount_covariance =
+      (Matrix(2, 2) << 2., -1., -1., 2.).finished() / 3.;
+  const Matrix raw_projection =
+      Matrix::Identity(2, 2) - amounts * Eigen::RowVector2d::Ones();
+  CHECK(raw_covariance.isApprox(raw_projection * amount_covariance *
+                                raw_projection.transpose()));
+
+  const auto [fractions, covariance, residual] = fit_composition_to_solution(
+      solution, {"Mg", "Fe", "O"}, observations, std::nullopt);
+  CHECK(fractions[0] == Approx(7. / 26.));
+  CHECK(fractions[1] == Approx(19. / 26.));
+  CHECK(residual == Approx(1. / 26.));
+  const Matrix projection =
+      Matrix::Identity(2, 2) - fractions * Eigen::RowVector2d::Ones();
+  CHECK(covariance.isApprox(projection * amount_covariance *
+                            projection.transpose() /
+                            std::pow(amounts.sum(), 2)));
+  CHECK(covariance.rowwise().sum().norm() < 1.e-14);
+  CHECK(solution.get_molar_fractions().size() == 0);
+  CHECK_FALSE(solution.has_state());
+}
+
+TEST_CASE("Solution fitting applies signed conversion coefficients and exact "
+          "absences",
+          "[composition_fitting]") {
+  DummyCompositionSolution solution({"MgFeSiO4", "MgFeSiO4"},
+                                    {"[Mg][Fe]SiO4", "[Fe][Mg]SiO4"});
+  const burnman::optim::VariableConversions conversions{
+      {"twice_Mg", {{"Mg_A", 2.}}},
+      {"Mg_equal", {{"twice_Mg", 0.5}, {"Mg_B", -1.}}}};
+  const auto [fractions, covariance, residual] = fit_composition_to_solution(
+      solution, {"Mg_A", "Mg_B", "Mg_equal"},
+      (Vector(3) << 0.8, 0.2, 0.).finished(), std::nullopt, conversions);
+  CHECK(fractions[0] == Approx(0.5));
+  CHECK(fractions[1] == Approx(0.5));
+  CHECK(covariance(0, 0) == Approx(1. / 6.));
+  CHECK(residual == Approx(0.18));
+
+  DummyCompositionSolution oxides({"MgO", "FeO"}, {"[Mg]O", "[Fe]O"});
+  const auto repeated = fit_composition_to_solution(
+      oxides, {"Mg", "Mg", "Fe"}, (Vector(3) << 1., 0., 1.).finished(),
+      std::nullopt);
+  CHECK(std::get<0>(repeated)[0] == Approx(0.).margin(1.e-14));
+  CHECK(std::get<0>(repeated)[1] == Approx(1.));
+}
+
+TEST_CASE("Solution fitting permits signed endmembers and rejects undefined "
+          "compositions",
+          "[composition_fitting]") {
+  DummyCompositionSolution solution({"Mg1/2Fe1/2O", "FeO"},
+                                    {"[Mg1/2Fe1/2]O", "[Fe]O"});
+  const auto fit = fit_composition_to_solution(
+      solution, {"Mg", "Fe"}, (Vector(2) << 1., 0.).finished(), std::nullopt);
+  const auto &fractions = std::get<0>(fit);
+  CHECK(fractions[0] == Approx(2.));
+  CHECK(fractions[1] == Approx(-1.));
+  solution.set_composition(fractions.array());
+  CHECK(solution.site_formula() == "[Mg1.00Fe0.00]O");
+  CHECK_THROWS_AS(fit_composition_to_solution(solution, {"Mg", "Fe"},
+                                              Vector::Zero(2), std::nullopt),
+                  std::invalid_argument);
+  CHECK_THROWS_AS(fit_composition_to_solution(solution, {"Mg", "unknown"},
+                                              Vector::Ones(2), std::nullopt),
+                  std::invalid_argument);
+  CHECK_THROWS_AS(fit_composition_to_solution(solution, {"Mg"}, Vector::Ones(2),
+                                              std::nullopt),
+                  std::invalid_argument);
+  CHECK_THROWS_AS(fit_composition_to_solution(solution, {"Mg", "Fe"},
+                                              Vector::Ones(2), std::nullopt,
+                                              {{"Mg", {{"Fe", 1.}}}}),
+                  std::invalid_argument);
+}
 
 TEST_CASE(
     "Phase amounts recover the bulk inventory without a unit-sum constraint",
