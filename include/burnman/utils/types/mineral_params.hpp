@@ -147,6 +147,7 @@ struct MineralParams {
   std::optional<double> cork_T;
   std::optional<double> cork_P;
   std::optional<CorkParams> cork_params;
+  std::optional<std::array<double, 4>> dcorkdT;
 };
 
 } // namespace types
