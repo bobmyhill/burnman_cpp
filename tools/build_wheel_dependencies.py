@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileCopyrightText: Copyright (C) 2026 by the BurnMan Team.
+# SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
 #
 # This file is part of BurnMan.
 #
@@ -15,12 +15,14 @@
 
 import argparse
 import hashlib
+from http.client import HTTPException
 import json
 import os
 from pathlib import Path
 import platform
 import shutil
 import subprocess
+import time
 import urllib.request
 
 SOURCES = {
@@ -55,13 +57,41 @@ SOURCES = {
 }
 
 
+def download_archive(url, archive, checksum):
+    """Retry source downloads and verify their contents before caching them."""
+    urls = [url]
+    if url.startswith("https://ftp.gnu.org/gnu/"):
+        urls.append(
+            url.replace("https://ftp.gnu.org/gnu/", "https://ftpmirror.gnu.org/", 1)
+        )
+    temporary = archive.with_name(archive.name + ".part")
+    for attempt in range(3):
+        for candidate in urls:
+            print(f"Downloading {candidate} (attempt {attempt + 1}/3)", flush=True)
+            try:
+                with urllib.request.urlopen(candidate, timeout=60) as response:
+                    with temporary.open("wb") as output:
+                        shutil.copyfileobj(response, output)
+                if hashlib.sha256(temporary.read_bytes()).hexdigest() != checksum:
+                    raise RuntimeError(f"Checksum mismatch: {candidate}")
+                temporary.replace(archive)
+                return
+            except (OSError, HTTPException) as exc:
+                last_error = exc
+                print(f"Download failed: {exc}", flush=True)
+            finally:
+                temporary.unlink(missing_ok=True)
+        if attempt < 2:
+            time.sleep(2**attempt)
+    raise RuntimeError(f"Could not download {url} after 3 attempts.") from last_error
+
+
 def source_tree(name, work, env):
     """Download a pinned archive, verify it, and extract its source directory."""
     url, checksum = SOURCES[name]
     archive = work / (name + "-" + url.rsplit("/", 1)[1])
     if not archive.exists():
-        print(f"Downloading {url}", flush=True)
-        urllib.request.urlretrieve(url, archive)
+        download_archive(url, archive, checksum)
     if hashlib.sha256(archive.read_bytes()).hexdigest() != checksum:
         raise RuntimeError(f"Checksum mismatch: {archive}")
     source = work / name
@@ -92,7 +122,11 @@ def build_dependencies(prefix, work, jobs):
     target = os.environ.get("MACOSX_DEPLOYMENT_TARGET", "11.0") if macos else ""
     compiler = ("clang", "clang++") if macos else ("gcc", "g++")
     manifest = dict(
-        sources=SOURCES, arch=platform.machine(), target=target, compiler=compiler
+        build_revision=2,
+        sources=SOURCES,
+        arch=platform.machine(),
+        target=target,
+        compiler=compiler,
     )
     stamp = prefix / "build-manifest.json"
     if stamp.exists():
@@ -146,6 +180,9 @@ def build_dependencies(prefix, work, jobs):
                     "-DHDF5_BUILD_HL_LIB=OFF",
                     "-DHDF5_ENABLE_PARALLEL=OFF",
                     "-DHDF5_ENABLE_THREADSAFE=ON",
+                    # HDF5 1.14.6 checks this separate variable when linking
+                    # Threads::Threads into the shared library.
+                    "-DHDF5_ENABLE_THREADS=ON",
                     "-DHDF5_ENABLE_Z_LIB_SUPPORT=ON",
                     "-DHDF5_ENABLE_SZIP_SUPPORT=OFF",
                     "-DHDF5_ENABLE_ROS3_VFD=OFF",
