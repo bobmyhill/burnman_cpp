@@ -19,6 +19,7 @@
  * SLB_2011 (Stixrude & Lithgow-Bertelloni 2011), and
  * JH_2015 (Jennings & Holland 2015, doi:10.1093/petrology/egv020),
  * mb50NCKFMASHTO (Green et al. 2016), mp50NCKFMASHTO metapelite models,
+ * mp50MnNCKFMASHTO Mn-bearing metapelite models,
  * HGP_2018_ds633 and ig50NCKFMASHTOCr (Holland et al. 2018),
  * HPx_ds636, ig51W24 (Weller et al. 2024) and ig51G25 (Green et al. 2025),
  * SLB_2024 (Stixrude & Lithgow-Bertelloni 2024, doi:10.1093/gji/ggae126),
@@ -28471,6 +28472,81 @@ Mineral endmember_1213() {
   m.set_name("hydrogen sulfide");
   return m;
 }
+
+Mineral endmember_1214() {
+  Mineral m = make_combined_mineral({endmember_106()}, array({1.0}),
+                                    Eigen::Vector3d::Zero(), "mmbi");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, -7890.0}});
+  return m;
+}
+
+Mineral endmember_1215() {
+  Mineral m = make_combined_mineral({endmember_77()}, array({2.0}),
+                                    Eigen::Vector3d::Zero(), "mnopx");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, 6680.0}});
+  return m;
+}
+
+Mineral endmember_1216() {
+  Mineral m = make_combined_mineral({endmember_58()}, array({1.0}),
+                                    Eigen::Vector3d::Zero(), "mncd");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, -4210.0}});
+  return m;
+}
+
+Mineral endmember_1217() {
+  Mineral m = make_combined_mineral({endmember_36()}, array({1.0}),
+                                    Eigen::Vector3d::Zero(), "mnstm");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, -190.0}});
+  return m;
+}
+
+Mineral endmember_1218() {
+  Mineral m = make_combined_mineral(
+      {endmember_34(), endmember_21(), endmember_22()}, array({1.0, -1.0, 1.0}),
+      Eigen::Vector3d::Zero(), "msto");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, 9000.0}});
+  return m;
+}
+
+Mineral endmember_1219() {
+  Mineral m = make_combined_mineral(
+      {endmember_34(), endmember_162(), endmember_158()},
+      array({1.0, -1.0, 1.5}), Eigen::Vector3d::Zero(), "mstt");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, 13000.0}});
+  return m;
+}
+
+Mineral endmember_1220() {
+  Mineral m = make_combined_mineral({endmember_113()}, array({1.0}),
+                                    Eigen::Vector3d::Zero(), "mmchl");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, -5670.0}});
+  return m;
+}
+
+Mineral endmember_1221() {
+  Mineral m = make_combined_mineral({endmember_39()}, array({1.0}),
+                                    Eigen::Vector3d::Zero(), "mnct");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, 660.0}});
+  return m;
+}
+
+Mineral endmember_1222() {
+  Mineral m = make_combined_mineral(
+      {endmember_37(), endmember_22(), endmember_21()},
+      array({1.0, 0.25, -0.25}), Eigen::Vector3d::Zero(), "ctdo");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, 13500.0}});
+  return m;
+}
 } // namespace
 
 namespace HP11 {
@@ -38586,4 +38662,654 @@ std::shared_ptr<Solution> sp1() {
   return solution;
 }
 } // namespace mp50KFMASH
+
+namespace mp50MnNCKFMASHTO {
+std::shared_ptr<Mineral> hem_nood() {
+  return std::make_shared<Mineral>(endmember_467());
+}
+
+std::shared_ptr<Mineral> ilm_nood() {
+  return std::make_shared<Mineral>(endmember_468());
+}
+
+std::shared_ptr<Mineral> mt_nood() {
+  return std::make_shared<Mineral>(endmember_572());
+}
+
+std::shared_ptr<Mineral> kho() {
+  return std::make_shared<Mineral>(endmember_498());
+}
+
+std::shared_ptr<Mineral> q4L() {
+  return std::make_shared<Mineral>(endmember_469());
+}
+
+std::shared_ptr<Mineral> slL() {
+  return std::make_shared<Mineral>(endmember_574());
+}
+
+std::shared_ptr<Mineral> fo2L() {
+  return std::make_shared<Mineral>(endmember_575());
+}
+
+std::shared_ptr<Mineral> fa2L() {
+  return std::make_shared<Mineral>(endmember_576());
+}
+
+std::shared_ptr<Mineral> anC() {
+  return std::make_shared<Mineral>(endmember_501());
+}
+
+std::shared_ptr<Mineral> mut() {
+  return std::make_shared<Mineral>(endmember_577());
+}
+
+std::shared_ptr<Mineral> celt() {
+  return std::make_shared<Mineral>(endmember_578());
+}
+
+std::shared_ptr<Mineral> fcelt() {
+  return std::make_shared<Mineral>(endmember_579());
+}
+
+std::shared_ptr<Mineral> pat() {
+  return std::make_shared<Mineral>(endmember_580());
+}
+
+std::shared_ptr<Mineral> fmu() {
+  return std::make_shared<Mineral>(endmember_581());
+}
+
+std::shared_ptr<Mineral> mat() {
+  return std::make_shared<Mineral>(endmember_582());
+}
+
+std::shared_ptr<Mineral> annm() {
+  return std::make_shared<Mineral>(endmember_506());
+}
+
+std::shared_ptr<Mineral> obi() {
+  return std::make_shared<Mineral>(endmember_507());
+}
+
+std::shared_ptr<Mineral> tbi() {
+  return std::make_shared<Mineral>(endmember_508());
+}
+
+std::shared_ptr<Mineral> fbi() {
+  return std::make_shared<Mineral>(endmember_509());
+}
+
+std::shared_ptr<Mineral> mmbi() {
+  return std::make_shared<Mineral>(endmember_1214());
+}
+
+std::shared_ptr<Mineral> fm() {
+  return std::make_shared<Mineral>(endmember_495());
+}
+
+std::shared_ptr<Mineral> fopx() {
+  return std::make_shared<Mineral>(endmember_496());
+}
+
+std::shared_ptr<Mineral> mnopx() {
+  return std::make_shared<Mineral>(endmember_1215());
+}
+
+std::shared_ptr<Mineral> odi() {
+  return std::make_shared<Mineral>(endmember_497());
+}
+
+std::shared_ptr<Mineral> fspm() {
+  return std::make_shared<Mineral>(endmember_586());
+}
+
+std::shared_ptr<Mineral> spro() {
+  return std::make_shared<Mineral>(endmember_587());
+}
+
+std::shared_ptr<Mineral> ospr() {
+  return std::make_shared<Mineral>(endmember_588());
+}
+
+std::shared_ptr<Mineral> mncd() {
+  return std::make_shared<Mineral>(endmember_1216());
+}
+
+std::shared_ptr<Mineral> mstm() {
+  return std::make_shared<Mineral>(endmember_589());
+}
+
+std::shared_ptr<Mineral> mnstm() {
+  return std::make_shared<Mineral>(endmember_1217());
+}
+
+std::shared_ptr<Mineral> msto() {
+  return std::make_shared<Mineral>(endmember_1218());
+}
+
+std::shared_ptr<Mineral> mstt() {
+  return std::make_shared<Mineral>(endmember_1219());
+}
+
+std::shared_ptr<Mineral> ochl1() {
+  return std::make_shared<Mineral>(endmember_512());
+}
+
+std::shared_ptr<Mineral> ochl4() {
+  return std::make_shared<Mineral>(endmember_513());
+}
+
+std::shared_ptr<Mineral> f3clin() {
+  return std::make_shared<Mineral>(endmember_514());
+}
+
+std::shared_ptr<Mineral> mmchl() {
+  return std::make_shared<Mineral>(endmember_1220());
+}
+
+std::shared_ptr<Mineral> mnct() {
+  return std::make_shared<Mineral>(endmember_1221());
+}
+
+std::shared_ptr<Mineral> ctdo() {
+  return std::make_shared<Mineral>(endmember_1222());
+}
+
+std::shared_ptr<Mineral> oilm() {
+  return std::make_shared<Mineral>(endmember_503());
+}
+
+std::shared_ptr<Mineral> dilm() {
+  return std::make_shared<Mineral>(endmember_504());
+}
+
+std::shared_ptr<Mineral> dhem() {
+  return std::make_shared<Mineral>(endmember_505());
+}
+
+std::shared_ptr<Mineral> imt() {
+  return std::make_shared<Mineral>(endmember_594());
+}
+
+std::shared_ptr<Mineral> dmt() {
+  return std::make_shared<Mineral>(endmember_595());
+}
+
+std::shared_ptr<Solution> g() {
+  types::PairedEndmemberList members = {{endmember_18(), "[Mgx]3[Aly]2"},
+                                        {endmember_19(), "[Fex]3[Aly]2"},
+                                        {endmember_20(), "[Mnx]3[Aly]2"},
+                                        {endmember_21(), "[Cax]3[Aly]2"},
+                                        {endmember_498(), "[Mgx]3[Fethreey]2"}};
+  auto model = std::make_shared<solution_models::AsymmetricRegularSolution>(
+      members, std::vector<double>{1.0, 1.0, 1.0, 2.7, 1.0},
+      Interactions{{2500.0, 2000.0, 30999.999999999996, 5400.0},
+                   {2000.0, 5000.0, 22600.0},
+                   {0.0, 29400.0},
+                   {-15299.999999999996}},
+      Interactions{{0.0, 0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("g");
+  solution->set_composition(Eigen::ArrayXd::Constant(5, 1.0 / 5.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> liq() {
+  types::PairedEndmemberList members = {
+      {endmember_469(), "[Fac1/2Pq1/2]2[]0"},
+      {endmember_219(), "[Fac1/2Xab1/2]2[]0"},
+      {endmember_218(), "[Fac1/2Xksp1/2]2[]0"},
+      {endmember_217(), "[Fac1/2Pan1/2]2[]0"},
+      {endmember_574(), "[Fac1/2Psil1/2]2[]0"},
+      {endmember_575(), "[Fac1/2Pol1/2]2[Xmg]5"},
+      {endmember_576(), "[Fac1/2Pol1/2]2[Xfe]5"},
+      {endmember_210(), "[Phtwoo]2[]0"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members,
+      Interactions{
+          {12000.0, -2000.0, 5000.0, 12000.0, 12000.0, 14000.0, 17000.0},
+          {-6000.0, 0.0, 12000.0, 10000.0, 2000.0, -1500.0},
+          {0.0, 12000.0, 12000.0, 12000.0, 9500.0},
+          {0.0, 0.0, 0.0, 7500.0},
+          {12000.0, 12000.0, 11000.0},
+          {18000.0, 11000.0},
+          {12000.0}},
+      Interactions{{-4.000000000000001e-06, -5e-06, 0.0, 0.0,
+                    -4.000000000000001e-06, 0.0, -5e-06},
+                   {3.0000000000000004e-05, 0.0, 0.0, 0.0, 0.0, -3e-06},
+                   {-1e-05, 0.0, 0.0, 0.0, -3e-06},
+                   {0.0, 0.0, 0.0, -5e-06},
+                   {0.0, 0.0, 0.0},
+                   {0.0, -5e-06},
+                   {0.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0},
+                   {0.0, 0.0},
+                   {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("liq");
+  solution->set_composition(Eigen::ArrayXd::Constant(8, 1.0 / 8.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> pl4tr() {
+  types::PairedEndmemberList members = {
+      {endmember_132(), "[Naa][Altb1/4Sitb3/4]"},
+      {endmember_136(), "[Caa][Altb1/2Sitb1/2]"},
+      {endmember_135(), "[Ka][Altb1/4Sitb3/4]"}};
+  auto model = std::make_shared<solution_models::AsymmetricRegularSolution>(
+      members, std::vector<double>{0.674, 0.55, 1.0},
+      Interactions{{14600.0, 24100.000000000004}, {48500.0}},
+      Interactions{{-4.0000000000000003e-07, 3.380000000000001e-06},
+                   {-1.3e-06}},
+      Interactions{{9.350000000000001, 9.57}, {-0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("pl4tr");
+  solution->set_composition(Eigen::ArrayXd::Constant(3, 1.0 / 3.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> k4tr() {
+  types::PairedEndmemberList members = {
+      {endmember_132(), "[Naa][Altb1/4Sitb3/4]"},
+      {endmember_136(), "[Caa][Altb1/2Sitb1/2]"},
+      {endmember_135(), "[Ka][Altb1/4Sitb3/4]"}};
+  auto model = std::make_shared<solution_models::AsymmetricRegularSolution>(
+      members, std::vector<double>{0.674, 0.55, 1.0},
+      Interactions{{14600.0, 24100.000000000004}, {48500.0}},
+      Interactions{{-4.0000000000000003e-07, 3.380000000000001e-06},
+                   {-1.3e-06}},
+      Interactions{{9.350000000000001, 9.57}, {-0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("k4tr");
+  solution->set_composition(Eigen::ArrayXd::Constant(3, 1.0 / 3.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> plc() {
+  types::PairedEndmemberList members = {{endmember_133(), "[Na]"},
+                                        {endmember_501(), "[Ca]"},
+                                        {endmember_135(), "[K]"}};
+  auto model = std::make_shared<solution_models::AsymmetricRegularSolution>(
+      members, std::vector<double>{0.643, 1.0, 1.0},
+      Interactions{{3099.9999999999995, 25099.999999999996}, {40000.0}},
+      Interactions{{0.0, 3.3800000000000002e-06}, {0.0}},
+      Interactions{{-0.0, 10.8}, {-0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("plc");
+  solution->set_composition(Eigen::ArrayXd::Constant(3, 1.0 / 3.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> ksp() {
+  types::PairedEndmemberList members = {{endmember_135(), "[K]"},
+                                        {endmember_133(), "[Na]"},
+                                        {endmember_501(), "[Ca]"}};
+  auto model = std::make_shared<solution_models::AsymmetricRegularSolution>(
+      members, std::vector<double>{1.0, 0.643, 1.0},
+      Interactions{{25099.999999999996, 40000.0}, {3099.9999999999995}},
+      Interactions{{3.3800000000000002e-06, 0.0}, {0.0}},
+      Interactions{{10.8, -0.0}, {-0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("ksp");
+  solution->set_composition(Eigen::ArrayXd::Constant(3, 1.0 / 3.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> ep() {
+  types::PairedEndmemberList members = {{endmember_43(), "[Almone][Almthree]"},
+                                        {endmember_44(), "[Almone][Femthree]"},
+                                        {endmember_45(), "[Femone][Femthree]"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members, Interactions{{1000.0, 3000.0}, {1000.0}},
+      Interactions{{0.0, 0.0}, {0.0}}, Interactions{{0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("ep");
+  solution->set_composition(Eigen::ArrayXd::Constant(3, 1.0 / 3.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> ma() {
+  types::PairedEndmemberList members = {
+      {endmember_577(), "[Ka][Almtwoa][Almtwob][Sitone1/2Altone1/2]2"},
+      {endmember_578(), "[Ka][Mgmtwoa][Almtwob][Sitone]2"},
+      {endmember_579(), "[Ka][Femtwoa][Almtwob][Sitone]2"},
+      {endmember_580(), "[Naa][Almtwoa][Almtwob][Sitone1/2Altone1/2]2"},
+      {endmember_103(), "[Caa][Almtwoa][Almtwob][Altone]2"},
+      {endmember_581(), "[Ka][Almtwoa][Fethreemtwob][Sitone1/2Altone1/2]2"}};
+  auto model = std::make_shared<solution_models::AsymmetricRegularSolution>(
+      members, std::vector<double>{0.63, 0.63, 0.63, 0.37, 0.63, 0.63},
+      Interactions{{0.0, 0.0, 10120.0, 34000.0, 0.0},
+                   {0.0, 45000.0, 50000.0, 0.0},
+                   {45000.0, 50000.0, 0.0},
+                   {18000.0, 30000.0},
+                   {35000.0}},
+      Interactions{
+          {2.0000000000000003e-06, 2.0000000000000003e-06, 3.53e-06, 0.0, 0.0},
+          {0.0, 2.5e-06, 0.0, 0.0},
+          {2.5e-06, 0.0, 0.0},
+          {0.0, 0.0},
+          {0.0}},
+      Interactions{{-0.0, -0.0, -3.4, -0.0, -0.0},
+                   {-0.0, -0.0, -0.0, -0.0},
+                   {-0.0, -0.0, -0.0},
+                   {-0.0, -0.0},
+                   {-0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("ma");
+  solution->set_composition(Eigen::ArrayXd::Constant(6, 1.0 / 6.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> mu() {
+  types::PairedEndmemberList members = {
+      {endmember_99(), "[Ka][Almtwoa][Almtwob][Sitone1/2Altone1/2]2"},
+      {endmember_100(), "[Ka][Mgmtwoa][Almtwob][Sitone]2"},
+      {endmember_101(), "[Ka][Femtwoa][Almtwob][Sitone]2"},
+      {endmember_102(), "[Naa][Almtwoa][Almtwob][Sitone1/2Altone1/2]2"},
+      {endmember_582(), "[Caa][Almtwoa][Almtwob][Altone]2"},
+      {endmember_581(), "[Ka][Almtwoa][Fethreemtwob][Sitone1/2Altone1/2]2"}};
+  auto model = std::make_shared<solution_models::AsymmetricRegularSolution>(
+      members, std::vector<double>{0.63, 0.63, 0.63, 0.37, 0.63, 0.63},
+      Interactions{{0.0, 0.0, 10120.0, 35000.0, 0.0},
+                   {0.0, 45000.0, 50000.0, 0.0},
+                   {45000.0, 50000.0, 0.0},
+                   {15000.0, 30000.0},
+                   {35000.0}},
+      Interactions{
+          {2.0000000000000003e-06, 2.0000000000000003e-06, 3.53e-06, 0.0, 0.0},
+          {0.0, 2.5e-06, 0.0, 0.0},
+          {2.5e-06, 0.0, 0.0},
+          {0.0, 0.0},
+          {0.0}},
+      Interactions{{-0.0, -0.0, -3.4, -0.0, -0.0},
+                   {-0.0, -0.0, -0.0, -0.0},
+                   {-0.0, -0.0, -0.0},
+                   {-0.0, -0.0},
+                   {-0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("mu");
+  solution->set_composition(Eigen::ArrayXd::Constant(6, 1.0 / 6.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> bi() {
+  types::PairedEndmemberList members = {
+      {endmember_104(), "[Mgmthree][Mgmonetwo]2[Sit1/2Alt1/2]2[Ohv]2"},
+      {endmember_506(), "[Femthree][Femonetwo]2[Sit1/2Alt1/2]2[Ohv]2"},
+      {endmember_507(), "[Femthree][Mgmonetwo]2[Sit1/2Alt1/2]2[Ohv]2"},
+      {endmember_107(), "[Almthree][Mgmonetwo]2[Alt]2[Ohv]2"},
+      {endmember_508(), "[Timthree][Mgmonetwo]2[Sit1/2Alt1/2]2[Ov]2"},
+      {endmember_509(), "[Fethreemthree][Mgmonetwo]2[Alt]2[Ohv]2"},
+      {endmember_1214(), "[Mnmthree][Mnmonetwo]2[Sit1/2Alt1/2]2[Ohv]2"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members,
+      Interactions{{12000.0, 4000.0, 10000.0, 30000.0, 8000.0, 9000.0},
+                   {8000.0, 15000.0, 32000.0, 13600.0, 6300.0},
+                   {7000.0, 24000.0, 5600.0, 8100.0},
+                   {40000.0, 1000.0, 13000.0},
+                   {40000.0, 30000.0},
+                   {11600.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0},
+                   {0.0, 0.0},
+                   {0.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0},
+                   {0.0, 0.0},
+                   {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("bi");
+  solution->set_composition(Eigen::ArrayXd::Constant(7, 1.0 / 7.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> opx() {
+  types::PairedEndmemberList members = {
+      {endmember_63(), "[Mgmone][Mgmtwo][Sit]1/2"},
+      {endmember_67(), "[Femone][Femtwo][Sit]1/2"},
+      {endmember_495(), "[Mgmone][Femtwo][Sit]1/2"},
+      {endmember_68(), "[Almone][Mgmtwo][Sit1/2Alt1/2]1/2"},
+      {endmember_496(), "[Fethreemone][Mgmtwo][Sit1/2Alt1/2]1/2"},
+      {endmember_1215(), "[Mnmone][Mnmtwo][Sit]1/2"},
+      {endmember_497(), "[Mgmone][Camtwo][Sit]1/2"}};
+  auto model = std::make_shared<solution_models::AsymmetricRegularSolution>(
+      members, std::vector<double>{1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.2},
+      Interactions{
+          {7000.0, 4000.0, 13000.0, 11000.0, 5000.0, 32200.000000000007},
+          {4000.0, 13000.0, 11600.0, 4200.0, 25540.0},
+          {17000.0, 15000.0, 5100.0, 22540.000000000004},
+          {1000.0, 12000.0, 75400.0},
+          {10600.0, 73400.0},
+          {24540.0}},
+      Interactions{{0.0, 0.0, -1.5e-06, -1.5e-06, 0.0, 1.2000000000000002e-06},
+                   {0.0, -1.5e-06, -1.5e-06, 0.0, 8.400000000000002e-07},
+                   {-1.5e-06, -1.5e-06, 0.0, 8.400000000000002e-07},
+                   {0.0, -1.5e-06, -9.4e-06},
+                   {-1.5e-06, -9.4e-06},
+                   {8.400000000000002e-07}},
+      Interactions{{0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0},
+                   {0.0, 0.0},
+                   {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("opx");
+  solution->set_composition(Eigen::ArrayXd::Constant(7, 1.0 / 7.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> sa() {
+  types::PairedEndmemberList members = {
+      {endmember_93(), "[Mgmthree][Mgmfourfivesix]3[Sit]"},
+      {endmember_94(), "[Almthree][Mgmfourfivesix]3[Alt]"},
+      {endmember_586(), "[Femthree][Femfourfivesix]3[Sit]"},
+      {endmember_587(), "[Mgmthree][Femfourfivesix]3[Sit]"},
+      {endmember_588(), "[Fethreemthree][Mgmfourfivesix]3[Alt]"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members,
+      Interactions{{10000.0, 16000.0, 12000.0, 8000.0},
+                   {19000.0, 22000.0, 1000.0},
+                   {4000.0, 17600.0},
+                   {20000.0}},
+      Interactions{{-2.0000000000000002e-07, 0.0, 0.0, -2.0000000000000002e-07},
+                   {-2.0000000000000002e-07, -2.0000000000000002e-07, 0.0},
+                   {0.0, -2.0000000000000002e-07},
+                   {-2.0000000000000002e-07}},
+      Interactions{{0.0, 0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("sa");
+  solution->set_composition(Eigen::ArrayXd::Constant(5, 1.0 / 5.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> cd() {
+  types::PairedEndmemberList members = {{endmember_55(), "[Mgx]2[Vh]"},
+                                        {endmember_57(), "[Fex]2[Vh]"},
+                                        {endmember_56(), "[Mgx]2[Htwooh]"},
+                                        {endmember_1216(), "[Mnx]2[Vh]"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members, Interactions{{8000.0, 0.0, 6000.0}, {9000.0, 4000.0}, {6000.0}},
+      Interactions{{0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}},
+      Interactions{{0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("cd");
+  solution->set_composition(Eigen::ArrayXd::Constant(4, 1.0 / 4.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> st() {
+  types::PairedEndmemberList members = {
+      {endmember_589(), "[Mgx]4[Aly]2"},
+      {endmember_35(), "[Fex]4[Aly]2"},
+      {endmember_1217(), "[Mnx]4[Aly]2"},
+      {endmember_1218(), "[Mgx]4[Fethreey]2"},
+      {endmember_1219(), "[Mgx]4[Tiy3/4Vy1/4]2"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members,
+      Interactions{{16000.0, 12000.0, 2000.0, 20000.0},
+                   {8000.0, 18000.0, 36000.0},
+                   {14000.0, 32000.0},
+                   {30000.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("st");
+  solution->set_composition(Eigen::ArrayXd::Constant(5, 1.0 / 5.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> chl() {
+  types::PairedEndmemberList members = {
+      {endmember_109(), "[Mgmone][Mgmtwothree]4[Almfour][Sittwo1/2Alttwo1/2]2"},
+      {endmember_111(), "[Mgmone][Mgmtwothree]4[Mgmfour][Sittwo]2"},
+      {endmember_110(), "[Almone][Mgmtwothree]4[Almfour][Alttwo]2"},
+      {endmember_112(), "[Femone][Femtwothree]4[Almfour][Sittwo1/2Alttwo1/2]2"},
+      {endmember_512(), "[Mgmone][Femtwothree]4[Femfour][Sittwo]2"},
+      {endmember_513(), "[Femone][Mgmtwothree]4[Mgmfour][Sittwo]2"},
+      {endmember_514(),
+       "[Mgmone][Mgmtwothree]4[Fethreemfour][Sittwo1/2Alttwo1/2]2"},
+      {endmember_1220(),
+       "[Mnmone][Mnmtwothree]4[Almfour][Sittwo1/2Alttwo1/2]2"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members,
+      Interactions{
+          {17000.0, 17000.0, 20000.0, 30000.0, 21000.0, 2000.0, 6000.0},
+          {16000.0, 37000.0, 20000.0, 4000.0, 15000.0, 23000.0},
+          {30000.0, 29000.0, 13000.0, 19000.0, 17000.0},
+          {18000.0, 33000.0, 22000.0, 4000.0},
+          {24000.0, 28600.0, 19000.0},
+          {19000.0, 22000.0},
+          {8000.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0},
+                   {0.0, 0.0},
+                   {0.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0},
+                   {0.0, 0.0},
+                   {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("chl");
+  solution->set_composition(Eigen::ArrayXd::Constant(8, 1.0 / 8.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> ctd() {
+  types::PairedEndmemberList members = {
+      {endmember_37(), "[Almonea]1/2[Mgmoneb]"},
+      {endmember_38(), "[Almonea]1/2[Femoneb]"},
+      {endmember_1221(), "[Almonea]1/2[Mnmoneb]"},
+      {endmember_1222(), "[Fethreemonea]1/2[Mgmoneb]"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members,
+      Interactions{{4000.0, 3000.0, 1000.0}, {3000.0, 5000.0}, {4000.0}},
+      Interactions{{0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}},
+      Interactions{{0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("ctd");
+  solution->set_composition(Eigen::ArrayXd::Constant(4, 1.0 / 4.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> sp() {
+  types::PairedEndmemberList members = {{endmember_175(), "[Al][Fetwo]"},
+                                        {endmember_174(), "[Al][Mg]"},
+                                        {endmember_176(), "[Fethree][Fetwo]"},
+                                        {endmember_178(), "[Ti][Fetwo]"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members, Interactions{{0.0, 18500.0, 27000.0}, {40000.0, 30000.0}, {0.0}},
+      Interactions{{0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}},
+      Interactions{{0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("sp");
+  solution->set_composition(Eigen::ArrayXd::Constant(4, 1.0 / 4.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> ilmm() {
+  types::PairedEndmemberList members = {
+      {endmember_503(), "[Fea][Tib]"},
+      {endmember_504(), "[Fea1/2Tia1/2][Feb1/2Tib1/2]"},
+      {endmember_505(), "[Fethreea][Fethreeb]"},
+      {endmember_169(), "[Mga][Tib]"},
+      {endmember_168(), "[Mna][Tib]"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members,
+      Interactions{{15600.0, 26600.0, 4000.0, 2000.0},
+                   {11000.0, 4000.0, 2000.0},
+                   {36000.0, 25000.0},
+                   {4000.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("ilmm");
+  solution->set_composition(Eigen::ArrayXd::Constant(5, 1.0 / 5.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> ilm() {
+  types::PairedEndmemberList members = {
+      {endmember_503(), "[Fetwoa][Tib]"},
+      {endmember_504(), "[Fetwoa1/2Tia1/2][Fetwob1/2Tib1/2]"},
+      {endmember_505(), "[Fethreea][Fethreeb]"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members, Interactions{{15600.0, 26600.0}, {11000.0}},
+      Interactions{{0.0, 0.0}, {0.0}}, Interactions{{0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("ilm");
+  solution->set_composition(Eigen::ArrayXd::Constant(3, 1.0 / 3.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> mt1() {
+  types::PairedEndmemberList members = {
+      {endmember_594(), "[Fethreem1/2Fem1/2]2[Fethreet]"},
+      {endmember_595(), "[Fethreem2/3Fem1/3]2[Fethreet2/3Fet1/3]"},
+      {endmember_178(), "[Tim1/2Fem1/2]2[Fet]"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members, Interactions{{2400.0, 1000.0}, {-5000.0}},
+      Interactions{{0.0, 0.0}, {0.0}}, Interactions{{0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("mt1");
+  solution->set_composition(Eigen::ArrayXd::Constant(3, 1.0 / 3.0));
+  return solution;
+}
+} // namespace mp50MnNCKFMASHTO
 } // namespace burnman::minerals

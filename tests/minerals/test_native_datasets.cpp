@@ -151,6 +151,34 @@ TEST_CASE("Native reduced solution systems", "[native_datasets]") {
   CHECK(std::isfinite(opx->get_molar_gibbs()));
 }
 
+TEST_CASE("Mn metapelite solutions retain their Mn endmembers",
+          "[native_datasets][metapelite]") {
+  namespace mp = minerals::mp50MnNCKFMASHTO;
+  auto garnet = mp::g();
+  REQUIRE(garnet->get_n_endmembers() == 5);
+  Eigen::ArrayXd fractions = Eigen::ArrayXd::Zero(5);
+  fractions[2] = 1.;
+  garnet->set_composition(fractions);
+  const auto spessartine = minerals::HP11::spss();
+  garnet->set_state(4.e8, 873.15);
+  spessartine->set_state(4.e8, 873.15);
+  CHECK(garnet->get_formula().at("Mn") == 3.);
+  CHECK_THAT(garnet->get_molar_gibbs(),
+             WithinRel(spessartine->get_molar_gibbs(), 1.e-12));
+
+  auto biotite = mp::bi();
+  REQUIRE(biotite->get_n_endmembers() == 7);
+  fractions = Eigen::ArrayXd::Zero(7);
+  fractions[6] = 1.;
+  biotite->set_composition(fractions);
+  biotite->set_state(4.e8, 873.15);
+  const auto mn_biotite = minerals::HP11::mnbi();
+  mn_biotite->set_state(4.e8, 873.15);
+  CHECK(biotite->get_formula().at("Mn") == 3.);
+  CHECK_THAT(biotite->get_molar_gibbs(),
+             WithinRel(mn_biotite->get_molar_gibbs() - 7890., 1.e-12));
+}
+
 TEST_CASE("Aluminosilicate invariant from native factories",
           "[native_datasets]") {
   auto sill = minerals::HP11::sill();
