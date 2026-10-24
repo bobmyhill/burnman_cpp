@@ -18,6 +18,9 @@ IG24 and IG25 provide dataset 6.36 and the W24/G25 igneous families.
 MP14 and MB16 provide metapelite and metabasite solutions, including melts.
 SLB11, JH15 and SLB24 provide mantle models and relaxed spin solutions.
 SLB_2005, SLB_2011_ZSB_2013 and SLB_2022 retain the original dataset names.
+HHPH_2013 provides high-pressure endmembers; HP_2011_fluids provides water
+and six gases. ig50NCKFMASTOCr provides dry igneous solutions, and mp50KFMASH
+provides metapelite solutions. These catalogues retain their original names.
 The older datasets have no reference free energies; SLB_2011_ZSB_2013 also
 omits chemical formulae. Its elastic and thermal properties remain available.
 Materials created from the same dataset are independent of one another.
@@ -47,6 +50,10 @@ from .._core.minerals import (
     SLB_2005,
     SLB_2011_ZSB_2013,
     SLB_2022,
+    HHPH_2013,
+    HP_2011_fluids,
+    ig50NCKFMASTOCr,
+    mp50KFMASH,
     model_sets,
 )
 
@@ -67,6 +74,10 @@ __all__ = [
     "SLB_2005",
     "SLB_2011_ZSB_2013",
     "SLB_2022",
+    "HHPH_2013",
+    "HP_2011_fluids",
+    "ig50NCKFMASTOCr",
+    "mp50KFMASH",
     "model_sets",
 ]
 
