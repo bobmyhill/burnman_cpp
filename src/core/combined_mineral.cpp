@@ -27,6 +27,14 @@ public:
       : minerals_(std::move(minerals)), amounts_(std::move(amounts)) {}
   void validate_parameters(types::MineralParams &) override {}
 
+  std::map<std::string, double> raw_amounts() const {
+    std::map<std::string, double> result;
+    for (std::size_t i = 0; i < minerals_.size(); ++i)
+      for (const auto &[name, amount] : raw_endmember_amounts(minerals_[i]))
+        result[name] += amounts_[static_cast<Eigen::Index>(i)] * amount;
+    return result;
+  }
+
   template <typename Getter>
   double sum(double p, double t, Getter getter) const {
     double total = 0.0;
@@ -96,6 +104,13 @@ private:
   const Eigen::ArrayXd amounts_;
 };
 } // namespace
+
+std::map<std::string, double> raw_endmember_amounts(const Mineral &mineral) {
+  const auto *combined =
+      dynamic_cast<const CombinedEOS *>(mineral.eos_method.get());
+  return combined ? combined->raw_amounts()
+                  : std::map<std::string, double>{{mineral.get_name(), 1.}};
+}
 
 Mineral make_combined_mineral(const std::vector<Mineral> &minerals,
                               const Eigen::ArrayXd &amounts,

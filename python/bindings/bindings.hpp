@@ -31,6 +31,7 @@ void bind_materials(py::module_ &m);
 void bind_composition(py::module_ &m);
 void bind_linear_fitting(py::module_ &m);
 void bind_composition_fitting(py::module_ &m);
+void bind_thermobarometry(py::module_ &m);
 void bind_chemistry(py::module_ &m);
 void bind_solutions(py::module_ &m);
 void bind_equilibration(py::module_ &m);
@@ -103,5 +104,22 @@ void bind_property(Binding &cls, const char *name, const char *getter_name,
   };
   cls.def_property_readonly(name, call, py::return_value_policy::copy);
   cls.def(getter_name, call, py::return_value_policy::copy);
+}
+// Optional observation data behave like attributes only after assignment.
+// Return snapshots so Python cannot mutate native covariance matrices in place.
+template <typename Class, typename Value, typename Binding>
+void bind_optional_attribute(Binding &cls, const char *name,
+                             std::optional<Value> Class::*member) {
+  cls.def_property(
+      name,
+      [member, name](const Class &self) -> Value {
+        const auto &value = self.*member;
+        if (!value)
+          throw py::attribute_error(std::string(name) + " has not been set.");
+        return *value;
+      },
+      [member](Class &self, const std::optional<Value> &value) {
+        self.*member = value;
+      });
 }
 } // namespace burnman::python

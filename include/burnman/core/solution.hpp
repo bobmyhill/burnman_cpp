@@ -57,6 +57,13 @@ public:
   virtual ~Solution() = default;
   std::shared_ptr<Material> copy() const override;
 
+  /// Observation covariance of endmember molar fractions.
+  std::optional<Eigen::MatrixXd> compositional_covariances;
+  /// Rows are free changes in endmember molar fractions.
+  std::optional<Eigen::MatrixXd> free_compositional_vectors;
+  /// Reference molar fractions for the free compositional coordinates.
+  std::optional<Eigen::ArrayXd> baseline_composition;
+
   // Override of reset_cache to include additional solution properties
   void reset_cache() override;
 

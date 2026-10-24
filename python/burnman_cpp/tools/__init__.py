@@ -13,7 +13,7 @@
 
 """Native numerical tools and optional plotting helpers."""
 
-from . import seismic, chemistry, partitioning
+from . import seismic, chemistry, partitioning, thermobarometry
 
 from .equilibrium_path import (
     EquilibriumPath,
@@ -58,6 +58,7 @@ __all__ = [
     "seismic",
     "chemistry",
     "partitioning",
+    "thermobarometry",
     "EquilibriumPath",
     "calculate_equilibrium_path",
     "sample_equilibrium_path",
