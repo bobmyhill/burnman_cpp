@@ -34,7 +34,7 @@ cmake.version = ">=3.18"
 build-dir = "build/python/{wheel_tag}"
 wheel.packages = ["python/burnman_cpp"]
 sdist.include = [
-  "/CMakeLists.txt", "/include/**/*.hpp", "/src/**/*.cpp", "/src/**/*.hpp",
+  "/CMakeLists.txt", "/cmake/*.cmake", "/include/**/*.hpp", "/src/**/*.cpp", "/src/**/*.hpp",
   "/python/bindings/*.cpp", "/python/bindings/*.hpp",
   "/python/burnman_cpp/**/*.py", "/python/tests/*.py", "/examples/*.py",
   "/src/data/input_seismic/*", "/tools/export_seismic_data.py",
