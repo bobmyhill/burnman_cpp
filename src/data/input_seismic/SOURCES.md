@@ -15,6 +15,6 @@ BurnMan is distributed under GPL v2 or later; these copies are distributed
 as part of burnman_cpp under GPL-3.0-or-later (see the root LICENSE).
 
 Run `python tools/export_seismic_data.py` after changing a table to regenerate
-`src/core/seismic_data.hpp`. The native library embeds those same tables and
+`src/data/seismic_data.hpp`. The native library embeds those same tables and
 requires no data paths at runtime. The generated header is committed so that
 standalone C++ builds do not require Python.

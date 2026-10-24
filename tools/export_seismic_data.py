@@ -12,9 +12,9 @@
 #
 # ------------------------------------------------------
 
-"""Embed the packaged BurnMan seismic tables for standalone native builds.
+"""Embed the BurnMan seismic tables for standalone native builds.
 
-Run from any directory after updating python/burnman_cpp/data/input_seismic.
+Run from any directory after updating src/data/input_seismic.
 The generated header is committed so native builds do not require Python.
 """
 
@@ -23,7 +23,7 @@ from pathlib import Path
 
 def main():
     root = Path(__file__).resolve().parents[1]
-    tables = root / "python/burnman_cpp/data/input_seismic"
+    tables = root / "src/data/input_seismic"
     lines = [
         "// ------------------------------------------------------",
         "//",
@@ -48,7 +48,7 @@ def main():
         lines.append(path.read_text().rstrip())
         lines.append(')SEISMIC";')
     lines.extend(["// clang-format on", "} // namespace burnman::seismic::data", ""])
-    (root / "src/core/seismic_data.hpp").write_text("\n".join(lines))
+    (root / "src/data/seismic_data.hpp").write_text("\n".join(lines))
 
 
 if __name__ == "__main__":

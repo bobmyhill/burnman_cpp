@@ -12,22 +12,23 @@
 // ------------------------------------------------------
 
 #include "burnman/core/geotherm.hpp"
+#include "../data/geotherm_data.hpp"
+#include "../data/read_table.hpp"
 #include "burnman/core/assemblage.hpp"
 #include "burnman/core/material.hpp"
 #include "burnman/optim/roots/brent.hpp"
-#include "geotherm_data.hpp"
 #include <algorithm>
 #include <cmath>
 #include <exception>
-#include <sstream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <utility>
-#include <vector>
 
 namespace burnman::geotherm {
 namespace {
 using Array = Eigen::ArrayXd;
+using burnman::data::read_table;
 
 // Equilibrating composites may change the number of formula-unit moles as
 // reactions proceed. Follow the entropy of the fixed bulk, rather than its
@@ -78,24 +79,6 @@ Array interpolate(const Array &query, const Array &x, const Array &y,
     }
   }
   return result;
-}
-
-Eigen::ArrayXXd read_table(const char *text) {
-  std::istringstream input(text);
-  std::vector<std::pair<double, double>> values;
-  std::string line;
-  while (std::getline(input, line)) {
-    std::istringstream row(line.substr(0, line.find('#')));
-    double coordinate, temperature;
-    if (row >> coordinate >> temperature)
-      values.emplace_back(coordinate, temperature);
-  }
-  Eigen::ArrayXXd table(static_cast<Eigen::Index>(values.size()), 2);
-  for (Eigen::Index i = 0; i < table.rows(); ++i) {
-    table(i, 0) = values[static_cast<std::size_t>(i)].first;
-    table(i, 1) = values[static_cast<std::size_t>(i)].second;
-  }
-  return table;
 }
 
 std::shared_ptr<seismic::Seismic1DModel>

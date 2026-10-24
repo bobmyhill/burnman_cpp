@@ -12,9 +12,9 @@
 #
 # ------------------------------------------------------
 
-"""Embed the packaged BurnMan geotherm tables for standalone native builds.
+"""Embed the BurnMan geotherm tables for standalone native builds.
 
-Run from any directory after updating python/burnman_cpp/data/input_geotherm.
+Run from any directory after updating src/data/input_geotherm.
 The generated header is committed so native builds do not require Python.
 """
 
@@ -23,7 +23,7 @@ from pathlib import Path
 
 def main():
     root = Path(__file__).resolve().parents[1]
-    tables = root / "python/burnman_cpp/data/input_geotherm"
+    tables = root / "src/data/input_geotherm"
     lines = [
         "// ------------------------------------------------------",
         "//",
@@ -48,7 +48,7 @@ def main():
         lines.append(path.read_text().rstrip())
         lines.append(')GEOTHERM";')
     lines.extend(["// clang-format on", "} // namespace burnman::geotherm::data", ""])
-    (root / "src/core/geotherm_data.hpp").write_text("\n".join(lines))
+    (root / "src/data/geotherm_data.hpp").write_text("\n".join(lines))
 
 
 if __name__ == "__main__":
