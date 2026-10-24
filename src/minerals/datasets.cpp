@@ -23,8 +23,9 @@
  * HPx_ds636, ig51W24 (Weller et al. 2024) and ig51G25 (Green et al. 2025),
  * SLB_2024 (Stixrude & Lithgow-Bertelloni 2024, doi:10.1093/gji/ggae126),
  * DKS_2013_solids and DKS_2013_liquids (de Koker et al. 2013,
- * doi:10.1016/j.epsl.2012.11.026). Legacy HGP18 melt pseudo-species Alsi2 is
- * renamed Alsitwo to preserve pjd=1.
+ * doi:10.1016/j.epsl.2012.11.026). SLB_2005, SLB_2011_ZSB_2013 and SLB_2022
+ * (Stixrude & Lithgow-Bertelloni, and Zhang, Stixrude & Brodholt 2013). Legacy
+ * HGP18 melt pseudo-species Alsi2 is renamed Alsitwo to preserve pjd=1.
  */
 #include "burnman/minerals/datasets.hpp"
 #include "burnman/core/combined_mineral.hpp"
@@ -12824,6 +12825,12 @@ Mineral endmember_515() {
   m.params.q_0 = 0.20401;
   m.set_method(types::EOSType::Auto);
   m.set_name("HP_Clinoenstatite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 7.0},       {"err_F_0", 3000.0},
+      {"err_G_0", 1000000000.0},  {"err_Gprime_0", 0.1},
+      {"err_K_0", 1000000000.0},  {"err_K_prime_0", 0.3},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 0.5},
+      {"err_grueneisen_0", 0.05}, {"err_q_0", 0.5}};
   return m;
 }
 
@@ -12848,6 +12855,12 @@ Mineral endmember_516() {
   m.params.q_0 = 0.20401;
   m.set_method(types::EOSType::Auto);
   m.set_name("HP_Clinoferrosilite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 11.0},      {"err_F_0", 4000.0},
+      {"err_G_0", 10000000000.0}, {"err_Gprime_0", 0.5},
+      {"err_K_0", 10000000000.0}, {"err_K_prime_0", 1.0},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.3},  {"err_q_0", 1.0}};
   m.set_property_modifier_params(
       {eos::excesses::LinearParams{0.0, 26.76, 0.0}});
   return m;
@@ -12874,6 +12887,12 @@ Mineral endmember_517() {
   m.params.q_0 = 1.0;
   m.set_method(types::EOSType::Auto);
   m.set_name("Mg_Ca_Ferrite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 16.0},     {"err_F_0", 4000.0},
+      {"err_G_0", 1000000000.0}, {"err_Gprime_0", 0.1},
+      {"err_K_0", 1000000000.0}, {"err_K_prime_0", 0.1},
+      {"err_V_0", 0.0},          {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.3}, {"err_q_0", 1.0}};
   return m;
 }
 
@@ -12898,6 +12917,12 @@ Mineral endmember_518() {
   m.params.q_0 = 1.0;
   m.set_method(types::EOSType::Auto);
   m.set_name("Fe_Ca_Ferrite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 69.0},      {"err_F_0", 25000.0},
+      {"err_G_0", 10000000000.0}, {"err_Gprime_0", 0.5},
+      {"err_K_0", 10000000000.0}, {"err_K_prime_0", 1.0},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.3},  {"err_q_0", 1.0}};
   m.set_property_modifier_params(
       {eos::excesses::LinearParams{0.0, 13.38, 0.0}});
   return m;
@@ -12925,6 +12950,12 @@ Mineral endmember_519() {
   m.params.q_0 = 1.0;
   m.set_method(types::EOSType::Auto);
   m.set_name("Na_Ca_Ferrite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 51.0},     {"err_F_0", 11000.0},
+      {"err_G_0", 1000000000.0}, {"err_Gprime_0", 0.1},
+      {"err_K_0", 1000000000.0}, {"err_K_prime_0", 0.1},
+      {"err_V_0", 0.0},          {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.3}, {"err_q_0", 1.0}};
   return m;
 }
 
@@ -12950,6 +12981,12 @@ Mineral endmember_520() {
   m.params.q_0 = 1.52852;
   m.set_method(types::EOSType::Auto);
   m.set_name("Diopside");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 3.0},       {"err_F_0", 2000.0},
+      {"err_G_0", 2000000000.0},  {"err_Gprime_0", 0.5},
+      {"err_K_0", 5000000000.0},  {"err_K_prime_0", 1.8},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.05}, {"err_q_0", 2.0}};
   return m;
 }
 
@@ -12975,6 +13012,12 @@ Mineral endmember_521() {
   m.params.q_0 = 1.52852;
   m.set_method(types::EOSType::Auto);
   m.set_name("Hedenbergite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 2.0},       {"err_F_0", 45000.0},
+      {"err_G_0", 1000000000.0},  {"err_Gprime_0", 0.5},
+      {"err_K_0", 4000000000.0},  {"err_K_prime_0", 1.0},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.06}, {"err_q_0", 1.0}};
   m.set_property_modifier_params(
       {eos::excesses::LinearParams{0.0, 13.38, 0.0}});
   return m;
@@ -13001,6 +13044,12 @@ Mineral endmember_522() {
   m.params.q_0 = 1.52852;
   m.set_method(types::EOSType::Auto);
   m.set_name("Clinoenstatite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 10.0},      {"err_F_0", 3000.0},
+      {"err_G_0", 10000000000.0}, {"err_Gprime_0", 0.5},
+      {"err_K_0", 10000000000.0}, {"err_K_prime_0", 1.0},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.3},  {"err_q_0", 1.0}};
   return m;
 }
 
@@ -13026,6 +13075,12 @@ Mineral endmember_523() {
   m.params.q_0 = 1.52852;
   m.set_method(types::EOSType::Auto);
   m.set_name("Ca_Tschermaks");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 5.0},       {"err_F_0", 5000.0},
+      {"err_G_0", 10000000000.0}, {"err_Gprime_0", 0.5},
+      {"err_K_0", 10000000000.0}, {"err_K_prime_0", 1.0},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.0},  {"err_q_0", 1.0}};
   m.set_property_modifier_params(
       {eos::excesses::LinearParams{0.0, 11.525, 0.0}});
   return m;
@@ -13053,6 +13108,12 @@ Mineral endmember_524() {
   m.params.q_0 = 0.39234;
   m.set_method(types::EOSType::Auto);
   m.set_name("Jadeite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 12.0},      {"err_F_0", 3000.0},
+      {"err_G_0", 2000000000.0},  {"err_Gprime_0", 0.5},
+      {"err_K_0", 2000000000.0},  {"err_K_prime_0", 1.0},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.08}, {"err_q_0", 1.4}};
   return m;
 }
 
@@ -13078,6 +13139,12 @@ Mineral endmember_525() {
   m.params.q_0 = 1.42169;
   m.set_method(types::EOSType::Auto);
   m.set_name("Pyrope");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 4.0},       {"err_F_0", 10000.0},
+      {"err_G_0", 2000000000.0},  {"err_Gprime_0", 0.2},
+      {"err_K_0", 2000000000.0},  {"err_K_prime_0", 0.3},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 0.3},
+      {"err_grueneisen_0", 0.06}, {"err_q_0", 0.5}};
   return m;
 }
 
@@ -13103,6 +13170,12 @@ Mineral endmember_526() {
   m.params.q_0 = 1.42169;
   m.set_method(types::EOSType::Auto);
   m.set_name("Almandine");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 5.0},       {"err_F_0", 29000.0},
+      {"err_G_0", 1000000000.0},  {"err_Gprime_0", 0.1},
+      {"err_K_0", 2000000000.0},  {"err_K_prime_0", 0.2},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.06}, {"err_q_0", 1.0}};
   m.set_property_modifier_params(
       {eos::excesses::LinearParams{0.0, 40.14, 0.0}});
   return m;
@@ -13130,6 +13203,12 @@ Mineral endmember_527() {
   m.params.q_0 = 1.88887;
   m.set_method(types::EOSType::Auto);
   m.set_name("Grossular");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 2.0},       {"err_F_0", 11000.0},
+      {"err_G_0", 4000000000.0},  {"err_Gprime_0", 0.1},
+      {"err_K_0", 1000000000.0},  {"err_K_prime_0", 0.2},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 0.1},
+      {"err_grueneisen_0", 0.06}, {"err_q_0", 0.2}};
   return m;
 }
 
@@ -13154,6 +13233,12 @@ Mineral endmember_528() {
   m.params.q_0 = 1.53581;
   m.set_method(types::EOSType::Auto);
   m.set_name("Mg_Majorite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 4.0},       {"err_F_0", 10000.0},
+      {"err_G_0", 2000000000.0},  {"err_Gprime_0", 0.2},
+      {"err_K_0", 3000000000.0},  {"err_K_prime_0", 0.3},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 0.3},
+      {"err_grueneisen_0", 0.07}, {"err_q_0", 0.5}};
   return m;
 }
 
@@ -13179,6 +13264,12 @@ Mineral endmember_529() {
   m.params.q_0 = 1.42169;
   m.set_method(types::EOSType::Auto);
   m.set_name("Jd_Majorite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 18.0},     {"err_F_0", 14000.0},
+      {"err_G_0", 4000000000.0}, {"err_Gprime_0", 0.5},
+      {"err_K_0", 7000000000.0}, {"err_K_prime_0", 1.0},
+      {"err_V_0", 0.0},          {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.3}, {"err_q_0", 1.0}};
   return m;
 }
 
@@ -13203,6 +13294,12 @@ Mineral endmember_530() {
   m.params.q_0 = 2.34514;
   m.set_method(types::EOSType::Auto);
   m.set_name("Mg_Akimotoite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 12.0},      {"err_F_0", 2000.0},
+      {"err_G_0", 8000000000.0},  {"err_Gprime_0", 0.5},
+      {"err_K_0", 4000000000.0},  {"err_K_prime_0", 0.8},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.13}, {"err_q_0", 0.8}};
   return m;
 }
 
@@ -13227,6 +13324,12 @@ Mineral endmember_531() {
   m.params.q_0 = 2.34514;
   m.set_method(types::EOSType::Auto);
   m.set_name("Fe_Akimotoite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 120.0},     {"err_F_0", 21000.0},
+      {"err_G_0", 10000000000.0}, {"err_Gprime_0", 0.5},
+      {"err_K_0", 10000000000.0}, {"err_K_prime_0", 1.0},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.3},  {"err_q_0", 1.0}};
   m.set_property_modifier_params(
       {eos::excesses::LinearParams{0.0, 13.38, 0.0}});
   return m;
@@ -13253,6 +13356,12 @@ Mineral endmember_532() {
   m.params.q_0 = 1.30316;
   m.set_method(types::EOSType::Auto);
   m.set_name("Corundum");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 3.0},       {"err_F_0", 1000.0},
+      {"err_G_0", 2000000000.0},  {"err_Gprime_0", 0.1},
+      {"err_K_0", 5000000000.0},  {"err_K_prime_0", 0.2},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 0.2},
+      {"err_grueneisen_0", 0.04}, {"err_q_0", 0.2}};
   return m;
 }
 
@@ -13277,6 +13386,12 @@ Mineral endmember_533() {
   m.params.q_0 = 1.7217;
   m.set_method(types::EOSType::Auto);
   m.set_name("Periclase");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 9.0},       {"err_F_0", 0.0},
+      {"err_G_0", 1000000000.0},  {"err_Gprime_0", 0.1},
+      {"err_K_0", 3000000000.0},  {"err_K_prime_0", 0.2},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 0.2},
+      {"err_grueneisen_0", 0.05}, {"err_q_0", 0.2}};
   return m;
 }
 
@@ -13301,6 +13416,12 @@ Mineral endmember_534() {
   m.params.q_0 = 1.7217;
   m.set_method(types::EOSType::Auto);
   m.set_name("Wuestite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 21.0},      {"err_F_0", 1000.0},
+      {"err_G_0", 1000000000.0},  {"err_Gprime_0", 0.1},
+      {"err_K_0", 1000000000.0},  {"err_K_prime_0", 0.2},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.13}, {"err_q_0", 1.0}};
   m.set_property_modifier_params(
       {eos::excesses::LinearParams{0.0, 13.38, 0.0}});
   return m;
@@ -13327,6 +13448,12 @@ Mineral endmember_535() {
   m.params.q_0 = 2.10672;
   m.set_method(types::EOSType::Auto);
   m.set_name("Forsterite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 1.0},       {"err_F_0", 2000.0},
+      {"err_G_0", 2000000000.0},  {"err_Gprime_0", 0.1},
+      {"err_K_0", 2000000000.0},  {"err_K_prime_0", 0.2},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 0.1},
+      {"err_grueneisen_0", 0.03}, {"err_q_0", 0.2}};
   return m;
 }
 
@@ -13351,6 +13478,12 @@ Mineral endmember_536() {
   m.params.q_0 = 3.6466;
   m.set_method(types::EOSType::Auto);
   m.set_name("Fayalite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 2.0},       {"err_F_0", 1000.0},
+      {"err_G_0", 2000000000.0},  {"err_Gprime_0", 0.5},
+      {"err_K_0", 2000000000.0},  {"err_K_prime_0", 1.0},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 0.6},
+      {"err_grueneisen_0", 0.07}, {"err_q_0", 1.0}};
   m.set_property_modifier_params(
       {eos::excesses::LinearParams{0.0, 26.76, 0.0}});
   return m;
@@ -13377,6 +13510,12 @@ Mineral endmember_537() {
   m.params.q_0 = 3.43846;
   m.set_method(types::EOSType::Auto);
   m.set_name("Enstatite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 4.0},       {"err_F_0", 2000.0},
+      {"err_G_0", 1000000000.0},  {"err_Gprime_0", 0.1},
+      {"err_K_0", 2000000000.0},  {"err_K_prime_0", 0.4},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 0.1},
+      {"err_grueneisen_0", 0.04}, {"err_q_0", 0.4}};
   return m;
 }
 
@@ -13401,6 +13540,12 @@ Mineral endmember_538() {
   m.params.q_0 = 3.43846;
   m.set_method(types::EOSType::Auto);
   m.set_name("Ferrosilite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 10.0},      {"err_F_0", 4000.0},
+      {"err_G_0", 5000000000.0},  {"err_Gprime_0", 0.5},
+      {"err_K_0", 4000000000.0},  {"err_K_prime_0", 0.5},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.08}, {"err_q_0", 1.0}};
   m.set_property_modifier_params(
       {eos::excesses::LinearParams{0.0, 26.76, 0.0}});
   return m;
@@ -13428,6 +13573,12 @@ Mineral endmember_539() {
   m.params.q_0 = 3.43846;
   m.set_method(types::EOSType::Auto);
   m.set_name("Mg_Tschermaks");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 24.0},      {"err_F_0", 9000.0},
+      {"err_G_0", 10000000000.0}, {"err_Gprime_0", 0.5},
+      {"err_K_0", 10000000000.0}, {"err_K_prime_0", 1.0},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.3},  {"err_q_0", 1.0}};
   return m;
 }
 
@@ -13453,6 +13604,12 @@ Mineral endmember_540() {
   m.params.q_0 = 3.43846;
   m.set_method(types::EOSType::Auto);
   m.set_name("Ortho_Diopside");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 9.0},       {"err_F_0", 3000.0},
+      {"err_G_0", 10000000000.0}, {"err_Gprime_0", 0.5},
+      {"err_K_0", 10000000000.0}, {"err_K_prime_0", 1.0},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.3},  {"err_q_0", 1.0}};
   return m;
 }
 
@@ -13478,6 +13635,12 @@ Mineral endmember_541() {
   m.params.q_0 = 1.0;
   m.set_method(types::EOSType::Auto);
   m.set_name("Anorthite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 2.0},       {"err_F_0", 4000.0},
+      {"err_G_0", 3000000000.0},  {"err_Gprime_0", 0.5},
+      {"err_K_0", 5000000000.0},  {"err_K_prime_0", 1.0},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.05}, {"err_q_0", 1.0}};
   return m;
 }
 
@@ -13503,6 +13666,12 @@ Mineral endmember_542() {
   m.params.q_0 = 1.0;
   m.set_method(types::EOSType::Auto);
   m.set_name("Albite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 13.0},      {"err_F_0", 5000.0},
+      {"err_G_0", 5000000000.0},  {"err_Gprime_0", 0.5},
+      {"err_K_0", 5000000000.0},  {"err_K_prime_0", 1.0},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.03}, {"err_q_0", 1.0}};
   return m;
 }
 
@@ -13527,6 +13696,12 @@ Mineral endmember_543() {
   m.params.q_0 = 1.09081;
   m.set_method(types::EOSType::Auto);
   m.set_name("Mg_Post_Perovskite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 7.0},       {"err_F_0", 3000.0},
+      {"err_G_0", 4000000000.0},  {"err_Gprime_0", 0.1},
+      {"err_K_0", 1000000000.0},  {"err_K_prime_0", 0.1},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 0.2},
+      {"err_grueneisen_0", 0.03}, {"err_q_0", 0.1}};
   return m;
 }
 
@@ -13551,6 +13726,12 @@ Mineral endmember_544() {
   m.params.q_0 = 1.09081;
   m.set_method(types::EOSType::Auto);
   m.set_name("Fe_Post_Perovskite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 52.0},      {"err_F_0", 21000.0},
+      {"err_G_0", 5000000000.0},  {"err_Gprime_0", 0.1},
+      {"err_K_0", 10000000000.0}, {"err_K_prime_0", 1.0},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.3},  {"err_q_0", 1.0}};
   m.set_property_modifier_params(
       {eos::excesses::LinearParams{0.0, 13.38, 0.0}});
   return m;
@@ -13577,6 +13758,12 @@ Mineral endmember_545() {
   m.params.q_0 = 1.09081;
   m.set_method(types::EOSType::Auto);
   m.set_name("Al_Post_Perovskite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 9.0},       {"err_F_0", 4000.0},
+      {"err_G_0", 10000000000.0}, {"err_Gprime_0", 0.1},
+      {"err_K_0", 20000000000.0}, {"err_K_prime_0", 0.1},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 0.2},
+      {"err_grueneisen_0", 0.02}, {"err_q_0", 1.0}};
   return m;
 }
 
@@ -13601,6 +13788,12 @@ Mineral endmember_546() {
   m.params.q_0 = 1.10945;
   m.set_method(types::EOSType::Auto);
   m.set_name("Mg_Perovskite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 5.0},       {"err_F_0", 1000.0},
+      {"err_G_0", 2000000000.0},  {"err_Gprime_0", 0.0},
+      {"err_K_0", 3000000000.0},  {"err_K_prime_0", 0.1},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 0.3},
+      {"err_grueneisen_0", 0.05}, {"err_q_0", 0.3}};
   return m;
 }
 
@@ -13625,6 +13818,12 @@ Mineral endmember_547() {
   m.params.q_0 = 1.10945;
   m.set_method(types::EOSType::Auto);
   m.set_name("Fe_Perovskite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 26.0},      {"err_F_0", 6000.0},
+      {"err_G_0", 40000000000.0}, {"err_Gprime_0", 0.0},
+      {"err_K_0", 40000000000.0}, {"err_K_prime_0", 1.0},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.3},  {"err_q_0", 1.0}};
   m.set_property_modifier_params(
       {eos::excesses::LinearParams{0.0, 13.38, 0.0}});
   return m;
@@ -13651,6 +13850,12 @@ Mineral endmember_548() {
   m.params.q_0 = 1.10945;
   m.set_method(types::EOSType::Auto);
   m.set_name("Al_perovskite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 7.0},       {"err_F_0", 2000.0},
+      {"err_G_0", 10000000000.0}, {"err_Gprime_0", 0.1},
+      {"err_K_0", 10000000000.0}, {"err_K_prime_0", 0.5},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 0.5},
+      {"err_grueneisen_0", 0.3},  {"err_q_0", 1.0}};
   return m;
 }
 
@@ -13675,6 +13880,12 @@ Mineral endmember_549() {
   m.params.q_0 = 2.3914;
   m.set_method(types::EOSType::Auto);
   m.set_name("Mg_Ringwoodite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 8.0},      {"err_F_0", 2000.0},
+      {"err_G_0", 2000000000.0}, {"err_Gprime_0", 0.1},
+      {"err_K_0", 2000000000.0}, {"err_K_prime_0", 0.2},
+      {"err_V_0", 0.0},          {"err_eta_s_0", 0.5},
+      {"err_grueneisen_0", 0.1}, {"err_q_0", 0.4}};
   return m;
 }
 
@@ -13699,6 +13910,12 @@ Mineral endmember_550() {
   m.params.q_0 = 2.3914;
   m.set_method(types::EOSType::Auto);
   m.set_name("Fe_Ringwoodite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 8.0},       {"err_F_0", 2000.0},
+      {"err_G_0", 10000000000.0}, {"err_Gprime_0", 0.5},
+      {"err_K_0", 7000000000.0},  {"err_K_prime_0", 1.0},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.23}, {"err_q_0", 1.0}};
   m.set_property_modifier_params(
       {eos::excesses::LinearParams{0.0, 26.76, 0.0}});
   return m;
@@ -13725,6 +13942,12 @@ Mineral endmember_551() {
   m.params.q_0 = 2.71208;
   m.set_method(types::EOSType::Auto);
   m.set_name("Spinel");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 33.0},      {"err_F_0", 32000.0},
+      {"err_G_0", 10000000000.0}, {"err_Gprime_0", 0.5},
+      {"err_K_0", 1000000000.0},  {"err_K_prime_0", 0.2},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 0.6},
+      {"err_grueneisen_0", 0.04}, {"err_q_0", 0.6}};
   m.set_property_modifier_params(
       {eos::excesses::LinearParams{0.0, 43.76, 0.0}});
   return m;
@@ -13751,6 +13974,12 @@ Mineral endmember_552() {
   m.params.q_0 = 2.71208;
   m.set_method(types::EOSType::Auto);
   m.set_name("Hercynite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 32.0},      {"err_F_0", 35000.0},
+      {"err_G_0", 13000000000.0}, {"err_Gprime_0", 0.5},
+      {"err_K_0", 2000000000.0},  {"err_K_prime_0", 1.0},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.07}, {"err_q_0", 1.0}};
   m.set_property_modifier_params(
       {eos::excesses::LinearParams{0.0, 97.28, 0.0}});
   return m;
@@ -13777,6 +14006,12 @@ Mineral endmember_553() {
   m.params.q_0 = 2.0188;
   m.set_method(types::EOSType::Auto);
   m.set_name("Mg_Wadsleyite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 7.0},       {"err_F_0", 2000.0},
+      {"err_G_0", 2000000000.0},  {"err_Gprime_0", 0.2},
+      {"err_K_0", 3000000000.0},  {"err_K_prime_0", 0.2},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 0.4},
+      {"err_grueneisen_0", 0.09}, {"err_q_0", 1.0}};
   return m;
 }
 
@@ -13801,6 +14036,12 @@ Mineral endmember_554() {
   m.params.q_0 = 2.0188;
   m.set_method(types::EOSType::Auto);
   m.set_name("Fe_Wadsleyite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 21.0},      {"err_F_0", 7000.0},
+      {"err_G_0", 12000000000.0}, {"err_Gprime_0", 0.5},
+      {"err_K_0", 13000000000.0}, {"err_K_prime_0", 1.0},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.3},  {"err_q_0", 1.0}};
   m.set_property_modifier_params(
       {eos::excesses::LinearParams{0.0, 26.76, 0.0}});
   return m;
@@ -13827,6 +14068,12 @@ Mineral endmember_555() {
   m.params.q_0 = 0.89769;
   m.set_method(types::EOSType::Auto);
   m.set_name("Ca_Perovskite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 44.0},      {"err_F_0", 8000.0},
+      {"err_G_0", 12000000000.0}, {"err_Gprime_0", 0.5},
+      {"err_K_0", 4000000000.0},  {"err_K_prime_0", 0.2},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.07}, {"err_q_0", 1.6}};
   return m;
 }
 
@@ -13851,6 +14098,12 @@ Mineral endmember_556() {
   m.params.q_0 = 1.0;
   m.set_method(types::EOSType::Auto);
   m.set_name("Quartz");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 31.0},      {"err_F_0", 1000.0},
+      {"err_G_0", 1000000000.0},  {"err_Gprime_0", 0.1},
+      {"err_K_0", 1000000000.0},  {"err_K_prime_0", 0.1},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.05}, {"err_q_0", 1.0}};
   m.set_property_modifier_params(
       {eos::excesses::LandauParams{847.0, 1.222e-06, 5.164}});
   return m;
@@ -13877,6 +14130,12 @@ Mineral endmember_557() {
   m.params.q_0 = 1.0;
   m.set_method(types::EOSType::Auto);
   m.set_name("Coesite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 9.0},       {"err_F_0", 1000.0},
+      {"err_G_0", 1000000000.0},  {"err_Gprime_0", 0.5},
+      {"err_K_0", 1000000000.0},  {"err_K_prime_0", 1.0},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.05}, {"err_q_0", 1.0}};
   return m;
 }
 
@@ -13901,6 +14160,12 @@ Mineral endmember_558() {
   m.params.q_0 = 2.83517;
   m.set_method(types::EOSType::Auto);
   m.set_name("Stishovite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 13.0},      {"err_F_0", 1000.0},
+      {"err_G_0", 12000000000.0}, {"err_Gprime_0", 0.1},
+      {"err_K_0", 8000000000.0},  {"err_K_prime_0", 0.1},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.17}, {"err_q_0", 2.2}};
   m.set_property_modifier_params(
       {eos::excesses::LandauParams{-4250.0, 1e-09, 0.012}});
   return m;
@@ -13927,6 +14192,12 @@ Mineral endmember_559() {
   m.params.q_0 = 2.83517;
   m.set_method(types::EOSType::Auto);
   m.set_name("Seifertite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 16.0},     {"err_F_0", 2000.0},
+      {"err_G_0", 2000000000.0}, {"err_Gprime_0", 0.1},
+      {"err_K_0", 2000000000.0}, {"err_K_prime_0", 0.1},
+      {"err_V_0", 0.0},          {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.3}, {"err_q_0", 1.0}};
   return m;
 }
 
@@ -13951,6 +14222,12 @@ Mineral endmember_560() {
   m.params.q_0 = 1.0;
   m.set_method(types::EOSType::Auto);
   m.set_name("Kyanite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 8.0},       {"err_F_0", 4000.0},
+      {"err_G_0", 10000000000.0}, {"err_Gprime_0", 0.5},
+      {"err_K_0", 1000000000.0},  {"err_K_prime_0", 0.0},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.07}, {"err_q_0", 1.0}};
   return m;
 }
 
@@ -13976,6 +14253,12 @@ Mineral endmember_561() {
   m.params.q_0 = 1.0;
   m.set_method(types::EOSType::Auto);
   m.set_name("Nepheline");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 13.0},      {"err_F_0", 3000.0},
+      {"err_G_0", 1000000000.0},  {"err_Gprime_0", 0.5},
+      {"err_K_0", 1000000000.0},  {"err_K_prime_0", 1.0},
+      {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.03}, {"err_q_0", 1.0}};
   return m;
 }
 
@@ -14300,6 +14583,7 @@ Mineral endmember_596() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 0.000100452;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.02954;
   m.params.formula =
@@ -14325,6 +14609,7 @@ Mineral endmember_597() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 6.4606e-05;
+  m.params.Z = 1.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.7391;
   m.params.formula =
@@ -14352,6 +14637,7 @@ Mineral endmember_598() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 0.00011543;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.09289;
   m.params.formula =
@@ -14379,6 +14665,7 @@ Mineral endmember_599() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 2.4944e-05;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.27978;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"O", 3.0}};
@@ -14403,6 +14690,7 @@ Mineral endmember_600() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 0.00010061;
+  m.params.Z = 2.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.63405;
   m.params.formula =
@@ -14428,6 +14716,7 @@ Mineral endmember_601() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 4.542e-05;
+  m.params.Z = 1.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 0.77305;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"Na", 2.0}, {"O", 4.0}};
@@ -14452,6 +14741,7 @@ Mineral endmember_602() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 0.00013199;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.84503;
   m.params.formula =
@@ -14479,6 +14769,7 @@ Mineral endmember_603() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 1.367e-05;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 4.56617;
   m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
@@ -14503,6 +14794,7 @@ Mineral endmember_604() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 2.45e-05;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.70624;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"O", 3.0}};
@@ -14527,6 +14819,7 @@ Mineral endmember_605() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 2.745e-05;
+  m.params.Z = 1.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.35422;
   m.params.formula = types::FormulaMap{{"Ca", 1.0}, {"O", 3.0}, {"Si", 1.0}};
@@ -14551,6 +14844,7 @@ Mineral endmember_606() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 6.3574e-05;
+  m.params.Z = 1.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.77238;
   m.params.formula =
@@ -14576,6 +14870,7 @@ Mineral endmember_607() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 6.25e-05;
+  m.params.Z = 1.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.42387;
   m.params.formula = types::FormulaMap{{"Mg", 2.0}, {"O", 6.0}, {"Si", 2.0}};
@@ -14600,6 +14895,7 @@ Mineral endmember_608() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 2.5577e-05;
+  m.params.Z = 2.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.84761;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"O", 3.0}};
@@ -14624,6 +14920,7 @@ Mineral endmember_609() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 2.0657e-05;
+  m.params.Z = 16.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.75631;
   m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
@@ -14648,6 +14945,7 @@ Mineral endmember_610() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 2.6949e-05;
+  m.params.Z = 2.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 3.16235;
   m.params.formula = types::FormulaMap{{"Cr", 2.0}, {"O", 3.0}};
@@ -14674,6 +14972,7 @@ Mineral endmember_611() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 3.9421e-05;
+  m.params.Z = 8.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.93943;
   m.params.formula = types::FormulaMap{{"Cr", 2.0}, {"Mg", 1.0}, {"O", 4.0}};
@@ -14700,6 +14999,7 @@ Mineral endmember_612() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 2.8189e-05;
+  m.params.Z = 2.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.83537;
   m.params.formula = types::FormulaMap{{"Cr", 2.0}, {"O", 3.0}};
@@ -14726,6 +15026,7 @@ Mineral endmember_613() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 6.6039e-05;
+  m.params.Z = 1.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.06175;
   m.params.formula =
@@ -14751,6 +15052,7 @@ Mineral endmember_614() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 6.2676e-05;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.5045;
   m.params.formula = types::FormulaMap{{"Mg", 2.0}, {"O", 6.0}, {"Si", 2.0}};
@@ -14775,6 +15077,7 @@ Mineral endmember_615() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 2.8904e-05;
+  m.params.Z = 2.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.55521;
   m.params.formula = types::FormulaMap{{"Cr", 2.0}, {"O", 3.0}};
@@ -14801,6 +15104,7 @@ Mineral endmember_616() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 4.629e-05;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.65937;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 4.0}, {"Si", 1.0}};
@@ -14827,6 +15131,7 @@ Mineral endmember_617() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 2.709e-05;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.8548;
   m.params.formula = types::FormulaMap{{"Al", 1.0}, {"Fe", 1.0}, {"O", 3.0}};
@@ -14853,6 +15158,7 @@ Mineral endmember_618() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 7.093e-06;
+  m.params.Z = 2.0;
   m.params.bel_0 = 0.00388;
   m.params.equation_of_state = types::EOSType::SLB3Conductive;
   m.params.eta_s_0 = 5.96207;
@@ -14883,6 +15189,7 @@ Mineral endmember_619() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 6.38541e-05;
+  m.params.Z = 1.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.14272;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 6.0}, {"Si", 2.0}};
@@ -14909,6 +15216,7 @@ Mineral endmember_620() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 3.7216e-05;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.46745;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"Fe", 1.0}, {"O", 4.0}};
@@ -14935,6 +15243,7 @@ Mineral endmember_621() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 6.7651e-06;
+  m.params.Z = 2.0;
   m.params.bel_0 = 0.00411;
   m.params.equation_of_state = types::EOSType::SLB3Conductive;
   m.params.eta_s_0 = 5.20603;
@@ -14961,6 +15270,7 @@ Mineral endmember_622() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 6.9883e-06;
+  m.params.Z = 2.0;
   m.params.bel_0 = 0.00375;
   m.params.equation_of_state = types::EOSType::SLB3Conductive;
   m.params.eta_s_0 = 6.50014;
@@ -14987,6 +15297,7 @@ Mineral endmember_623() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 2.6854e-05;
+  m.params.Z = 2.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 3.6318;
   m.params.formula = types::FormulaMap{{"Fe", 1.0}, {"O", 3.0}, {"Si", 1.0}};
@@ -15013,6 +15324,7 @@ Mineral endmember_624() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 2.5321e-05;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.08541;
   m.params.formula = types::FormulaMap{{"Fe", 1.0}, {"O", 3.0}, {"Si", 1.0}};
@@ -15039,6 +15351,7 @@ Mineral endmember_625() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 4.186e-05;
+  m.params.Z = 2.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.76941;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 4.0}, {"Si", 1.0}};
@@ -15065,6 +15378,7 @@ Mineral endmember_626() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 4.28e-05;
+  m.params.Z = 8.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 0.94487;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 4.0}, {"Si", 1.0}};
@@ -15091,6 +15405,7 @@ Mineral endmember_627() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 0.000112045;
+  m.params.Z = 1.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.73801;
   m.params.formula = types::FormulaMap{
@@ -15118,6 +15433,7 @@ Mineral endmember_628() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 4.3603e-05;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.29968;
   m.params.formula = types::FormulaMap{{"Mg", 2.0}, {"O", 4.0}, {"Si", 1.0}};
@@ -15142,6 +15458,7 @@ Mineral endmember_629() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 2.52963e-05;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.8495;
   m.params.formula = types::FormulaMap{{"Fe", 1.0}, {"O", 3.0}, {"Si", 1.0}};
@@ -15168,6 +15485,7 @@ Mineral endmember_630() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 6.5941e-05;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.08228;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 6.0}, {"Si", 2.0}};
@@ -15194,6 +15512,7 @@ Mineral endmember_631() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 0.00012512;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.38415;
   m.params.formula =
@@ -15219,6 +15538,7 @@ Mineral endmember_632() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 4.0843e-05;
+  m.params.Z = 8.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.46339;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"Fe", 1.0}, {"O", 4.0}};
@@ -15245,6 +15565,7 @@ Mineral endmember_633() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 6.7867e-05;
+  m.params.Z = 1.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.01745;
   m.params.formula =
@@ -15272,6 +15593,7 @@ Mineral endmember_634() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 3.0287e-05;
+  m.params.Z = 1.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 0.5241;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 3.0}};
@@ -15298,6 +15620,7 @@ Mineral endmember_635() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 2.95768e-05;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.88876;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 3.0}};
@@ -15324,6 +15647,7 @@ Mineral endmember_636() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 2.75209e-05;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 3.54218;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 3.0}};
@@ -15350,6 +15674,7 @@ Mineral endmember_637() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 4.1702e-05;
+  m.params.Z = 1.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.37608;
   m.params.formula = types::FormulaMap{{"Fe", 3.0}, {"O", 4.0}};
@@ -15378,6 +15703,7 @@ Mineral endmember_638() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 2.76884e-05;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.56327;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 3.0}};
@@ -15404,6 +15730,7 @@ Mineral endmember_639() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 6.0508e-05;
+  m.params.Z = 1.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.91023;
   m.params.formula =
@@ -15429,6 +15756,7 @@ Mineral endmember_640() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 0.000118716;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.11433;
   m.params.formula =
@@ -15456,6 +15784,7 @@ Mineral endmember_641() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 4.4227e-05;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.89863;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"O", 5.0}, {"Si", 1.0}};
@@ -15480,6 +15809,7 @@ Mineral endmember_642() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 2.62534e-05;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 3.79074;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 3.0}};
@@ -15506,6 +15836,7 @@ Mineral endmember_643() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 4.4528e-05;
+  m.params.Z = 1.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.12258;
   m.params.formula = types::FormulaMap{{"Fe", 3.0}, {"O", 4.0}};
@@ -15534,6 +15865,7 @@ Mineral endmember_644() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 6.076e-05;
+  m.params.Z = 1.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.14193;
   m.params.formula = types::FormulaMap{{"Mg", 2.0}, {"O", 6.0}, {"Si", 2.0}};
@@ -15558,6 +15890,7 @@ Mineral endmember_645() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 3.6135e-05;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.30292;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"Mg", 1.0}, {"O", 4.0}};
@@ -15582,6 +15915,7 @@ Mineral endmember_646() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 2.6354e-05;
+  m.params.Z = 2.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 3.3993;
   m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 3.0}, {"Si", 1.0}};
@@ -15606,6 +15940,7 @@ Mineral endmember_647() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 0.000114324;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.01779;
   m.params.formula = types::FormulaMap{{"Mg", 4.0}, {"O", 12.0}, {"Si", 4.0}};
@@ -15630,6 +15965,7 @@ Mineral endmember_648() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 2.4445e-05;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.65233;
   m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 3.0}, {"Si", 1.0}};
@@ -15654,6 +15990,7 @@ Mineral endmember_649() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 3.9493e-05;
+  m.params.Z = 2.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.30588;
   m.params.formula = types::FormulaMap{{"Mg", 2.0}, {"O", 4.0}, {"Si", 1.0}};
@@ -15678,6 +16015,7 @@ Mineral endmember_650() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 5.914e-05;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.39272;
   m.params.formula =
@@ -15703,6 +16041,7 @@ Mineral endmember_651() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 4.0515e-05;
+  m.params.Z = 8.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.56411;
   m.params.formula = types::FormulaMap{{"Mg", 2.0}, {"O", 4.0}, {"Si", 1.0}};
@@ -15727,6 +16066,7 @@ Mineral endmember_652() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 0.000109883;
+  m.params.Z = 1.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.9384;
   m.params.formula = types::FormulaMap{
@@ -15752,6 +16092,7 @@ Mineral endmember_653() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 2.41108e-05;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.43815;
   m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 3.0}, {"Si", 1.0}};
@@ -15776,6 +16117,7 @@ Mineral endmember_654() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 3.627e-05;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.67725;
   m.params.formula =
@@ -15801,6 +16143,7 @@ Mineral endmember_655() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 0.000110842;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.48526;
   m.params.formula =
@@ -15826,6 +16169,7 @@ Mineral endmember_656() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 5.38684e-05;
+  m.params.Z = 2.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 0.6241;
   m.params.formula =
@@ -15853,6 +16197,7 @@ Mineral endmember_657() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 0.000109401;
+  m.params.Z = 1.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.40665;
   m.params.formula =
@@ -15878,6 +16223,7 @@ Mineral endmember_658() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 6.8054e-05;
+  m.params.Z = 1.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.35202;
   m.params.formula =
@@ -15903,6 +16249,7 @@ Mineral endmember_659() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 4.4976e-05;
+  m.params.Z = 1.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.56123;
   m.params.formula = types::FormulaMap{{"Mg", 4.0}, {"O", 4.0}};
@@ -15927,6 +16274,7 @@ Mineral endmember_660() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 4.3564e-05;
+  m.params.Z = 8.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 3.07014;
   m.params.formula = types::FormulaMap{{"Cr", 2.0}, {"Mg", 1.0}, {"O", 4.0}};
@@ -15953,6 +16301,7 @@ Mineral endmember_661() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 4.0272e-05;
+  m.params.Z = 1.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 0.76187;
   m.params.formula = types::FormulaMap{{"Ca", 1.0}, {"O", 3.0}, {"Si", 1.0}};
@@ -15977,6 +16326,7 @@ Mineral endmember_662() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 0.00011308;
+  m.params.Z = 4.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 0.98186;
   m.params.formula =
@@ -16002,6 +16352,7 @@ Mineral endmember_663() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 2.24211e-05;
+  m.params.Z = 16.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.40464;
   m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
@@ -16028,6 +16379,7 @@ Mineral endmember_664() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 3.9762e-05;
+  m.params.Z = 8.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 2.4035;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"Mg", 1.0}, {"O", 4.0}};
@@ -16052,6 +16404,7 @@ Mineral endmember_665() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 1.4017e-05;
+  m.params.Z = 2.0;
   m.params.equation_of_state = types::EOSType::SLB3Stishovite;
   m.params.eta_s_0 = 5.39736;
   m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
@@ -16076,6 +16429,7 @@ Mineral endmember_666() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 3.9901e-05;
+  m.params.Z = 1.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 1.2711;
   m.params.formula = types::FormulaMap{{"Ca", 1.0}, {"O", 3.0}, {"Si", 1.0}};
@@ -16100,6 +16454,7 @@ Mineral endmember_667() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 4.9024e-05;
+  m.params.Z = 1.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = 0.0596;
   m.params.formula = types::FormulaMap{{"Fe", 4.0}, {"O", 4.0}};
@@ -16126,6 +16481,7 @@ Mineral endmember_668() {
   m.params.P_0 = 0.0;
   m.params.T_0 = 300.0;
   m.params.V_0 = 4.33997e-05;
+  m.params.Z = 1.0;
   m.params.equation_of_state = types::EOSType::SLB3;
   m.params.eta_s_0 = -0.14773;
   m.params.formula = types::FormulaMap{{"Fe", 4.0}, {"O", 4.0}};
@@ -24905,6 +25261,1873 @@ Mineral endmember_1092() {
   m.set_name("MgO_liquid");
   return m;
 }
+
+Mineral endmember_1093() {
+  Mineral m;
+  m.params.debye_0 = 1044.0;
+  m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.G_0 = 220000000000.0;
+  m.params.Gprime_0 = 1.6;
+  m.params.K_0 = 314000000000.0;
+  m.params.Kprime_0 = 4.4;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 1.402e-05;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 5.0;
+  m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.34;
+  m.params.molar_mass = 0.0601;
+  m.params.napfu = 3.0;
+  m.params.q_0 = 2.4;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("stishovite");
+  return m;
+}
+
+Mineral endmember_1094() {
+  Mineral m;
+  m.params.debye_0 = 773.0;
+  m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.G_0 = 131000000000.0;
+  m.params.Gprime_0 = 2.1;
+  m.params.K_0 = 161000000000.0;
+  m.params.Kprime_0 = 3.8;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 1.124e-05;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.8;
+  m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 1.0}};
+  m.params.grueneisen_0 = 1.5;
+  m.params.molar_mass = 0.0403;
+  m.params.napfu = 2.0;
+  m.params.q_0 = 1.5;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("periclase");
+  return m;
+}
+
+Mineral endmember_1095() {
+  Mineral m;
+  m.params.debye_0 = 455.0;
+  m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.G_0 = 47000000000.0;
+  m.params.Gprime_0 = 0.7;
+  m.params.K_0 = 152000000000.0;
+  m.params.Kprime_0 = 4.9;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 1.206e-05;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 0.8;
+  m.params.formula = types::FormulaMap{{"Fe", 1.0}, {"O", 1.0}};
+  m.params.grueneisen_0 = 1.28;
+  m.params.molar_mass = 0.0718;
+  m.params.napfu = 2.0;
+  m.params.q_0 = 1.5;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("wuestite");
+  return m;
+}
+
+Mineral endmember_1096() {
+  Mineral m;
+  m.params.debye_0 = 1070.0;
+  m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.G_0 = 175000000000.0;
+  m.params.Gprime_0 = 1.7;
+  m.params.K_0 = 251000000000.0;
+  m.params.Kprime_0 = 4.1;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.445e-05;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.6;
+  m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 3.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.48;
+  m.params.molar_mass = 0.1;
+  m.params.napfu = 5.0;
+  m.params.q_0 = 1.4;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("mg_perovskite");
+  return m;
+}
+
+Mineral endmember_1097() {
+  Mineral m;
+  m.params.debye_0 = 841.0;
+  m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.G_0 = 138000000000.0;
+  m.params.Gprime_0 = 1.7;
+  m.params.K_0 = 281000000000.0;
+  m.params.Kprime_0 = 4.1;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.548e-05;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.1;
+  m.params.formula = types::FormulaMap{{"Fe", 1.0}, {"O", 3.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.48;
+  m.params.molar_mass = 0.1319;
+  m.params.napfu = 5.0;
+  m.params.q_0 = 1.4;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("fe_perovskite");
+  return m;
+}
+
+Mineral endmember_1098() {
+  Mineral m;
+  m.params.debye_0 = 1108.0;
+  m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.G_0 = 220000000000.0;
+  m.params.Gprime_0 = 1.9;
+  m.params.K_0 = 314000000000.0;
+  m.params.Kprime_0 = 3.8;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 1.402e-05;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 4.6;
+  m.params.grueneisen_0 = 1.37;
+  m.params.molar_mass = 0.0601;
+  m.params.napfu = 3.0;
+  m.params.q_0 = 2.8;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("stishovite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 13.0},      {"err_G_0", 12000000000.0},
+      {"err_Gprime_0", 0.1},      {"err_K_0", 8000000000.0},
+      {"err_Kprime_0", 0.1},      {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.17}, {"err_q_0", 2.2}};
+  return m;
+}
+
+Mineral endmember_1099() {
+  Mineral m;
+  m.params.debye_0 = 767.0;
+  m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.G_0 = 131000000000.0;
+  m.params.Gprime_0 = 2.1;
+  m.params.K_0 = 161000000000.0;
+  m.params.Kprime_0 = 3.8;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 1.124e-05;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.8;
+  m.params.grueneisen_0 = 1.36;
+  m.params.molar_mass = 0.0403;
+  m.params.napfu = 2.0;
+  m.params.q_0 = 1.7;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("periclase");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 9.0},       {"err_G_0", 1000000000.0},
+      {"err_Gprime_0", 0.1},      {"err_K_0", 3000000000.0},
+      {"err_Kprime_0", 0.2},      {"err_eta_s_0", 0.2},
+      {"err_grueneisen_0", 0.05}, {"err_q_0", 0.2}};
+  return m;
+}
+
+Mineral endmember_1100() {
+  Mineral m;
+  m.params.debye_0 = 454.0;
+  m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.G_0 = 59000000000.0;
+  m.params.Gprime_0 = 1.4;
+  m.params.K_0 = 179000000000.0;
+  m.params.Kprime_0 = 4.9;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 1.226e-05;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = -0.1;
+  m.params.grueneisen_0 = 1.53;
+  m.params.molar_mass = 0.0718;
+  m.params.napfu = 2.0;
+  m.params.q_0 = 1.7;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("wuestite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 21.0},      {"err_G_0", 1000000000.0},
+      {"err_Gprime_0", 0.1},      {"err_K_0", 1000000000.0},
+      {"err_Kprime_0", 0.2},      {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.13}, {"err_q_0", 1.0}};
+  return m;
+}
+
+Mineral endmember_1101() {
+  Mineral m;
+  m.params.debye_0 = 905.9;
+  m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.G_0 = 172900000000.0;
+  m.params.Gprime_0 = 1.74;
+  m.params.K_0 = 250500000000.0;
+  m.params.Kprime_0 = 4.01;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.445e-05;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.13;
+  m.params.grueneisen_0 = 1.44;
+  m.params.molar_mass = 0.1;
+  m.params.napfu = 5.0;
+  m.params.q_0 = 1.09;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("mg_perovskite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 5.0},       {"err_G_0", 2000000000.0},
+      {"err_Gprime_0", 0.0},      {"err_K_0", 3000000000.0},
+      {"err_Kprime_0", 0.1},      {"err_eta_s_0", 0.3},
+      {"err_grueneisen_0", 0.05}, {"err_q_0", 0.3}};
+  return m;
+}
+
+Mineral endmember_1102() {
+  Mineral m;
+  m.params.debye_0 = 871.0;
+  m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.G_0 = 133000000000.0;
+  m.params.Gprime_0 = 1.4;
+  m.params.K_0 = 272000000000.0;
+  m.params.Kprime_0 = 4.1;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.549e-05;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.3;
+  m.params.grueneisen_0 = 1.57;
+  m.params.molar_mass = 0.1319;
+  m.params.napfu = 5.0;
+  m.params.q_0 = 1.1;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("fe_perovskite");
+  m.uncertainties = std::unordered_map<std::string, double>{
+      {"err_Debye_0", 26.0},     {"err_G_0", 40000000000.0},
+      {"err_Gprime_0", 0.0},     {"err_K_0", 40000000000.0},
+      {"err_Kprime_0", 1.0},     {"err_eta_s_0", 1.0},
+      {"err_grueneisen_0", 0.3}, {"err_q_0", 1.0}};
+  return m;
+}
+
+Mineral endmember_1103() {
+  Mineral m;
+  m.params.debye_0 = 720.00359;
+  m.params.F_0 = -3720147.5999999996;
+  m.params.G_0 = 36000000000.0;
+  m.params.Gprime_0 = 1.38571;
+  m.params.K_0 = 59752680000.0;
+  m.params.Kprime_0 = 2.77841;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 0.000100452;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 1.02978;
+  m.params.formula =
+      types::FormulaMap{{"Al", 1.0}, {"Na", 1.0}, {"O", 8.0}, {"Si", 3.0}};
+  m.params.grueneisen_0 = 0.57885;
+  m.params.molar_mass = 0.262223;
+  m.params.napfu = 13.0;
+  m.params.name = "Albite";
+  m.params.q_0 = 1.0;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Albite");
+  return m;
+}
+
+Mineral endmember_1104() {
+  Mineral m;
+  m.params.debye_0 = 741.38227;
+  m.params.F_0 = -4933027.97;
+  m.params.G_0 = 96000000000.0;
+  m.params.Gprime_0 = 1.40927;
+  m.params.K_0 = 173896370000.0;
+  m.params.Kprime_0 = 4.91341;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 0.00011543;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.09289;
+  m.params.formula =
+      types::FormulaMap{{"Al", 2.0}, {"Fe", 3.0}, {"O", 12.0}, {"Si", 3.0}};
+  m.params.grueneisen_0 = 1.06493;
+  m.params.molar_mass = 0.49776;
+  m.params.napfu = 20.0;
+  m.params.name = "Almandine";
+  m.params.q_0 = 1.42169;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Almandine");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{7.5, 0.0, 40.14405}});
+  return m;
+}
+
+Mineral endmember_1105() {
+  Mineral m;
+  m.params.debye_0 = 858.26509;
+  m.params.F_0 = -1517728.6300000001;
+  m.params.G_0 = 169199620000.0;
+  m.params.Gprime_0 = 1.55703;
+  m.params.K_0 = 242400000000.0;
+  m.params.Kprime_0 = 4.1;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.4944e-05;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.2751;
+  m.params.formula = types::FormulaMap{{"Al", 2.0}, {"O", 3.0}};
+  m.params.grueneisen_0 = 1.54222;
+  m.params.molar_mass = 0.101961;
+  m.params.napfu = 5.0;
+  m.params.name = "Al-Perovskite";
+  m.params.q_0 = 0.84088;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Al-Perovskite");
+  return m;
+}
+
+Mineral endmember_1106() {
+  Mineral m;
+  m.params.debye_0 = 752.34537;
+  m.params.F_0 = -4013369.04;
+  m.params.G_0 = 39900000000.0;
+  m.params.Gprime_0 = 1.09129;
+  m.params.K_0 = 84093310000.0;
+  m.params.Kprime_0 = 6.73404;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 0.00010061;
+  m.params.Z = 2.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 1.63323;
+  m.params.formula =
+      types::FormulaMap{{"Al", 2.0}, {"Ca", 1.0}, {"O", 8.0}, {"Si", 2.0}};
+  m.params.grueneisen_0 = 0.38497;
+  m.params.molar_mass = 0.278211;
+  m.params.napfu = 13.0;
+  m.params.name = "Anorthite";
+  m.params.q_0 = 1.0;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Anorthite");
+  return m;
+}
+
+Mineral endmember_1107() {
+  Mineral m;
+  m.params.debye_0 = 753.49641;
+  m.params.F_0 = -2114835.79;
+  m.params.G_0 = 108455900000.0;
+  m.params.Gprime_0 = 2.14668;
+  m.params.K_0 = 161143930000.0;
+  m.params.Kprime_0 = 3.90838;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 4.542e-05;
+  m.params.Z = 1.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 0.78047;
+  m.params.formula = types::FormulaMap{{"Al", 2.0}, {"Na", 2.0}, {"O", 4.0}};
+  m.params.grueneisen_0 = 1.45033;
+  m.params.molar_mass = 0.16394023;
+  m.params.napfu = 8.0;
+  m.params.name = "alpha-NaO2_phase";
+  m.params.q_0 = 1.5487;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("alpha-NaO2_phase");
+  return m;
+}
+
+Mineral endmember_1108() {
+  Mineral m;
+  m.params.debye_0 = 1128.9459;
+  m.params.F_0 = -793366.84;
+  m.params.G_0 = 227411590000.0;
+  m.params.Gprime_0 = 1.77078;
+  m.params.K_0 = 327156010000.0;
+  m.params.Kprime_0 = 4.01662;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 1.367e-05;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 4.55828;
+  m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.55674;
+  m.params.molar_mass = 0.060085;
+  m.params.napfu = 3.0;
+  m.params.name = "alpha-PbO_2-SiO_2";
+  m.params.q_0 = 2.2096;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("alpha-PbO_2-SiO_2");
+  return m;
+}
+
+Mineral endmember_1109() {
+  Mineral m;
+  m.params.debye_0 = 722.93835;
+  m.params.F_0 = -1336464.73;
+  m.params.G_0 = 91965260000.0;
+  m.params.Gprime_0 = 1.81603;
+  m.params.K_0 = 249000000000.0;
+  m.params.Kprime_0 = 4.0;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.3847e-05;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.52605;
+  m.params.formula = types::FormulaMap{{"Al", 2.0}, {"O", 3.0}};
+  m.params.grueneisen_0 = 1.88758;
+  m.params.molar_mass = 0.101961;
+  m.params.napfu = 5.0;
+  m.params.name = "Al-Post-Perovskite";
+  m.params.q_0 = 2.04631;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Al-Post-Perovskite");
+  return m;
+}
+
+Mineral endmember_1110() {
+  Mineral m;
+  m.params.debye_0 = 798.78581;
+  m.params.F_0 = -1459910.1800000002;
+  m.params.G_0 = 155205240000.0;
+  m.params.Gprime_0 = 2.22637;
+  m.params.K_0 = 236000000000.0;
+  m.params.Kprime_0 = 3.9;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.745e-05;
+  m.params.Z = 1.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 1.23493;
+  m.params.formula = types::FormulaMap{{"Ca", 1.0}, {"O", 3.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.88943;
+  m.params.molar_mass = 0.116164;
+  m.params.napfu = 5.0;
+  m.params.name = "Ca-Perovskite";
+  m.params.q_0 = 0.89662;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Ca-Perovskite");
+  return m;
+}
+
+Mineral endmember_1111() {
+  Mineral m;
+  m.params.debye_0 = 804.36068;
+  m.params.F_0 = -3119447.41;
+  m.params.G_0 = 74424990000.0;
+  m.params.Gprime_0 = 1.71384;
+  m.params.K_0 = 113759900000.0;
+  m.params.Kprime_0 = 4.8061;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 6.3574e-05;
+  m.params.Z = 1.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 1.73383;
+  m.params.formula =
+      types::FormulaMap{{"Al", 2.0}, {"Ca", 1.0}, {"O", 6.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 0.82288;
+  m.params.molar_mass = 0.218123;
+  m.params.napfu = 10.0;
+  m.params.name = "Lime_Tschermak'";
+  m.params.q_0 = 0.60142;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Lime_Tschermak'");
+  return m;
+}
+
+Mineral endmember_1112() {
+  Mineral m;
+  m.params.debye_0 = 806.64315;
+  m.params.F_0 = -2906835.53;
+  m.params.G_0 = 76970360000.0;
+  m.params.Gprime_0 = 1.71384;
+  m.params.K_0 = 113759900000.0;
+  m.params.Kprime_0 = 4.8061;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 6.25e-05;
+  m.params.Z = 1.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 1.43121;
+  m.params.formula = types::FormulaMap{{"Mg", 2.0}, {"O", 6.0}, {"Si", 2.0}};
+  m.params.grueneisen_0 = 1.00921;
+  m.params.molar_mass = 0.2007774;
+  m.params.napfu = 10.0;
+  m.params.name = "Clinoenstatite";
+  m.params.q_0 = 0.60142;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Clinoenstatite");
+  return m;
+}
+
+Mineral endmember_1113() {
+  Mineral m;
+  m.params.debye_0 = 932.21586;
+  m.params.F_0 = -1582440.3199999998;
+  m.params.G_0 = 163200000000.0;
+  m.params.Gprime_0 = 1.81492;
+  m.params.K_0 = 252585720000.0;
+  m.params.Kprime_0 = 3.88671;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.5577e-05;
+  m.params.Z = 2.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.63052;
+  m.params.formula = types::FormulaMap{{"Al", 2.0}, {"O", 3.0}};
+  m.params.grueneisen_0 = 1.3081;
+  m.params.molar_mass = 0.101961;
+  m.params.napfu = 5.0;
+  m.params.name = "Corundum";
+  m.params.q_0 = 1.71245;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Corundum");
+  return m;
+}
+
+Mineral endmember_1114() {
+  Mineral m;
+  m.params.debye_0 = 880.23946;
+  m.params.F_0 = -856110.36;
+  m.params.G_0 = 61600000000.0;
+  m.params.Gprime_0 = 0.49686;
+  m.params.K_0 = 103538150000.0;
+  m.params.Kprime_0 = 2.9007;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.0657e-05;
+  m.params.Z = 16.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.75988;
+  m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 0.29064;
+  m.params.molar_mass = 0.060085;
+  m.params.napfu = 3.0;
+  m.params.name = "Coesite";
+  m.params.q_0 = 1.0;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Coesite");
+  return m;
+}
+
+Mineral endmember_1115() {
+  Mineral m;
+  m.params.debye_0 = 794.74452;
+  m.params.F_0 = -852539.43;
+  m.params.G_0 = 20327540000.0;
+  m.params.Gprime_0 = 4.06551;
+  m.params.K_0 = 11500000000.0;
+  m.params.Kprime_0 = 9.0;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.72397e-05;
+  m.params.Z = 16.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 1.17003;
+  m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 0.01515;
+  m.params.molar_mass = 0.060085;
+  m.params.napfu = 3.0;
+  m.params.name = "Cristobalite";
+  m.params.q_0 = 1.0;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Cristobalite");
+  return m;
+}
+
+Mineral endmember_1116() {
+  Mineral m;
+  m.params.debye_0 = 782.57306;
+  m.params.F_0 = -3029608.3800000004;
+  m.params.G_0 = 72700000000.0;
+  m.params.Gprime_0 = 1.71384;
+  m.params.K_0 = 113759900000.0;
+  m.params.Kprime_0 = 4.8061;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 6.6039e-05;
+  m.params.Z = 1.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 1.06175;
+  m.params.formula =
+      types::FormulaMap{{"Ca", 1.0}, {"Mg", 1.0}, {"O", 6.0}, {"Si", 2.0}};
+  m.params.grueneisen_0 = 1.00921;
+  m.params.molar_mass = 0.2165504;
+  m.params.napfu = 10.0;
+  m.params.name = "Diopside";
+  m.params.q_0 = 0.60142;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Diopside");
+  return m;
+}
+
+Mineral endmember_1117() {
+  Mineral m;
+  m.params.debye_0 = 812.21227;
+  m.params.F_0 = -2914163.5999999996;
+  m.params.G_0 = 76800000000.0;
+  m.params.Gprime_0 = 1.54596;
+  m.params.K_0 = 107076810000.0;
+  m.params.Kprime_0 = 7.02751;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 6.2676e-05;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.5045;
+  m.params.formula = types::FormulaMap{{"Mg", 2.0}, {"O", 6.0}, {"Si", 2.0}};
+  m.params.grueneisen_0 = 0.78477;
+  m.params.molar_mass = 0.2007774;
+  m.params.napfu = 10.0;
+  m.params.name = "Enstatite";
+  m.params.q_0 = 3.43847;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Enstatite");
+  return m;
+}
+
+Mineral endmember_1118() {
+  Mineral m;
+  m.params.debye_0 = 618.96116;
+  m.params.F_0 = -1371695.6600000001;
+  m.params.G_0 = 51220000000.0;
+  m.params.Gprime_0 = 0.85893;
+  m.params.K_0 = 136485580000.0;
+  m.params.Kprime_0 = 4.88157;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 4.629e-05;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 1.65937;
+  m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 4.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.08388;
+  m.params.molar_mass = 0.203777;
+  m.params.napfu = 7.0;
+  m.params.name = "Fayalite";
+  m.params.q_0 = 2.88055;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Fayalite");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{65.0, 0.0, 26.7627}});
+  return m;
+}
+
+Mineral endmember_1119() {
+  Mineral m;
+  m.params.debye_0 = 755.38117;
+  m.params.F_0 = -848315.02;
+  m.params.G_0 = 150042090000.0;
+  m.params.Gprime_0 = 1.73259;
+  m.params.K_0 = 223325500000.0;
+  m.params.Kprime_0 = 4.1;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.72604e-05;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.55505;
+  m.params.formula = types::FormulaMap{{"Al", 1.0}, {"Fe", 1.0}, {"O", 3.0}};
+  m.params.grueneisen_0 = 1.54222;
+  m.params.molar_mass = 0.1308249;
+  m.params.napfu = 5.0;
+  m.params.name = "FeAlO3-Perovskite_HS";
+  m.params.q_0 = 0.84088;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("FeAlO3-Perovskite_HS");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{10.0, 0.0, 14.89723}});
+  return m;
+}
+
+Mineral endmember_1120() {
+  Mineral m;
+  m.params.debye_0 = 698.72086;
+  m.params.F_0 = -2224211.0;
+  m.params.G_0 = 75147210000.0;
+  m.params.Gprime_0 = 1.8412;
+  m.params.K_0 = 116024900000.0;
+  m.params.Kprime_0 = 6.23682;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 6.38541e-05;
+  m.params.Z = 1.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 0.98031;
+  m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 6.0}, {"Si", 2.0}};
+  m.params.grueneisen_0 = 1.12442;
+  m.params.molar_mass = 0.2638614;
+  m.params.napfu = 10.0;
+  m.params.name = "HP-Clinoferrosilite";
+  m.params.q_0 = 0.20362;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("HP-Clinoferrosilite");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{5.0, 0.0, 26.7627}});
+  return m;
+}
+
+Mineral endmember_1121() {
+  Mineral m;
+  m.params.debye_0 = 734.07527;
+  m.params.F_0 = -1774197.05;
+  m.params.G_0 = 159709650000.0;
+  m.params.Gprime_0 = 1.93591;
+  m.params.K_0 = 213000000000.0;
+  m.params.Kprime_0 = 4.1;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 3.7216e-05;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.34163;
+  m.params.formula = types::FormulaMap{{"Al", 2.0}, {"Fe", 1.0}, {"O", 4.0}};
+  m.params.grueneisen_0 = 1.56672;
+  m.params.molar_mass = 0.173806;
+  m.params.napfu = 7.0;
+  m.params.name = "Fe-Ca-Ferrite";
+  m.params.q_0 = 1.0;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Fe-Ca-Ferrite");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{5.0, 0.0, 13.38135}});
+  return m;
+}
+
+Mineral endmember_1122() {
+  Mineral m;
+  m.params.debye_0 = 781.36175;
+  m.params.F_0 = -1047531.34;
+  m.params.G_0 = 160833570000.0;
+  m.params.Gprime_0 = 1.81492;
+  m.params.K_0 = 210693870000.0;
+  m.params.Kprime_0 = 5.2154;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.6854e-05;
+  m.params.Z = 2.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 3.43813;
+  m.params.formula = types::FormulaMap{{"Fe", 1.0}, {"O", 3.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.19458;
+  m.params.molar_mass = 0.131931;
+  m.params.napfu = 5.0;
+  m.params.name = "Fe-Akimotoite";
+  m.params.q_0 = 2.2246;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Fe-Akimotoite");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{5.0, 0.0, 13.38135}});
+  return m;
+}
+
+Mineral endmember_1123() {
+  Mineral m;
+  m.params.debye_0 = 746.56455;
+  m.params.F_0 = -1002662.5299999999;
+  m.params.G_0 = 130020980000.00002;
+  m.params.Gprime_0 = 1.37254;
+  m.params.K_0 = 270582550000.00003;
+  m.params.Kprime_0 = 4.01;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.5321e-05;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.0941;
+  m.params.formula = types::FormulaMap{{"Fe", 1.0}, {"O", 3.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.54222;
+  m.params.molar_mass = 0.131931;
+  m.params.napfu = 5.0;
+  m.params.name = "Fe-Perovskite";
+  m.params.q_0 = 0.84088;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Fe-Perovskite");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{5.0, 0.0, 13.38135}});
+  return m;
+}
+
+Mineral endmember_1124() {
+  Mineral m;
+  m.params.debye_0 = 662.84304;
+  m.params.F_0 = -1359229.67;
+  m.params.G_0 = 92000000000.0;
+  m.params.Gprime_0 = 1.35412;
+  m.params.K_0 = 213410280000.0;
+  m.params.Kprime_0 = 4.22034;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 4.186e-05;
+  m.params.Z = 2.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 1.77066;
+  m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 4.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.26584;
+  m.params.molar_mass = 0.203777;
+  m.params.napfu = 7.0;
+  m.params.name = "Fe-Ringwoodite";
+  m.params.q_0 = 2.39042;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Fe-Ringwoodite");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{5.0, 0.0, 26.7627}});
+  return m;
+}
+
+Mineral endmember_1125() {
+  Mineral m;
+  m.params.debye_0 = 647.34559;
+  m.params.F_0 = -1358363.34;
+  m.params.G_0 = 72000000000.0;
+  m.params.Gprime_0 = 1.50973;
+  m.params.K_0 = 168579210000.0;
+  m.params.Kprime_0 = 4.12303;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 4.28e-05;
+  m.params.Z = 8.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 0.95246;
+  m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 4.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.20388;
+  m.params.molar_mass = 0.203777;
+  m.params.napfu = 7.0;
+  m.params.name = "Fe-Wadsleyite";
+  m.params.q_0 = 2.21007;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Fe-Wadsleyite");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{5.0, 0.0, 26.7627}});
+  return m;
+}
+
+Mineral endmember_1126() {
+  Mineral m;
+  m.params.debye_0 = 692.38659;
+  m.params.F_0 = -879526.2000000001;
+  m.params.G_0 = 130337050000.0;
+  m.params.Gprime_0 = 1.37411;
+  m.params.K_0 = 270582550000.00003;
+  m.params.Kprime_0 = 4.01;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.497e-05;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 1.99344;
+  m.params.formula = types::FormulaMap{{"Fe", 1.0}, {"O", 3.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.54222;
+  m.params.molar_mass = 0.131931;
+  m.params.napfu = 5.0;
+  m.params.name = "Fe-Perovskite_Low_Spin";
+  m.params.q_0 = 0.84088;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Fe-Perovskite_Low_Spin");
+  return m;
+}
+
+Mineral endmember_1127() {
+  Mineral m;
+  m.params.debye_0 = 795.29328;
+  m.params.F_0 = -5475295.42;
+  m.params.G_0 = 149593770000.0;
+  m.params.Gprime_0 = 1.7423;
+  m.params.K_0 = 203995010000.0;
+  m.params.Kprime_0 = 4.31884;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 0.000112045;
+  m.params.Z = 1.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.65939;
+  m.params.formula = types::FormulaMap{
+      {"Al", 5.0}, {"Fe", 2.0}, {"Na", 1.0}, {"O", 12.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.42971;
+  m.params.molar_mass = 0.48966601;
+  m.params.napfu = 21.0;
+  m.params.name = "Fe-NAL_Phase";
+  m.params.q_0 = 1.0;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Fe-NAL_Phase");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{5.0, 0.0, 26.7627}});
+  return m;
+}
+
+Mineral endmember_1128() {
+  Mineral m;
+  m.params.debye_0 = 809.1977;
+  m.params.F_0 = -2055371.19;
+  m.params.G_0 = 81600000000.0;
+  m.params.Gprime_0 = 1.46257;
+  m.params.K_0 = 127955500000.0;
+  m.params.Kprime_0 = 4.21796;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 4.3603e-05;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.29968;
+  m.params.formula = types::FormulaMap{{"Mg", 2.0}, {"O", 4.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 0.9928;
+  m.params.molar_mass = 0.140695;
+  m.params.napfu = 7.0;
+  m.params.name = "Forsterite";
+  m.params.q_0 = 2.10671;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Forsterite");
+  return m;
+}
+
+Mineral endmember_1129() {
+  Mineral m;
+  m.params.debye_0 = 794.15823;
+  m.params.F_0 = -982035.5;
+  m.params.G_0 = 129500000000.0;
+  m.params.Gprime_0 = 1.31526;
+  m.params.K_0 = 292000000000.0;
+  m.params.Kprime_0 = 3.74;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.46519e-05;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 1.72601;
+  m.params.formula = types::FormulaMap{{"Fe", 1.0}, {"O", 3.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.76958;
+  m.params.molar_mass = 0.131931;
+  m.params.napfu = 5.0;
+  m.params.name = "Fe-PostPerovskite";
+  m.params.q_0 = 2.04631;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Fe-PostPerovskite");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{5.0, 0.0, 13.38135}});
+  return m;
+}
+
+Mineral endmember_1130() {
+  Mineral m;
+  m.params.debye_0 = 682.67865;
+  m.params.F_0 = -2228327.6999999997;
+  m.params.G_0 = 52000000000.0;
+  m.params.Gprime_0 = 1.54596;
+  m.params.K_0 = 100545910000.0;
+  m.params.Kprime_0 = 7.87534;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 6.5941e-05;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 1.08309;
+  m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 6.0}, {"Si", 2.0}};
+  m.params.grueneisen_0 = 0.71519;
+  m.params.molar_mass = 0.2638614;
+  m.params.napfu = 10.0;
+  m.params.name = "Ferrosilite";
+  m.params.q_0 = 3.43847;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Ferrosilite");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{5.0, 0.0, 26.7627}});
+  return m;
+}
+
+Mineral endmember_1131() {
+  Mineral m;
+  m.params.debye_0 = 822.77062;
+  m.params.F_0 = -6275179.81;
+  m.params.G_0 = 109000000000.0;
+  m.params.Gprime_0 = 1.16274;
+  m.params.K_0 = 167062260000.0;
+  m.params.Kprime_0 = 3.91544;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 0.00012512;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.38415;
+  m.params.formula =
+      types::FormulaMap{{"Al", 2.0}, {"Ca", 3.0}, {"O", 12.0}, {"Si", 3.0}};
+  m.params.grueneisen_0 = 1.05402;
+  m.params.molar_mass = 0.450449;
+  m.params.napfu = 20.0;
+  m.params.name = "Grossular";
+  m.params.q_0 = 1.88886;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Grossular");
+  return m;
+}
+
+Mineral endmember_1132() {
+  Mineral m;
+  m.params.debye_0 = 794.21184;
+  m.params.F_0 = -7356185.029999999;
+  m.params.G_0 = 84500000000.0;
+  m.params.Gprime_0 = 0.62792;
+  m.params.K_0 = 208982310000.0;
+  m.params.Kprime_0 = 4.62659;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 0.000163372;
+  m.params.Z = 8.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.49369;
+  m.params.formula = types::FormulaMap{{"Al", 8.0}, {"Fe", 4.0}, {"O", 16.0}};
+  m.params.grueneisen_0 = 1.19332;
+  m.params.molar_mass = 0.69524;
+  m.params.napfu = 28.0;
+  m.params.name = "Hercynite";
+  m.params.q_0 = 4.05077;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Hercynite");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{5.0, 0.0, 53.5254}});
+  return m;
+}
+
+Mineral endmember_1133() {
+  Mineral m;
+  m.params.debye_0 = 702.08234;
+  m.params.F_0 = -2676991.78;
+  m.params.G_0 = 61000000000.0;
+  m.params.Gprime_0 = 1.71384;
+  m.params.K_0 = 119204720000.0;
+  m.params.Kprime_0 = 4.81927;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 6.7867e-05;
+  m.params.Z = 1.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 1.01745;
+  m.params.formula =
+      types::FormulaMap{{"Ca", 1.0}, {"Fe", 1.0}, {"O", 6.0}, {"Si", 2.0}};
+  m.params.grueneisen_0 = 0.96665;
+  m.params.molar_mass = 0.2480924;
+  m.params.napfu = 10.0;
+  m.params.name = "Hedenbergite";
+  m.params.q_0 = 0.60142;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Hedenbergite");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{5.0, 0.0, 13.38135}});
+  return m;
+}
+
+Mineral endmember_1134() {
+  Mineral m;
+  m.params.debye_0 = 653.80768;
+  m.params.F_0 = -744041.62;
+  m.params.G_0 = 91000000000.0;
+  m.params.Gprime_0 = 1.81492;
+  m.params.K_0 = 204245330000.0;
+  m.params.Kprime_0 = 4.0997;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 3.0287e-05;
+  m.params.Z = 1.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 0.52408;
+  m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 3.0}};
+  m.params.grueneisen_0 = 1.58945;
+  m.params.molar_mass = 0.15968852;
+  m.params.napfu = 5.0;
+  m.params.name = "Hematite";
+  m.params.q_0 = 2.2246;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Hematite");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{950.01, 0.0, 29.79445}});
+  return m;
+}
+
+Mineral endmember_1135() {
+  Mineral m;
+  m.params.debye_0 = 613.90405;
+  m.params.F_0 = -721269.05;
+  m.params.G_0 = 88766580000.0;
+  m.params.Gprime_0 = 1.73259;
+  m.params.K_0 = 135000000000.0;
+  m.params.Kprime_0 = 4.0;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 3.08668e-05;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 0.66524;
+  m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 3.0}};
+  m.params.grueneisen_0 = 1.54222;
+  m.params.molar_mass = 0.15968852;
+  m.params.napfu = 5.0;
+  m.params.name = "Fe2O3-Perovskite_HS";
+  m.params.q_0 = 0.84088;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Fe2O3-Perovskite_HS");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{10.0, 0.0, 29.79445}});
+  return m;
+}
+
+Mineral endmember_1136() {
+  Mineral m;
+  m.params.debye_0 = 725.62214;
+  m.params.F_0 = -617631.95;
+  m.params.G_0 = 163996000000.0;
+  m.params.Gprime_0 = 1.73259;
+  m.params.K_0 = 204251000000.0;
+  m.params.Kprime_0 = 4.1;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.75209e-05;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 3.0318;
+  m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 3.0}};
+  m.params.grueneisen_0 = 1.54222;
+  m.params.molar_mass = 0.15968852;
+  m.params.napfu = 5.0;
+  m.params.name = "Fe2O3-Perovskite_LS";
+  m.params.q_0 = 0.84088;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Fe2O3-Perovskite_LS");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{10.0, 0.0, 20.66026}});
+  return m;
+}
+
+Mineral endmember_1137() {
+  Mineral m;
+  m.params.debye_0 = 533.17958;
+  m.params.F_0 = -964475.2200000001;
+  m.params.G_0 = 108730730000.0;
+  m.params.Gprime_0 = 1.93591;
+  m.params.K_0 = 172000000000.0;
+  m.params.Kprime_0 = 4.0;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 4.1702e-05;
+  m.params.Z = 1.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 0.90477;
+  m.params.formula = types::FormulaMap{{"Fe", 3.0}, {"O", 4.0}};
+  m.params.grueneisen_0 = 1.56672;
+  m.params.molar_mass = 0.23153307;
+  m.params.napfu = 7.0;
+  m.params.name = "High-Pressure_Magnetit";
+  m.params.q_0 = 1.0;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("High-Pressure_Magnetit");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{845.5, 0.0, 43.1758}});
+  return m;
+}
+
+Mineral endmember_1138() {
+  Mineral m;
+  m.params.debye_0 = 688.0644;
+  m.params.F_0 = -622376.42;
+  m.params.G_0 = 159009520000.0;
+  m.params.Gprime_0 = 1.85188;
+  m.params.K_0 = 176500000000.0;
+  m.params.Kprime_0 = 4.0;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.76884e-05;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.00124;
+  m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 3.0}};
+  m.params.grueneisen_0 = 1.76958;
+  m.params.molar_mass = 0.15968852;
+  m.params.napfu = 5.0;
+  m.params.name = "HS_Fe2O3-Post-Perovski";
+  m.params.q_0 = 2.04631;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("HS_Fe2O3-Post-Perovski");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{10.0, 0.0, 29.79445}});
+  return m;
+}
+
+Mineral endmember_1139() {
+  Mineral m;
+  m.params.debye_0 = 820.78389;
+  m.params.F_0 = -2855195.56;
+  m.params.G_0 = 85000000000.0;
+  m.params.Gprime_0 = 1.71384;
+  m.params.K_0 = 142292260000.0;
+  m.params.Kprime_0 = 4.8061;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 6.0508e-05;
+  m.params.Z = 1.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 1.88167;
+  m.params.formula =
+      types::FormulaMap{{"Al", 1.0}, {"Na", 1.0}, {"O", 6.0}, {"Si", 2.0}};
+  m.params.grueneisen_0 = 0.89983;
+  m.params.molar_mass = 0.2021387;
+  m.params.napfu = 10.0;
+  m.params.name = "Jadeite";
+  m.params.q_0 = 0.78628;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Jadeite");
+  return m;
+}
+
+Mineral endmember_1140() {
+  Mineral m;
+  m.params.debye_0 = 943.19593;
+  m.params.F_0 = -2446081.74;
+  m.params.G_0 = 117854530000.0;
+  m.params.Gprime_0 = 1.69416;
+  m.params.K_0 = 160000000000.0;
+  m.params.Kprime_0 = 4.0;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 4.4227e-05;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.90375;
+  m.params.formula = types::FormulaMap{{"Al", 2.0}, {"O", 5.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 0.92549;
+  m.params.molar_mass = 0.1620456;
+  m.params.napfu = 8.0;
+  m.params.name = "Kyanite";
+  m.params.q_0 = 1.0;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Kyanite");
+  return m;
+}
+
+Mineral endmember_1141() {
+  Mineral m;
+  m.params.debye_0 = 720.85819;
+  m.params.F_0 = -407182.57;
+  m.params.G_0 = 207396350000.0;
+  m.params.Gprime_0 = 1.85188;
+  m.params.K_0 = 176500000000.0;
+  m.params.Kprime_0 = 4.0;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.62534e-05;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 3.23888;
+  m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 3.0}};
+  m.params.grueneisen_0 = 1.76958;
+  m.params.molar_mass = 0.15968852;
+  m.params.napfu = 5.0;
+  m.params.name = "LS_Fe2O3-Post-Perovski";
+  m.params.q_0 = 2.04631;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("LS_Fe2O3-Post-Perovski");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{10.0, 0.0, 20.66026}});
+  return m;
+}
+
+Mineral endmember_1142() {
+  Mineral m;
+  m.params.debye_0 = 520.10184;
+  m.params.F_0 = -987192.39;
+  m.params.G_0 = 60300000000.0;
+  m.params.Gprime_0 = -0.05466;
+  m.params.K_0 = 183965710000.0;
+  m.params.Kprime_0 = 5.24573;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 4.4528e-05;
+  m.params.Z = 1.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.43429;
+  m.params.formula = types::FormulaMap{{"Fe", 3.0}, {"O", 4.0}};
+  m.params.grueneisen_0 = 1.32115;
+  m.params.molar_mass = 0.23153307;
+  m.params.napfu = 7.0;
+  m.params.name = "Magnetite";
+  m.params.q_0 = 1.5487;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Magnetite");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{845.5, 0.0, 43.1758}});
+  return m;
+}
+
+Mineral endmember_1143() {
+  Mineral m;
+  m.params.debye_0 = 822.89602;
+  m.params.F_0 = -2905475.75;
+  m.params.G_0 = 87927160000.0;
+  m.params.Gprime_0 = 1.8412;
+  m.params.K_0 = 116024900000.0;
+  m.params.Kprime_0 = 6.23682;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 6.076e-05;
+  m.params.Z = 1.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.14112;
+  m.params.formula = types::FormulaMap{{"Mg", 2.0}, {"O", 6.0}, {"Si", 2.0}};
+  m.params.grueneisen_0 = 1.12442;
+  m.params.molar_mass = 0.2007774;
+  m.params.napfu = 10.0;
+  m.params.name = "HP-Clinoenstatite";
+  m.params.q_0 = 0.20362;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("HP-Clinoenstatite");
+  return m;
+}
+
+Mineral endmember_1144() {
+  Mineral m;
+  m.params.debye_0 = 831.14221;
+  m.params.F_0 = -2122873.69;
+  m.params.G_0 = 129699999999.99998;
+  m.params.Gprime_0 = 1.93591;
+  m.params.K_0 = 213000000000.0;
+  m.params.Kprime_0 = 4.1;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 3.6135e-05;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 1.30302;
+  m.params.formula = types::FormulaMap{{"Al", 2.0}, {"Mg", 1.0}, {"O", 4.0}};
+  m.params.grueneisen_0 = 1.56672;
+  m.params.molar_mass = 0.142266;
+  m.params.napfu = 7.0;
+  m.params.name = "Mg-Ca-Ferrite";
+  m.params.q_0 = 1.0;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Mg-Ca-Ferrite");
+  return m;
+}
+
+Mineral endmember_1145() {
+  Mineral m;
+  m.params.debye_0 = 932.602;
+  m.params.F_0 = -1409831.95;
+  m.params.G_0 = 132000000000.0;
+  m.params.Gprime_0 = 1.81492;
+  m.params.K_0 = 210693870000.0;
+  m.params.Kprime_0 = 5.2154;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.6354e-05;
+  m.params.Z = 2.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 3.40174;
+  m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 3.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.19458;
+  m.params.molar_mass = 0.100389;
+  m.params.napfu = 5.0;
+  m.params.name = "Mg-Akimotoite";
+  m.params.q_0 = 2.2246;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Mg-Akimotoite");
+  return m;
+}
+
+Mineral endmember_1146() {
+  Mineral m;
+  m.params.debye_0 = 822.48562;
+  m.params.F_0 = -5693291.79;
+  m.params.G_0 = 85000000000.0;
+  m.params.Gprime_0 = 1.42969;
+  m.params.K_0 = 165118370000.0;
+  m.params.Kprime_0 = 4.21183;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 0.000114324;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 1.01779;
+  m.params.formula = types::FormulaMap{{"Mg", 4.0}, {"O", 12.0}, {"Si", 4.0}};
+  m.params.grueneisen_0 = 0.97681;
+  m.params.molar_mass = 0.40156;
+  m.params.napfu = 20.0;
+  m.params.name = "Mg-Majorite";
+  m.params.q_0 = 1.53581;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Mg-Majorite");
+  return m;
+}
+
+Mineral endmember_1147() {
+  Mineral m;
+  m.params.debye_0 = 880.01895;
+  m.params.F_0 = -1362442.75;
+  m.params.G_0 = 172900000000.0;
+  m.params.Gprime_0 = 1.73259;
+  m.params.K_0 = 250546900000.0;
+  m.params.Kprime_0 = 4.13499;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.4445e-05;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 1.65573;
+  m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 3.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.54222;
+  m.params.molar_mass = 0.100389;
+  m.params.napfu = 5.0;
+  m.params.name = "Mg-Perovskite";
+  m.params.q_0 = 0.84088;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Mg-Perovskite");
+  return m;
+}
+
+Mineral endmember_1148() {
+  Mineral m;
+  m.params.debye_0 = 875.13511;
+  m.params.F_0 = -2017223.98;
+  m.params.G_0 = 123000000000.0;
+  m.params.Gprime_0 = 1.35412;
+  m.params.K_0 = 184899930000.0;
+  m.params.Kprime_0 = 4.22034;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 3.9493e-05;
+  m.params.Z = 2.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.30288;
+  m.params.formula = types::FormulaMap{{"Mg", 2.0}, {"O", 4.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.1072;
+  m.params.molar_mass = 0.140693;
+  m.params.napfu = 7.0;
+  m.params.name = "Mg-Ringwoodite";
+  m.params.q_0 = 2.39042;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Mg-Ringwoodite");
+  return m;
+}
+
+Mineral endmember_1149() {
+  Mineral m;
+  m.params.debye_0 = 783.94073;
+  m.params.F_0 = -3002410.17;
+  m.params.G_0 = 93471460000.0;
+  m.params.Gprime_0 = 1.54596;
+  m.params.K_0 = 107076810000.0;
+  m.params.Kprime_0 = 7.02751;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 5.914e-05;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.39416;
+  m.params.formula =
+      types::FormulaMap{{"Al", 2.0}, {"Mg", 1.0}, {"O", 6.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 0.78477;
+  m.params.molar_mass = 0.20235;
+  m.params.napfu = 10.0;
+  m.params.name = "Mg-Tschermak's";
+  m.params.q_0 = 3.43847;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Mg-Tschermak's");
+  return m;
+}
+
+Mineral endmember_1150() {
+  Mineral m;
+  m.params.debye_0 = 845.20132;
+  m.params.F_0 = -2028172.68;
+  m.params.G_0 = 112000000000.0;
+  m.params.Gprime_0 = 1.50973;
+  m.params.K_0 = 168701060000.0;
+  m.params.Kprime_0 = 4.12303;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 4.0515e-05;
+  m.params.Z = 8.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.56133;
+  m.params.formula = types::FormulaMap{{"Mg", 2.0}, {"O", 4.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.20388;
+  m.params.molar_mass = 0.140695;
+  m.params.napfu = 7.0;
+  m.params.name = "Mg-Wadsleyite";
+  m.params.q_0 = 2.21007;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Mg-Wadsleyite");
+  return m;
+}
+
+Mineral endmember_1151() {
+  Mineral m;
+  m.params.debye_0 = 858.38264;
+  m.params.F_0 = -6167391.6;
+  m.params.G_0 = 129000000000.0;
+  m.params.Gprime_0 = 1.7423;
+  m.params.K_0 = 203995010000.0;
+  m.params.Kprime_0 = 4.31884;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 0.000109883;
+  m.params.Z = 1.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 1.93069;
+  m.params.formula = types::FormulaMap{
+      {"Al", 5.0}, {"Mg", 2.0}, {"Na", 1.0}, {"O", 12.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.42971;
+  m.params.molar_mass = 0.42658581;
+  m.params.napfu = 21.0;
+  m.params.name = "Mg-NAL_Phase";
+  m.params.q_0 = 1.0;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Mg-NAL_Phase");
+  return m;
+}
+
+Mineral endmember_1152() {
+  Mineral m;
+  m.params.debye_0 = 941.49795;
+  m.params.F_0 = -1313625.76;
+  m.params.G_0 = 171135870000.0;
+  m.params.Gprime_0 = 1.85188;
+  m.params.K_0 = 292000000000.0;
+  m.params.Kprime_0 = 3.74;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.35252e-05;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 1.2881;
+  m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 3.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.76958;
+  m.params.molar_mass = 0.100389;
+  m.params.napfu = 5.0;
+  m.params.name = "Mg-PostPerovskite";
+  m.params.q_0 = 2.04631;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Mg-PostPerovskite");
+  return m;
+}
+
+Mineral endmember_1153() {
+  Mineral m;
+  m.params.debye_0 = 683.31827;
+  m.params.F_0 = -1835429.51;
+  m.params.G_0 = 135326619999.99998;
+  m.params.Gprime_0 = 1.93591;
+  m.params.K_0 = 220000000000.0;
+  m.params.Kprime_0 = 4.1;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 3.627e-05;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 1.36827;
+  m.params.formula =
+      types::FormulaMap{{"Al", 1.0}, {"Na", 1.0}, {"O", 4.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.56672;
+  m.params.molar_mass = 0.142054;
+  m.params.napfu = 7.0;
+  m.params.name = "Na-Ca-Ferrite";
+  m.params.q_0 = 1.0;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Na-Ca-Ferrite");
+  return m;
+}
+
+Mineral endmember_1154() {
+  Mineral m;
+  m.params.debye_0 = 844.73722;
+  m.params.F_0 = -5303066.24;
+  m.params.G_0 = 114700000000.0;
+  m.params.Gprime_0 = 1.35756;
+  m.params.K_0 = 172035150000.0;
+  m.params.Kprime_0 = 5.2005;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 0.000110842;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.4849;
+  m.params.formula =
+      types::FormulaMap{{"Mg", 1.0}, {"Na", 2.0}, {"O", 12.0}, {"Si", 5.0}};
+  m.params.grueneisen_0 = 1.25078;
+  m.params.molar_mass = 0.40270437;
+  m.params.napfu = 20.0;
+  m.params.name = "Na-Majorite";
+  m.params.q_0 = 0.10916;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Na-Majorite");
+  return m;
+}
+
+Mineral endmember_1155() {
+  Mineral m;
+  m.params.debye_0 = 743.57985;
+  m.params.F_0 = -1994469.57;
+  m.params.G_0 = 30700000000.0;
+  m.params.Gprime_0 = 1.33087;
+  m.params.K_0 = 53055500000.0;
+  m.params.Kprime_0 = 4.0;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 5.38684e-05;
+  m.params.Z = 2.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 0.6241;
+  m.params.formula =
+      types::FormulaMap{{"Al", 1.0}, {"Na", 1.0}, {"O", 4.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 0.6969;
+  m.params.molar_mass = 0.14205431;
+  m.params.napfu = 7.0;
+  m.params.name = "Nepheline";
+  m.params.q_0 = 1.0;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Nepheline");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{467.0, 8.000000000000001e-07, 10.0}});
+  return m;
+}
+
+Mineral endmember_1156() {
+  Mineral m;
+  m.params.debye_0 = 850.32833;
+  m.params.F_0 = -5567127.9;
+  m.params.G_0 = 144451020000.0;
+  m.params.Gprime_0 = 1.7423;
+  m.params.K_0 = 203995010000.0;
+  m.params.Kprime_0 = 4.31884;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 0.000109401;
+  m.params.Z = 1.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.42502;
+  m.params.formula =
+      types::FormulaMap{{"Al", 3.0}, {"Na", 3.0}, {"O", 12.0}, {"Si", 3.0}};
+  m.params.grueneisen_0 = 1.42971;
+  m.params.molar_mass = 0.42616294;
+  m.params.napfu = 21.0;
+  m.params.name = "Na-NAL_Phase";
+  m.params.q_0 = 1.0;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Na-NAL_Phase");
+  return m;
+}
+
+Mineral endmember_1157() {
+  Mineral m;
+  m.params.debye_0 = 744.54893;
+  m.params.F_0 = -3015734.13;
+  m.params.G_0 = 57508750000.0;
+  m.params.Gprime_0 = 1.54596;
+  m.params.K_0 = 107076810000.0;
+  m.params.Kprime_0 = 7.02751;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 6.8054e-05;
+  m.params.Z = 1.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 1.31909;
+  m.params.formula =
+      types::FormulaMap{{"Ca", 1.0}, {"Mg", 1.0}, {"O", 6.0}, {"Si", 2.0}};
+  m.params.grueneisen_0 = 0.78477;
+  m.params.molar_mass = 0.2165504;
+  m.params.napfu = 10.0;
+  m.params.name = "Ortho-Diopside";
+  m.params.q_0 = 3.43847;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Ortho-Diopside");
+  return m;
+}
+
+Mineral endmember_1158() {
+  Mineral m;
+  m.params.debye_0 = 770.90151;
+  m.params.F_0 = -2278109.88;
+  m.params.G_0 = 130900000000.0;
+  m.params.Gprime_0 = 2.14668;
+  m.params.K_0 = 161143930000.0;
+  m.params.Kprime_0 = 3.90838;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 4.4976e-05;
+  m.params.Z = 1.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.56123;
+  m.params.formula = types::FormulaMap{{"Mg", 4.0}, {"O", 4.0}};
+  m.params.grueneisen_0 = 1.45033;
+  m.params.molar_mass = 0.16121782;
+  m.params.napfu = 8.0;
+  m.params.name = "Periclase";
+  m.params.q_0 = 1.5487;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Periclase");
+  return m;
+}
+
+Mineral endmember_1159() {
+  Mineral m;
+  m.params.debye_0 = 823.23783;
+  m.params.F_0 = -5937137.35;
+  m.params.G_0 = 93700000000.0;
+  m.params.Gprime_0 = 1.35756;
+  m.params.K_0 = 170239640000.0;
+  m.params.Kprime_0 = 4.11067;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 0.00011308;
+  m.params.Z = 4.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 0.98186;
+  m.params.formula =
+      types::FormulaMap{{"Al", 2.0}, {"Mg", 3.0}, {"O", 12.0}, {"Si", 3.0}};
+  m.params.grueneisen_0 = 1.01422;
+  m.params.molar_mass = 0.40313;
+  m.params.napfu = 20.0;
+  m.params.name = "Pyrope";
+  m.params.q_0 = 1.42169;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Pyrope");
+  return m;
+}
+
+Mineral endmember_1160() {
+  Mineral m;
+  m.params.debye_0 = 884.20481;
+  m.params.F_0 = -860118.03;
+  m.params.G_0 = 44857760000.0;
+  m.params.Gprime_0 = -0.04277;
+  m.params.K_0 = 61425370000.0;
+  m.params.Kprime_0 = 19.78011;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 2.24211e-05;
+  m.params.Z = 16.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.40509;
+  m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = -0.03958;
+  m.params.molar_mass = 0.060085;
+  m.params.napfu = 3.0;
+  m.params.name = "Quartz";
+  m.params.q_0 = 1.0;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Quartz");
+  m.set_property_modifier_params({eos::excesses::LandauSLB2022Params{
+      847.0, 1.3593599999999998e-06, 5.76}});
+  return m;
+}
+
+Mineral endmember_1161() {
+  Mineral m;
+  m.params.debye_0 = 856.3695;
+  m.params.F_0 = -8680043.36;
+  m.params.G_0 = 109000000000.0;
+  m.params.Gprime_0 = 0.62792;
+  m.params.K_0 = 195139330000.0;
+  m.params.Kprime_0 = 4.62659;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 0.000159048;
+  m.params.Z = 8.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 2.44263;
+  m.params.formula = types::FormulaMap{{"Al", 8.0}, {"Mg", 4.0}, {"O", 16.0}};
+  m.params.grueneisen_0 = 0.97518;
+  m.params.molar_mass = 0.569068;
+  m.params.napfu = 28.0;
+  m.params.name = "Spinel";
+  m.params.q_0 = 4.05077;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Spinel");
+  return m;
+}
+
+Mineral endmember_1162() {
+  Mineral m;
+  m.params.debye_0 = 1092.17047;
+  m.params.F_0 = -817491.62;
+  m.params.G_0 = 228000000000.0;
+  m.params.Gprime_0 = 1.94045;
+  m.params.K_0 = 305833020000.0;
+  m.params.Kprime_0 = 4.0292;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 1.4017e-05;
+  m.params.Z = 2.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 4.40394;
+  m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
+  m.params.grueneisen_0 = 1.55674;
+  m.params.molar_mass = 0.060085;
+  m.params.napfu = 3.0;
+  m.params.name = "Stishovite";
+  m.params.q_0 = 2.2096;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("Stishovite");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{-4250.0, 0.0, 4e-05}});
+  return m;
+}
+
+Mineral endmember_1163() {
+  Mineral m;
+  m.params.debye_0 = 454.1752;
+  m.params.F_0 = -974607.49;
+  m.params.G_0 = 59000000000.0;
+  m.params.Gprime_0 = 1.44764;
+  m.params.K_0 = 160700000000.0;
+  m.params.Kprime_0 = 4.0;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 4.9024e-05;
+  m.params.Z = 1.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = 0.06776;
+  m.params.formula = types::FormulaMap{{"Fe", 4.0}, {"O", 4.0}};
+  m.params.grueneisen_0 = 1.45033;
+  m.params.molar_mass = 0.28737822;
+  m.params.napfu = 8.0;
+  m.params.name = "W\\\"ustite";
+  m.params.q_0 = 1.5487;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("W\\\"ustite");
+  m.set_property_modifier_params(
+      {eos::excesses::LandauSLB2022Params{191.0, 0.0, 53.5254}});
+  return m;
+}
+
+Mineral endmember_1164() {
+  Mineral m;
+  m.params.debye_0 = 524.57881;
+  m.params.F_0 = -621968.16;
+  m.params.G_0 = 59000000000.0;
+  m.params.Gprime_0 = 1.44073;
+  m.params.K_0 = 199700000000.0;
+  m.params.Kprime_0 = 4.0;
+  m.params.P_0 = 0.0;
+  m.params.T_0 = 300.0;
+  m.params.V_0 = 4.33997e-05;
+  m.params.Z = 1.0;
+  m.params.equation_of_state = types::EOSType::SLB3;
+  m.params.eta_s_0 = -0.13801;
+  m.params.formula = types::FormulaMap{{"Fe", 4.0}, {"O", 4.0}};
+  m.params.grueneisen_0 = 1.45033;
+  m.params.molar_mass = 0.28737822;
+  m.params.napfu = 8.0;
+  m.params.name = "W\\\"ustite_Low_Spin";
+  m.params.q_0 = 1.5487;
+  m.set_method(types::EOSType::Auto);
+  m.set_name("W\\\"ustite_Low_Spin");
+  return m;
+}
 } // namespace
 
 namespace HP11 {
@@ -33325,4 +35548,814 @@ std::shared_ptr<Mineral> MgO_liquid() {
   return std::make_shared<Mineral>(endmember_1092());
 }
 } // namespace DKS_2013_liquids
+
+namespace SLB_2005 {
+std::shared_ptr<Mineral> stishovite() {
+  return std::make_shared<Mineral>(endmember_1093());
+}
+
+std::shared_ptr<Mineral> periclase() {
+  return std::make_shared<Mineral>(endmember_1094());
+}
+
+std::shared_ptr<Mineral> wuestite() {
+  return std::make_shared<Mineral>(endmember_1095());
+}
+
+std::shared_ptr<Mineral> mg_perovskite() {
+  return std::make_shared<Mineral>(endmember_1096());
+}
+
+std::shared_ptr<Mineral> fe_perovskite() {
+  return std::make_shared<Mineral>(endmember_1097());
+}
+
+std::shared_ptr<Mineral> mg_bridgmanite() {
+  return std::make_shared<Mineral>(endmember_1096());
+}
+
+std::shared_ptr<Mineral> fe_bridgmanite() {
+  return std::make_shared<Mineral>(endmember_1097());
+}
+} // namespace SLB_2005
+
+namespace SLB_2011_ZSB_2013 {
+std::shared_ptr<Mineral> stishovite() {
+  return std::make_shared<Mineral>(endmember_1098());
+}
+
+std::shared_ptr<Mineral> periclase() {
+  return std::make_shared<Mineral>(endmember_1099());
+}
+
+std::shared_ptr<Mineral> wuestite() {
+  return std::make_shared<Mineral>(endmember_1100());
+}
+
+std::shared_ptr<Mineral> mg_perovskite() {
+  return std::make_shared<Mineral>(endmember_1101());
+}
+
+std::shared_ptr<Mineral> fe_perovskite() {
+  return std::make_shared<Mineral>(endmember_1102());
+}
+
+std::shared_ptr<Mineral> mg_bridgmanite() {
+  return std::make_shared<Mineral>(endmember_1101());
+}
+
+std::shared_ptr<Mineral> fe_bridgmanite() {
+  return std::make_shared<Mineral>(endmember_1102());
+}
+} // namespace SLB_2011_ZSB_2013
+
+namespace SLB_2022 {
+std::shared_ptr<Mineral> ab() {
+  return std::make_shared<Mineral>(endmember_1103());
+}
+
+std::shared_ptr<Mineral> al() {
+  return std::make_shared<Mineral>(endmember_1104());
+}
+
+std::shared_ptr<Mineral> alpv() {
+  return std::make_shared<Mineral>(endmember_1105());
+}
+
+std::shared_ptr<Mineral> an() {
+  return std::make_shared<Mineral>(endmember_1106());
+}
+
+std::shared_ptr<Mineral> anao() {
+  return std::make_shared<Mineral>(endmember_1107());
+}
+
+std::shared_ptr<Mineral> apbo() {
+  return std::make_shared<Mineral>(endmember_1108());
+}
+
+std::shared_ptr<Mineral> appv() {
+  return std::make_shared<Mineral>(endmember_1109());
+}
+
+std::shared_ptr<Mineral> capv() {
+  return std::make_shared<Mineral>(endmember_1110());
+}
+
+std::shared_ptr<Mineral> cats() {
+  return std::make_shared<Mineral>(endmember_1111());
+}
+
+std::shared_ptr<Mineral> cen() {
+  return std::make_shared<Mineral>(endmember_1112());
+}
+
+std::shared_ptr<Mineral> co() {
+  return std::make_shared<Mineral>(endmember_1113());
+}
+
+std::shared_ptr<Mineral> coes() {
+  return std::make_shared<Mineral>(endmember_1114());
+}
+
+std::shared_ptr<Mineral> crst() {
+  return std::make_shared<Mineral>(endmember_1115());
+}
+
+std::shared_ptr<Mineral> di() {
+  return std::make_shared<Mineral>(endmember_1116());
+}
+
+std::shared_ptr<Mineral> en() {
+  return std::make_shared<Mineral>(endmember_1117());
+}
+
+std::shared_ptr<Mineral> fa() {
+  return std::make_shared<Mineral>(endmember_1118());
+}
+
+std::shared_ptr<Mineral> fapv() {
+  return std::make_shared<Mineral>(endmember_1119());
+}
+
+std::shared_ptr<Mineral> fec2() {
+  return std::make_shared<Mineral>(endmember_1120());
+}
+
+std::shared_ptr<Mineral> fecf() {
+  return std::make_shared<Mineral>(endmember_1121());
+}
+
+std::shared_ptr<Mineral> feil() {
+  return std::make_shared<Mineral>(endmember_1122());
+}
+
+std::shared_ptr<Mineral> fepv() {
+  return std::make_shared<Mineral>(endmember_1123());
+}
+
+std::shared_ptr<Mineral> feri() {
+  return std::make_shared<Mineral>(endmember_1124());
+}
+
+std::shared_ptr<Mineral> fewa() {
+  return std::make_shared<Mineral>(endmember_1125());
+}
+
+std::shared_ptr<Mineral> flpv() {
+  return std::make_shared<Mineral>(endmember_1126());
+}
+
+std::shared_ptr<Mineral> fnal() {
+  return std::make_shared<Mineral>(endmember_1127());
+}
+
+std::shared_ptr<Mineral> fo() {
+  return std::make_shared<Mineral>(endmember_1128());
+}
+
+std::shared_ptr<Mineral> fppv() {
+  return std::make_shared<Mineral>(endmember_1129());
+}
+
+std::shared_ptr<Mineral> fs() {
+  return std::make_shared<Mineral>(endmember_1130());
+}
+
+std::shared_ptr<Mineral> gr() {
+  return std::make_shared<Mineral>(endmember_1131());
+}
+
+std::shared_ptr<Mineral> hc() {
+  return std::make_shared<Mineral>(endmember_1132());
+}
+
+std::shared_ptr<Mineral> he() {
+  return std::make_shared<Mineral>(endmember_1133());
+}
+
+std::shared_ptr<Mineral> hem() {
+  return std::make_shared<Mineral>(endmember_1134());
+}
+
+std::shared_ptr<Mineral> hepv() {
+  return std::make_shared<Mineral>(endmember_1135());
+}
+
+std::shared_ptr<Mineral> hlpv() {
+  return std::make_shared<Mineral>(endmember_1136());
+}
+
+std::shared_ptr<Mineral> hmag() {
+  return std::make_shared<Mineral>(endmember_1137());
+}
+
+std::shared_ptr<Mineral> hppv() {
+  return std::make_shared<Mineral>(endmember_1138());
+}
+
+std::shared_ptr<Mineral> jd() {
+  return std::make_shared<Mineral>(endmember_1139());
+}
+
+std::shared_ptr<Mineral> ky() {
+  return std::make_shared<Mineral>(endmember_1140());
+}
+
+std::shared_ptr<Mineral> lppv() {
+  return std::make_shared<Mineral>(endmember_1141());
+}
+
+std::shared_ptr<Mineral> mag() {
+  return std::make_shared<Mineral>(endmember_1142());
+}
+
+std::shared_ptr<Mineral> mgc2() {
+  return std::make_shared<Mineral>(endmember_1143());
+}
+
+std::shared_ptr<Mineral> mgcf() {
+  return std::make_shared<Mineral>(endmember_1144());
+}
+
+std::shared_ptr<Mineral> mgil() {
+  return std::make_shared<Mineral>(endmember_1145());
+}
+
+std::shared_ptr<Mineral> mgmj() {
+  return std::make_shared<Mineral>(endmember_1146());
+}
+
+std::shared_ptr<Mineral> mgpv() {
+  return std::make_shared<Mineral>(endmember_1147());
+}
+
+std::shared_ptr<Mineral> mgri() {
+  return std::make_shared<Mineral>(endmember_1148());
+}
+
+std::shared_ptr<Mineral> mgts() {
+  return std::make_shared<Mineral>(endmember_1149());
+}
+
+std::shared_ptr<Mineral> mgwa() {
+  return std::make_shared<Mineral>(endmember_1150());
+}
+
+std::shared_ptr<Mineral> mnal() {
+  return std::make_shared<Mineral>(endmember_1151());
+}
+
+std::shared_ptr<Mineral> mppv() {
+  return std::make_shared<Mineral>(endmember_1152());
+}
+
+std::shared_ptr<Mineral> nacf() {
+  return std::make_shared<Mineral>(endmember_1153());
+}
+
+std::shared_ptr<Mineral> namj() {
+  return std::make_shared<Mineral>(endmember_1154());
+}
+
+std::shared_ptr<Mineral> neph() {
+  return std::make_shared<Mineral>(endmember_1155());
+}
+
+std::shared_ptr<Mineral> nnal() {
+  return std::make_shared<Mineral>(endmember_1156());
+}
+
+std::shared_ptr<Mineral> odi() {
+  return std::make_shared<Mineral>(endmember_1157());
+}
+
+std::shared_ptr<Mineral> pe() {
+  return std::make_shared<Mineral>(endmember_1158());
+}
+
+std::shared_ptr<Mineral> py() {
+  return std::make_shared<Mineral>(endmember_1159());
+}
+
+std::shared_ptr<Mineral> qtz() {
+  return std::make_shared<Mineral>(endmember_1160());
+}
+
+std::shared_ptr<Mineral> sp() {
+  return std::make_shared<Mineral>(endmember_1161());
+}
+
+std::shared_ptr<Mineral> st() {
+  return std::make_shared<Mineral>(endmember_1162());
+}
+
+std::shared_ptr<Mineral> wu() {
+  return std::make_shared<Mineral>(endmember_1163());
+}
+
+std::shared_ptr<Mineral> wuls() {
+  return std::make_shared<Mineral>(endmember_1164());
+}
+
+std::shared_ptr<Solution> c2c_pyroxene() {
+  types::PairedEndmemberList members = {{endmember_1143(), "[Mg]2"},
+                                        {endmember_1120(), "[Fe]2"}};
+  auto model = std::make_shared<solution_models::IdealSolution>(members);
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("c2c_pyroxene");
+  solution->set_composition(Eigen::ArrayXd::Constant(2, 1.0 / 2.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> calcium_ferrite_structured_phase() {
+  types::PairedEndmemberList members = {{endmember_1144(), "[Mg][Al]"},
+                                        {endmember_1121(), "[Fe][Al]"},
+                                        {endmember_1153(), "[Na][Si]"}};
+  auto model = std::make_shared<solution_models::AsymmetricRegularSolution>(
+      members, std::vector<double>{1.0, 1.0, 4.4532},
+      Interactions{{0.0, 60825.08}, {60825.08}},
+      Interactions{{0.0, 0.0}, {0.0}}, Interactions{{0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("calcium_ferrite_structured_phase");
+  solution->set_composition(Eigen::ArrayXd::Constant(3, 1.0 / 3.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> clinopyroxene() {
+  types::PairedEndmemberList members = {
+      {endmember_1116(), "[Ca][Mg][Si]2"},
+      {endmember_1133(), "[Ca][Fe][Si]2"},
+      {endmember_1112(), "[Mg][Mg][Si]2"},
+      {endmember_1111(), "[Ca][Al][Si1/2Al1/2]2"},
+      {endmember_1139(), "[Na][Al][Si]2"}};
+  auto model = std::make_shared<solution_models::AsymmetricRegularSolution>(
+      members, std::vector<double>{1.0, 1.0, 1.0, 3.5, 1.0},
+      Interactions{{0.0, 24740.0, 26000.0, 24300.0},
+                   {24740.0, 26000.0, 24300.0},
+                   {60132.80999999999, 46046.07},
+                   {10000.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("clinopyroxene");
+  solution->set_composition(Eigen::ArrayXd::Constant(5, 1.0 / 5.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> garnet() {
+  types::PairedEndmemberList members = {
+      {endmember_1159(), "[Mg]3[Al][Al]"},
+      {endmember_1104(), "[Fe]3[Al][Al]"},
+      {endmember_1131(), "[Ca]3[Al][Al]"},
+      {endmember_1146(), "[Mg]3[Mg][Si]"},
+      {endmember_1154(), "[Na2/3Mg1/3]3[Si][Si]"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members,
+      Interactions{{0.0, 21117.58, 22672.42, 22672.42},
+                   {21117.58, 22672.42, 22672.42},
+                   {60718.2, 60718.2},
+                   {70879.14}},
+      Interactions{
+          {0.0, 1.03e-06, 0.0, 0.0}, {0.0, 0.0, 0.0}, {1.03e-06, 0.0}, {0.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("garnet");
+  solution->set_composition(Eigen::ArrayXd::Constant(5, 1.0 / 5.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> ilmenite() {
+  types::PairedEndmemberList members = {{endmember_1145(), "[Mg][Si]"},
+                                        {endmember_1122(), "[Fe][Si]"},
+                                        {endmember_1113(), "[Al][Al]"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members, Interactions{{0.0, 59348.69}, {59348.69}},
+      Interactions{{0.0, 0.0}, {0.0}}, Interactions{{0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("ilmenite");
+  solution->set_composition(Eigen::ArrayXd::Constant(3, 1.0 / 3.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> ferropericlase() {
+  types::PairedEndmemberList members = {{endmember_1158(), "[Mg]2[Mg]2"},
+                                        {endmember_1163(), "[Fe]2[Fe]2"},
+                                        {endmember_1107(), "[Na]2[Al]2"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members, Interactions{{44000.0, 120000.0}, {120000.0}},
+      Interactions{{4.4e-07, 0.0}, {0.0}}, Interactions{{0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("ferropericlase");
+  solution->set_composition(Eigen::ArrayXd::Constant(3, 1.0 / 3.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> new_aluminous_phase() {
+  types::PairedEndmemberList members = {
+      {endmember_1151(), "[Mg]2[Al5/6Si1/6]6"},
+      {endmember_1127(), "[Fe]2[Al5/6Si1/6]6"},
+      {endmember_1156(), "[Na]2[Al3/6Si3/6]6"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members, Interactions{{0.0, -60781.47}, {-60781.47}},
+      Interactions{{0.0, 0.0}, {0.0}}, Interactions{{0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("new_aluminous_phase");
+  solution->set_composition(Eigen::ArrayXd::Constant(3, 1.0 / 3.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> olivine() {
+  types::PairedEndmemberList members = {{endmember_1128(), "[Mg]2"},
+                                        {endmember_1118(), "[Fe]2"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members, Interactions{{4694.66}}, Interactions{{0.0}},
+      Interactions{{0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("olivine");
+  solution->set_composition(Eigen::ArrayXd::Constant(2, 1.0 / 2.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> orthopyroxene() {
+  types::PairedEndmemberList members = {{endmember_1117(), "[Mg][Mg]"},
+                                        {endmember_1130(), "[Fe][Fe]"},
+                                        {endmember_1149(), "[Mg][Al]"},
+                                        {endmember_1157(), "[Ca][Mg]"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members, Interactions{{0.0, 0.0, 32217.44}, {0.0, 32217.44}, {48370.41}},
+      Interactions{{0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}},
+      Interactions{{0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("orthopyroxene");
+  solution->set_composition(Eigen::ArrayXd::Constant(4, 1.0 / 4.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> plagioclase() {
+  types::PairedEndmemberList members = {{endmember_1106(), "[Ca]"},
+                                        {endmember_1103(), "[Na]"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members, Interactions{{13000.0}}, Interactions{{0.0}},
+      Interactions{{0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("plagioclase");
+  solution->set_composition(Eigen::ArrayXd::Constant(2, 1.0 / 2.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> post_perovskite() {
+  types::PairedEndmemberList members = {{endmember_1152(), "[Mg][Si]"},
+                                        {endmember_1129(), "[Fe][Si]"},
+                                        {endmember_1109(), "[Al][Al]"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members, Interactions{{-10955.49, 34979.87}, {34979.87}},
+      Interactions{{0.0, 0.0}, {0.0}}, Interactions{{0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("post_perovskite");
+  solution->set_composition(Eigen::ArrayXd::Constant(3, 1.0 / 3.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> bridgmanite() {
+  types::PairedEndmemberList members = {{endmember_1147(), "[Mg][Si]"},
+                                        {endmember_1123(), "[Fe][Si]"},
+                                        {endmember_1105(), "[Al][Al]"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members, Interactions{{-11396.17, 34979.87}, {0.0}},
+      Interactions{{0.0, 0.0}, {0.0}}, Interactions{{0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("bridgmanite");
+  solution->set_composition(Eigen::ArrayXd::Constant(3, 1.0 / 3.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> ringwoodite() {
+  types::PairedEndmemberList members = {{endmember_1148(), "[Mg]2"},
+                                        {endmember_1124(), "[Fe]2"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members, Interactions{{7600.74}}, Interactions{{0.0}},
+      Interactions{{0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("ringwoodite");
+  solution->set_composition(Eigen::ArrayXd::Constant(2, 1.0 / 2.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> mg_fe_aluminous_spinel() {
+  types::PairedEndmemberList members = {
+      {endmember_1161(), "[Mg3/4Al1/4]4[Al7/8Mg1/8]8"},
+      {endmember_1132(), "[Fe3/4Al1/4]4[Al7/8Fe1/8]8"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members, Interactions{{-533.21}}, Interactions{{0.0}},
+      Interactions{{0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("mg_fe_aluminous_spinel");
+  solution->set_composition(Eigen::ArrayXd::Constant(2, 1.0 / 2.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> wadsleyite() {
+  types::PairedEndmemberList members = {{endmember_1150(), "[Mg]2"},
+                                        {endmember_1125(), "[Fe]2"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members, Interactions{{13202.38}}, Interactions{{0.0}},
+      Interactions{{0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("wadsleyite");
+  solution->set_composition(Eigen::ArrayXd::Constant(2, 1.0 / 2.0));
+  return solution;
+}
+
+std::shared_ptr<Mineral> albite() {
+  return std::make_shared<Mineral>(endmember_1103());
+}
+
+std::shared_ptr<Mineral> almandine() {
+  return std::make_shared<Mineral>(endmember_1104());
+}
+
+std::shared_ptr<Mineral> al_perovskite() {
+  return std::make_shared<Mineral>(endmember_1105());
+}
+
+std::shared_ptr<Mineral> anorthite() {
+  return std::make_shared<Mineral>(endmember_1106());
+}
+
+std::shared_ptr<Mineral> alpha_nao2_phase() {
+  return std::make_shared<Mineral>(endmember_1107());
+}
+
+std::shared_ptr<Mineral> alpha_pbo_2_sio_2() {
+  return std::make_shared<Mineral>(endmember_1108());
+}
+
+std::shared_ptr<Mineral> al_post_perovskite() {
+  return std::make_shared<Mineral>(endmember_1109());
+}
+
+std::shared_ptr<Mineral> ca_perovskite() {
+  return std::make_shared<Mineral>(endmember_1110());
+}
+
+std::shared_ptr<Mineral> lime_tschermak() {
+  return std::make_shared<Mineral>(endmember_1111());
+}
+
+std::shared_ptr<Mineral> clinoenstatite() {
+  return std::make_shared<Mineral>(endmember_1112());
+}
+
+std::shared_ptr<Mineral> corundum() {
+  return std::make_shared<Mineral>(endmember_1113());
+}
+
+std::shared_ptr<Mineral> coesite() {
+  return std::make_shared<Mineral>(endmember_1114());
+}
+
+std::shared_ptr<Mineral> cristobalite() {
+  return std::make_shared<Mineral>(endmember_1115());
+}
+
+std::shared_ptr<Mineral> diopside() {
+  return std::make_shared<Mineral>(endmember_1116());
+}
+
+std::shared_ptr<Mineral> enstatite() {
+  return std::make_shared<Mineral>(endmember_1117());
+}
+
+std::shared_ptr<Mineral> fayalite() {
+  return std::make_shared<Mineral>(endmember_1118());
+}
+
+std::shared_ptr<Mineral> fealo3_perovskite_hs() {
+  return std::make_shared<Mineral>(endmember_1119());
+}
+
+std::shared_ptr<Mineral> hp_clinoferrosilite() {
+  return std::make_shared<Mineral>(endmember_1120());
+}
+
+std::shared_ptr<Mineral> fe_ca_ferrite() {
+  return std::make_shared<Mineral>(endmember_1121());
+}
+
+std::shared_ptr<Mineral> fe_akimotoite() {
+  return std::make_shared<Mineral>(endmember_1122());
+}
+
+std::shared_ptr<Mineral> fe_perovskite() {
+  return std::make_shared<Mineral>(endmember_1123());
+}
+
+std::shared_ptr<Mineral> fe_ringwoodite() {
+  return std::make_shared<Mineral>(endmember_1124());
+}
+
+std::shared_ptr<Mineral> fe_wadsleyite() {
+  return std::make_shared<Mineral>(endmember_1125());
+}
+
+std::shared_ptr<Mineral> fe_perovskite_low_spin() {
+  return std::make_shared<Mineral>(endmember_1126());
+}
+
+std::shared_ptr<Mineral> fe_nal_phase() {
+  return std::make_shared<Mineral>(endmember_1127());
+}
+
+std::shared_ptr<Mineral> forsterite() {
+  return std::make_shared<Mineral>(endmember_1128());
+}
+
+std::shared_ptr<Mineral> fe_postperovskite() {
+  return std::make_shared<Mineral>(endmember_1129());
+}
+
+std::shared_ptr<Mineral> ferrosilite() {
+  return std::make_shared<Mineral>(endmember_1130());
+}
+
+std::shared_ptr<Mineral> grossular() {
+  return std::make_shared<Mineral>(endmember_1131());
+}
+
+std::shared_ptr<Mineral> hercynite() {
+  return std::make_shared<Mineral>(endmember_1132());
+}
+
+std::shared_ptr<Mineral> hedenbergite() {
+  return std::make_shared<Mineral>(endmember_1133());
+}
+
+std::shared_ptr<Mineral> hematite() {
+  return std::make_shared<Mineral>(endmember_1134());
+}
+
+std::shared_ptr<Mineral> fe2o3_perovskite_hs() {
+  return std::make_shared<Mineral>(endmember_1135());
+}
+
+std::shared_ptr<Mineral> fe2o3_perovskite_ls() {
+  return std::make_shared<Mineral>(endmember_1136());
+}
+
+std::shared_ptr<Mineral> high_pressure_magnetit() {
+  return std::make_shared<Mineral>(endmember_1137());
+}
+
+std::shared_ptr<Mineral> hs_fe2o3_post_perovski() {
+  return std::make_shared<Mineral>(endmember_1138());
+}
+
+std::shared_ptr<Mineral> jadeite() {
+  return std::make_shared<Mineral>(endmember_1139());
+}
+
+std::shared_ptr<Mineral> kyanite() {
+  return std::make_shared<Mineral>(endmember_1140());
+}
+
+std::shared_ptr<Mineral> ls_fe2o3_post_perovski() {
+  return std::make_shared<Mineral>(endmember_1141());
+}
+
+std::shared_ptr<Mineral> magnetite() {
+  return std::make_shared<Mineral>(endmember_1142());
+}
+
+std::shared_ptr<Mineral> hp_clinoenstatite() {
+  return std::make_shared<Mineral>(endmember_1143());
+}
+
+std::shared_ptr<Mineral> mg_ca_ferrite() {
+  return std::make_shared<Mineral>(endmember_1144());
+}
+
+std::shared_ptr<Mineral> mg_akimotoite() {
+  return std::make_shared<Mineral>(endmember_1145());
+}
+
+std::shared_ptr<Mineral> mg_majorite() {
+  return std::make_shared<Mineral>(endmember_1146());
+}
+
+std::shared_ptr<Mineral> mg_perovskite() {
+  return std::make_shared<Mineral>(endmember_1147());
+}
+
+std::shared_ptr<Mineral> mg_ringwoodite() {
+  return std::make_shared<Mineral>(endmember_1148());
+}
+
+std::shared_ptr<Mineral> mg_tschermaks() {
+  return std::make_shared<Mineral>(endmember_1149());
+}
+
+std::shared_ptr<Mineral> mg_wadsleyite() {
+  return std::make_shared<Mineral>(endmember_1150());
+}
+
+std::shared_ptr<Mineral> mg_nal_phase() {
+  return std::make_shared<Mineral>(endmember_1151());
+}
+
+std::shared_ptr<Mineral> mg_postperovskite() {
+  return std::make_shared<Mineral>(endmember_1152());
+}
+
+std::shared_ptr<Mineral> na_ca_ferrite() {
+  return std::make_shared<Mineral>(endmember_1153());
+}
+
+std::shared_ptr<Mineral> na_majorite() {
+  return std::make_shared<Mineral>(endmember_1154());
+}
+
+std::shared_ptr<Mineral> nepheline() {
+  return std::make_shared<Mineral>(endmember_1155());
+}
+
+std::shared_ptr<Mineral> na_nal_phase() {
+  return std::make_shared<Mineral>(endmember_1156());
+}
+
+std::shared_ptr<Mineral> ortho_diopside() {
+  return std::make_shared<Mineral>(endmember_1157());
+}
+
+std::shared_ptr<Mineral> periclase() {
+  return std::make_shared<Mineral>(endmember_1158());
+}
+
+std::shared_ptr<Mineral> pyrope() {
+  return std::make_shared<Mineral>(endmember_1159());
+}
+
+std::shared_ptr<Mineral> quartz() {
+  return std::make_shared<Mineral>(endmember_1160());
+}
+
+std::shared_ptr<Mineral> spinel() {
+  return std::make_shared<Mineral>(endmember_1161());
+}
+
+std::shared_ptr<Mineral> stishovite() {
+  return std::make_shared<Mineral>(endmember_1162());
+}
+
+std::shared_ptr<Mineral> wustite() {
+  return std::make_shared<Mineral>(endmember_1163());
+}
+
+std::shared_ptr<Mineral> wustite_low_spin() {
+  return std::make_shared<Mineral>(endmember_1164());
+}
+
+std::shared_ptr<Solution> c2c() { return c2c_pyroxene(); }
+
+std::shared_ptr<Solution> cf() { return calcium_ferrite_structured_phase(); }
+
+std::shared_ptr<Solution> cpx() { return clinopyroxene(); }
+
+std::shared_ptr<Solution> gt() { return garnet(); }
+
+std::shared_ptr<Solution> il() { return ilmenite(); }
+
+std::shared_ptr<Solution> mw() { return ferropericlase(); }
+
+std::shared_ptr<Solution> nal() { return new_aluminous_phase(); }
+
+std::shared_ptr<Solution> ol() { return olivine(); }
+
+std::shared_ptr<Solution> opx() { return orthopyroxene(); }
+
+std::shared_ptr<Solution> plg() { return plagioclase(); }
+
+std::shared_ptr<Solution> ppv() { return post_perovskite(); }
+
+std::shared_ptr<Solution> pv() { return bridgmanite(); }
+
+std::shared_ptr<Solution> ri() { return ringwoodite(); }
+
+std::shared_ptr<Solution> wa() { return wadsleyite(); }
+} // namespace SLB_2022
 } // namespace burnman::minerals

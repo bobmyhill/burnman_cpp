@@ -23,8 +23,9 @@
  * HPx_ds636, ig51W24 (Weller et al. 2024) and ig51G25 (Green et al. 2025),
  * SLB_2024 (Stixrude & Lithgow-Bertelloni 2024, doi:10.1093/gji/ggae126),
  * DKS_2013_solids and DKS_2013_liquids (de Koker et al. 2013,
- * doi:10.1016/j.epsl.2012.11.026). Legacy HGP18 melt pseudo-species Alsi2 is
- * renamed Alsitwo to preserve pjd=1.
+ * doi:10.1016/j.epsl.2012.11.026). SLB_2005, SLB_2011_ZSB_2013 and SLB_2022
+ * (Stixrude & Lithgow-Bertelloni, and Zhang, Stixrude & Brodholt 2013). Legacy
+ * HGP18 melt pseudo-species Alsi2 is renamed Alsitwo to preserve pjd=1.
  */
 #pragma once
 #include "burnman/core/mineral.hpp"
@@ -1511,4 +1512,180 @@ std::shared_ptr<Mineral> Mg3Si2O7_liquid();
 std::shared_ptr<Mineral> Mg5SiO7_liquid();
 std::shared_ptr<Mineral> MgO_liquid();
 } // namespace DKS_2013_liquids
+
+namespace SLB_2005 {
+std::shared_ptr<Mineral> stishovite();
+std::shared_ptr<Mineral> periclase();
+std::shared_ptr<Mineral> wuestite();
+std::shared_ptr<Mineral> mg_perovskite();
+std::shared_ptr<Mineral> fe_perovskite();
+std::shared_ptr<Mineral> mg_bridgmanite();
+std::shared_ptr<Mineral> fe_bridgmanite();
+} // namespace SLB_2005
+
+namespace SLB_2011_ZSB_2013 {
+std::shared_ptr<Mineral> stishovite();
+std::shared_ptr<Mineral> periclase();
+std::shared_ptr<Mineral> wuestite();
+std::shared_ptr<Mineral> mg_perovskite();
+std::shared_ptr<Mineral> fe_perovskite();
+std::shared_ptr<Mineral> mg_bridgmanite();
+std::shared_ptr<Mineral> fe_bridgmanite();
+} // namespace SLB_2011_ZSB_2013
+
+namespace SLB_2022 {
+std::shared_ptr<Mineral> ab();
+std::shared_ptr<Mineral> al();
+std::shared_ptr<Mineral> alpv();
+std::shared_ptr<Mineral> an();
+std::shared_ptr<Mineral> anao();
+std::shared_ptr<Mineral> apbo();
+std::shared_ptr<Mineral> appv();
+std::shared_ptr<Mineral> capv();
+std::shared_ptr<Mineral> cats();
+std::shared_ptr<Mineral> cen();
+std::shared_ptr<Mineral> co();
+std::shared_ptr<Mineral> coes();
+std::shared_ptr<Mineral> crst();
+std::shared_ptr<Mineral> di();
+std::shared_ptr<Mineral> en();
+std::shared_ptr<Mineral> fa();
+std::shared_ptr<Mineral> fapv();
+std::shared_ptr<Mineral> fec2();
+std::shared_ptr<Mineral> fecf();
+std::shared_ptr<Mineral> feil();
+std::shared_ptr<Mineral> fepv();
+std::shared_ptr<Mineral> feri();
+std::shared_ptr<Mineral> fewa();
+std::shared_ptr<Mineral> flpv();
+std::shared_ptr<Mineral> fnal();
+std::shared_ptr<Mineral> fo();
+std::shared_ptr<Mineral> fppv();
+std::shared_ptr<Mineral> fs();
+std::shared_ptr<Mineral> gr();
+std::shared_ptr<Mineral> hc();
+std::shared_ptr<Mineral> he();
+std::shared_ptr<Mineral> hem();
+std::shared_ptr<Mineral> hepv();
+std::shared_ptr<Mineral> hlpv();
+std::shared_ptr<Mineral> hmag();
+std::shared_ptr<Mineral> hppv();
+std::shared_ptr<Mineral> jd();
+std::shared_ptr<Mineral> ky();
+std::shared_ptr<Mineral> lppv();
+std::shared_ptr<Mineral> mag();
+std::shared_ptr<Mineral> mgc2();
+std::shared_ptr<Mineral> mgcf();
+std::shared_ptr<Mineral> mgil();
+std::shared_ptr<Mineral> mgmj();
+std::shared_ptr<Mineral> mgpv();
+std::shared_ptr<Mineral> mgri();
+std::shared_ptr<Mineral> mgts();
+std::shared_ptr<Mineral> mgwa();
+std::shared_ptr<Mineral> mnal();
+std::shared_ptr<Mineral> mppv();
+std::shared_ptr<Mineral> nacf();
+std::shared_ptr<Mineral> namj();
+std::shared_ptr<Mineral> neph();
+std::shared_ptr<Mineral> nnal();
+std::shared_ptr<Mineral> odi();
+std::shared_ptr<Mineral> pe();
+std::shared_ptr<Mineral> py();
+std::shared_ptr<Mineral> qtz();
+std::shared_ptr<Mineral> sp();
+std::shared_ptr<Mineral> st();
+std::shared_ptr<Mineral> wu();
+std::shared_ptr<Mineral> wuls();
+std::shared_ptr<Solution> c2c_pyroxene();
+std::shared_ptr<Solution> calcium_ferrite_structured_phase();
+std::shared_ptr<Solution> clinopyroxene();
+std::shared_ptr<Solution> garnet();
+std::shared_ptr<Solution> ilmenite();
+std::shared_ptr<Solution> ferropericlase();
+std::shared_ptr<Solution> new_aluminous_phase();
+std::shared_ptr<Solution> olivine();
+std::shared_ptr<Solution> orthopyroxene();
+std::shared_ptr<Solution> plagioclase();
+std::shared_ptr<Solution> post_perovskite();
+std::shared_ptr<Solution> bridgmanite();
+std::shared_ptr<Solution> ringwoodite();
+std::shared_ptr<Solution> mg_fe_aluminous_spinel();
+std::shared_ptr<Solution> wadsleyite();
+std::shared_ptr<Mineral> albite();
+std::shared_ptr<Mineral> almandine();
+std::shared_ptr<Mineral> al_perovskite();
+std::shared_ptr<Mineral> anorthite();
+std::shared_ptr<Mineral> alpha_nao2_phase();
+std::shared_ptr<Mineral> alpha_pbo_2_sio_2();
+std::shared_ptr<Mineral> al_post_perovskite();
+std::shared_ptr<Mineral> ca_perovskite();
+std::shared_ptr<Mineral> lime_tschermak();
+std::shared_ptr<Mineral> clinoenstatite();
+std::shared_ptr<Mineral> corundum();
+std::shared_ptr<Mineral> coesite();
+std::shared_ptr<Mineral> cristobalite();
+std::shared_ptr<Mineral> diopside();
+std::shared_ptr<Mineral> enstatite();
+std::shared_ptr<Mineral> fayalite();
+std::shared_ptr<Mineral> fealo3_perovskite_hs();
+std::shared_ptr<Mineral> hp_clinoferrosilite();
+std::shared_ptr<Mineral> fe_ca_ferrite();
+std::shared_ptr<Mineral> fe_akimotoite();
+std::shared_ptr<Mineral> fe_perovskite();
+std::shared_ptr<Mineral> fe_ringwoodite();
+std::shared_ptr<Mineral> fe_wadsleyite();
+std::shared_ptr<Mineral> fe_perovskite_low_spin();
+std::shared_ptr<Mineral> fe_nal_phase();
+std::shared_ptr<Mineral> forsterite();
+std::shared_ptr<Mineral> fe_postperovskite();
+std::shared_ptr<Mineral> ferrosilite();
+std::shared_ptr<Mineral> grossular();
+std::shared_ptr<Mineral> hercynite();
+std::shared_ptr<Mineral> hedenbergite();
+std::shared_ptr<Mineral> hematite();
+std::shared_ptr<Mineral> fe2o3_perovskite_hs();
+std::shared_ptr<Mineral> fe2o3_perovskite_ls();
+std::shared_ptr<Mineral> high_pressure_magnetit();
+std::shared_ptr<Mineral> hs_fe2o3_post_perovski();
+std::shared_ptr<Mineral> jadeite();
+std::shared_ptr<Mineral> kyanite();
+std::shared_ptr<Mineral> ls_fe2o3_post_perovski();
+std::shared_ptr<Mineral> magnetite();
+std::shared_ptr<Mineral> hp_clinoenstatite();
+std::shared_ptr<Mineral> mg_ca_ferrite();
+std::shared_ptr<Mineral> mg_akimotoite();
+std::shared_ptr<Mineral> mg_majorite();
+std::shared_ptr<Mineral> mg_perovskite();
+std::shared_ptr<Mineral> mg_ringwoodite();
+std::shared_ptr<Mineral> mg_tschermaks();
+std::shared_ptr<Mineral> mg_wadsleyite();
+std::shared_ptr<Mineral> mg_nal_phase();
+std::shared_ptr<Mineral> mg_postperovskite();
+std::shared_ptr<Mineral> na_ca_ferrite();
+std::shared_ptr<Mineral> na_majorite();
+std::shared_ptr<Mineral> nepheline();
+std::shared_ptr<Mineral> na_nal_phase();
+std::shared_ptr<Mineral> ortho_diopside();
+std::shared_ptr<Mineral> periclase();
+std::shared_ptr<Mineral> pyrope();
+std::shared_ptr<Mineral> quartz();
+std::shared_ptr<Mineral> spinel();
+std::shared_ptr<Mineral> stishovite();
+std::shared_ptr<Mineral> wustite();
+std::shared_ptr<Mineral> wustite_low_spin();
+std::shared_ptr<Solution> c2c();
+std::shared_ptr<Solution> cf();
+std::shared_ptr<Solution> cpx();
+std::shared_ptr<Solution> gt();
+std::shared_ptr<Solution> il();
+std::shared_ptr<Solution> mw();
+std::shared_ptr<Solution> nal();
+std::shared_ptr<Solution> ol();
+std::shared_ptr<Solution> opx();
+std::shared_ptr<Solution> plg();
+std::shared_ptr<Solution> ppv();
+std::shared_ptr<Solution> pv();
+std::shared_ptr<Solution> ri();
+std::shared_ptr<Solution> wa();
+} // namespace SLB_2022
 } // namespace burnman::minerals

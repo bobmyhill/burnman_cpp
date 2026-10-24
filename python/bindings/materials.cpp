@@ -96,6 +96,19 @@ void bind_materials(py::module_ &m) {
           "params", [](const Mineral &self) { return self.params; },
           "A copy of the validated parameters; construct a new mineral to "
           "change them.")
+      .def_property(
+          "uncertainties",
+          [](const Mineral &self) {
+            if (!self.uncertainties)
+              throw py::attribute_error("No parameter uncertainties supplied.");
+            return *self.uncertainties;
+          },
+          [](Mineral &self,
+             const std::optional<std::unordered_map<std::string, double>>
+                 &values) { self.uncertainties = values; },
+          "Published parameter standard errors in the dataset's names and "
+          "units. "
+          "Returned dictionaries are independent copies; None clears the data.")
       .def(
           "set_property_modifiers",
           [](Mineral &self, const py::iterable &modifiers) {

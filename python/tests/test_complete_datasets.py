@@ -39,6 +39,9 @@ DATASETS = {
     "IG25": "ig51G25",
     "DKS_2013_solids": "DKS_2013_solids",
     "DKS_2013_liquids": "DKS_2013_liquids",
+    "SLB_2005": "SLB_2005",
+    "SLB_2011_ZSB_2013": "SLB_2011_ZSB_2013",
+    "SLB_2022": "SLB_2022",
 }
 
 
@@ -79,6 +82,12 @@ def ps1994_paper_gas_constant(monkeypatch):
 
 def reference_phase(value):
     phase = value() if inspect.isclass(value) else copy.deepcopy(value)
+    # Express HeFESTo critical volumes in m^3/mol.
+    if type(phase).__module__ == "burnman.minerals.SLB_2022":
+        corrected_volumes = {"Nepheline": 8e-7, "Quartz": 1.35936e-6}
+        if phase.name in corrected_volumes:
+            phase.property_modifiers = copy.deepcopy(phase.property_modifiers)
+            phase.property_modifiers[0][1]["V_D"] = corrected_volumes[phase.name]
     # Retain the existing, documented correction to HGP pseudo-species pjd=1.
     # All thermodynamic parameters and interaction matrices remain upstream's.
     if isinstance(phase, burnman.Solution):
@@ -238,10 +247,17 @@ def test_every_factory_matches_python_burnman(group, name, value, state):
     for phase in (native, reference):
         phase.set_state(pressure, temperature)
     assert native.name == reference.name
-    for element in native.formula.keys() | reference.formula.keys():
-        assert native.formula.get(element, 0.0) == pytest.approx(
-            reference.formula.get(element, 0.0), abs=1.0e-12
-        )
+    if isinstance(reference, burnman.Solution) or "formula" in reference.params:
+        for element in native.formula.keys() | reference.formula.keys():
+            assert native.formula.get(element, 0.0) == pytest.approx(
+                reference.formula.get(element, 0.0), abs=1.0e-12
+            )
+    else:
+        assert native.params.formula is None
+    if "Z" in reference.params:
+        assert native.params.Z == reference.params["Z"]
+    if hasattr(reference, "uncertainties"):
+        assert native.uncertainties == reference.uncertainties
     # SciPy's upstream Nelder-Mead spin minima have finite composition accuracy.
     relaxed = isinstance(reference, burnman.RelaxedSolution)
     rtol = 3.0e-5 if relaxed else 8.0e-8

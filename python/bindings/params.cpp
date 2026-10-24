@@ -77,6 +77,7 @@ void bind_params(py::module_ &m) {
   PARAM(equation_of_state);
   PARAM(napfu);
   PARAM(molar_mass);
+  PARAM(Z);
   PARAM(P_0);
   PARAM(T_0);
   PARAM(E_0);

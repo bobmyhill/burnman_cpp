@@ -20,7 +20,9 @@
 #include "burnman/utils/types/mineral_params.hpp"
 #include "burnman/utils/types/simple_types.hpp"
 #include <memory>
+#include <optional>
 #include <string>
+#include <unordered_map>
 
 namespace burnman {
 
@@ -53,6 +55,10 @@ public:
    * @brief Parameters for the mineral.
    */
   types::MineralParams params;
+
+  /// Published parameter standard errors, retaining the dataset's names and
+  /// units.
+  std::optional<std::unordered_map<std::string, double>> uncertainties;
 
   /**
    * @brief Shared pointer to the EquationOfState used to compute properties.

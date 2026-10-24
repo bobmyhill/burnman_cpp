@@ -17,6 +17,9 @@ HP11 uses dataset 6.2; HGP18 and IG18 use dataset 6.33. HPx_ds636,
 IG24 and IG25 provide dataset 6.36 and the W24/G25 igneous families.
 MP14 and MB16 provide metapelite and metabasite solutions, including melts.
 SLB11, JH15 and SLB24 provide mantle models and relaxed spin solutions.
+SLB_2005, SLB_2011_ZSB_2013 and SLB_2022 retain the original dataset names.
+The older datasets have no reference free energies; SLB_2011_ZSB_2013 also
+omits chemical formulae. Its elastic and thermal properties remain available.
 Materials created from the same dataset are independent of one another.
 SLB24.phase_aliases maps original model names to preferred plot abbreviations.
 model_sets provides matched collections with calibration metadata.
@@ -41,6 +44,9 @@ from .._core.minerals import (
     SLB24,
     DKS_2013_solids,
     DKS_2013_liquids,
+    SLB_2005,
+    SLB_2011_ZSB_2013,
+    SLB_2022,
     model_sets,
 )
 
@@ -58,6 +64,9 @@ __all__ = [
     "SLB24",
     "DKS_2013_solids",
     "DKS_2013_liquids",
+    "SLB_2005",
+    "SLB_2011_ZSB_2013",
+    "SLB_2022",
     "model_sets",
 ]
 
