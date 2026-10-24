@@ -65,13 +65,22 @@ void bind_solutions(py::module_ &m) {
       #name, [](const SolutionModel &self) { return self.get_##name(); })
   MODEL_PROPERTY(n_endmembers);
   MODEL_PROPERTY(n_sites);
+  MODEL_PROPERTY(n_occupancies);
   MODEL_PROPERTY(site_names);
   MODEL_PROPERTY(endmember_occupancies);
   MODEL_PROPERTY(endmember_n_occupancies);
   MODEL_PROPERTY(site_multiplicities);
   MODEL_PROPERTY(formulas);
   MODEL_PROPERTY(sites);
+  MODEL_PROPERTY(empty_formula);
+  MODEL_PROPERTY(general_formula);
 #undef MODEL_PROPERTY
+  model_class
+      .def_property_readonly("site_formulae", &SolutionModel::get_formulas)
+      .def_property_readonly("endmember_noccupancies",
+                             [](const SolutionModel &self) {
+                               return self.get_endmember_n_occupancies();
+                             });
 #define MODEL_COMPUTE(name)                                                    \
   model_class.def(                                                             \
       #name,                                                                   \
@@ -201,6 +210,18 @@ void bind_solutions(py::module_ &m) {
   bind_property<Solution>(solution, "basis", "get_basis", &Solution::get_basis);
   bind_property<Solution>(solution, "site_names", "get_site_names",
                           &Solution::get_site_names);
+  bind_property<Solution>(solution, "solution_model", "get_solution_model",
+                          &Solution::get_solution_model);
+  bind_property<Solution>(solution, "site_occupancies", "get_site_occupancies",
+                          &Solution::get_site_occupancies);
+  solution.def(
+      "site_formula", &Solution::site_formula, py::arg("precision") = 2,
+      py::arg("print_absent_species") = true,
+      py::arg("site_occupancies") = py::none(),
+      "Return the molar formula with fractional site occupancies. "
+      "precision gives decimal places; print_absent_species includes "
+      "zero occupancies. Optional site_occupancies replace the current "
+      "occupancies in site_names order.");
   bind_property<Solution>(solution, "endmember_occupancies",
                           "get_endmember_occupancies",
                           &Solution::get_endmember_occupancies);
