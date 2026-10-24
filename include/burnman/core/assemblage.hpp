@@ -53,6 +53,14 @@ public:
   virtual ~Assemblage() = default;
   std::shared_ptr<Material> copy() const override;
 
+  /// Prior pressure [Pa] and temperature [K].
+  std::optional<Eigen::Vector2d> state_priors;
+  /// Covariance and inverse covariance of pressure [Pa] and temperature [K].
+  std::optional<Eigen::Matrix2d> state_covariances;
+  std::optional<Eigen::Matrix2d> state_inverse_covariances;
+  /// Independent reactions used to estimate equilibration conditions.
+  std::optional<Eigen::MatrixXd> reaction_matrix_for_optimization;
+
   // Override of reset_cache to include additional solution properties
   void reset_cache() override;
 
@@ -275,6 +283,11 @@ public:
    * @brief Get number of phases in the assemblage.
    */
   Eigen::Index get_n_phases() const;
+
+  /// Constituent Material class objects in phase order.
+  const std::vector<std::shared_ptr<Material>> &get_phases() const {
+    return phases;
+  }
 
   /**
    * @brief Get n_moles (Used to convert mole fractions / absolute phase

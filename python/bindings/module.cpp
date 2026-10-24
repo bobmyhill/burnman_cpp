@@ -38,6 +38,7 @@ PYBIND11_MODULE(_core, m) {
   burnman::python::bind_chemistry(m);
   burnman::python::bind_solutions(m);
   burnman::python::bind_composition_fitting(m);
+  burnman::python::bind_thermobarometry(m);
   burnman::python::bind_minerals(m);
   burnman::python::bind_model_sets(m);
   burnman::python::bind_equilibration(m);

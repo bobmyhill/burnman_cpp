@@ -157,6 +157,12 @@ void bind_solutions(py::module_ &m) {
   auto solution =
       py::class_<Solution, CompositeMaterial, std::shared_ptr<Solution>>(
           m, "Solution");
+  bind_optional_attribute(solution, "compositional_covariances",
+                          &Solution::compositional_covariances);
+  bind_optional_attribute(solution, "free_compositional_vectors",
+                          &Solution::free_compositional_vectors);
+  bind_optional_attribute(solution, "baseline_composition",
+                          &Solution::baseline_composition);
   solution
       .def(py::init([](const std::shared_ptr<SolutionModel> &model,
                        const Eigen::ArrayXd &fractions,

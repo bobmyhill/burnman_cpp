@@ -15,6 +15,7 @@
 
 #include "burnman/core/mineral.hpp"
 #include <Eigen/Dense>
+#include <map>
 #include <vector>
 
 namespace burnman {
@@ -27,4 +28,6 @@ Mineral make_combined_mineral(
     const std::vector<Mineral> &minerals, const Eigen::ArrayXd &molar_amounts,
     const Eigen::Vector3d &energy_adjustment = Eigen::Vector3d::Zero(),
     const std::string &name = "Combined mineral");
+/// Amounts of the constituent endmembers, including nested combinations.
+std::map<std::string, double> raw_endmember_amounts(const Mineral &mineral);
 } // namespace burnman

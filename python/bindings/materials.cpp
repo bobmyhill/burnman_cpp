@@ -157,6 +157,14 @@ void bind_materials(py::module_ &m) {
   auto assemblage =
       py::class_<Assemblage, CompositeMaterial, std::shared_ptr<Assemblage>>(
           m, "Assemblage");
+  bind_optional_attribute(assemblage, "state_priors",
+                          &Assemblage::state_priors);
+  bind_optional_attribute(assemblage, "state_covariances",
+                          &Assemblage::state_covariances);
+  bind_optional_attribute(assemblage, "state_inverse_covariances",
+                          &Assemblage::state_inverse_covariances);
+  bind_optional_attribute(assemblage, "reaction_matrix_for_optimization",
+                          &Assemblage::reaction_matrix_for_optimization);
   assemblage
       .def(py::init([](const std::vector<std::shared_ptr<Material>> &phases,
                        const Eigen::ArrayXd &fractions,
