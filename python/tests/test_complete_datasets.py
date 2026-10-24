@@ -46,6 +46,7 @@ DATASETS = {
     "HP_2011_fluids": "HP_2011_fluids",
     "ig50NCKFMASTOCr": "ig50NCKFMASTOCr",
     "mp50KFMASH": "mp50KFMASH",
+    "mp50MnNCKFMASHTO": "mp50MnNCKFMASHTO",
 }
 
 

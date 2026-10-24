@@ -19,6 +19,7 @@
  * SLB_2011 (Stixrude & Lithgow-Bertelloni 2011), and
  * JH_2015 (Jennings & Holland 2015, doi:10.1093/petrology/egv020),
  * mb50NCKFMASHTO (Green et al. 2016), mp50NCKFMASHTO metapelite models,
+ * mp50MnNCKFMASHTO Mn-bearing metapelite models,
  * HGP_2018_ds633 and ig50NCKFMASHTOCr (Holland et al. 2018),
  * HPx_ds636, ig51W24 (Weller et al. 2024) and ig51G25 (Green et al. 2025),
  * SLB_2024 (Stixrude & Lithgow-Bertelloni 2024, doi:10.1093/gji/ggae126),
@@ -1820,4 +1821,70 @@ std::shared_ptr<Solution> chl();
 std::shared_ptr<Solution> ctd();
 std::shared_ptr<Solution> sp1();
 } // namespace mp50KFMASH
+
+namespace mp50MnNCKFMASHTO {
+std::shared_ptr<Mineral> hem_nood();
+std::shared_ptr<Mineral> ilm_nood();
+std::shared_ptr<Mineral> mt_nood();
+std::shared_ptr<Mineral> kho();
+std::shared_ptr<Mineral> q4L();
+std::shared_ptr<Mineral> slL();
+std::shared_ptr<Mineral> fo2L();
+std::shared_ptr<Mineral> fa2L();
+std::shared_ptr<Mineral> anC();
+std::shared_ptr<Mineral> mut();
+std::shared_ptr<Mineral> celt();
+std::shared_ptr<Mineral> fcelt();
+std::shared_ptr<Mineral> pat();
+std::shared_ptr<Mineral> fmu();
+std::shared_ptr<Mineral> mat();
+std::shared_ptr<Mineral> annm();
+std::shared_ptr<Mineral> obi();
+std::shared_ptr<Mineral> tbi();
+std::shared_ptr<Mineral> fbi();
+std::shared_ptr<Mineral> mmbi();
+std::shared_ptr<Mineral> fm();
+std::shared_ptr<Mineral> fopx();
+std::shared_ptr<Mineral> mnopx();
+std::shared_ptr<Mineral> odi();
+std::shared_ptr<Mineral> fspm();
+std::shared_ptr<Mineral> spro();
+std::shared_ptr<Mineral> ospr();
+std::shared_ptr<Mineral> mncd();
+std::shared_ptr<Mineral> mstm();
+std::shared_ptr<Mineral> mnstm();
+std::shared_ptr<Mineral> msto();
+std::shared_ptr<Mineral> mstt();
+std::shared_ptr<Mineral> ochl1();
+std::shared_ptr<Mineral> ochl4();
+std::shared_ptr<Mineral> f3clin();
+std::shared_ptr<Mineral> mmchl();
+std::shared_ptr<Mineral> mnct();
+std::shared_ptr<Mineral> ctdo();
+std::shared_ptr<Mineral> oilm();
+std::shared_ptr<Mineral> dilm();
+std::shared_ptr<Mineral> dhem();
+std::shared_ptr<Mineral> imt();
+std::shared_ptr<Mineral> dmt();
+std::shared_ptr<Solution> g();
+std::shared_ptr<Solution> liq();
+std::shared_ptr<Solution> pl4tr();
+std::shared_ptr<Solution> k4tr();
+std::shared_ptr<Solution> plc();
+std::shared_ptr<Solution> ksp();
+std::shared_ptr<Solution> ep();
+std::shared_ptr<Solution> ma();
+std::shared_ptr<Solution> mu();
+std::shared_ptr<Solution> bi();
+std::shared_ptr<Solution> opx();
+std::shared_ptr<Solution> sa();
+std::shared_ptr<Solution> cd();
+std::shared_ptr<Solution> st();
+std::shared_ptr<Solution> chl();
+std::shared_ptr<Solution> ctd();
+std::shared_ptr<Solution> sp();
+std::shared_ptr<Solution> ilmm();
+std::shared_ptr<Solution> ilm();
+std::shared_ptr<Solution> mt1();
+} // namespace mp50MnNCKFMASHTO
 } // namespace burnman::minerals

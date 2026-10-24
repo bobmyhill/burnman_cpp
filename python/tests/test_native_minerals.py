@@ -23,6 +23,7 @@ from burnman_cpp.minerals import (
     SLB11,
     JH15,
     HGP18,
+    mp50MnNCKFMASHTO,
 )
 
 FACTORIES = [
@@ -46,6 +47,11 @@ FACTORIES = [
     SLB11.mg_fe_bridgmanite_binary,
     JH15.orthopyroxene,
     JH15.mg_fe_orthopyroxene,
+    mp50MnNCKFMASHTO.mu,
+    mp50MnNCKFMASHTO.bi,
+    mp50MnNCKFMASHTO.g,
+    mp50MnNCKFMASHTO.ilmm,
+    mp50MnNCKFMASHTO.st,
 ]
 
 

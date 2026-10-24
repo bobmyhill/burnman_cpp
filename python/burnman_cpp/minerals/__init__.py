@@ -16,6 +16,7 @@
 HP11 uses dataset 6.2; HGP18 and IG18 use dataset 6.33. HPx_ds636,
 IG24 and IG25 provide dataset 6.36 and the W24/G25 igneous families.
 MP14 and MB16 provide metapelite and metabasite solutions, including melts.
+mp50MnNCKFMASHTO provides Mn-bearing metapelite solutions.
 SLB11, JH15 and SLB24 provide mantle models and relaxed spin solutions.
 SLB_2005, SLB_2011_ZSB_2013 and SLB_2022 retain the original dataset names.
 HHPH_2013 provides high-pressure endmembers; HP_2011_fluids provides water
@@ -54,6 +55,7 @@ from .._core.minerals import (
     HP_2011_fluids,
     ig50NCKFMASTOCr,
     mp50KFMASH,
+    mp50MnNCKFMASHTO,
     model_sets,
 )
 
@@ -78,6 +80,7 @@ __all__ = [
     "HP_2011_fluids",
     "ig50NCKFMASTOCr",
     "mp50KFMASH",
+    "mp50MnNCKFMASHTO",
     "model_sets",
 ]
 
