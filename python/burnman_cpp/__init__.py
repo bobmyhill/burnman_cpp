@@ -20,6 +20,7 @@ from collections.abc import Mapping
 
 from . import _core
 from . import constants
+from . import optimize
 from .classes import seismic, geotherm
 from .classes.equilibratedcomposite import EquilibratedComposite
 from .classes.layer import Layer, BoundaryLayerPerturbation
@@ -241,6 +242,7 @@ def equilibrate(
 
 
 __all__ = [
+    "optimize",
     "calculate_nakajima_fp_pv_partition_coefficient",
     "Layer",
     "Planet",
