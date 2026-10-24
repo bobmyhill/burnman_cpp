@@ -22,6 +22,43 @@ using namespace burnman;
 using namespace burnman::equilibration;
 using namespace Catch::Matchers;
 
+TEST_CASE("Legacy SLB catalogues retain the published data limits",
+          "[native_datasets][slb_catalogues]") {
+  auto slb05 = minerals::SLB_2005::mg_bridgmanite();
+  auto zsb13 = minerals::SLB_2011_ZSB_2013::mg_bridgmanite();
+  for (const auto &phase : {slb05, zsb13}) {
+    phase->set_state(25.e9, 1500.);
+    REQUIRE(phase->params.F_0.has_value());
+    CHECK(std::isnan(*phase->params.F_0));
+    CHECK(std::isnan(phase->get_molar_gibbs()));
+    CHECK(std::isfinite(phase->get_molar_volume()));
+    CHECK(std::isfinite(phase->get_p_wave_velocity()));
+  }
+  CHECK(slb05->params.formula.has_value());
+  CHECK_FALSE(zsb13->params.formula.has_value());
+  REQUIRE(zsb13->uncertainties.has_value());
+  CHECK(zsb13->uncertainties->at("err_K_0") == 3.e9);
+}
+
+TEST_CASE("SLB2022 minerals and solutions are available natively",
+          "[native_datasets][slb_catalogues]") {
+  auto albite = minerals::SLB_2022::ab();
+  REQUIRE(albite->params.Z.has_value());
+  CHECK(*albite->params.Z == 4.);
+  auto olivine = minerals::SLB_2022::olivine();
+  olivine->set_composition((Eigen::Array2d() << .9, .1).finished());
+  olivine->set_state(10.e9, 1200.);
+  CHECK_THAT(olivine->get_formula().at("Mg"), WithinAbs(1.8, 1.e-12));
+  CHECK(std::isfinite(olivine->get_molar_gibbs()));
+  for (const auto &phase :
+       {minerals::SLB_2022::neph(), minerals::SLB_2022::qtz()}) {
+    phase->set_state(10.e9, 800.);
+    CHECK(phase->get_molar_volume() > 0.);
+    CHECK(phase->get_density() > 0.);
+    CHECK(std::isfinite(phase->get_shear_wave_velocity()));
+  }
+}
+
 TEST_CASE("Free composition vectors can change total atom amounts",
           "[equilibration]") {
   Assemblage a;

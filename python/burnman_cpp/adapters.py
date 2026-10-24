@@ -156,4 +156,6 @@ def from_burnman(phase):
         native.name = phase.name
     else:
         raise TypeError("Expected a BurnMan Mineral or Solution.")
+    if hasattr(phase, "uncertainties"):
+        native.uncertainties = phase.uncertainties
     return native
