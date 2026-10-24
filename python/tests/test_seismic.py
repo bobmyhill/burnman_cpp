@@ -13,7 +13,7 @@
 
 """Seismic model API, physical integrals and optional upstream comparisons."""
 
-from importlib.resources import files
+from pathlib import Path
 
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
@@ -54,6 +54,7 @@ def test_reference_values(name):
 def test_import_paths_and_bundled_tables():
     assert bm.seismic is seismic
     assert isinstance(seismic.prem_model, seismic.PREM)
+    tables = Path(__file__).resolve().parents[2] / "src/data/input_seismic"
     for name in [
         "prem",
         "STW105",
@@ -64,10 +65,9 @@ def test_import_paths_and_bundled_tables():
         "swave_fast",
         "swave_slow",
     ]:
-        resource = files("burnman_cpp").joinpath("data", "input_seismic", name + ".txt")
-        assert resource.is_file()
+        assert (tables / (name + ".txt")).is_file()
     prem = seismic.PREM()
-    data = np.loadtxt(files("burnman_cpp").joinpath("data/input_seismic/prem.txt"))
+    data = np.loadtxt(tables / "prem.txt")
     assert_array_equal(prem.table_depth, data[:, 0])
     assert_array_equal(prem.table_QK, data[:, 6])
 

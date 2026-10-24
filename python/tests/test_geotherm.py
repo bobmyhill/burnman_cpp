@@ -14,7 +14,7 @@
 """Geotherm tabulations, pressure conversion and constant-entropy profiles."""
 
 import gc
-from importlib.resources import files
+from pathlib import Path
 import weakref
 
 import numpy as np
@@ -75,8 +75,10 @@ def test_reference_values(name, depths, expected):
 def test_bundled_tables_and_metadata(name):
     assert bm.geotherm is geotherm
     model = getattr(geotherm, name)()
-    resource = files("burnman_cpp").joinpath(
-        "data", "input_geotherm", TABLES[name] + ".txt"
+    resource = (
+        Path(__file__).resolve().parents[2]
+        / "src/data/input_geotherm"
+        / (TABLES[name] + ".txt")
     )
     table = np.loadtxt(resource)
     coordinates = (
