@@ -35,7 +35,7 @@ from burnman_cpp import (
     anharmonic_thermal_models,
     debye_temperature_models,
 )
-from burnman_cpp.minerals.SLB11 import fayalite
+from burnman_cpp.minerals.SLB_2011 import fayalite
 
 # Settings follow the original BurnMan example.
 TEMPERATURES = np.linspace(10.0, 5000.0, 101)

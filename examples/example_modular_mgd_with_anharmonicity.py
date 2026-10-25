@@ -30,7 +30,7 @@ import numpy as np
 
 import burnman_cpp as bm
 from burnman_cpp import debye_temperature_models
-from burnman_cpp.minerals.SLB11 import periclase
+from burnman_cpp.minerals.SLB_2011 import periclase
 
 # Share the evaluation and seven-panel plotting layout with the first example.
 from example_modular_mgd import plot_comparison, print_properties

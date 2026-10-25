@@ -20,7 +20,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 import burnman_cpp as bm
-from burnman_cpp.minerals import SLB24
+from burnman_cpp.minerals import SLB_2024
 from test_phase_diagram_plot import diagram, line, square
 
 
@@ -33,7 +33,7 @@ def pyrolite_neighbours():
         c2c_pyroxene garnet mg_fe_aluminous_spinel plagioclase ilmenite
         ferropericlase bridgmanite post_perovskite calcium_ferrite_structured_phase
         new_aluminous_phase capv neph ky qtz coes st apbo wo pwo fea feg fee""".split()
-    phases = [getattr(SLB24, name)() for name in factories]
+    phases = [getattr(SLB_2024, name)() for name in factories]
     for phase, name in zip(phases, data["phase_names"][::3]):
         phase.set_name(name)
     return data, phases
@@ -150,7 +150,7 @@ def test_pyrolite_entropy_coexistence_field_survives_failed_side_orientation():
         ).read_text()
     )
     models = data["workflow"]["models"]
-    phases = [getattr(SLB24, name)() for name in models["phase_names"]]
+    phases = [getattr(SLB_2024, name)() for name in models["phase_names"]]
     assert bm.phase_diagram_field_polygons(data).diagnostics
     result = bm.refine_phase_diagram(
         data["composition_start"],
@@ -190,7 +190,7 @@ def test_trace_site_populations_preserve_a_finite_entropy_field_response():
         ).read_text()
     )
     phases = [
-        getattr(SLB24, name)() for name in data["workflow"]["models"]["phase_names"]
+        getattr(SLB_2024, name)() for name in data["workflow"]["models"]["phase_names"]
     ]
     result = bm.refine_phase_diagram(
         data["composition_start"],

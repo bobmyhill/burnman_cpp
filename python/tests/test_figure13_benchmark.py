@@ -20,7 +20,7 @@ import numpy as np
 import pytest
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import SLB24
+from burnman_cpp.minerals import SLB_2024
 
 
 @pytest.fixture(scope="module")
@@ -62,11 +62,11 @@ def test_figure13_bulk_preserves_table1_cations_and_sets_two_percent_ferric(benc
 
 
 def test_spin_ratio_weights_fp_copies_and_excludes_ferric_fe_and_absent_fp(benchmark):
-    fp = SLB24.ferropericlase()
+    fp = SLB_2024.ferropericlase()
     names = list(fp.endmember_names)
-    hi = names.index(SLB24.wustite().name)
-    lo = names.index(SLB24.wustite_low_spin().name)
-    magnetite = names.index(SLB24.magnetite().name)
+    hi = names.index(SLB_2024.wustite().name)
+    lo = names.index(SLB_2024.wustite_low_spin().name)
+    magnetite = names.index(SLB_2024.magnetite().name)
 
     def phase(amount, high, low, ferric=0.0):
         x = np.zeros(len(names))

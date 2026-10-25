@@ -1,5 +1,5 @@
 {
-  "description": "Matched HPx metapelite 2022-01-23, HP11, MP14.liq and PS94 H2O from Python BurnMan pin 39b582cd23954fabd3bdbbee6526a522b1d97bc9. Accepted native boundary states are truncated before a feldspar solvus, an aluminosilicate replacement and epidote entry to test endpoint recovery.",
+  "description": "Matched HPx metapelite 2022-01-23, HP_2011_ds62, mp50NCKFMASHTO.liq and PS94 H2O from Python BurnMan pin 39b582cd23954fabd3bdbbee6526a522b1d97bc9. Accepted native boundary states are truncated before a feldspar solvus, an aluminosilicate replacement and epidote entry to test endpoint recovery.",
   "cases": [
     {
       "name": "feldspar solvus",

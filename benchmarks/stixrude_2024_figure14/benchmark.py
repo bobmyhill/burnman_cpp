@@ -213,7 +213,7 @@ def main():
             phase_names=np.array([p.name for p in phases]),
         )
         report = dict(
-            dataset="SLB24",
+            dataset="SLB_2024",
             paper="https://doi.org/10.1093/gji/ggae126",
             burnman_cpp_version=bm.__version__,
             averaging_scheme="VRH",

@@ -28,7 +28,7 @@ from burnman_cpp import minerals
 def main():
     # Define the lower-mantle rock as 80 mol% perovskite and 20 mol% periclase.
     rock = burnman.Assemblage(
-        [minerals.SLB11.mg_perovskite(), minerals.SLB11.periclase()], [0.8, 0.2]
+        [minerals.SLB_2011.mg_perovskite(), minerals.SLB_2011.periclase()], [0.8, 0.2]
     )
     seismic_model = burnman.seismic.PREM()
     depths = np.linspace(2890e3, 670e3, 20)

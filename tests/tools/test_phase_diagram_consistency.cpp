@@ -150,7 +150,7 @@ TEST_CASE("Affinity uncertainty respects changes in reaction mole amounts",
 TEST_CASE("Seed consistency recovery replaces a higher energy phase before "
           "bracketing",
           "[phase_diagram][consistency]") {
-  auto stable = burnman::minerals::HGP18::per();
+  auto stable = burnman::minerals::HGP_2018_ds633::per();
   auto metastable =
       std::make_shared<burnman::Mineral>(burnman::make_combined_mineral(
           {*stable}, Eigen::ArrayXd::Ones(1), {10000., 0., 0.}, "metastable"));

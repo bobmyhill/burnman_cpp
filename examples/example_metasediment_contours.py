@@ -46,7 +46,7 @@ def calculate(diagram, density_levels, garnet_levels, seed_grid=5, step=0.02):
     composition = diagram["composition_start"]
     # The Composition object keeps density on the saved bulk's amount scale.
     mass = sum(bm.Composition(composition, "molar").mass_composition.values())
-    # MP14 garnet's A sites contain Mg and Fe2+; its Fe3+ B site is excluded.
+    # mp50NCKFMASHTO garnet's A sites contain Mg and Fe2+; its Fe3+ B site is excluded.
     constructors = {
         "density": (density_levels, lambda value: bm.VolumeConstraint(mass / value)),
         "garnet": (

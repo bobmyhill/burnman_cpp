@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import SLB24
+from burnman_cpp.minerals import SLB_2024
 from conftest import oxide_params
 
 
@@ -55,7 +55,7 @@ def test_linear_and_constant_coordinate_paths(pair, vary):
 
 
 def test_atomic_modes_account_for_different_formula_sizes_and_bulk_scale():
-    phases = [bm.Mineral(oxide_params()), SLB24.qtz()]
+    phases = [bm.Mineral(oxide_params()), SLB_2024.qtz()]
     path = bm.calculate_equilibrium_path(
         {"Mg": 1.5, "Si": 0.5, "O": 2.5},
         phases,
@@ -72,7 +72,7 @@ def test_atomic_modes_account_for_different_formula_sizes_and_bulk_scale():
 
 
 def test_path_discovers_new_phases_and_follows_lowest_gibbs_energy():
-    phases = [SLB24.qtz(), SLB24.coes(), SLB24.st()]
+    phases = [SLB_2024.qtz(), SLB_2024.coes(), SLB_2024.st()]
     path = bm.calculate_equilibrium_path(
         {"Si": 1.0, "O": 2.0},
         phases,
@@ -134,7 +134,7 @@ def test_curved_path_properties_match_the_pure_mineral_without_mutating_it():
 def test_path_relaxed_expansivity_matches_equilibrium_volume_response():
     # The active MgO-FeO face retains distinct equilibrated high/low-spin Fe.
     # Its metamorphic expansivity must agree with new volume equilibria.
-    fp = SLB24.ferropericlase()
+    fp = SLB_2024.ferropericlase()
     bulk = {"Mg": 0.9, "Fe": 0.1, "O": 1.0}
     path = bm.calculate_equilibrium_path(
         bulk,

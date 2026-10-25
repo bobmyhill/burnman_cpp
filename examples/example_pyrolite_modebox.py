@@ -31,7 +31,7 @@ from pathlib import Path
 import numpy as np
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import SLB24, load_dataset
+from burnman_cpp.minerals import SLB_2024, load_dataset
 from burnman_cpp.tools.phase_diagram_helpers import save_figure
 
 N_POINTS = 801
@@ -62,9 +62,9 @@ def pyrolite_composition():
 def calculate():
     """Solve the surface reference and a linear P-S path with constant entropy."""
     bulk = pyrolite_composition()
-    phases, _ = load_dataset(SLB24)
+    phases, _ = load_dataset(SLB_2024)
     for phase in phases:
-        phase.set_name(SLB24.phase_aliases[phase.name])
+        phase.set_name(SLB_2024.phase_aliases[phase.name])
     settings = bm.PhaseDiagramSettings()
     settings.verbose = VERBOSE
     surface = bm.stable_equilibrium(

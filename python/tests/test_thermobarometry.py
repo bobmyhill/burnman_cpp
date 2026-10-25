@@ -24,13 +24,15 @@ from conftest import oxide_params
 
 
 def polymorphs():
-    assemblage = bm.Assemblage([minerals.HP11.sill(), minerals.HP11.ky()], [0.5, 0.5])
+    assemblage = bm.Assemblage(
+        [minerals.HP_2011_ds62.sill(), minerals.HP_2011_ds62.ky()], [0.5, 0.5]
+    )
     assemblage.set_state(1e8, 800)
     return assemblage
 
 
 def olivine_wadsleyite():
-    ol, wad = minerals.SLB24.olivine(), minerals.SLB24.wadsleyite()
+    ol, wad = minerals.SLB_2024.olivine(), minerals.SLB_2024.wadsleyite()
     ol.set_composition([0.9, 0.1])
     wad.set_composition([0.82, 0.18])
     ol.compositional_covariances = np.eye(2) * 1e-10
@@ -56,7 +58,7 @@ def metapelite():
         dataset.g(),
         dataset.ilmm(),
         dataset.st(),
-        minerals.HP11.q(),
+        minerals.HP_2011_ds62.q(),
     ]
     compositions = [
         [0.55510672, 0.00393874, 0.00365819, 0.43232719, 0.00339884, 0.00157032],
@@ -93,7 +95,7 @@ def test_reactions_covariance_and_prior_misfit():
     R = thermo.get_reaction_matrix(assemblage)
     assert_allclose(R, [[-1, 1]], atol=1e-12)
     assert_allclose(R @ assemblage.stoichiometric_matrix, 0, atol=1e-12)
-    data = minerals.HP11.cov()
+    data = minerals.HP_2011_ds62.cov()
     indices = [
         data["endmember_names"].index(name) for name in assemblage.endmember_names
     ]
@@ -146,7 +148,7 @@ def test_polymorph_temperature_at_fixed_pressure():
     with pytest.warns(RuntimeWarning, match="Degrees of freedom"):
         result = thermo.estimate_conditions(
             assemblage,
-            minerals.HP11.cov(),
+            minerals.HP_2011_ds62.cov(),
             guessed_conditions=[0.5e9, 500],
             pressure_bounds=[1e8, 1e8],
         )
@@ -231,7 +233,7 @@ def test_metapelite_reaction_basis_and_conditions(tolerance, reactions, expected
     assert_allclose(R @ assemblage.stoichiometric_matrix, 0, atol=1e-10)
     result = thermo.estimate_conditions(
         assemblage,
-        minerals.HP11.cov(),
+        minerals.HP_2011_ds62.cov(),
         guessed_conditions=[0.5e9, 500],
         small_fraction_tol=tolerance,
         max_it=300,
@@ -266,7 +268,7 @@ def test_optional_python_covariance_and_misfit_parity(with_state):
         expected.state_covariances = actual.state_covariances
     # Supply the same independent reactions to compare covariance entries directly.
     R = thermo.get_reaction_matrix(actual)
-    data = minerals.HP11.cov()
+    data = minerals.HP_2011_ds62.cov()
     assert_allclose(
         thermo.assemblage_affinity_covariance_matrix(actual, R, data, with_state),
         reference.assemblage_affinity_covariance_matrix(expected, R, data, with_state),
@@ -384,7 +386,7 @@ def test_optional_python_metapelite_free_composition_covariance_parity():
             phase.baseline_composition = native.molar_fractions.copy()
     expected = burnman.Composite(phases, [1 / 6] * 6)
     expected.set_state(0.4e9, 873)
-    data = minerals.HP11.cov()
+    data = minerals.HP_2011_ds62.cov()
     native_result = thermo.estimate_conditions(
         actual, data, guessed_conditions=[0.5e9, 500]
     )
@@ -440,8 +442,8 @@ def test_invalid_data_and_unsupported_inversions_raise():
     ]:
         with pytest.raises(ValueError):
             thermo.assemblage_affinity_covariance_matrix(assemblage, R, data)
-    phase = minerals.SLB24.olivine()
-    mixture = bm.Assemblage([phase, minerals.SLB24.wadsleyite()], [0.5, 0.5])
+    phase = minerals.SLB_2024.olivine()
+    mixture = bm.Assemblage([phase, minerals.SLB_2024.wadsleyite()], [0.5, 0.5])
     mixture.set_state(13e9, 1400)
     with pytest.raises(ValueError, match="compositional_covariances"):
         thermo.assemblage_affinity_covariance_matrix(

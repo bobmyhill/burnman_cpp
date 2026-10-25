@@ -31,8 +31,8 @@
  * ICL_2018 (Irving, Cottaar & Lekic 2018), KMFBZ_2017 (Kurnosov et al. 2017),
  * Matas_etal_2007, Murakami_2013 and Murakami_etal_2012,
  * RS_2014_liquids (Ramo & Stixrude 2014), Sundman_1991 and other mineral
- * models. Legacy HGP18 melt pseudo-species Alsi2 is renamed Alsitwo to preserve
- * pjd=1.
+ * models. Legacy HGP_2018_ds633 melt pseudo-species Alsi2 is renamed Alsitwo to
+ * preserve pjd=1.
  */
 #pragma once
 #include "burnman/core/mineral.hpp"
@@ -41,7 +41,7 @@
 #include "burnman/minerals/other.hpp"
 
 namespace burnman::minerals {
-namespace HP11 {
+namespace HP_2011_ds62 {
 std::shared_ptr<Mineral> fo();
 std::shared_ptr<Mineral> fa();
 std::shared_ptr<Mineral> teph();
@@ -265,9 +265,9 @@ std::shared_ptr<Mineral> abL();
 std::shared_ptr<Mineral> neL();
 std::shared_ptr<Mineral> lcL();
 CovarianceData cov();
-} // namespace HP11
+} // namespace HP_2011_ds62
 
-namespace HGP18 {
+namespace HGP_2018_ds633 {
 std::shared_ptr<Mineral> fo();
 std::shared_ptr<Mineral> fa();
 std::shared_ptr<Mineral> teph();
@@ -539,9 +539,9 @@ std::shared_ptr<Solution> silicate_melt();
 std::shared_ptr<Solution> CMS_melt();
 std::shared_ptr<Solution> MS_melt();
 CovarianceData cov();
-} // namespace HGP18
+} // namespace HGP_2018_ds633
 
-namespace MB16 {
+namespace mb50NCKFMASHTO {
 std::shared_ptr<Mineral> cats_nood();
 std::shared_ptr<Mineral> hem_nood();
 std::shared_ptr<Mineral> ilm_nood();
@@ -611,9 +611,9 @@ std::shared_ptr<Solution> ep();
 std::shared_ptr<Solution> bi();
 std::shared_ptr<Solution> mu();
 std::shared_ptr<Solution> chl();
-} // namespace MB16
+} // namespace mb50NCKFMASHTO
 
-namespace SLB11 {
+namespace SLB_2011 {
 std::shared_ptr<Solution> c2c_pyroxene();
 std::shared_ptr<Solution> ca_ferrite_structured_phase();
 std::shared_ptr<Solution> clinopyroxene();
@@ -747,9 +747,9 @@ std::shared_ptr<Solution> wa();
 std::shared_ptr<Solution> spinelloid_III();
 std::shared_ptr<Solution> pyrope_grossular();
 std::shared_ptr<Solution> mg_fe_bridgmanite_binary();
-} // namespace SLB11
+} // namespace SLB_2011
 
-namespace JH15 {
+namespace JH_2015 {
 std::shared_ptr<Mineral> cen();
 std::shared_ptr<Solution> ferropericlase();
 std::shared_ptr<Solution> plagioclase();
@@ -767,9 +767,9 @@ std::shared_ptr<Mineral> odi();
 std::shared_ptr<Mineral> cren();
 std::shared_ptr<Mineral> mess();
 std::shared_ptr<Solution> mg_fe_orthopyroxene();
-} // namespace JH15
+} // namespace JH_2015
 
-namespace MP14 {
+namespace mp50NCKFMASHTO {
 std::shared_ptr<Mineral> hem_nood();
 std::shared_ptr<Mineral> ilm_nood();
 std::shared_ptr<Mineral> mt_nood();
@@ -827,9 +827,9 @@ std::shared_ptr<Solution> sp();
 std::shared_ptr<Solution> ilmm();
 std::shared_ptr<Solution> ilm();
 std::shared_ptr<Solution> mt1();
-} // namespace MP14
+} // namespace mp50NCKFMASHTO
 
-namespace SLB24 {
+namespace SLB_2024 {
 std::shared_ptr<Mineral> ab();
 std::shared_ptr<Mineral> acm();
 std::shared_ptr<Mineral> al();
@@ -1007,9 +1007,9 @@ std::shared_ptr<Solution> ppv();
 std::shared_ptr<Solution> pv();
 std::shared_ptr<Solution> ri();
 std::shared_ptr<Solution> wa();
-} // namespace SLB24
+} // namespace SLB_2024
 
-namespace IG18 {
+namespace ig50NCKFMASHTOCr {
 std::shared_ptr<Mineral> cats_nood();
 std::shared_ptr<Mineral> hem_nood();
 std::shared_ptr<Mineral> herc_nood();
@@ -1086,7 +1086,7 @@ std::shared_ptr<Solution> cpx();
 std::shared_ptr<Solution> spn();
 std::shared_ptr<Solution> hb();
 std::shared_ptr<Solution> ilm();
-} // namespace IG18
+} // namespace ig50NCKFMASHTOCr
 
 namespace HPx_ds636 {
 std::shared_ptr<Mineral> fo();
@@ -1350,7 +1350,7 @@ std::shared_ptr<Mineral> bdyL();
 CovarianceData cov();
 } // namespace HPx_ds636
 
-namespace IG24 {
+namespace ig51W24 {
 std::shared_ptr<Mineral> geik_nood();
 std::shared_ptr<Mineral> herc_nood();
 std::shared_ptr<Mineral> ilm_nood();
@@ -1419,9 +1419,9 @@ std::shared_ptr<Solution> nph_W24();
 std::shared_ptr<Solution> kals_W24();
 std::shared_ptr<Solution> lct_W24();
 std::shared_ptr<Solution> mel_W24();
-} // namespace IG24
+} // namespace ig51W24
 
-namespace IG25 {
+namespace ig51G25 {
 std::shared_ptr<Mineral> geik_nood();
 std::shared_ptr<Mineral> herc_nood();
 std::shared_ptr<Mineral> ilm_nood();
@@ -1505,7 +1505,7 @@ std::shared_ptr<Solution> mu_W14();
 std::shared_ptr<Solution> amp_G16();
 std::shared_ptr<Solution> ep_H11();
 std::shared_ptr<Solution> cd_G25();
-} // namespace IG25
+} // namespace ig51G25
 
 namespace DKS_2013_solids {
 std::shared_ptr<Mineral> stishovite();

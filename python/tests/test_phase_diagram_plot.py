@@ -1277,13 +1277,13 @@ def test_conflicting_perimeter_without_samples_remains_unidentified():
 
 
 def test_aluminosilicate_polygons_cover_the_native_domain():
-    from burnman_cpp.minerals import HP11
+    from burnman_cpp.minerals import HP_2011_ds62
 
     settings = bm.PhaseDiagramSettings()
     settings.pressure_seeds = settings.temperature_seeds = 3
     result = bm.phase_diagram(
         {"Al": 2.0, "Si": 1.0, "O": 5.0},
-        [HP11.andalusite(), HP11.ky(), HP11.sill()],
+        [HP_2011_ds62.andalusite(), HP_2011_ds62.ky(), HP_2011_ds62.sill()],
         (1e5, 1e9),
         (500.0, 1200.0),
         settings,
@@ -1368,7 +1368,7 @@ def test_plot_labels_assemblages_and_solution_multiplicity(dataset_aliases):
     aliases = {"g": "gt"}
     repeated = "2hb q"
     if dataset_aliases:
-        from burnman_cpp.minerals import SLB24
+        from burnman_cpp.minerals import SLB_2024
 
         data["phase_names"] = [
             "garnet",
@@ -1378,7 +1378,7 @@ def test_plot_labels_assemblages_and_solution_multiplicity(dataset_aliases):
             "clinopyroxene #2",
             "Quartz",
         ]
-        aliases = SLB24.phase_aliases
+        aliases = SLB_2024.phase_aliases
         repeated = "2cpx q"
     fig, ax = bm.plot_phase_diagram(
         data, pressure_unit="Pa", temperature_unit="K", phase_aliases=aliases

@@ -31,8 +31,8 @@
  * ICL_2018 (Irving, Cottaar & Lekic 2018), KMFBZ_2017 (Kurnosov et al. 2017),
  * Matas_etal_2007, Murakami_2013 and Murakami_etal_2012,
  * RS_2014_liquids (Ramo & Stixrude 2014), Sundman_1991 and other mineral
- * models. Legacy HGP18 melt pseudo-species Alsi2 is renamed Alsitwo to preserve
- * pjd=1.
+ * models. Legacy HGP_2018_ds633 melt pseudo-species Alsi2 is renamed Alsitwo to
+ * preserve pjd=1.
  */
 #include "burnman/minerals/datasets.hpp"
 #include "burnman/core/combined_mineral.hpp"
@@ -29385,7 +29385,7 @@ Mineral endmember_1259() {
 }
 } // namespace
 
-namespace HP11 {
+namespace HP_2011_ds62 {
 std::shared_ptr<Mineral> fo() {
   return std::make_shared<Mineral>(endmember_0());
 }
@@ -30273,9 +30273,9 @@ std::shared_ptr<Mineral> neL() {
 std::shared_ptr<Mineral> lcL() {
   return std::make_shared<Mineral>(endmember_221());
 }
-} // namespace HP11
+} // namespace HP_2011_ds62
 
-namespace HGP18 {
+namespace HGP_2018_ds633 {
 std::shared_ptr<Mineral> fo() {
   return std::make_shared<Mineral>(endmember_222());
 }
@@ -31441,9 +31441,9 @@ std::shared_ptr<Solution> MS_melt() {
   solution->set_composition(Eigen::ArrayXd::Constant(2, 1.0 / 2.0));
   return solution;
 }
-} // namespace HGP18
+} // namespace HGP_2018_ds633
 
-namespace MB16 {
+namespace mb50NCKFMASHTO {
 std::shared_ptr<Mineral> cats_nood() {
   return std::make_shared<Mineral>(endmember_466());
 }
@@ -32158,9 +32158,9 @@ std::shared_ptr<Solution> chl() {
   solution->set_composition(Eigen::ArrayXd::Constant(7, 1.0 / 7.0));
   return solution;
 }
-} // namespace MB16
+} // namespace mb50NCKFMASHTO
 
-namespace SLB11 {
+namespace SLB_2011 {
 std::shared_ptr<Solution> c2c_pyroxene() {
   types::PairedEndmemberList members = {{endmember_515(), "[Mg]2Si2O6"},
                                         {endmember_516(), "[Fe]2Si2O6"}};
@@ -32824,9 +32824,9 @@ std::shared_ptr<Solution> mg_fe_bridgmanite_binary() {
   solution->set_composition(Eigen::ArrayXd::Constant(2, 1.0 / 2.0));
   return solution;
 }
-} // namespace SLB11
+} // namespace SLB_2011
 
-namespace JH15 {
+namespace JH_2015 {
 std::shared_ptr<Mineral> cen() {
   return std::make_shared<Mineral>(endmember_562());
 }
@@ -33038,9 +33038,9 @@ std::shared_ptr<Solution> mg_fe_orthopyroxene() {
   solution->set_composition(Eigen::ArrayXd::Constant(3, 1.0 / 3.0));
   return solution;
 }
-} // namespace JH15
+} // namespace JH_2015
 
-namespace MP14 {
+namespace mp50NCKFMASHTO {
 std::shared_ptr<Mineral> hem_nood() {
   return std::make_shared<Mineral>(endmember_467());
 }
@@ -33634,9 +33634,9 @@ std::shared_ptr<Solution> mt1() {
   solution->set_composition(Eigen::ArrayXd::Constant(3, 1.0 / 3.0));
   return solution;
 }
-} // namespace MP14
+} // namespace mp50NCKFMASHTO
 
-namespace SLB24 {
+namespace SLB_2024 {
 std::shared_ptr<Mineral> ab() {
   return std::make_shared<Mineral>(endmember_596());
 }
@@ -34565,9 +34565,9 @@ std::shared_ptr<Solution> pv() { return bridgmanite(); }
 std::shared_ptr<Solution> ri() { return ringwoodite(); }
 
 std::shared_ptr<Solution> wa() { return wadsleyite(); }
-} // namespace SLB24
+} // namespace SLB_2024
 
-namespace IG18 {
+namespace ig50NCKFMASHTOCr {
 std::shared_ptr<Mineral> cats_nood() {
   return std::make_shared<Mineral>(endmember_669());
 }
@@ -35303,7 +35303,7 @@ std::shared_ptr<Solution> ilm() {
   solution->set_composition(Eigen::ArrayXd::Constant(3, 1.0 / 3.0));
   return solution;
 }
-} // namespace IG18
+} // namespace ig50NCKFMASHTOCr
 
 namespace HPx_ds636 {
 std::shared_ptr<Mineral> fo() {
@@ -36339,7 +36339,7 @@ std::shared_ptr<Mineral> bdyL() {
 }
 } // namespace HPx_ds636
 
-namespace IG24 {
+namespace ig51W24 {
 std::shared_ptr<Mineral> geik_nood() {
   return std::make_shared<Mineral>(endmember_987());
 }
@@ -36960,9 +36960,9 @@ std::shared_ptr<Solution> mel_W24() {
   solution->set_composition(Eigen::ArrayXd::Constant(5, 1.0 / 5.0));
   return solution;
 }
-} // namespace IG24
+} // namespace ig51W24
 
-namespace IG25 {
+namespace ig51G25 {
 std::shared_ptr<Mineral> geik_nood() {
   return std::make_shared<Mineral>(endmember_987());
 }
@@ -37750,7 +37750,7 @@ std::shared_ptr<Solution> cd_G25() {
   solution->set_composition(Eigen::ArrayXd::Constant(3, 1.0 / 3.0));
   return solution;
 }
-} // namespace IG25
+} // namespace ig51G25
 
 namespace DKS_2013_solids {
 std::shared_ptr<Mineral> stishovite() {

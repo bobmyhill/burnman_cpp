@@ -52,7 +52,7 @@ def make_planet(n=41):
     core.set_material(iron())
     core.set_temperature_mode("user-defined", np.full(n, 300.0))
     mantle = bm.Layer("mantle", np.linspace(3480e3, 6371e3, n))
-    mantle.set_material(bm.minerals.SLB11.mg_perovskite())
+    mantle.set_material(bm.minerals.SLB_2011.mg_perovskite())
     mantle.set_temperature_mode("adiabatic", temperature_top=1200.0)
     planet = bm.Planet("earth_like", [mantle, core])
     return planet, core, mantle
@@ -190,8 +190,8 @@ def test_adiabatic_and_perturbed_temperature_anchors():
 
 
 def test_material_copies_and_sublayers_are_independent():
-    a = bm.minerals.SLB11.mg_perovskite()
-    b = bm.minerals.SLB11.periclase()
+    a = bm.minerals.SLB_2011.mg_perovskite()
+    b = bm.minerals.SLB_2011.periclase()
     mixture = bm.Assemblage([a, b], [0.8, 0.2])
     mixture.set_state(25e9, 1900.0)
     reference = mixture.density
@@ -207,7 +207,7 @@ def test_material_copies_and_sublayers_are_independent():
     layer.sublayers[0].set_state(5e9, 1000.0)
     layer.sublayers[-1].reset_cache()
     assert_allclose(layer.sublayers[-1].density, old_last, rtol=1e-14)
-    solution = bm.minerals.SLB24.olivine()
+    solution = bm.minerals.SLB_2024.olivine()
     solution.set_composition([0.7, 0.3])
     solution.set_state(10e9, 1800.0)
     old_density = solution.density

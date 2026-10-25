@@ -29,7 +29,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import SLB24
+from burnman_cpp.minerals import SLB_2024
 
 HERE = Path(__file__).resolve().parent
 PAPER = "https://doi.org/10.1093/gji/ggae126"
@@ -60,8 +60,8 @@ def ferropericlase_low_spin_fraction(path, fp_model):
     """
     candidate = path.phase_names.index(fp_model.name)
     names = list(fp_model.endmember_names)
-    high = names.index(SLB24.wustite().name)
-    low = names.index(SLB24.wustite_low_spin().name)
+    high = names.index(SLB_2024.wustite().name)
+    low = names.index(SLB_2024.wustite_low_spin().name)
     fraction = np.full(len(path.states), np.nan)
     for i, (state, success) in enumerate(zip(path.states, path.success)):
         if not success:
@@ -266,7 +266,7 @@ def main():
         bulk_ferric_fraction=0.02,
         bulk_elements=bulk.atomic_composition,
         oxide_wt_percent={k: v * 1000 for k, v in bulk.mass_composition.items()},
-        dataset="SLB24",
+        dataset="SLB_2024",
         burnman_cpp_version=bm.__version__,
         settings=settings.to_dict(),
         pressure_range_Pa=[0.0, cmb_pressure],
@@ -289,8 +289,8 @@ def main():
         ),
         fp_low_spin=dict(
             definition="n_wuls / (n_wu + n_wuls), Eq. (24)",
-            high_spin_endmember=SLB24.wustite().name,
-            low_spin_endmember=SLB24.wustite_low_spin().name,
+            high_spin_endmember=SLB_2024.wustite().name,
+            low_spin_endmember=SLB_2024.wustite_low_spin().name,
             valid_points=int(np.isfinite(fp_low_spin).sum()),
             core_mantle_boundary_fraction=float(fp_low_spin[-1]),
         ),

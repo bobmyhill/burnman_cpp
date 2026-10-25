@@ -11,7 +11,7 @@
       "Fe2O3": 0.27379209126603543
     },
     "closed_system": true,
-    "dataset": "SLB24",
+    "dataset": "SLB_2024",
     "dataset_source": "https://academic.oup.com/gji/article/237/3/1699/7640845",
     "initial_ferric_fraction": 0.03,
     "solid_only": true,
@@ -7617,7 +7617,7 @@
       "Fe2O3": 0.27379209126603543
     },
     "closed_system": true,
-    "dataset": "SLB24",
+    "dataset": "SLB_2024",
     "dataset_source": "https://academic.oup.com/gji/article/237/3/1699/7640845",
     "initial_ferric_fraction": 0.03,
     "solid_only": true,
@@ -15446,7 +15446,7 @@
       "Fe2O3": 0.27379209126603543
     },
     "closed_system": true,
-    "dataset": "SLB24",
+    "dataset": "SLB_2024",
     "dataset_source": "https://academic.oup.com/gji/article/237/3/1699/7640845",
     "initial_ferric_fraction": 0.03,
     "solid_only": true,
@@ -30252,7 +30252,7 @@
       "Fe2O3": 0.27379209126603543
     },
     "closed_system": true,
-    "dataset": "SLB24",
+    "dataset": "SLB_2024",
     "dataset_source": "https://academic.oup.com/gji/article/237/3/1699/7640845",
     "initial_ferric_fraction": 0.03,
     "solid_only": true,

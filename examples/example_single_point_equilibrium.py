@@ -17,7 +17,7 @@ Each call searches all candidate phases for a fixed bulk composition.
 """
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import SLB11
+from burnman_cpp.minerals import SLB_2011
 
 
 def main():
@@ -26,9 +26,9 @@ def main():
         {"Mg2SiO4": 0.65, "Fe2SiO4": 0.35}, "molar"
     ).atomic_composition
     phases = [
-        SLB11.mg_fe_olivine(),
-        SLB11.mg_fe_wadsleyite(),
-        SLB11.mg_fe_ringwoodite(),
+        SLB_2011.mg_fe_olivine(),
+        SLB_2011.mg_fe_wadsleyite(),
+        SLB_2011.mg_fe_ringwoodite(),
     ]
 
     def point(**fixed):

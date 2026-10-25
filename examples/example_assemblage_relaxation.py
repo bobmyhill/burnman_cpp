@@ -50,7 +50,7 @@ import burnman_cpp as bm
 import matplotlib.pyplot as plt
 
 from burnman_cpp import equilibrate
-from burnman_cpp.minerals import SLB11 as SLB_2011
+from burnman_cpp.minerals import SLB_2011
 from burnman_cpp import Assemblage, RelaxedComposite
 from burnman_cpp.tools.chemistry import reaction_matrix_as_strings
 

@@ -20,7 +20,7 @@
 namespace burnman {
 namespace eos {
 
-// TODO: Maybe HP11 and HP11Mod instead of HP_TMT?
+// TODO: Maybe HP_2011_ds62 and HP11Mod instead of HP_TMT?
 /**
  * @class HP_TMT
  * @brief Class for Holland & Powell's thermal EOS correction to the generic

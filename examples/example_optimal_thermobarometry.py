@@ -46,7 +46,7 @@ import numpy as np
 from matplotlib.patches import Ellipse
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import mp50MnNCKFMASHTO, HP11, SLB24
+from burnman_cpp.minerals import mp50MnNCKFMASHTO, HP_2011_ds62, SLB_2024
 from burnman_cpp.optimize.composition_fitting import fit_composition_to_solution
 from burnman_cpp.tools.thermobarometry import estimate_conditions
 from burnman_cpp.tools.thermobarometry import (
@@ -133,8 +133,8 @@ def main():
     # the sillimanite-kyanite equilibrium at known pressure,
     # taking into account uncertainties in the
     # thermodynamic dataset.
-    sill = HP11.sill()
-    ky = HP11.ky()
+    sill = HP_2011_ds62.sill()
+    ky = HP_2011_ds62.ky()
     assemblage = bm.Assemblage([sill, ky], [0.5, 0.5])
 
     temperatures = np.linspace(610, 800, 5)
@@ -149,7 +149,7 @@ def main():
         warnings.simplefilter("ignore", RuntimeWarning)
         res = estimate_conditions(
             assemblage,
-            dataset_covariances=HP11.cov(),
+            dataset_covariances=HP_2011_ds62.cov(),
             guessed_conditions=np.array([0.5e9, 500.0]),
             pressure_bounds=[0.1e9, 0.1e9],
         )
@@ -174,8 +174,8 @@ def main():
     # of the two minerals, taking into account uncertainties in the
     # thermodynamic dataset as well as uncertainties in the fitted
     # compositions, and also a prior on the conditions themselves.
-    ol = SLB24.olivine()
-    wad = SLB24.wadsleyite()
+    ol = SLB_2024.olivine()
+    wad = SLB_2024.wadsleyite()
     assemblage = bm.Assemblage([ol, wad], [0.5, 0.5])
 
     f_fwd = 0.18
@@ -336,7 +336,7 @@ def main():
     g = mp50MnNCKFMASHTO.g()
     ilmm = mp50MnNCKFMASHTO.ilmm()
     st = mp50MnNCKFMASHTO.st()
-    q = HP11.q()
+    q = HP_2011_ds62.q()
 
     assemblage = bm.Assemblage([mu, bi, g, ilmm, st, q], [1.0 / 6.0] * 6)
 
@@ -419,7 +419,7 @@ def main():
     # site occupancies as well as the estimated pressure and temperature.
     res = estimate_conditions(
         assemblage,
-        dataset_covariances=HP11.cov(),
+        dataset_covariances=HP_2011_ds62.cov(),
         guessed_conditions=np.array([0.5e9, 500.0]),
         small_fraction_tol=0.01,
     )
@@ -518,7 +518,7 @@ def main():
                 continue
             assemblage_set_state_from_params(assemblage, params)
             chisqr = assemblage_affinity_misfit(
-                assemblage, R, dataset_covariances=HP11.cov()
+                assemblage, R, dataset_covariances=HP_2011_ds62.cov()
             )
             chisqr_vals.append(chisqr)
         red_chisqr = np.array(chisqr_vals) / (res.n_reactions - res.n_params)

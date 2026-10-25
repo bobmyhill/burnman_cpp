@@ -14,7 +14,7 @@
 #include "burnman/minerals/phase_aliases.hpp"
 #include "burnman/minerals/datasets.hpp"
 
-namespace burnman::minerals::SLB24 {
+namespace burnman::minerals::SLB_2024 {
 const std::map<std::string, std::string> &phase_aliases() {
   static const std::map<std::string, std::string> aliases{
       {olivine()->get_name(), "ol"},
@@ -48,4 +48,4 @@ const std::map<std::string, std::string> &phase_aliases() {
   };
   return aliases;
 }
-} // namespace burnman::minerals::SLB24
+} // namespace burnman::minerals::SLB_2024

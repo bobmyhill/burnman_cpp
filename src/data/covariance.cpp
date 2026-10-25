@@ -11,8 +11,8 @@
 //
 // ------------------------------------------------------
 
-#include "HGP18_covariance_data.hpp"
-#include "HP11_covariance_data.hpp"
+#include "HGP_2018_ds633_covariance_data.hpp"
+#include "HP_2011_ds62_covariance_data.hpp"
 #include "HPx_ds636_covariance_data.hpp"
 #include "burnman/minerals/datasets.hpp"
 #include <hdf5.h>
@@ -98,22 +98,22 @@ CovarianceData read_covariance(const char *filename, const unsigned char *image,
 }
 } // namespace
 
-namespace HP11 {
+namespace HP_2011_ds62 {
 CovarianceData cov() {
-  static const auto data =
-      read_covariance("HP11-covariance.h5", detail::HP11_covariance_data,
-                      sizeof(detail::HP11_covariance_data));
+  static const auto data = read_covariance(
+      "HP_2011_ds62-covariance.h5", detail::HP_2011_ds62_covariance_data,
+      sizeof(detail::HP_2011_ds62_covariance_data));
   return data;
 }
-} // namespace HP11
-namespace HGP18 {
+} // namespace HP_2011_ds62
+namespace HGP_2018_ds633 {
 CovarianceData cov() {
-  static const auto data =
-      read_covariance("HGP18-covariance.h5", detail::HGP18_covariance_data,
-                      sizeof(detail::HGP18_covariance_data));
+  static const auto data = read_covariance(
+      "HGP_2018_ds633-covariance.h5", detail::HGP_2018_ds633_covariance_data,
+      sizeof(detail::HGP_2018_ds633_covariance_data));
   return data;
 }
-} // namespace HGP18
+} // namespace HGP_2018_ds633
 namespace HPx_ds636 {
 CovarianceData cov() {
   static const auto data = read_covariance(

@@ -107,7 +107,7 @@ def calculate(seeds=41, quick=False, verbose=False):
         entropy_reference_states=references,
         oxide_wt_percent=pyrolite.PYROLITE_OXIDES,
         initial_ferric_fraction=pyrolite.INITIAL_FERRIC_FRACTION,
-        dataset="SLB24",
+        dataset="SLB_2024",
         dataset_source=pyrolite.PAPER_URL,
         closed_system=True,
         solid_only=True,

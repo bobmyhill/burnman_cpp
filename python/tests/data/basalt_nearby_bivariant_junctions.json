@@ -15,7 +15,7 @@
   "model_set": {
     "name": "HPx metabasite (dio)",
     "version": "2022-01-30",
-    "dataset": "HP11",
+    "dataset": "HP_2011_ds62",
     "source": "https://hpxeosandthermocalc.org/the-hpx-eos/the-hpx-eos-families/metabasite-set/",
     "citation": "https://doi.org/10.1111/jmg.12211",
     "water": "PS94 H2O; Holland-Powell 2011 thermal reference",

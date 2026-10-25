@@ -64,7 +64,7 @@ def main():
 
     lower_mantle_radii = np.linspace(3480e3, 5711e3, 101)
     lower_mantle = burnman.Layer("lower mantle", radii=lower_mantle_radii)
-    lower_mantle.set_material(burnman.minerals.SLB11.mg_bridgmanite())
+    lower_mantle.set_material(burnman.minerals.SLB_2011.mg_bridgmanite())
     # An 840 K basal perturbation and no upper thermal boundary perturbation.
     perturbation = burnman.BoundaryLayerPerturbation(
         radius_bottom=3480e3,
@@ -77,7 +77,7 @@ def main():
         "perturbed-adiabatic", temperatures=perturbation.temperature(lower_mantle_radii)
     )
     upper_mantle = burnman.Layer("upper mantle", radii=np.linspace(5711e3, 6371e3, 10))
-    upper_mantle.set_material(burnman.minerals.SLB11.forsterite())
+    upper_mantle.set_material(burnman.minerals.SLB_2011.forsterite())
     upper_mantle.set_temperature_mode("adiabatic", temperature_top=1200.0)
 
     planet_zog = burnman.Planet(

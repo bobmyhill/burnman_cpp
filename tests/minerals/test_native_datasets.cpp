@@ -102,7 +102,7 @@ TEST_CASE("SLB2022 minerals and solutions are available natively",
 TEST_CASE("Free composition vectors can change total atom amounts",
           "[equilibration]") {
   Assemblage a;
-  auto mineral = minerals::HP11::sill();
+  auto mineral = minerals::HP_2011_ds62::sill();
   a.add_phases({mineral});
   const auto bulk = mineral->get_formula();
   ConstraintList constraints(3);
@@ -119,8 +119,8 @@ TEST_CASE("Free composition vectors can change total atom amounts",
 
 TEST_CASE("Native datasets and combined endmembers need no Python",
           "[native_datasets]") {
-  auto sill = minerals::HP11::sill();
-  auto andal = minerals::HP11::andalusite();
+  auto sill = minerals::HP_2011_ds62::sill();
+  auto andal = minerals::HP_2011_ds62::andalusite();
   sill->set_state(3.e9, 1200.);
   andal->set_state(3.e9, 1200.);
   Eigen::ArrayXd amounts(2);
@@ -135,9 +135,9 @@ TEST_CASE("Native datasets and combined endmembers need no Python",
 }
 
 TEST_CASE("Native reduced solution systems", "[native_datasets]") {
-  auto opx = minerals::JH15::mg_fe_orthopyroxene();
-  auto gt = minerals::SLB11::pyrope_grossular();
-  auto bdg = minerals::SLB11::mg_fe_bridgmanite_binary();
+  auto opx = minerals::JH_2015::mg_fe_orthopyroxene();
+  auto gt = minerals::SLB_2011::pyrope_grossular();
+  auto bdg = minerals::SLB_2011::mg_fe_bridgmanite_binary();
   CHECK(opx->get_n_endmembers() == 3);
   CHECK(gt->get_n_endmembers() == 2);
   CHECK(bdg->get_n_endmembers() == 2);
@@ -159,7 +159,7 @@ TEST_CASE("Mn metapelite solutions retain their Mn endmembers",
   Eigen::ArrayXd fractions = Eigen::ArrayXd::Zero(5);
   fractions[2] = 1.;
   garnet->set_composition(fractions);
-  const auto spessartine = minerals::HP11::spss();
+  const auto spessartine = minerals::HP_2011_ds62::spss();
   garnet->set_state(4.e8, 873.15);
   spessartine->set_state(4.e8, 873.15);
   CHECK(garnet->get_formula().at("Mn") == 3.);
@@ -172,7 +172,7 @@ TEST_CASE("Mn metapelite solutions retain their Mn endmembers",
   fractions[6] = 1.;
   biotite->set_composition(fractions);
   biotite->set_state(4.e8, 873.15);
-  const auto mn_biotite = minerals::HP11::mnbi();
+  const auto mn_biotite = minerals::HP_2011_ds62::mnbi();
   mn_biotite->set_state(4.e8, 873.15);
   CHECK(biotite->get_formula().at("Mn") == 3.);
   CHECK_THAT(biotite->get_molar_gibbs(),
@@ -181,9 +181,9 @@ TEST_CASE("Mn metapelite solutions retain their Mn endmembers",
 
 TEST_CASE("Aluminosilicate invariant from native factories",
           "[native_datasets]") {
-  auto sill = minerals::HP11::sill();
-  auto andal = minerals::HP11::andalusite();
-  auto ky = minerals::HP11::ky();
+  auto sill = minerals::HP_2011_ds62::sill();
+  auto andal = minerals::HP_2011_ds62::andalusite();
+  auto ky = minerals::HP_2011_ds62::ky();
   Assemblage a;
   a.add_phases({sill, andal, ky});
   a.set_fractions(Eigen::ArrayXd::Constant(3, 1. / 3.));
@@ -206,9 +206,10 @@ TEST_CASE("Aluminosilicate invariant from native factories",
 
 TEST_CASE("Scaled equilibrium keeps physical results and iteration history",
           "[native_datasets][equilibration_scaling]") {
-  auto sill = minerals::HP11::sill();
+  auto sill = minerals::HP_2011_ds62::sill();
   Assemblage a;
-  a.add_phases({sill, minerals::HP11::andalusite(), minerals::HP11::ky()});
+  a.add_phases({sill, minerals::HP_2011_ds62::andalusite(),
+                minerals::HP_2011_ds62::ky()});
   a.set_fractions(Eigen::ArrayXd::Constant(3, 1. / 3.));
   a.set_state(8.e8, 900.);
   const auto bulk = sill->get_formula();

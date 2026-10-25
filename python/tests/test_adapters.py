@@ -22,8 +22,8 @@ from burnman.tools.polytope import simplify_composite_with_composition
 
 import burnman_cpp as bm
 from burnman_cpp.adapters import from_burnman
-from burnman_cpp.minerals import SLB11 as native_SLB11, JH15 as native_JH15
-from burnman_cpp.minerals import MP14 as native_MP14
+from burnman_cpp.minerals import SLB_2011 as native_SLB_2011, JH_2015 as native_JH_2015
+from burnman_cpp.minerals import mp50NCKFMASHTO as native_mp50NCKFMASHTO
 from burnman.minerals import mp50NCKFMASHTO as reference_MP
 
 
@@ -53,7 +53,7 @@ from burnman.minerals import mp50NCKFMASHTO as reference_MP
 )
 def test_native_metapelite_models_match_published_reference(name):
     reference = getattr(reference_MP, name)()
-    native = getattr(native_MP14, name)()
+    native = getattr(native_mp50NCKFMASHTO, name)()
     fractions = np.arange(1.0, native.n_endmembers + 1)
     fractions /= fractions.sum()
     reference.set_composition(fractions)
@@ -167,8 +167,8 @@ def test_transformed_ordering_solution_signed_coordinates():
 @pytest.mark.parametrize(
     "source,native_source",
     [
-        (SLB.garnet, native_SLB11.garnet),
-        (JH.orthopyroxene, native_JH15.orthopyroxene),
+        (SLB.garnet, native_SLB_2011.garnet),
+        (JH.orthopyroxene, native_JH_2015.orthopyroxene),
     ],
 )
 def test_native_polytope_vertices_match_reference(source, native_source):
@@ -195,13 +195,17 @@ def test_native_polytope_vertices_match_reference(source, native_source):
 @pytest.mark.parametrize("name", ["H2O", "fl_G25", "liq_W24d", "liq_G25w"])
 def test_new_dataset_adapters_match_native_factories(name):
     from burnman.minerals import HPx_ds636, ig51G25, ig51W24
-    from burnman_cpp.minerals import HPx_ds636 as native_HP, IG24, IG25
+    from burnman_cpp.minerals import (
+        HPx_ds636 as native_HP,
+        ig51W24 as native_ig51W24,
+        ig51G25 as native_ig51G25,
+    )
 
     pairs = {
         "H2O": (HPx_ds636.H2O, native_HP.H2O),
-        "fl_G25": (ig51G25.fl_G25, IG25.fl_G25),
-        "liq_W24d": (ig51W24.liq_W24d, IG24.liq_W24d),
-        "liq_G25w": (ig51G25.liq_G25w, IG25.liq_G25w),
+        "fl_G25": (ig51G25.fl_G25, native_ig51G25.fl_G25),
+        "liq_W24d": (ig51W24.liq_W24d, native_ig51W24.liq_W24d),
+        "liq_G25w": (ig51G25.liq_G25w, native_ig51G25.liq_G25w),
     }
     reference_factory, native_factory = pairs[name]
     reference, native = reference_factory(), native_factory()

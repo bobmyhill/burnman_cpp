@@ -36,7 +36,7 @@ TEST_CASE("Midpoint equilibrium tries both bracket ends before phase discovery",
   namespace ps = phase_diagrams;
   const auto type = GENERATE(ps::DiagramType::PT, ps::DiagramType::PS,
                              ps::DiagramType::TV, ps::DiagramType::SV);
-  auto first = minerals::HGP18::per();
+  auto first = minerals::HGP_2018_ds633::per();
   auto hot = std::make_shared<Mineral>(make_combined_mineral(
       {*first}, Eigen::ArrayXd::Ones(1), {22500., 20., -.5e-6}, "hot"));
   auto state_at = [](Material &phase, double pressure, double temperature) {
@@ -102,8 +102,9 @@ TEST_CASE("P-T warm seeds reject a weak solution saddle before phase discovery",
   auto phase = std::make_shared<Solution>();
   phase->set_solution_model(
       std::make_shared<solution_models::SymmetricRegularSolution>(
-          types::PairedEndmemberList{{*minerals::HGP18::per(), "[Mg]O"},
-                                     {*minerals::HGP18::wu(), "[Fe]O"}},
+          types::PairedEndmemberList{
+              {*minerals::HGP_2018_ds633::per(), "[Mg]O"},
+              {*minerals::HGP_2018_ds633::wu(), "[Fe]O"}},
           std::vector<std::vector<double>>{{2. * rt - 1000.}},
           std::vector<std::vector<double>>{{1.e-6}}));
   phase->set_composition(Eigen::Array2d(.5, .5));
@@ -155,7 +156,7 @@ TEST_CASE("P-T correction rejects the saved pyrolite garnet saddle",
   composition << .2582836683484322, .21761423464074586, .4816869685608627,
       1.868074133110774e-7, .013004023288018411, 7.210725843903899e-5,
       .029338811096088473;
-  auto garnet = minerals::SLB24::gt();
+  auto garnet = minerals::SLB_2024::gt();
   garnet->set_composition(composition.array());
   ps::detail::Engine engine(garnet->get_formula(), {garnet}, {});
   ps::PhaseState phase;
@@ -184,7 +185,7 @@ TEST_CASE("Face reconstruction separates numerical zeros from positive traces",
   ps::CompositionSection section;
   section.type = GENERATE(ps::DiagramType::PT, ps::DiagramType::PS,
                           ps::DiagramType::TV, ps::DiagramType::SV);
-  auto phase = minerals::SLB24::il();
+  auto phase = minerals::SLB_2024::il();
   Eigen::VectorXd x(5);
   x << .00013623712887933515, 1.3739024951054258e-13, .9992750956610574,
       3.775353408283415e-9, .0005886634345724743;
@@ -215,8 +216,8 @@ TEST_CASE("Inverse assemblage reconstruction retains positive trace sites",
   namespace ps = phase_diagrams;
   auto phase = std::make_shared<Solution>();
   phase->set_solution_model(std::make_shared<solution_models::IdealSolution>(
-      types::PairedEndmemberList{{*minerals::HGP18::per(), "[Mg]O"},
-                                 {*minerals::HGP18::wu(), "[Fe]O"}}));
+      types::PairedEndmemberList{{*minerals::HGP_2018_ds633::per(), "[Mg]O"},
+                                 {*minerals::HGP_2018_ds633::wu(), "[Fe]O"}}));
   const double trace = 5.e-8;
   ps::CompositionSection section;
   section.type = ps::DiagramType::PS;
@@ -328,8 +329,9 @@ TEST_CASE("Reaction continuation preserves zero-amount solution branches",
   auto phase = std::make_shared<Solution>();
   phase->set_solution_model(
       std::make_shared<solution_models::SymmetricRegularSolution>(
-          types::PairedEndmemberList{{*minerals::HGP18::per(), "[Mg]O"},
-                                     {*minerals::HGP18::wu(), "[Fe]O"}},
+          types::PairedEndmemberList{
+              {*minerals::HGP_2018_ds633::per(), "[Mg]O"},
+              {*minerals::HGP_2018_ds633::wu(), "[Fe]O"}},
           std::vector<std::vector<double>>{{20000.}}));
   ps::detail::Engine engine({{"Mg", .5}, {"Fe", .5}, {"O", 1.}}, {phase}, {});
   ps::PhaseState reference;
@@ -358,8 +360,8 @@ TEST_CASE("Reaction continuation preserves zero-amount solution branches",
                                            1.e9, 1000.));
   auto ideal = std::make_shared<Solution>();
   ideal->set_solution_model(std::make_shared<solution_models::IdealSolution>(
-      types::PairedEndmemberList{{*minerals::HGP18::per(), "[Mg]O"},
-                                 {*minerals::HGP18::wu(), "[Fe]O"}}));
+      types::PairedEndmemberList{{*minerals::HGP_2018_ds633::per(), "[Mg]O"},
+                                 {*minerals::HGP_2018_ds633::wu(), "[Fe]O"}}));
   ps::detail::Engine flat({{"Mg", .5}, {"Fe", .5}, {"O", 1.}}, {ideal}, {});
   CHECK(ps::detail::same_solution_branches(flat, {reference}, {switched}, 1.e9,
                                            0.));
@@ -369,7 +371,7 @@ TEST_CASE("Saved pyrolite reaction changes akimotoite composition branch",
           "[phase_diagram]") {
   namespace ps = phase_diagrams;
   ps::detail::Engine engine({{"Mg", 1.}, {"Si", 1.}, {"O", 3.}},
-                            {minerals::SLB24::il()}, {});
+                            {minerals::SLB_2024::il()}, {});
   ps::PhaseState a;
   a.id = a.candidate_index = 0;
   a.amount = 0.;
@@ -443,7 +445,8 @@ TEST_CASE("Reaction entropy and volume orient singular P-T boundaries",
   settings.max_phase_instances = 1;
   ps::detail::Engine engine(
       {{"Al", 2.}, {"Si", 1.}, {"O", 5.}},
-      {minerals::HP11::andalusite(), minerals::HP11::ky()}, settings);
+      {minerals::HP_2011_ds62::andalusite(), minerals::HP_2011_ds62::ky()},
+      settings);
   std::vector<ps::PhaseState> states(2);
   for (int k = 0; k < 2; ++k) {
     states[static_cast<std::size_t>(k)].id = k;
@@ -485,7 +488,7 @@ TEST_CASE("Parallel-line removal needs thermodynamic evidence of instability",
           "[phase_diagram]") {
   namespace ps = phase_diagrams;
   const bool correctable = GENERATE(false, true);
-  auto base = minerals::HGP18::per();
+  auto base = minerals::HGP_2018_ds633::per();
   auto hot = std::make_shared<Mineral>(make_combined_mineral(
       {*base}, Eigen::ArrayXd::Ones(1), {22500., 20., -.5e-6}, "hot"));
   auto suspect = std::make_shared<Mineral>(
@@ -563,7 +566,7 @@ TEST_CASE("Shared composition faces retain independent limiting populations",
 TEST_CASE("A singular response cannot exclude a finite P-S coexistence field",
           "[phase_diagram]") {
   namespace ps = phase_diagrams;
-  auto first = minerals::HGP18::per();
+  auto first = minerals::HGP_2018_ds633::per();
   auto second = std::make_shared<Mineral>(make_combined_mineral(
       {*first}, Eigen::ArrayXd::Ones(1), {22500., 20., -.5e-6}, "hot"));
   second->set_state(5.e9, 1000.);
@@ -605,10 +608,10 @@ TEST_CASE("A singular response cannot exclude a finite P-S coexistence field",
 TEST_CASE("Boundary correction releases an obsolete composition face",
           "[phase_diagram]") {
   namespace ps = phase_diagrams;
-  auto quartz = minerals::SLB24::qtz();
+  auto quartz = minerals::SLB_2024::qtz();
   auto polymorph = std::make_shared<Mineral>(make_combined_mineral(
       {*quartz}, Eigen::ArrayXd::Ones(1), {5000., 4., -.5e-6}, "polymorph"));
-  auto mg = minerals::SLB24::pe(), fe = minerals::SLB24::wu();
+  auto mg = minerals::SLB_2024::pe(), fe = minerals::SLB_2024::wu();
   auto oxide = std::make_shared<Solution>();
   oxide->set_solution_model(
       std::make_shared<solution_models::SymmetricRegularSolution>(
@@ -660,7 +663,7 @@ TEST_CASE("Compound reaction limiting states preserve positive trace sites",
   namespace ps = phase_diagrams;
   const double accuracy = GENERATE(1., 1.e-4);
   const double epsilon = 2.e-8;
-  auto per = minerals::HGP18::per();
+  auto per = minerals::HGP_2018_ds633::per();
   auto first = std::make_shared<Mineral>(make_combined_mineral(
       {*per}, Eigen::ArrayXd::Ones(1),
       {constants::physics::gas_constant * 1000. * std::log(1. - epsilon), 0.,
@@ -671,8 +674,8 @@ TEST_CASE("Compound reaction limiting states preserve positive trace sites",
   auto solution = std::make_shared<Solution>();
   solution->set_solution_model(
       std::make_shared<solution_models::SymmetricRegularSolution>(
-          types::PairedEndmemberList{{*per, "[Mg]O"},
-                                     {*minerals::HGP18::wu(), "[Fe]O"}},
+          types::PairedEndmemberList{
+              {*per, "[Mg]O"}, {*minerals::HGP_2018_ds633::wu(), "[Fe]O"}},
           std::vector<std::vector<double>>{{0.}}));
   solution->set_composition(Eigen::Array2d(1. - epsilon, epsilon));
   ps::Settings settings;
@@ -721,13 +724,14 @@ TEST_CASE("Compound reaction limiting states preserve positive trace sites",
 TEST_CASE("Reaction amounts reject an infeasible outgoing mixture",
           "[phase_diagram]") {
   namespace ps = phase_diagrams;
-  auto per = minerals::HGP18::per();
+  auto per = minerals::HGP_2018_ds633::per();
   auto polymorph = std::make_shared<Mineral>(make_combined_mineral(
       {*per}, Eigen::ArrayXd::Ones(1), {10000., 10., 0.}, "polymorph"));
   ps::Settings settings;
   settings.max_phase_instances = 1;
   ps::detail::Engine engine({{"Mg", .5}, {"Fe", .5}, {"O", 1.}},
-                            {per, polymorph, minerals::HGP18::wu()}, settings);
+                            {per, polymorph, minerals::HGP_2018_ds633::wu()},
+                            settings);
   ps::detail::PhaseStates states;
   for (int id = 0; id < 3; ++id) {
     ps::PhaseState p;
@@ -751,7 +755,7 @@ TEST_CASE("Junction mass feasibility uses the equilibrium mass tolerance",
           "[phase_diagram]") {
   namespace ps = phase_diagrams;
   const double oxygen_error = GENERATE(1.e-12, 1.e-4);
-  auto per = minerals::HGP18::per();
+  auto per = minerals::HGP_2018_ds633::per();
   auto polymorph = std::make_shared<Mineral>(make_combined_mineral(
       {*per}, Eigen::ArrayXd::Ones(1), {10000., 10., 0.}, "polymorph"));
   ps::Settings settings;
@@ -759,10 +763,10 @@ TEST_CASE("Junction mass feasibility uses the equilibrium mass tolerance",
   // The full candidate set spans Fe oxidation; the proposed outgoing phases
   // occupy a smaller chemical subspace. Roundoff must not make that branch
   // infeasible, while a physically significant oxygen excess still must.
-  ps::detail::Engine engine(
-      {{"Mg", .5}, {"Fe", .5}, {"O", 1. + oxygen_error}},
-      {per, polymorph, minerals::HGP18::wu(), minerals::HGP18::hem()},
-      settings);
+  ps::detail::Engine engine({{"Mg", .5}, {"Fe", .5}, {"O", 1. + oxygen_error}},
+                            {per, polymorph, minerals::HGP_2018_ds633::wu(),
+                             minerals::HGP_2018_ds633::hem()},
+                            settings);
   ps::detail::PhaseStates states;
   for (int id = 0; id < 3; ++id) {
     ps::PhaseState p;
@@ -791,7 +795,7 @@ TEST_CASE("Junction mass feasibility uses the equilibrium mass tolerance",
 
 TEST_CASE("Entropy-volume sections solve physical P and T", "[phase_diagram]") {
   namespace ps = phase_diagrams;
-  auto mineral = minerals::SLB11::ca_perovskite();
+  auto mineral = minerals::SLB_2011::ca_perovskite();
   mineral->set_state(4.e9, 1000.);
   ps::CompositionSection section;
   section.type = ps::DiagramType::SV;
@@ -827,7 +831,7 @@ TEST_CASE("Entropy-volume sections solve physical P and T", "[phase_diagram]") {
 TEST_CASE("Fe-O TX closes fields with unequal composition endpoints",
           "[phase_diagram]") {
   namespace ps = phase_diagrams;
-  namespace hp = minerals::HGP18;
+  namespace hp = minerals::HGP_2018_ds633;
   ps::CompositionSection path;
   path.type = ps::DiagramType::TX;
   path.fixed_coordinate = ps::Coordinate::P;
@@ -877,7 +881,7 @@ TEST_CASE("Native Gibbs LP dual amounts conserve components",
 TEST_CASE("Native phase diagram resume retains calculation settings",
           "[phase_diagram]") {
   namespace ps = phase_diagrams;
-  namespace hp = minerals::HP11;
+  namespace hp = minerals::HP_2011_ds62;
   types::FormulaMap bulk{{"Al", 2.}, {"Si", 1.}, {"O", 5.}};
   std::vector<std::shared_ptr<Material>> phases{hp::andalusite(), hp::ky(),
                                                 hp::sill()};
@@ -922,7 +926,7 @@ TEST_CASE("Native phase diagram resume retains calculation settings",
 TEST_CASE("Invalid continuation phase amounts are recoverable",
           "[phase_diagram]") {
   Assemblage assemblage;
-  assemblage.add_phases({minerals::HP11::andalusite()});
+  assemblage.add_phases({minerals::HP_2011_ds62::andalusite()});
   assemblage.set_fractions(Eigen::ArrayXd::Ones(1));
   assemblage.set_n_moles(1.);
   assemblage.set_state(1.e9, 800.);
@@ -955,13 +959,13 @@ TEST_CASE("Absent-field affinity orients an ill-conditioned pyrolite reaction",
       {"O", 2.7663350706839376},    {"Mg", 0.9646647623082004},
       {"Ca", 0.0567076785900418},   {"Al", 0.07846169170147545},
       {"Na", 0.004194994559401659}, {"Fe", 0.11430278558091557}};
-  ps::detail::Engine engine(bulk,
-                            {minerals::SLB24::olivine(),
-                             minerals::SLB24::clinopyroxene(),
-                             minerals::SLB24::mg_fe_aluminous_spinel(),
-                             minerals::SLB24::plagioclase(),
-                             minerals::SLB24::ky(), minerals::SLB24::qtz()},
-                            settings);
+  ps::detail::Engine engine(
+      bulk,
+      {minerals::SLB_2024::olivine(), minerals::SLB_2024::clinopyroxene(),
+       minerals::SLB_2024::mg_fe_aluminous_spinel(),
+       minerals::SLB_2024::plagioclase(), minerals::SLB_2024::ky(),
+       minerals::SLB_2024::qtz()},
+      settings);
   ps::detail::PhaseStates states;
 
   {
@@ -1103,7 +1107,7 @@ TEST_CASE("Recovered reactions correct onto the model mask",
   result.pressure_range = {0., 25.e9};
   result.temperature_range = {0., 2500.};
   result.settings.max_phase_instances = 1;
-  auto first = minerals::SLB24::periclase();
+  auto first = minerals::SLB_2024::periclase();
   auto second = std::make_shared<Mineral>(make_combined_mineral(
       {*first}, Eigen::ArrayXd::Ones(1), {2700., 0., -.5e-6}, "dense"));
   ps::detail::Engine engine({{"Mg", 1.}, {"O", 1.}}, {first, second},
@@ -1167,8 +1171,9 @@ TEST_CASE(
   auto phase = std::make_shared<Solution>();
   phase->set_solution_model(
       std::make_shared<solution_models::SymmetricRegularSolution>(
-          types::PairedEndmemberList{{*minerals::HGP18::per(), "[Mg]O"},
-                                     {*minerals::HGP18::wu(), "[Fe]O"}},
+          types::PairedEndmemberList{
+              {*minerals::HGP_2018_ds633::per(), "[Mg]O"},
+              {*minerals::HGP_2018_ds633::wu(), "[Fe]O"}},
           std::vector<std::vector<double>>{{interaction}}));
   phase->set_composition(Eigen::Array2d(.5, .5));
   ps::Settings settings;
@@ -1197,7 +1202,7 @@ TEST_CASE(
     "A univariant reaction splits at an invariant with other zero amounts",
     "[phase_diagram]") {
   namespace ps = phase_diagrams;
-  auto first = minerals::HGP18::per();
+  auto first = minerals::HGP_2018_ds633::per();
   auto second = std::make_shared<Mineral>(make_combined_mineral(
       {*first}, Eigen::ArrayXd::Ones(1), {10000., 10., 0.}, "second"));
   auto third = std::make_shared<Mineral>(make_combined_mineral(
