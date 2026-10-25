@@ -21,6 +21,7 @@
 #include "burnman/eos/mie_grueneisen_debye.hpp"
 #include "burnman/eos/modified_tait.hpp"
 #include "burnman/eos/modular_mie_grueneisen_debye.hpp"
+#include "burnman/eos/murnaghan.hpp"
 #include "burnman/eos/slb.hpp"
 #include "burnman/eos/spock.hpp"
 #include "burnman/eos/vinet.hpp"
@@ -33,6 +34,8 @@ std::shared_ptr<EquationOfState> make_eos(types::EOSType eos_type) {
   switch (eos_type) {
   case types::EOSType::Vinet:
     return std::make_shared<Vinet>();
+  case types::EOSType::Murnaghan:
+    return std::make_shared<Murnaghan>();
   case types::EOSType::BM2:
     return std::make_shared<BM2>();
   case types::EOSType::BM3:

@@ -24,6 +24,7 @@ void bind_params(py::module_ &m) {
   py::enum_<EOSType>(m, "EOSType")
       .value("Auto", EOSType::Auto)
       .value("Vinet", EOSType::Vinet)
+      .value("Murnaghan", EOSType::Murnaghan)
       .value("MT", EOSType::MT)
       .value("BM2", EOSType::BM2)
       .value("BM3", EOSType::BM3)

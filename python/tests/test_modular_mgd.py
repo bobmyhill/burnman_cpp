@@ -298,13 +298,17 @@ def test_anharmonic_thermal_components_against_python(thermal):
 
 
 @pytest.mark.parametrize("method", ["modular_mgd", "modular_mgd_with_anharmonicity"])
-def test_burnman_adapter_for_modular_mgd(method):
+@pytest.mark.parametrize("reference_eos", ["bm3", "murnaghan"])
+def test_burnman_adapter_for_modular_mgd(method, reference_eos):
     reference = pytest.importorskip("burnman")
     from burnman_cpp.adapters import from_burnman
 
-    p = dict(parameters(), equation_of_state=method, c_anh=0.05)
+    p = dict(parameters(reference_eos), equation_of_state=method, c_anh=0.05)
+    if reference_eos == "murnaghan":
+        # Python Murnaghan defines its reference volume at zero pressure.
+        p["P_0"] = 0.0
     original = reference.Mineral(reference_parameters(p))
     converted = from_burnman(original)
-    converted.set_state(1.0e5, 298.15)
+    converted.set_state(p["P_0"], 298.15)
     assert converted.molar_volume == pytest.approx(p["V_0"], rel=2.0e-12)
     assert converted.molar_helmholtz == pytest.approx(p["F_0"])
