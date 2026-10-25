@@ -61,7 +61,8 @@ enum class EOSType {
   Murnaghan,
   AA,
   BroshCalphad,
-  Morse
+  Morse,
+  RKprime
 };
 
 /**
