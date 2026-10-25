@@ -70,7 +70,7 @@ def reference_parameters(native):
     return result
 
 
-@pytest.mark.parametrize("reference", ["bm3", "morse"])
+@pytest.mark.parametrize("reference", ["bm3", "morse", "rkprime"])
 def test_modular_mgd_reference_state_and_component_lifetimes(reference):
     p = parameters(reference)
     mineral = bm.Mineral(p)

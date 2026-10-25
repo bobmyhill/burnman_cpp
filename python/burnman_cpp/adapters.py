@@ -103,6 +103,7 @@ def from_burnman(phase):
                 "Vinet": "vinet",
                 "Murnaghan": "murnaghan",
                 "Morse": "morse",
+                "RKprime": "rkprime",
                 "MT": "mt",
                 "SPOCK": "spock",
             }
