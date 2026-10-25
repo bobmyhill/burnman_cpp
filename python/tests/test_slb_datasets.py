@@ -11,7 +11,7 @@
 #
 # ------------------------------------------------------
 
-"""Published SLB catalogues, parameter metadata and legacy data limits."""
+"""SLB and additional core/mantle catalogues, metadata and data limits."""
 
 import importlib
 
@@ -22,6 +22,38 @@ import burnman_cpp as bm
 from burnman_cpp import minerals
 
 DATASETS = {"SLB_2005": 7, "SLB_2011_ZSB_2013": 7, "SLB_2022": 153}
+ADDITIONAL_DATASETS = {
+    "ICL_2018": 2,
+    "KMFBZ_2017": 11,
+    "Matas_etal_2007": 10,
+    "Murakami_2013": 6,
+    "Murakami_etal_2012": 11,
+    "RS_2014_liquids": 1,
+    "Sundman_1991": 2,
+    "other": 7,
+}
+
+
+@pytest.mark.parametrize("dataset,count", ADDITIONAL_DATASETS.items())
+def test_additional_public_names_and_independent_materials(dataset, count):
+    module = importlib.import_module(f"burnman_cpp.minerals.{dataset}")
+    assert module is getattr(minerals, dataset)
+    names = minerals.available_phase_names(dataset)
+    assert len(names) == count
+    for name in names:
+        first, second = getattr(module, name)(), getattr(module, name)()
+        t = 3000.0 if dataset == "RS_2014_liquids" else 1800.0
+        first.set_state(10.0e9, t)
+        volume = first.molar_volume
+        second.set_state(80.0e9, 2.0 * t)
+        _ = second.molar_volume
+        if isinstance(second, bm.Solution):
+            fractions = np.arange(1.0, second.n_endmembers + 1)
+            second.set_composition(fractions / fractions.sum())
+        first.reset_cache()
+        assert first.molar_volume == pytest.approx(volume, rel=1.0e-12)
+        assert np.isfinite(volume) and volume > 0.0, f"{dataset}.{name}"
+        assert first.isothermal_bulk_modulus_reuss > 0.0, f"{dataset}.{name}"
 
 
 @pytest.mark.parametrize("dataset,count", DATASETS.items())

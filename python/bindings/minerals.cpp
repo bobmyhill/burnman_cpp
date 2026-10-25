@@ -1876,5 +1876,88 @@ void bind_minerals(py::module_ &m) {
   mp50MnNCKFMASHTO.def("ilmm", &minerals::mp50MnNCKFMASHTO::ilmm);
   mp50MnNCKFMASHTO.def("ilm", &minerals::mp50MnNCKFMASHTO::ilm);
   mp50MnNCKFMASHTO.def("mt1", &minerals::mp50MnNCKFMASHTO::mt1);
+  auto ICL_2018 = catalog.def_submodule("ICL_2018");
+  ICL_2018.def("EPOC_vinet", &minerals::ICL_2018::EPOC_vinet);
+  ICL_2018.def("EPOC_bm", &minerals::ICL_2018::EPOC_bm);
+  auto KMFBZ_2017 = catalog.def_submodule("KMFBZ_2017");
+  KMFBZ_2017.def("bridgmanite", &minerals::KMFBZ_2017::bridgmanite);
+  KMFBZ_2017.def("ferropericlase", &minerals::KMFBZ_2017::ferropericlase);
+  KMFBZ_2017.def("mg_si_perovskite", &minerals::KMFBZ_2017::mg_si_perovskite);
+  KMFBZ_2017.def("fe_si_perovskite", &minerals::KMFBZ_2017::fe_si_perovskite);
+  KMFBZ_2017.def("fe_al_perovskite", &minerals::KMFBZ_2017::fe_al_perovskite);
+  KMFBZ_2017.def("al_al_perovskite", &minerals::KMFBZ_2017::al_al_perovskite);
+  KMFBZ_2017.def("periclase", &minerals::KMFBZ_2017::periclase);
+  KMFBZ_2017.def("wuestite", &minerals::KMFBZ_2017::wuestite);
+  KMFBZ_2017.def("ca_perovskite", &minerals::KMFBZ_2017::ca_perovskite);
+  KMFBZ_2017.def("hcp_iron", &minerals::KMFBZ_2017::hcp_iron);
+  KMFBZ_2017.def("perovskite", &minerals::KMFBZ_2017::perovskite);
+  auto Matas_etal_2007 = catalog.def_submodule("Matas_etal_2007");
+  Matas_etal_2007.def("mg_perovskite",
+                      &minerals::Matas_etal_2007::mg_perovskite);
+  Matas_etal_2007.def("fe_perovskite",
+                      &minerals::Matas_etal_2007::fe_perovskite);
+  Matas_etal_2007.def("al_perovskite",
+                      &minerals::Matas_etal_2007::al_perovskite);
+  Matas_etal_2007.def("ca_perovskite",
+                      &minerals::Matas_etal_2007::ca_perovskite);
+  Matas_etal_2007.def("periclase", &minerals::Matas_etal_2007::periclase);
+  Matas_etal_2007.def("wuestite", &minerals::Matas_etal_2007::wuestite);
+  Matas_etal_2007.def("ca_bridgmanite",
+                      &minerals::Matas_etal_2007::ca_bridgmanite);
+  Matas_etal_2007.def("mg_bridgmanite",
+                      &minerals::Matas_etal_2007::mg_bridgmanite);
+  Matas_etal_2007.def("fe_bridgmanite",
+                      &minerals::Matas_etal_2007::fe_bridgmanite);
+  Matas_etal_2007.def("al_bridgmanite",
+                      &minerals::Matas_etal_2007::al_bridgmanite);
+  auto Murakami_2013 = catalog.def_submodule("Murakami_2013");
+  Murakami_2013.def("periclase", &minerals::Murakami_2013::periclase);
+  Murakami_2013.def("wuestite", &minerals::Murakami_2013::wuestite);
+  Murakami_2013.def("mg_perovskite", &minerals::Murakami_2013::mg_perovskite);
+  Murakami_2013.def("fe_perovskite", &minerals::Murakami_2013::fe_perovskite);
+  Murakami_2013.def("mg_bridgmanite", &minerals::Murakami_2013::mg_bridgmanite);
+  Murakami_2013.def("fe_bridgmanite", &minerals::Murakami_2013::fe_bridgmanite);
+  auto Murakami_etal_2012 = catalog.def_submodule("Murakami_etal_2012");
+  Murakami_etal_2012.def("mg_perovskite",
+                         &minerals::Murakami_etal_2012::mg_perovskite);
+  Murakami_etal_2012.def("mg_perovskite_3rdorder",
+                         &minerals::Murakami_etal_2012::mg_perovskite_3rdorder);
+  Murakami_etal_2012.def("fe_perovskite",
+                         &minerals::Murakami_etal_2012::fe_perovskite);
+  Murakami_etal_2012.def("mg_periclase",
+                         &minerals::Murakami_etal_2012::mg_periclase);
+  Murakami_etal_2012.def("fe_periclase_HS",
+                         &minerals::Murakami_etal_2012::fe_periclase_HS);
+  Murakami_etal_2012.def("fe_periclase_LS",
+                         &minerals::Murakami_etal_2012::fe_periclase_LS);
+  Murakami_etal_2012.def("fe_periclase_HS_3rd",
+                         &minerals::Murakami_etal_2012::fe_periclase_HS_3rd);
+  Murakami_etal_2012.def("fe_periclase_LS_3rd",
+                         &minerals::Murakami_etal_2012::fe_periclase_LS_3rd);
+  Murakami_etal_2012.def("mg_bridgmanite",
+                         &minerals::Murakami_etal_2012::mg_bridgmanite);
+  Murakami_etal_2012.def("fe_bridgmanite",
+                         &minerals::Murakami_etal_2012::fe_bridgmanite);
+  Murakami_etal_2012.def(
+      "mg_bridgmanite_3rdorder",
+      &minerals::Murakami_etal_2012::mg_bridgmanite_3rdorder);
+  auto RS_2014_liquids = catalog.def_submodule("RS_2014_liquids");
+  RS_2014_liquids.def("Fe2SiO4_liquid",
+                      &minerals::RS_2014_liquids::Fe2SiO4_liquid);
+  auto Sundman_1991 = catalog.def_submodule("Sundman_1991");
+  Sundman_1991.def("bcc_iron", &minerals::Sundman_1991::bcc_iron);
+  Sundman_1991.def("fcc_iron", &minerals::Sundman_1991::fcc_iron);
+  auto other = catalog.def_submodule("other");
+  other.def("ZSB_2013_mg_perovskite", &minerals::other::ZSB_2013_mg_perovskite);
+  other.def("ZSB_2013_fe_perovskite", &minerals::other::ZSB_2013_fe_perovskite);
+  other.def("Speziale_fe_periclase_HS",
+            &minerals::other::Speziale_fe_periclase_HS);
+  other.def("Speziale_fe_periclase_LS",
+            &minerals::other::Speziale_fe_periclase_LS);
+  other.def("Liquid_Fe_Anderson", &minerals::other::Liquid_Fe_Anderson);
+  other.def("Fe_Dewaele", &minerals::other::Fe_Dewaele);
+  other.def("liquid_iron", &minerals::other::liquid_iron,
+            "AA1994 liquid Fe with the Figure 5 heat capacity and unfitted "
+            "S_0=100 J/(mol K).");
 }
 } // namespace burnman::python

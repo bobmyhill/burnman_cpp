@@ -19,6 +19,10 @@ MP14 and MB16 provide metapelite and metabasite solutions, including melts.
 mp50MnNCKFMASHTO provides Mn-bearing metapelite solutions.
 SLB11, JH15 and SLB24 provide mantle models and relaxed spin solutions.
 SLB_2005, SLB_2011_ZSB_2013 and SLB_2022 retain the original dataset names.
+ICL_2018, KMFBZ_2017, Matas_etal_2007, Murakami_2013 and Murakami_etal_2012
+provide core and mantle models. RS_2014_liquids supplies magnetic fayalite
+liquid; Sundman_1991 provides magnetic iron phases. The other catalogue
+contains additional solid and liquid iron models and ZSB2013 perovskites.
 HHPH_2013 provides high-pressure endmembers; HP_2011_fluids provides water
 and six gases. ig50NCKFMASTOCr provides dry igneous solutions, and mp50KFMASH
 provides metapelite solutions. These catalogues retain their original names.
@@ -35,7 +39,7 @@ from importlib import import_module as _import_module
 import sys as _sys
 
 from .. import _core
-from . import other, SE_2015, Pitzer_Sterner_1994
+from . import SE_2015, Pitzer_Sterner_1994
 from .._core.minerals import (
     HP11,
     SLB11,
@@ -58,6 +62,14 @@ from .._core.minerals import (
     ig50NCKFMASTOCr,
     mp50KFMASH,
     mp50MnNCKFMASHTO,
+    ICL_2018,
+    KMFBZ_2017,
+    Matas_etal_2007,
+    Murakami_2013,
+    Murakami_etal_2012,
+    RS_2014_liquids,
+    Sundman_1991,
+    other,
     model_sets,
 )
 
@@ -86,6 +98,13 @@ __all__ = [
     "ig50NCKFMASTOCr",
     "mp50KFMASH",
     "mp50MnNCKFMASHTO",
+    "ICL_2018",
+    "KMFBZ_2017",
+    "Matas_etal_2007",
+    "Murakami_2013",
+    "Murakami_etal_2012",
+    "RS_2014_liquids",
+    "Sundman_1991",
     "model_sets",
 ]
 
