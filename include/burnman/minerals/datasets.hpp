@@ -28,12 +28,17 @@
  * (Stixrude & Lithgow-Bertelloni, and Zhang, Stixrude & Brodholt 2013).
  * HHPH_2013 (Holland et al. 2013), HP_2011_fluids (Holland & Powell 2011),
  * ig50NCKFMASTOCr (Holland et al. 2018) and mp50KFMASH metapelite models.
- * Legacy HGP18 melt pseudo-species Alsi2 is renamed Alsitwo to preserve pjd=1.
+ * ICL_2018 (Irving, Cottaar & Lekic 2018), KMFBZ_2017 (Kurnosov et al. 2017),
+ * Matas_etal_2007, Murakami_2013 and Murakami_etal_2012,
+ * RS_2014_liquids (Ramo & Stixrude 2014), Sundman_1991 and other mineral
+ * models. Legacy HGP18 melt pseudo-species Alsi2 is renamed Alsitwo to preserve
+ * pjd=1.
  */
 #pragma once
 #include "burnman/core/mineral.hpp"
 #include "burnman/core/solution.hpp"
 #include "burnman/minerals/covariance.hpp"
+#include "burnman/minerals/other.hpp"
 
 namespace burnman::minerals {
 namespace HP11 {
@@ -1891,4 +1896,77 @@ std::shared_ptr<Solution> ilmm();
 std::shared_ptr<Solution> ilm();
 std::shared_ptr<Solution> mt1();
 } // namespace mp50MnNCKFMASHTO
+
+namespace ICL_2018 {
+std::shared_ptr<Mineral> EPOC_vinet();
+std::shared_ptr<Mineral> EPOC_bm();
+} // namespace ICL_2018
+
+namespace KMFBZ_2017 {
+std::shared_ptr<Solution> bridgmanite();
+std::shared_ptr<Solution> ferropericlase();
+std::shared_ptr<Mineral> mg_si_perovskite();
+std::shared_ptr<Mineral> fe_si_perovskite();
+std::shared_ptr<Mineral> fe_al_perovskite();
+std::shared_ptr<Mineral> al_al_perovskite();
+std::shared_ptr<Mineral> periclase();
+std::shared_ptr<Mineral> wuestite();
+std::shared_ptr<Mineral> ca_perovskite();
+std::shared_ptr<Mineral> hcp_iron();
+std::shared_ptr<Solution> perovskite();
+} // namespace KMFBZ_2017
+
+namespace Matas_etal_2007 {
+std::shared_ptr<Mineral> mg_perovskite();
+std::shared_ptr<Mineral> fe_perovskite();
+std::shared_ptr<Mineral> al_perovskite();
+std::shared_ptr<Mineral> ca_perovskite();
+std::shared_ptr<Mineral> periclase();
+std::shared_ptr<Mineral> wuestite();
+std::shared_ptr<Mineral> ca_bridgmanite();
+std::shared_ptr<Mineral> mg_bridgmanite();
+std::shared_ptr<Mineral> fe_bridgmanite();
+std::shared_ptr<Mineral> al_bridgmanite();
+} // namespace Matas_etal_2007
+
+namespace Murakami_2013 {
+std::shared_ptr<Mineral> periclase();
+std::shared_ptr<Mineral> wuestite();
+std::shared_ptr<Mineral> mg_perovskite();
+std::shared_ptr<Mineral> fe_perovskite();
+std::shared_ptr<Mineral> mg_bridgmanite();
+std::shared_ptr<Mineral> fe_bridgmanite();
+} // namespace Murakami_2013
+
+namespace Murakami_etal_2012 {
+std::shared_ptr<Mineral> mg_perovskite();
+std::shared_ptr<Mineral> mg_perovskite_3rdorder();
+std::shared_ptr<Mineral> fe_perovskite();
+std::shared_ptr<Mineral> mg_periclase();
+std::shared_ptr<Mineral> fe_periclase_HS();
+std::shared_ptr<Mineral> fe_periclase_LS();
+std::shared_ptr<Mineral> fe_periclase_HS_3rd();
+std::shared_ptr<Mineral> fe_periclase_LS_3rd();
+std::shared_ptr<Mineral> mg_bridgmanite();
+std::shared_ptr<Mineral> fe_bridgmanite();
+std::shared_ptr<Mineral> mg_bridgmanite_3rdorder();
+} // namespace Murakami_etal_2012
+
+namespace RS_2014_liquids {
+std::shared_ptr<Mineral> Fe2SiO4_liquid();
+} // namespace RS_2014_liquids
+
+namespace Sundman_1991 {
+std::shared_ptr<Mineral> bcc_iron();
+std::shared_ptr<Mineral> fcc_iron();
+} // namespace Sundman_1991
+
+namespace other {
+std::shared_ptr<Mineral> ZSB_2013_mg_perovskite();
+std::shared_ptr<Mineral> ZSB_2013_fe_perovskite();
+std::shared_ptr<Mineral> Speziale_fe_periclase_HS();
+std::shared_ptr<Mineral> Speziale_fe_periclase_LS();
+std::shared_ptr<Mineral> Liquid_Fe_Anderson();
+std::shared_ptr<Mineral> Fe_Dewaele();
+} // namespace other
 } // namespace burnman::minerals

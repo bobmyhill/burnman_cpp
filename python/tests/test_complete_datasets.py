@@ -47,6 +47,14 @@ DATASETS = {
     "ig50NCKFMASTOCr": "ig50NCKFMASTOCr",
     "mp50KFMASH": "mp50KFMASH",
     "mp50MnNCKFMASHTO": "mp50MnNCKFMASHTO",
+    "ICL_2018": "ICL_2018",
+    "KMFBZ_2017": "KMFBZ_2017",
+    "Matas_etal_2007": "Matas_etal_2007",
+    "Murakami_2013": "Murakami_2013",
+    "Murakami_etal_2012": "Murakami_etal_2012",
+    "RS_2014_liquids": "RS_2014_liquids",
+    "Sundman_1991": "Sundman_1991",
+    "other": "other",
 }
 
 
@@ -247,8 +255,10 @@ def test_every_factory_matches_python_burnman(group, name, value, state):
         if group.startswith("SLB")
         else [(1.0e5, 700.0), (3.0e9, 1200.0)]
     )[state]
-    if group.startswith("DKS"):
+    if group.startswith("DKS") or group == "RS_2014_liquids":
         pressure, temperature = [(1.0e5, 3000.0), (136.0e9, 6000.0)][state]
+    if group == "other" and name == "liquid_iron":
+        pressure, temperature = [(1.0e5, 1811.0), (10.0e9, 4000.0)][state]
     for phase in (native, reference):
         phase.set_state(pressure, temperature)
     assert native.name == reference.name
@@ -266,13 +276,16 @@ def test_every_factory_matches_python_burnman(group, name, value, state):
     # SciPy's upstream Nelder-Mead spin minima have finite composition accuracy.
     relaxed = isinstance(reference, burnman.RelaxedSolution)
     rtol = 3.0e-5 if relaxed else 8.0e-8
-    if group.startswith("DKS"):
+    if group.startswith("DKS") or group == "RS_2014_liquids":
         # Upstream retains SciPy's absolute 2e-12 volume tolerance;
         # test_dks.py resolves those same roots for tighter checks.
         rtol = 2.0e-6
     bw = finite_differences(reference, "ordering")
     liquid = finite_differences(reference, "liquid")
     water = finite_differences(reference, "water")
+    isothermal = not isinstance(reference, burnman.Solution) and reference.params[
+        "equation_of_state"
+    ] in ("vinet", "bm3", "bm4")
     if relaxed:
         np.testing.assert_allclose(
             native.molar_fractions, reference.molar_fractions, rtol=0.0, atol=1.0e-5
@@ -289,6 +302,10 @@ def test_every_factory_matches_python_burnman(group, name, value, state):
         "isothermal_bulk_modulus_reuss",
         "isentropic_bulk_modulus_reuss",
     ):
+        # Static fits have no caloric model; their heat capacities are sentinels
+        # (1e-99 in Python, 1e99 in C++), rather than calibrated properties.
+        if isothermal and prop in ("molar_heat_capacity_p", "molar_heat_capacity_v"):
+            continue
         tolerance = rtol
         absolute = 1.0e-12
         if water and prop in (
@@ -338,9 +355,22 @@ def test_every_factory_matches_python_burnman(group, name, value, state):
                     )
                 ),
             )
+        expected = getattr(reference, prop)
+        if isothermal and prop in (
+            "isothermal_bulk_modulus_reuss",
+            "isentropic_bulk_modulus_reuss",
+        ):
+            # Python's static volume solvers use an absolute 2e-12 m3/mol
+            # tolerance. Compare the moduli at the same volume instead of
+            # propagating this inverse-volume error into the derivative check.
+            # K_S = K_T for the static models; Python implements the K_S
+            # shortcut on Material, rather than on the EOS method itself.
+            expected = reference.method.isothermal_bulk_modulus_reuss(
+                pressure, temperature, native.molar_volume, reference.params
+            )
         np.testing.assert_allclose(
             getattr(native, prop),
-            getattr(reference, prop),
+            expected,
             rtol=tolerance,
             atol=absolute,
             err_msg=f"{group}.{name}: {prop}",
