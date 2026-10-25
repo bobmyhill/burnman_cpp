@@ -79,6 +79,21 @@ def literal(value):
     return repr(value)
 
 
+def is_hp2011_water(params):
+    if params["equation_of_state"] != "pitzer-sterner":
+        return False
+    expected = burnman.minerals.HP_2011_fluids.H2O().params
+    return params.keys() == expected.keys() and all(
+        key == "name"
+        or (
+            value == expected[key]
+            if isinstance(value, (str, dict))
+            else np.allclose(value, expected[key], rtol=1.0e-12, atol=0.0)
+        )
+        for key, value in params.items()
+    )
+
+
 class Exporter:
     def __init__(self):
         self.functions = []
@@ -104,7 +119,7 @@ class Exporter:
                 f"  Mineral m = make_combined_mineral({{{', '.join(f'{c}()' for c in components)}}},",
                 f"    array({literal(phase.mixture.molar_fractions)}), Eigen::Vector3d::Zero(), {literal(phase.name)});",
             ]
-        elif phase.params["equation_of_state"] == "pitzer-sterner":
+        elif is_hp2011_water(phase.params):
             # Dataset 6.36 uses the same HP2011 thermal reference as native water.
             key = (phase.name, literal(phase.params))
             setup = [
@@ -133,6 +148,7 @@ class Exporter:
                         "dks_s": "DKS_S",
                         "dks_l": "DKS_L",
                         "cork": "CORK",
+                        "pitzer-sterner": "PitzerSterner",
                     }
                     setup.append(
                         f"  m.params.equation_of_state = types::EOSType::{enums[value]};"
@@ -143,6 +159,10 @@ class Exporter:
                     coefficients = [*value[0], value[1][0], *value[2], *value[3]]
                     setup.append(
                         f"  m.params.cork_params = types::CorkParams{literal(coefficients)};"
+                    )
+                elif name == "c_coeffs":
+                    setup.append(
+                        f"  m.params.c_coeffs = types::PitzerSternerCoefficients{{{literal(value)}}};"
                     )
                 elif name == "dcorkdT":
                     setup.append(

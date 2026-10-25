@@ -128,18 +128,21 @@ def from_burnman(phase):
                 ):
                     raise ValueError(f"Unsupported {key}: {component_name}")
                 params[key] = native_type()
+        # Retain the existing paper-R convention for the bundled HP water.
+        # All other PS coefficient/reference choices use the general EOS.
+        use_water_factory = False
         if params["equation_of_state"] == "pitzer-sterner":
             expected = burnman.minerals.HP_2011_fluids.H2O().params
-            if params.keys() != expected.keys() or any(
-                key != "name"
-                and (
-                    value != expected[key]
+            use_water_factory = params.keys() == expected.keys() and all(
+                key == "name"
+                or (
+                    value == expected[key]
                     if isinstance(value, (str, dict))
-                    else not np.allclose(value, expected[key], rtol=1.0e-12, atol=0.0)
+                    else np.allclose(value, expected[key], rtol=1.0e-12, atol=0.0)
                 )
                 for key, value in params.items()
-            ):
-                raise ValueError("PS1994 adapter requires the HP2011 water parameters.")
+            )
+        if use_water_factory:
             native = water_fluid()
         else:
             known = MineralParams()

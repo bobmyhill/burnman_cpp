@@ -64,7 +64,8 @@ enum class EOSType {
   Morse,
   RKprime,
   MACAW,
-  HP98
+  HP98,
+  PitzerSterner
 };
 
 /**

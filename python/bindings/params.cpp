@@ -46,6 +46,7 @@ void bind_params(py::module_ &m) {
       .value("HPTMTL", EOSType::HPTMTL)
       .value("HP98", EOSType::HP98)
       .value("CORK", EOSType::CORK)
+      .value("PitzerSterner", EOSType::PitzerSterner)
       .value("SLB2", EOSType::SLB2)
       .value("SLB3", EOSType::SLB3)
       .value("SLB3Conductive", EOSType::SLB3Conductive)
@@ -163,6 +164,12 @@ void bind_params(py::module_ &m) {
   PARAM(cork_P);
   PARAM(cork_params);
   PARAM(dcorkdT);
+  PARAM(c_coeffs);
+  PARAM(Debye_n);
+  PARAM(Cv_0);
+  PARAM(T_min);
+  PARAM(T_max);
+  PARAM(P_max);
 #undef PARAM
 }
 } // namespace burnman::python

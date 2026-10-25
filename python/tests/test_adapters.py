@@ -220,10 +220,13 @@ def test_new_dataset_adapters_match_native_factories(name):
         )
 
 
-def test_ps1994_adapter_rejects_different_thermal_parameters():
+def test_ps1994_adapter_accepts_different_thermal_parameters():
     from burnman.minerals import HPx_ds636
 
     water = HPx_ds636.H2O()
     water.params["H_0"] += 1.0
-    with pytest.raises(ValueError, match="HP2011 water parameters"):
-        from_burnman(water)
+    native = from_burnman(water)
+    assert native.params.equation_of_state == bm.EOSType.PitzerSterner
+    for phase in (water, native):
+        phase.set_state(1.0e9, 1200.0)
+    assert native.molar_gibbs == pytest.approx(water.molar_gibbs, rel=1.0e-12)

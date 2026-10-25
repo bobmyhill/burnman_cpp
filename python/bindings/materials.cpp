@@ -17,11 +17,13 @@
 #include "burnman/core/relaxed_composite.hpp"
 #include "burnman/minerals/SE_2015.hpp"
 #include "burnman/minerals/other.hpp"
+#include "burnman/minerals/water.hpp"
 
 namespace burnman::python {
 using namespace pybind11::literals;
 void bind_materials(py::module_ &m) {
   m.def("_liquid_iron", &minerals::other::liquid_iron);
+  m.def("_ps1994_water", &minerals::Pitzer_Sterner_1994::H2O_Pitzer_Sterner);
   m.def("_se2015_bcc_iron", &minerals::SE_2015::bcc_iron);
   m.def("_se2015_fcc_iron", &minerals::SE_2015::fcc_iron);
   m.def("_se2015_hcp_iron", &minerals::SE_2015::hcp_iron);
