@@ -26,6 +26,7 @@ void bind_params(py::module_ &m) {
       .value("Vinet", EOSType::Vinet)
       .value("Murnaghan", EOSType::Murnaghan)
       .value("AA", EOSType::AA)
+      .value("BroshCalphad", EOSType::BroshCalphad)
       .value("MT", EOSType::MT)
       .value("BM2", EOSType::BM2)
       .value("BM3", EOSType::BM3)
@@ -147,6 +148,13 @@ void bind_params(py::module_ &m) {
   PARAM(delta_1);
   PARAM(b_0);
   PARAM(b_1);
+  PARAM(theta_0);
+  PARAM(gibbs_coefficients);
+  PARAM(brosh_a);
+  PARAM(brosh_c);
+  PARAM(delta_Gr);
+  PARAM(delta_Sr);
+  PARAM(delta_Cpr);
   PARAM(cork_T);
   PARAM(cork_P);
   PARAM(cork_params);

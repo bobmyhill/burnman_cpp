@@ -152,6 +152,10 @@ def from_burnman(phase):
                 aliases.update(
                     {name: "aa_" + name for name in ("a", "b", "Theta", "lmda", "F")}
                 )
+            elif params["equation_of_state"] == "brosh_calphad":
+                aliases.update(
+                    {"a": "brosh_a", "c": "brosh_c", "b": "b_0", "delta": "delta_0"}
+                )
             for key in params:
                 if not hasattr(known, aliases.get(key, key)):
                     raise ValueError(

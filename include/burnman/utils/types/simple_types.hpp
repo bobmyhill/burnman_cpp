@@ -59,7 +59,8 @@ enum class EOSType {
   BM4,
   CORK,
   Murnaghan,
-  AA
+  AA,
+  BroshCalphad
 };
 
 /**

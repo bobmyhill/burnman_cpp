@@ -49,6 +49,7 @@ sdist.include = [
   "/tools/export_covariance_data.py",
   "/tools/build_wheel_dependencies.py",
   "/tests/reference/aa1994.json",
+  "/tests/reference/brosh_calphad.json",
 ]
 sdist.exclude = [
   ".venv/**", "build/**", "bin/**", "*.csv", "benchmark-report.xml", "**/__pycache__/**",

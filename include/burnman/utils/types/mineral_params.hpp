@@ -19,6 +19,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 
 namespace burnman {
 class EquationOfState;
@@ -48,6 +49,11 @@ struct CpParams {
 struct CorkParams {
   double a_0, a_1, b, c_0, c_1, d_0, d_1;
 };
+
+// SGTE segments: upper temperature and coefficients of
+// 1, T, T ln(T), T^-1, T^-2, T^-3, T^-9, T^2, T^3, T^4, T^7, sqrt(T), ln(T).
+using GibbsCoefficients =
+    std::vector<std::pair<double, std::array<double, 13>>>;
 
 /**
  * Struct to hold mineral EOS parameters
@@ -148,6 +154,11 @@ struct MineralParams {
   std::optional<double> delta_1;
   std::optional<double> b_0;
   std::optional<double> b_1;
+  std::optional<double> theta_0;
+  std::optional<GibbsCoefficients> gibbs_coefficients;
+  // Prefix distinguishes the cold curve from the DKS bonding matrix a.
+  std::optional<std::array<double, 4>> brosh_a, brosh_c;
+  std::optional<double> delta_Gr, delta_Sr, delta_Cpr;
 
   // CORK params
   std::optional<double> cork_T;
