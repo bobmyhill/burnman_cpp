@@ -1083,7 +1083,7 @@ def test_water_eos_thermodynamic_derivatives_and_gas_limit():
         assert -(high - low) / (2 * dt) == pytest.approx(entropy, rel=1e-7)
     fluid.set_state(100.0, 873.15)
     assert fluid.molar_volume == pytest.approx(8.314510 * 873.15 / 100.0, rel=1e-4)
-    with pytest.raises(ValueError, match="Water fluid"):
+    with pytest.raises(ValueError, match="Pressure outside the PitzerSterner domain"):
         fluid.set_state(0.0, 873.15)
         _ = fluid.molar_volume
 
