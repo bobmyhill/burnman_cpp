@@ -20,7 +20,7 @@ namespace burnman::eos {
  * Finite-strain solid model with constant isochoric heat capacity.
  * Power-law Gruneisen thermal relation from de Koker's original Fortran.
  * All quantities are SI. Evaluation requires T > 0 and V > 0.
- * dks_s_power_law_grueneisen defaults to true. Set false to recover the
+ * power_law_grueneisen defaults to true. Set false to recover the
  * later Python finite-strain thermal law and its optional shear treatment.
  */
 class DKS_S : public EquationOfState {

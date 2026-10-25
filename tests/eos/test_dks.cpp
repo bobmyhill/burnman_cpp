@@ -15,7 +15,7 @@ using namespace Catch::Matchers;
 TEST_CASE("DKS solid defaults to the Fortran power-law thermal relation",
           "[dks][eos]") {
   auto p = minerals::DKS_2013_solids::periclase()->params;
-  CHECK(p.dks_s_power_law_grueneisen == true);
+  CHECK(p.power_law_grueneisen == true);
   eos::DKS_S model;
   const double v = .7 * *p.V_0, t = 5000., dv = v * 1.e-5;
   const double pressure = model.compute_pressure(t, v, p);

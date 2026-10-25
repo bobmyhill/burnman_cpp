@@ -145,7 +145,7 @@ void bind_params(py::module_ &m) {
   PARAM(el_V_0);
   PARAM(spin_a);
   PARAM(spin_b);
-  PARAM(dks_s_power_law_grueneisen);
+  PARAM(power_law_grueneisen);
   params.def_readwrite("O_theta", &MineralParams::order_theta);
   params.def_readwrite("O_f", &MineralParams::order_f);
   PARAM(delta_0);
