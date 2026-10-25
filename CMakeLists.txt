@@ -94,6 +94,7 @@ if(BURNMAN_BUILD_PYTHON)
     python/bindings/module.cpp
     python/bindings/params.cpp
     python/bindings/eos.cpp
+    python/bindings/thermal_components.cpp
     python/bindings/materials.cpp
     python/bindings/composition.cpp
     python/bindings/linear_fitting.cpp

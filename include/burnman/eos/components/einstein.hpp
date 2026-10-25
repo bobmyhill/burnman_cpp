@@ -49,6 +49,14 @@ double compute_dmolar_heat_capacity_v_dT(double temperature,
                                          double einstein_temperature,
                                          double napfu);
 
+/** Characteristic-temperature derivatives, excluding zero-point energy. */
+double compute_dhelmholtz_dTheta(double temperature,
+                                 double einstein_temperature, double napfu);
+double compute_d2helmholtz_dTheta2(double temperature,
+                                   double einstein_temperature, double napfu);
+double compute_dentropy_dTheta(double temperature, double einstein_temperature,
+                               double napfu);
+
 } // namespace einstein
 } // namespace eos
 } // namespace burnman

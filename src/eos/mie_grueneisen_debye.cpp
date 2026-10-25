@@ -14,6 +14,7 @@
 #include "burnman/eos/mie_grueneisen_debye.hpp"
 #include "burnman/eos/birch_murnaghan.hpp"
 #include "burnman/eos/components/debye.hpp"
+#include "burnman/eos/components/debye_temperature_models.hpp"
 #include "burnman/eos/components/gsl_params.hpp"
 #include "burnman/optim/roots/brent.hpp"
 #include "burnman/utils/constants.hpp"
@@ -96,7 +97,7 @@ double MGD3::compute_grueneisen_parameter(
 double
 MGD3::compute_mgd_grueneisen_parameter(double x,
                                        const types::MineralParams &params) {
-  return *params.grueneisen_0 * std::pow(x, -*params.q_0);
+  return debye_temperature_models::PowerLawGammaSimple().gamma(1. / x, params);
 }
 
 double MGD3::compute_isothermal_bulk_modulus_reuss(
@@ -233,9 +234,10 @@ MGD3::compute_thermal_shear_modulus(double temperature, double volume,
     double gamma = compute_mgd_grueneisen_parameter(x, params);
     double debye_temperature = compute_debye_temperature(x, params);
     return 0.6 * (compute_thermal_bulk_modulus(temperature, volume, params) -
-                  6.0 * constants::physics::gas_constant * temperature *
-                      (*params.napfu) / volume * gamma *
-                      debye::debye_fn_cheb(debye_temperature / temperature));
+                  2.0 * gamma *
+                      debye::compute_thermal_energy(
+                          temperature, debye_temperature, *params.napfu) /
+                      volume);
   } else {
     return 0.0;
   }
@@ -243,9 +245,7 @@ MGD3::compute_thermal_shear_modulus(double temperature, double volume,
 
 double MGD3::compute_debye_temperature(double x,
                                        const types::MineralParams &params) {
-  double gamma_diff =
-      *params.grueneisen_0 - compute_mgd_grueneisen_parameter(x, params);
-  return *params.debye_0 * std::exp(gamma_diff / *params.q_0);
+  return debye_temperature_models::PowerLawGammaSimple().value(1. / x, params);
 }
 
 double MGD3::compute_thermal_pressure(double temperature, double volume,
@@ -265,11 +265,12 @@ MGD3::compute_thermal_bulk_modulus(double temperature, double volume,
     double x = *params.V_0 / volume;
     double gamma = compute_mgd_grueneisen_parameter(x, params);
     double debye_temperature = compute_debye_temperature(x, params);
-    double xi = debye_temperature / temperature;
-    return 3.0 * (*params.napfu) * constants::physics::gas_constant *
-           temperature / volume * gamma *
-           ((1.0 - (*params.q_0) - 3.0 * gamma) * debye::debye_fn_cheb(xi) +
-            3.0 * gamma * xi / (std::exp(xi) - 1.0));
+    const double energy = debye::compute_thermal_energy(
+        temperature, debye_temperature, *params.napfu);
+    const double cv = debye::compute_molar_heat_capacity_v(
+        temperature, debye_temperature, *params.napfu);
+    return gamma / volume *
+           ((1. - *params.q_0 + gamma) * energy - gamma * temperature * cv);
   } else {
     return 0.0;
   }

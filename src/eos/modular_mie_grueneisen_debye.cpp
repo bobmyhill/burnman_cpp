@@ -13,6 +13,7 @@
 
 #include "burnman/eos/modular_mie_grueneisen_debye.hpp"
 #include "burnman/eos/birch_murnaghan.hpp"
+#include "burnman/eos/components/anharmonic_debye.hpp"
 #include "burnman/eos/components/anharmonic_prefactor_models.hpp"
 #include "burnman/eos/components/anharmonic_thermal_models.hpp"
 #include "burnman/eos/components/bukowinski_electronic.hpp"
@@ -77,11 +78,7 @@ void ModularMGD::validate_parameters(types::MineralParams &p) {
       throw std::invalid_argument("bel_0 and gel must be finite.");
   }
   if (p.anharmonic_thermal_model) {
-    if (!p.anharmonic_prefactor_model)
-      throw std::invalid_argument(
-          "Missing required parameter: anharmonic_prefactor_model");
-    p.anharmonic_prefactor_model->validate_parameters(p);
-    p.anharmonic_thermal_model->validate_parameters(p);
+    AnharmonicDebye::validate_parameters(p);
   } else if (p.anharmonic_prefactor_model) {
     throw std::invalid_argument(
         "anharmonic_prefactor_model requires anharmonic_thermal_model.");
@@ -119,21 +116,18 @@ ModularMGD::compute_state(double t, double v,
       pref * v;
   const double kref = p.reference_eos->compute_isothermal_bulk_modulus_reuss(
       pref, t0, v, ref_params);
-  const double energy = debye::compute_thermal_energy(t, theta, n);
-  const double energy0 = debye::compute_thermal_energy(t0, theta, n);
   const double cv = debye::compute_molar_heat_capacity_v(t, theta, n);
-  const double cv0 = debye::compute_molar_heat_capacity_v(t0, theta, n);
-  // Scaling F_D = theta f(T/theta) gives F_theta=E/theta,
-  // F_thetatheta=-T C_v/theta^2 and S_theta=-C_v/theta.
-  const double df = (energy - energy0) / theta;
-  const double ddf = -(t * cv - t0 * cv0) / (theta * theta);
+  const double df = debye::compute_dhelmholtz_dTheta(t, theta, n) -
+                    debye::compute_dhelmholtz_dTheta(t0, theta, n);
+  const double ddf = debye::compute_d2helmholtz_dTheta2(t, theta, n) -
+                     debye::compute_d2helmholtz_dTheta2(t0, theta, n);
   State state{fref + debye::compute_helmholtz_free_energy(t, theta, n) -
                   debye::compute_helmholtz_free_energy(t0, theta, n),
               pref - theta_v * df,
               kref + v * (theta_vv * df + theta_v * theta_v * ddf),
               debye::compute_entropy(t, theta, n),
               cv,
-              -cv * theta_v / theta};
+              debye::compute_dentropy_dTheta(t, theta, n) * theta_v};
   if (p.bel_0) {
     state.helmholtz += bukowinski::compute_helmholtz_el(t, v, p);
     state.pressure += bukowinski::compute_pressure_el(t, v, p);
@@ -143,23 +137,13 @@ ModularMGD::compute_state(double t, double v,
     state.alpha_kt += bukowinski::compute_alpha_KT(t, v, p);
   }
   if (p.anharmonic_thermal_model) {
-    const auto &prefactor = *p.anharmonic_prefactor_model;
-    const double a = prefactor.value(x, p), av = prefactor.dVrel(x, p) / v0;
-    const double avv = prefactor.dVrel2(x, p) / (v0 * v0);
-    const auto thermal = p.anharmonic_thermal_model->evaluate(t, theta, p);
-    const auto thermal0 = p.anharmonic_thermal_model->evaluate(t0, theta, p);
-    const double f = thermal.helmholtz - thermal0.helmholtz;
-    const double ft = thermal.dhelmholtz_dTheta - thermal0.dhelmholtz_dTheta;
-    const double ftt =
-        thermal.d2helmholtz_dTheta2 - thermal0.d2helmholtz_dTheta2;
-    state.helmholtz += a * f;
-    state.pressure -= av * f + a * theta_v * ft;
-    state.bulk_modulus += v * (avv * f + 2. * av * theta_v * ft +
-                               a * (theta_v * theta_v * ftt + theta_vv * ft));
-    state.entropy += a * thermal.entropy;
-    state.heat_capacity_v += a * thermal.heat_capacity;
-    state.alpha_kt +=
-        av * thermal.entropy + a * theta_v * thermal.dentropy_dTheta;
+    const auto anharmonic = AnharmonicDebye::evaluate(t, v, p);
+    state.helmholtz += anharmonic.helmholtz;
+    state.pressure += anharmonic.pressure;
+    state.bulk_modulus += anharmonic.bulk_modulus;
+    state.entropy += anharmonic.entropy;
+    state.heat_capacity_v += anharmonic.heat_capacity_v;
+    state.alpha_kt += anharmonic.alpha_kt;
   }
   return state;
 }

@@ -152,6 +152,7 @@ TEST_CASE("Modular MGD Python snapshots", "[modular_mgd][eos]") {
 TEST_CASE("Modular MGD matches classic MGD for a power-law Debye model",
           "[modular_mgd][eos]") {
   auto p = parameters();
+  p.q_0 = GENERATE(0., 1.1);
   p.P_0 = 0.;
   p.debye_temperature_model = std::make_shared<dt::PowerLawGammaSimple>();
   eos::ModularMGD modular;

@@ -80,7 +80,7 @@ double debye::compute_helmholtz_free_energy(double temperature,
   double x = debye_temperature / temperature;
   // F
   return napfu * constants::physics::gas_constant * temperature *
-         (3.0 * std::log1p(-std::exp(-x)) - debye_fn_cheb(x));
+         (3.0 * std::log(-std::expm1(-x)) - debye_fn_cheb(x));
 }
 
 double debye::compute_entropy(double temperature, double debye_temperature,
@@ -91,7 +91,7 @@ double debye::compute_entropy(double temperature, double debye_temperature,
   double x = debye_temperature / temperature;
   // S
   return napfu * constants::physics::gas_constant *
-         (4.0 * debye_fn_cheb(x) - 3.0 * std::log1p(-std::exp(-x)));
+         (4.0 * debye_fn_cheb(x) - 3.0 * std::log(-std::expm1(-x)));
 }
 
 double debye::compute_dmolar_heat_capacity_v_dT(double temperature,
@@ -101,15 +101,33 @@ double debye::compute_dmolar_heat_capacity_v_dT(double temperature,
     return 0.0;
   }
   double x = debye_temperature / temperature;
-  double Cv_over_T =
-      compute_molar_heat_capacity_v(temperature, debye_temperature, napfu) /
-      temperature;
-  double E_over_Tsqr =
-      compute_thermal_energy(temperature, debye_temperature, napfu) /
-      (temperature * temperature);
-  // dCvdT
-  return 3.0 * Cv_over_T +
-         (Cv_over_T - 4.0 * E_over_Tsqr) * x / (1.0 - std::exp(-x));
+  const double prefactor =
+      3.0 * napfu * constants::physics::gas_constant / temperature;
+  if (x < .01) {
+    const double x2 = x * x;
+    return prefactor * x2 * (1. / 10. - x2 / 140. + x2 * x2 / 3024.);
+  }
+  const double d = debye_fn_cheb(x);
+  if (x > 50.)
+    return 12. * prefactor * d; // Exponential terms are below roundoff.
+  const double occupation = std::exp(-x) / -std::expm1(-x);
+  return prefactor * (12. * d - 9. * x * occupation -
+                      3. * x * x * occupation * (1. + occupation));
+}
+
+double debye::compute_dhelmholtz_dTheta(double temperature, double theta,
+                                        double napfu) {
+  return compute_thermal_energy(temperature, theta, napfu) / theta;
+}
+double debye::compute_d2helmholtz_dTheta2(double temperature, double theta,
+                                          double napfu) {
+  return -temperature *
+         compute_molar_heat_capacity_v(temperature, theta, napfu) /
+         (theta * theta);
+}
+double debye::compute_dentropy_dTheta(double temperature, double theta,
+                                      double napfu) {
+  return -compute_molar_heat_capacity_v(temperature, theta, napfu) / theta;
 }
 
 } // namespace burnman::eos
