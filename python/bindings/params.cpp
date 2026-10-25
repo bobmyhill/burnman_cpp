@@ -25,6 +25,7 @@ void bind_params(py::module_ &m) {
       .value("Auto", EOSType::Auto)
       .value("Vinet", EOSType::Vinet)
       .value("Murnaghan", EOSType::Murnaghan)
+      .value("Morse", EOSType::Morse)
       .value("AA", EOSType::AA)
       .value("BroshCalphad", EOSType::BroshCalphad)
       .value("MT", EOSType::MT)

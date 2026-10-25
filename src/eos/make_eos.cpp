@@ -23,6 +23,7 @@
 #include "burnman/eos/mie_grueneisen_debye.hpp"
 #include "burnman/eos/modified_tait.hpp"
 #include "burnman/eos/modular_mie_grueneisen_debye.hpp"
+#include "burnman/eos/morse_potential.hpp"
 #include "burnman/eos/murnaghan.hpp"
 #include "burnman/eos/slb.hpp"
 #include "burnman/eos/spock.hpp"
@@ -38,6 +39,8 @@ std::shared_ptr<EquationOfState> make_eos(types::EOSType eos_type) {
     return std::make_shared<Vinet>();
   case types::EOSType::Murnaghan:
     return std::make_shared<Murnaghan>();
+  case types::EOSType::Morse:
+    return std::make_shared<Morse>();
   case types::EOSType::AA:
     return std::make_shared<AA>();
   case types::EOSType::BroshCalphad:
