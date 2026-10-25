@@ -121,9 +121,10 @@ def test_dks_magnetic_liquid(temperature):
 def test_dks_solid_shear_and_zero_grueneisen(reference_name):
     reference = getattr(burnman.minerals.DKS_2013_solids, reference_name)()
     reference.params.update(
-        G_0=100.0e9, Gprime_0=1.5, eta_s_0=2.0, dks_s_power_law_grueneisen=False
+        G_0=100.0e9, Gprime_0=1.5, eta_s_0=2.0, power_law_grueneisen=False
     )
     native = from_burnman(reference)
+    assert native.params.power_law_grueneisen is False
     for phase in (native, reference):
         phase.set_state(50.0e9, 4000.0)
     assert native.shear_modulus == pytest.approx(reference.shear_modulus, rel=2.0e-9)

@@ -23,7 +23,7 @@ Strain strain(double volume, const types::MineralParams &p) {
   return {f, a1, a2, nu2};
 }
 double gamma(double volume, const types::MineralParams &p) {
-  if (p.dks_s_power_law_grueneisen.value_or(true))
+  if (p.power_law_grueneisen.value_or(true))
     return *p.grueneisen_0 * std::pow(volume / *p.V_0, *p.q_0);
   const auto s = strain(volume, p);
   return (2. * s.f + 1.) * (s.a1 + s.a2 * s.f) / (6. * s.nu2);
@@ -42,7 +42,7 @@ void DKS_S::validate_parameters(types::MineralParams &p) {
   utils::require_set(p.grueneisen_0, "grueneisen_0");
   utils::require_set(p.q_0, "q_0");
   utils::require_set(p.S_0, "S_0");
-  utils::fallback_to_default(p.dks_s_power_law_grueneisen, true);
+  utils::fallback_to_default(p.power_law_grueneisen, true);
   utils::fallback_to_default(p.T_0, 300.);
   utils::fallback_to_default(p.E_0, std::nan(""));
   utils::fallback_to_default(p.eta_s_0, std::nan(""));
@@ -57,7 +57,7 @@ void DKS_S::validate_parameters(types::MineralParams &p) {
 }
 double DKS_S::integrated_grueneisen(double volume,
                                     const types::MineralParams &p) {
-  if (p.dks_s_power_law_grueneisen.value_or(true)) {
+  if (p.power_law_grueneisen.value_or(true)) {
     // Archived aktintvto_220.f: integral gamma(V)/V dV.
     const double ln = std::log(volume / *p.V_0);
     return *p.grueneisen_0 *
@@ -79,7 +79,7 @@ double DKS_S::integrated_grueneisen(double volume,
   return ratio < 1. ? -result : result;
 }
 double DKS_S::volume_dependent_q(double volume, const types::MineralParams &p) {
-  if (p.dks_s_power_law_grueneisen.value_or(true))
+  if (p.power_law_grueneisen.value_or(true))
     return *p.q_0;
   const auto s = strain(volume, p);
   const double gr = gamma(volume, p);
@@ -115,7 +115,7 @@ double DKS_S::compute_isothermal_bulk_modulus_reuss(
 double DKS_S::compute_shear_modulus(double, double temperature, double volume,
                                     const types::MineralParams &p) const {
   // The archived relation supplies no shear model.
-  if (p.dks_s_power_law_grueneisen.value_or(true))
+  if (p.power_law_grueneisen.value_or(true))
     return std::nan("");
   const auto s = strain(volume, p);
   const double a2s = -2. * *p.grueneisen_0 - 2. * *p.eta_s_0;
@@ -162,7 +162,7 @@ double
 DKS_S::compute_helmholtz_free_energy(double, double temperature, double volume,
                                      const types::MineralParams &p) const {
   dks_detail::check_state(temperature, volume);
-  const double f = p.dks_s_power_law_grueneisen.value_or(true)
+  const double f = p.power_law_grueneisen.value_or(true)
                        ? .5 * (std::pow(*p.V_0 / volume, 2. / 3.) - 1.)
                        : strain(volume, p).f;
   const double b2 = 9. * *p.K_0, b3 = 27. * *p.K_0 * (*p.Kprime_0 - 4.);

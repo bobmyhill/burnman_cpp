@@ -147,7 +147,7 @@ struct MineralParams {
   std::optional<std::array<double, 2>> spin_a;
   std::optional<std::array<double, 4>> spin_b;
   // Original Fortran thermal law (default true); false selects finite strain.
-  std::optional<bool> dks_s_power_law_grueneisen;
+  std::optional<bool> power_law_grueneisen;
 
   // Brosh-CALPHAD fitting parameters
   std::optional<double> delta_0;
