@@ -109,6 +109,12 @@ struct MineralParams {
   std::optional<double> bel_0;
   std::optional<double> gel;
 
+  // Anderson-Ahrens: K_0/Kprime_0/Kdprime_0 describe the reference ISENTROPE.
+  // Array prefixes avoid the existing DKS bonding-matrix parameter a.
+  std::optional<double> grueneisen_prime, grueneisen_n, theta, xi_0;
+  std::optional<std::array<double, 2>> aa_a, aa_b, aa_Theta, aa_F;
+  std::optional<std::array<double, 3>> aa_lmda;
+
   // Components and parameters of the modular MGD equation of state.
   std::shared_ptr<EquationOfState> reference_eos;
   std::shared_ptr<eos::debye_temperature_models::DebyeTemperatureModelBase>

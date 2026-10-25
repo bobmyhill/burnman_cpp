@@ -160,6 +160,16 @@ void bind_eos(py::module_ &m) {
                        &EquationOfState::compute_grueneisen_parameter);
   bind_volume_property("compute_isothermal_bulk_modulus_reuss",
                        &EquationOfState::compute_isothermal_bulk_modulus_reuss);
+  bind_volume_property("compute_isentropic_bulk_modulus_reuss",
+                       &EquationOfState::compute_isentropic_bulk_modulus_reuss);
+  bind_volume_property("compute_entropy", &EquationOfState::compute_entropy);
+  bind_volume_property("compute_helmholtz_free_energy",
+                       &EquationOfState::compute_helmholtz_free_energy);
+  bind_volume_property("compute_molar_internal_energy",
+                       &EquationOfState::compute_molar_internal_energy);
+  bind_volume_property("compute_gibbs_free_energy",
+                       &EquationOfState::compute_gibbs_free_energy);
+  bind_volume_property("compute_enthalpy", &EquationOfState::compute_enthalpy);
   m.def("make_eos", &eos::make_eos, py::arg("method"));
 }
 } // namespace burnman::python
