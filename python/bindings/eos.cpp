@@ -109,6 +109,7 @@ void bind_eos_components(py::module_ &m) {
 // All concrete equations of state use this interface and the make_eos factory.
 void bind_eos(py::module_ &m) {
   bind_eos_components(m);
+  bind_thermal_components(m);
   auto eos = py::class_<EquationOfState, std::shared_ptr<EquationOfState>>(
       m, "EquationOfState");
   eos.def("validate_parameters", &EquationOfState::validate_parameters,

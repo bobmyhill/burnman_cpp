@@ -289,7 +289,10 @@ def equilibrate(
     )
 
 
+from . import eos
+
 __all__ = [
+    "eos",
     "optimize",
     "calculate_nakajima_fp_pv_partition_coefficient",
     "Layer",
