@@ -84,6 +84,7 @@ _EOS_NAMES = {
     "auto": EOSType.Auto,
     "vinet": EOSType.Vinet,
     "murnaghan": EOSType.Murnaghan,
+    "aa": EOSType.AA,
     "mt": EOSType.MT,
     "bm2": EOSType.BM2,
     "bm3": EOSType.BM3,
@@ -126,6 +127,10 @@ def mineral_params(params=None, **kwargs):
     ``debye_0``. Atom counts may be fractional. ``Cp`` accepts four coefficients.
     ``cork_params`` accepts the four coefficient rows ``[a_0, a_1]``,
     ``[b]``, ``[c_0, c_1]`` and ``[d_0, d_1]``, or a ``CorkParams`` object.
+    AA accepts ``K_S``, ``Kprime_S`` and ``Kprime_prime_S`` as aliases for the
+    reference moduli, and its coefficient arrays map to ``aa_a``, ``aa_b``,
+    ``aa_Theta``, ``aa_lmda`` and ``aa_F``. Set equation_of_state="aa" when
+    using the original AA array names, since DKS uses ``a`` for a matrix.
     """
     if isinstance(params, MineralParams):
         if kwargs:
@@ -140,9 +145,17 @@ def mineral_params(params=None, **kwargs):
         "n": "napfu",
         "Debye_0": "debye_0",
         "Kprime_prime_0": "Kdprime_0",
+        "K_S": "K_0",
+        "Kprime_S": "Kprime_0",
+        "Kprime_prime_S": "Kdprime_0",
         "O_theta": "order_theta",
         "O_f": "order_f",
     }
+    method = values.get("equation_of_state")
+    if method is not None and eos_type(method) == EOSType.AA:
+        aliases.update(
+            {name: "aa_" + name for name in ("a", "b", "Theta", "lmda", "F")}
+        )
     used = set()
     for key, value in values.items():
         name = aliases.get(key, key)

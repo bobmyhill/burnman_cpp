@@ -48,6 +48,7 @@ sdist.include = [
   "/tools/export_example_minerals.py",
   "/tools/export_covariance_data.py",
   "/tools/build_wheel_dependencies.py",
+  "/tests/reference/aa1994.json",
 ]
 sdist.exclude = [
   ".venv/**", "build/**", "bin/**", "*.csv", "benchmark-report.xml", "**/__pycache__/**",

@@ -12,6 +12,7 @@
 // ------------------------------------------------------
 
 #include "burnman/eos/make_eos.hpp"
+#include "burnman/eos/aa.hpp"
 #include "burnman/eos/birch_murnaghan.hpp"
 #include "burnman/eos/cork.hpp"
 #include "burnman/eos/dks_liquid.hpp"
@@ -36,6 +37,8 @@ std::shared_ptr<EquationOfState> make_eos(types::EOSType eos_type) {
     return std::make_shared<Vinet>();
   case types::EOSType::Murnaghan:
     return std::make_shared<Murnaghan>();
+  case types::EOSType::AA:
+    return std::make_shared<AA>();
   case types::EOSType::BM2:
     return std::make_shared<BM2>();
   case types::EOSType::BM3:

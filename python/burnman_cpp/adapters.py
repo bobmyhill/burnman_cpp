@@ -140,15 +140,20 @@ def from_burnman(phase):
             native = water_fluid()
         else:
             known = MineralParams()
+            aliases = {
+                "n": "napfu",
+                "Debye_0": "debye_0",
+                "Kprime_prime_0": "Kdprime_0",
+                "K_S": "K_0",
+                "Kprime_S": "Kprime_0",
+                "Kprime_prime_S": "Kdprime_0",
+            }
+            if params["equation_of_state"] == "aa":
+                aliases.update(
+                    {name: "aa_" + name for name in ("a", "b", "Theta", "lmda", "F")}
+                )
             for key in params:
-                if not hasattr(
-                    known,
-                    {
-                        "n": "napfu",
-                        "Debye_0": "debye_0",
-                        "Kprime_prime_0": "Kdprime_0",
-                    }.get(key, key),
-                ):
+                if not hasattr(known, aliases.get(key, key)):
                     raise ValueError(
                         f"Unsupported parameter {key!r} in {phase.name!r}."
                     )

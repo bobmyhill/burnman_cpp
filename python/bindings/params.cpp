@@ -25,6 +25,7 @@ void bind_params(py::module_ &m) {
       .value("Auto", EOSType::Auto)
       .value("Vinet", EOSType::Vinet)
       .value("Murnaghan", EOSType::Murnaghan)
+      .value("AA", EOSType::AA)
       .value("MT", EOSType::MT)
       .value("BM2", EOSType::BM2)
       .value("BM3", EOSType::BM3)
@@ -107,6 +108,15 @@ void bind_params(py::module_ &m) {
   PARAM(T_einstein);
   PARAM(bel_0);
   PARAM(gel);
+  PARAM(grueneisen_prime);
+  PARAM(grueneisen_n);
+  PARAM(theta);
+  PARAM(xi_0);
+  PARAM(aa_a);
+  PARAM(aa_b);
+  PARAM(aa_Theta);
+  PARAM(aa_F);
+  PARAM(aa_lmda);
   PARAM(reference_eos);
   PARAM(debye_temperature_model);
   PARAM(anharmonic_prefactor_model);

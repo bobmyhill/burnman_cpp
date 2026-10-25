@@ -35,6 +35,7 @@ from importlib import import_module as _import_module
 import sys as _sys
 
 from .. import _core
+from . import other
 from .._core.minerals import (
     HP11,
     SLB11,
@@ -61,6 +62,7 @@ from .._core.minerals import (
 )
 
 __all__ = [
+    "other",
     "HP11",
     "SLB11",
     "JH15",
