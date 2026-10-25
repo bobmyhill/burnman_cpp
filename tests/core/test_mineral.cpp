@@ -34,7 +34,7 @@ using namespace burnman;
 TEST_CASE("SLB2024 Landau mineral responses follow entropy and volume",
           "[core][mineral][prop_mod]") {
   const double P = 2.0e9, T = 300.0, dT = 0.01;
-  for (auto mineral : {minerals::SLB24::qtz(), minerals::SLB24::neph()}) {
+  for (auto mineral : {minerals::SLB_2024::qtz(), minerals::SLB_2024::neph()}) {
     CAPTURE(mineral->get_name());
     mineral->set_state(P, T);
     const double cp = mineral->get_molar_heat_capacity_p();

@@ -19,34 +19,34 @@ import numpy as np
 import pytest
 
 from burnman_cpp.minerals import (
-    HP11,
-    SLB11,
-    JH15,
-    HGP18,
+    HP_2011_ds62,
+    SLB_2011,
+    JH_2015,
+    HGP_2018_ds633,
     mp50MnNCKFMASHTO,
 )
 
 FACTORIES = [
-    HGP18.iron,
-    HGP18.wu,
-    HGP18.mt,
-    HGP18.hem,
-    HP11.sill,
-    HP11.andalusite,
-    HP11.ky,
-    SLB11.mg_fe_olivine,
-    SLB11.mg_fe_wadsleyite,
-    SLB11.mg_fe_ringwoodite,
-    SLB11.mg_fe_bridgmanite,
-    SLB11.post_perovskite,
-    SLB11.ferropericlase,
-    SLB11.orthopyroxene,
-    SLB11.garnet,
-    SLB11.ca_perovskite,
-    SLB11.pyrope_grossular,
-    SLB11.mg_fe_bridgmanite_binary,
-    JH15.orthopyroxene,
-    JH15.mg_fe_orthopyroxene,
+    HGP_2018_ds633.iron,
+    HGP_2018_ds633.wu,
+    HGP_2018_ds633.mt,
+    HGP_2018_ds633.hem,
+    HP_2011_ds62.sill,
+    HP_2011_ds62.andalusite,
+    HP_2011_ds62.ky,
+    SLB_2011.mg_fe_olivine,
+    SLB_2011.mg_fe_wadsleyite,
+    SLB_2011.mg_fe_ringwoodite,
+    SLB_2011.mg_fe_bridgmanite,
+    SLB_2011.post_perovskite,
+    SLB_2011.ferropericlase,
+    SLB_2011.orthopyroxene,
+    SLB_2011.garnet,
+    SLB_2011.ca_perovskite,
+    SLB_2011.pyrope_grossular,
+    SLB_2011.mg_fe_bridgmanite_binary,
+    JH_2015.orthopyroxene,
+    JH_2015.mg_fe_orthopyroxene,
     mp50MnNCKFMASHTO.mu,
     mp50MnNCKFMASHTO.bi,
     mp50MnNCKFMASHTO.g,
@@ -70,9 +70,9 @@ def test_native_factories_independent_and_finite(factory):
 
 
 def test_reduced_models_span_the_required_elements():
-    opx = JH15.mg_fe_orthopyroxene()
-    garnet = SLB11.pyrope_grossular()
-    bdg = SLB11.mg_fe_bridgmanite_binary()
+    opx = JH_2015.mg_fe_orthopyroxene()
+    garnet = SLB_2011.pyrope_grossular()
+    bdg = SLB_2011.mg_fe_bridgmanite_binary()
     assert opx.n_endmembers == 3
     assert garnet.n_endmembers == bdg.n_endmembers == 2
     assert set(opx.elements) == {"Mg", "Fe", "Si", "O"}

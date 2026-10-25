@@ -25,7 +25,7 @@ from burnman_cpp.tools import chemistry, partitioning
 
 
 def shifted_minerals():
-    mineral = bm.minerals.HP11.fo()
+    mineral = bm.minerals.HP_2011_ds62.fo()
     thermal = bm.CombinedMineral([mineral], [1.0], [1000.0, 2.0, 0.0])
     pressure = bm.CombinedMineral([mineral], [1.0], [-2000.0, 0.0, 1.0e-6])
     return mineral, thermal, pressure
@@ -73,8 +73,8 @@ def test_root_failures_and_input_validation():
 
 
 def test_component_chemical_potentials_and_fugacities():
-    pv = bm.minerals.SLB11.mg_perovskite()
-    per = bm.minerals.SLB11.periclase()
+    pv = bm.minerals.SLB_2011.mg_perovskite()
+    per = bm.minerals.SLB_2011.periclase()
     rock = bm.Assemblage([pv, per], [0.5, 0.5])
     with pytest.raises(RuntimeError, match="state"):
         rock.chemical_potential([{"Si": 1.0, "O": 2.0}])
@@ -89,7 +89,7 @@ def test_component_chemical_potentials_and_fugacities():
     for formula in ({"Si": 1.0}, {"H": 1.0}, {"Si": np.nan}):
         with pytest.raises(ValueError, match="defined"):
             rock.set_components([formula])
-    reference = bm.minerals.SLB11.stishovite()
+    reference = bm.minerals.SLB_2011.stishovite()
     reference.set_state(30.0e9, 1800.0)
     expected = np.exp(
         (pv.molar_gibbs - per.molar_gibbs - reference.molar_gibbs)
@@ -124,7 +124,7 @@ def test_duplicate_components_and_disequilibrium():
 def test_chemical_potentials_require_defined_components_at_every_state():
     material = bm.EquilibratedComposite(
         {"Mg": 2.0, "Si": 1.0, "O": 4.0},
-        "SLB24",
+        "SLB_2024",
         phase_names=["forsterite", "mg_perovskite", "periclase"],
     )
     silica = {"Si": 1.0, "O": 2.0}
@@ -149,7 +149,7 @@ def test_chemical_potentials_require_defined_components_at_every_state():
     material.set_state(50.0e9, 1500.0)
     potential = material.chemical_potential([silica])[0]
     phases = {phase.name: phase for phase in material.phases}
-    # SLB24 periclase is Mg4O4, so a quarter mole contributes one MgO.
+    # SLB_2024 periclase is Mg4O4, so a quarter mole contributes one MgO.
     assert_allclose(
         potential,
         phases["Mg-Perovskite"].molar_gibbs - 0.25 * phases["Periclase"].molar_gibbs,
@@ -164,9 +164,9 @@ def test_chemical_potentials_require_defined_components_at_every_state():
 
 
 def test_endmember_partials_are_gibbs_derivatives():
-    solution = bm.minerals.SLB11.mg_fe_olivine()
+    solution = bm.minerals.SLB_2011.mg_fe_olivine()
     solution.set_composition([0.8, 0.2])
-    rock = bm.Assemblage([solution, bm.minerals.SLB11.periclase()], [0.8, 0.2])
+    rock = bm.Assemblage([solution, bm.minerals.SLB_2011.periclase()], [0.8, 0.2])
     p, t = 20.0e9, 1700.0
     rock.set_state(p, t)
     volumes, entropies = (
@@ -187,7 +187,7 @@ def test_endmember_partials_are_gibbs_derivatives():
 
 @pytest.mark.parametrize("use_reference", [False, True])
 def test_hugoniot_energy_balance(use_reference):
-    mineral = bm.minerals.SLB11.periclase()
+    mineral = bm.minerals.SLB_2011.periclase()
     reference = (
         bm.CombinedMineral([mineral], [1.0], [-100.0, 0.0, 0.0])
         if use_reference
@@ -214,7 +214,7 @@ def test_hugoniot_energy_balance(use_reference):
 
 
 def test_hugoniot_is_independent_of_reference_formula_units():
-    mineral = bm.minerals.SLB11.periclase()
+    mineral = bm.minerals.SLB_2011.periclase()
     reference = bm.CombinedMineral([mineral], [2.0])
     pressures = np.array([1.0e5, 10.0e9, 30.0e9])
     expected = chemistry.hugoniot(mineral, 1.0e5, 300.0, pressures)
@@ -225,7 +225,7 @@ def test_hugoniot_is_independent_of_reference_formula_units():
 def test_equilibrated_hugoniot_preserves_mass_across_dissociation():
     material = bm.EquilibratedComposite(
         {"Mg": 2.0, "Si": 1.0, "O": 4.0},
-        "SLB24",
+        "SLB_2024",
         phase_names=["forsterite", "mg_perovskite", "periclase"],
     )
     p0, t0 = 1.0e5, 300.0
@@ -255,7 +255,7 @@ def test_equilibrated_hugoniot_phase_changes(warm_start):
     bulk = {"Mg": 2.0, "Si": 1.0, "O": 4.0}
     material = bm.EquilibratedComposite(
         bulk,
-        "SLB24",
+        "SLB_2024",
         phase_names=[
             "forsterite",
             "mg_wadsleyite",
@@ -292,7 +292,7 @@ def test_equilibrated_hugoniot_phase_changes(warm_start):
 
 @pytest.mark.parametrize("warm_start", [True, False])
 def test_equilibrated_hugoniot_determines_coexisting_phase_amounts(warm_start):
-    base = bm.minerals.SLB11.forsterite()
+    base = bm.minerals.SLB_2011.forsterite()
     dense = bm.CombinedMineral([base], [1.0], [2000.0, 2.0, -1.0e-6])
     bulk = {"Mg": 2.0, "Si": 1.0, "O": 4.0}
     material = bm.EquilibratedComposite(bulk, [base, dense], warm_start=warm_start)
@@ -407,7 +407,9 @@ def test_python_burnman_reference():
 
     for temperature in (600.0, 700.0, 800.0):
         p = chemistry.equilibrium_pressure(
-            [bm.minerals.HP11.sill(), bm.minerals.HP11.ky()], [-1, 1], temperature
+            [bm.minerals.HP_2011_ds62.sill(), bm.minerals.HP_2011_ds62.ky()],
+            [-1, 1],
+            temperature,
         )
         expected = reference.equilibrium_pressure(
             [burnman.minerals.HP_2011_ds62.sill(), burnman.minerals.HP_2011_ds62.ky()],
@@ -416,7 +418,9 @@ def test_python_burnman_reference():
         )
         assert_allclose(p, expected, atol=2.0, rtol=1.0e-9)
     pressures = np.array([1.0e5, 10.0e9, 30.0e9])
-    actual = chemistry.hugoniot(bm.minerals.SLB11.periclase(), 1.0e5, 300.0, pressures)
+    actual = chemistry.hugoniot(
+        bm.minerals.SLB_2011.periclase(), 1.0e5, 300.0, pressures
+    )
     expected = reference.hugoniot(
         burnman.minerals.SLB_2011.periclase(), 1.0e5, 300.0, pressures
     )

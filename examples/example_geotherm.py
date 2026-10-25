@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from burnman_cpp import Composition, EquilibratedComposite, geotherm
-from burnman_cpp.minerals import SLB24
+from burnman_cpp.minerals import SLB_2024
 
 # Dry pyrolite: relative oxide masses in kg.
 PYROLITE_COMPOSITION = Composition(
@@ -65,7 +65,7 @@ def main():
         print(f"{type(profile).__name__:20s} {profile.temperatures(1000e3):8.2f} K")
 
     adiabat = geotherm.AdiabaticGeotherm(
-        SLB24.periclase(), POTENTIAL_TEMPERATURE, REFERENCE_PRESSURE
+        SLB_2024.periclase(), POTENTIAL_TEMPERATURE, REFERENCE_PRESSURE
     )
     axes[0].plot(
         adiabat.temperatures(earth_depths),
@@ -75,7 +75,7 @@ def main():
     )
 
     earth_depths = np.linspace(270e3, 2800e3, 12)
-    pyrolite = EquilibratedComposite(PYROLITE_COMPOSITION, SLB24, name="Pyrolite")
+    pyrolite = EquilibratedComposite(PYROLITE_COMPOSITION, SLB_2024, name="Pyrolite")
     pyrolite_adiabat = geotherm.AdiabaticGeotherm(
         pyrolite, POTENTIAL_TEMPERATURE, REFERENCE_PRESSURE
     )
@@ -88,7 +88,7 @@ def main():
         marker="o",
         color="tab:red",
         linewidth=2.0,
-        label="Equilibrated pyrolite adiabat (SLB24, 12 points)",
+        label="Equilibrated pyrolite adiabat (SLB_2024, 12 points)",
     )
     print(
         f"{'Equilibrated pyrolite':20s} {pyrolite_adiabat.temperatures(1000e3):8.2f} K"

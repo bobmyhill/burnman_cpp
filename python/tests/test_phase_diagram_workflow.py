@@ -19,14 +19,14 @@ import numpy as np
 import pytest
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import SLB24, load_dataset
+from burnman_cpp.minerals import SLB_2024, load_dataset
 from burnman_cpp.tools import phase_diagram_workflow as workflow
 
 
 def calculate(directory, diagram="PT", **kwargs):
     kwargs.setdefault("make_grid", True)
     return bm.calculate_phase_diagram_grid(
-        "SLB24",
+        "SLB_2024",
         bm.Composition({"MgO": 2.0}, "molar"),
         diagram,
         {"P": 1e9, "T": 1000.0},
@@ -84,7 +84,7 @@ def test_real_diagram_refinement_saved_grid_and_potential_replay(
     assert grids.equilibrium_success.all() and np.isfinite(grids.values).all()
     assert np.isfinite(grids.d2_dxdy).all()
     # Check gradients/Hessians against independently evaluated single-phase EOS.
-    phase = SLB24.periclase()
+    phase = SLB_2024.periclase()
     for rows, cols, batch in bm.load_property_grid_chunks(run.grid_manifest):
         coordinates = bm.evaluate_property_grid(
             batch, run.phases, ["pressure", "temperature"]
@@ -232,13 +232,13 @@ def test_unmet_boundary_spacing_warns_without_blocking_gridding(
     assert report["gridding_started"] and report["diagnostics"] == run.diagnostics
 
 
-@pytest.mark.parametrize("dataset", ["SLB24", SLB24])
+@pytest.mark.parametrize("dataset", ["SLB_2024", SLB_2024])
 def test_catalogue_aliases_and_endmembers_are_not_duplicated(dataset):
     phases, provenance = load_dataset(dataset)
     assert phases and len({p.name for p in phases}) == len(phases)
-    assert {p.name for p in phases} <= SLB24.phase_aliases.keys()
+    assert {p.name for p in phases} <= SLB_2024.phase_aliases.keys()
     assert len(provenance["phase_names"]) == len(phases)
-    assert [getattr(SLB24, name)().name for name in provenance["phase_names"]] == [
+    assert [getattr(SLB_2024, name)().name for name in provenance["phase_names"]] == [
         phase.name for phase in phases
     ]
     assert not any(isinstance(p, bm.RelaxedSolution) for p in phases)
@@ -255,7 +255,7 @@ def test_refines_a_real_phase_boundary_before_gridding(tmp_path):
     settings.step = 0.2
     settings.minimization_starts = 2
     run = bm.calculate_phase_diagram_grid(
-        "SLB24",
+        "SLB_2024",
         {"Si": 1.0, "O": 2.0},
         "PT",
         {"P": 0.5e9, "T": 900.0},
@@ -290,7 +290,7 @@ def test_requested_order_bounds_and_settings_are_preserved(tmp_path, monkeypatch
     settings = bm.PhaseDiagramSettings()
     before = settings.to_dict()
     run = bm.calculate_phase_diagram_grid(
-        SLB24,
+        SLB_2024,
         {"Mg": 1.0, "O": 1.0},
         "T-P",
         {"P": 1e9, "T": 1000.0},
@@ -318,7 +318,7 @@ def test_invalid_requests_do_not_create_output(tmp_path):
     directory = tmp_path / "invalid"
     with pytest.raises(ValueError, match="grid_resolution"):
         bm.calculate_phase_diagram_grid(
-            "SLB24",
+            "SLB_2024",
             {"Mg": 1, "O": 1},
             "PT",
             {"P": 1e9, "T": 1000},
@@ -529,7 +529,7 @@ def test_non_natural_sections_can_grid_equilibrium_samples(
     tmp_path, diagram, upper_temperature
 ):
     run = bm.calculate_phase_diagram_grid(
-        "SLB24",
+        "SLB_2024",
         {"Mg": 1.0, "O": 1.0},
         diagram,
         {"P": 1e9, "T": 1000.0},

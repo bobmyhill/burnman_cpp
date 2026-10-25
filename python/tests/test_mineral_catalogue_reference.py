@@ -25,7 +25,7 @@ import pytest
 pytest.importorskip("burnman")
 import cvxpy as cp
 from burnman.minerals import SLB_2011 as pySLB, JH_2015 as pyJH, HGP_2018_ds633 as pyHGP
-from burnman_cpp.minerals import SLB11, JH15, HGP18
+from burnman_cpp.minerals import SLB_2011, JH_2015, HGP_2018_ds633
 
 ROOT = Path(__file__).resolve().parents[2]
 CATALOGUE_FILES = (
@@ -97,7 +97,7 @@ def test_catalogue_check_rejects_real_data_changes_with_a_diff(
 @pytest.mark.parametrize("name", ["iron", "wu", "mt", "hem"])
 @pytest.mark.parametrize("temperature", [300.0, 829.2029337, 1041.0, 1043.0, 1500.0])
 def test_fe_o_endmembers_match_pinned_holland_powell_reference(name, temperature):
-    native, reference = getattr(HGP18, name)(), getattr(pyHGP, name)()
+    native, reference = getattr(HGP_2018_ds633, name)(), getattr(pyHGP, name)()
     assert native.formula == reference.formula
     native.set_state(1.0e5, temperature)
     reference.set_state(1.0e5, temperature)
@@ -117,7 +117,7 @@ def test_fe_o_endmembers_match_pinned_holland_powell_reference(name, temperature
 )
 @pytest.mark.parametrize("pressure,temperature", [(23.2e9, 1400.0), (23.9e9, 1700.0)])
 def test_forsterite_section_phases_match_pinned_slb2011(name, pressure, temperature):
-    native, reference = getattr(SLB11, name)(), getattr(pySLB, name)()
+    native, reference = getattr(SLB_2011, name)(), getattr(pySLB, name)()
     native.set_state(pressure, temperature)
     reference.set_state(pressure, temperature)
     assert native.formula == reference.formula
@@ -132,19 +132,19 @@ def test_forsterite_section_phases_match_pinned_slb2011(name, pressure, temperat
     [
         (
             pySLB.garnet,
-            SLB11.pyrope_grossular,
+            SLB_2011.pyrope_grossular,
             [[1, 0, 0, 0, 0], [0, 0, 1, 0, 0]],
             {"Mg", "Ca", "Al", "Si", "O"},
         ),
         (
             pySLB.mg_fe_bridgmanite,
-            SLB11.mg_fe_bridgmanite_binary,
+            SLB_2011.mg_fe_bridgmanite_binary,
             [[1, 0, 0], [0, 1, 0]],
             {"Mg", "Fe", "Si", "O"},
         ),
         (
             pyJH.orthopyroxene,
-            JH15.mg_fe_orthopyroxene,
+            JH_2015.mg_fe_orthopyroxene,
             [
                 [1, 0, 0, 0, 0, 0, 0],
                 [1, 1, -1, 0, 0, 0, 0],

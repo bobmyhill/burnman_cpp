@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import SLB24
+from burnman_cpp.minerals import SLB_2024
 from burnman_cpp.tools import aspect
 
 
@@ -28,7 +28,7 @@ def calculation(tmp_path_factory):
     directory = tmp_path_factory.mktemp("aspect")
     composition = bm.Composition({"MgO": 1.0, "SiO2": 1.0}, "molar")
     run = bm.calculate_phase_diagram_grid(
-        "SLB24",
+        "SLB_2024",
         composition,
         "PS",
         {"P": 25e9, "T": 1000.0},
@@ -124,7 +124,7 @@ def test_table_uses_smoothed_thermodynamics_and_native_elastic_states(
         assert row[8] == pytest.approx(grids.values[j, i] / mass)
         solution = saved.solution_at(j, i)
         reference = bm.Assemblage(
-            [SLB24.periclase(), SLB24.stishovite()], solution.molar_fractions
+            [SLB_2024.periclase(), SLB_2024.stishovite()], solution.molar_fractions
         )
         reference.set_state(solution.state.pressure, solution.state.temperature)
         np.testing.assert_allclose(
@@ -146,7 +146,7 @@ def test_averaging_scheme_matches_native_assemblage(calculation, tmp_path, schem
     assert result.equilibrium_solves == 0 and result.success.all(), result.diagnostics
     solution = saved.solution_at(0, 0)
     reference = bm.Assemblage(
-        [SLB24.periclase(), SLB24.stishovite()], solution.molar_fractions
+        [SLB_2024.periclase(), SLB_2024.stishovite()], solution.molar_fractions
     )
     reference.set_averaging_scheme(scheme)
     reference.set_state(solution.state.pressure, solution.state.temperature)

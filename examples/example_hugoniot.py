@@ -11,7 +11,7 @@
 #
 # ------------------------------------------------------
 
-"""Compare equilibrium and non-reactive forsterite Hugoniots using SLB24.
+"""Compare equilibrium and non-reactive forsterite Hugoniots using SLB_2024.
 
 The EquilibratedComposite class object selects the stable solid phases at
 each pressure and temperature. Energy balance follows a fixed mass as the
@@ -24,20 +24,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from burnman_cpp import EquilibratedComposite
-from burnman_cpp.minerals import SLB24
+from burnman_cpp.minerals import SLB_2024
 from burnman_cpp.tools.chemistry import hugoniot
 
 
 def main(material=None):
     """Plot the Hugoniot of a supplied EquilibratedComposite class object.
 
-    Without an argument, use Mg2SiO4 and the Mg-Si-O endmembers in SLB24.
+    Without an argument, use Mg2SiO4 and the Mg-Si-O endmembers in SLB_2024.
     """
     if material is None:
         bulk_composition = {"Mg": 2.0, "Si": 1.0, "O": 4.0}
         material = EquilibratedComposite(
             bulk_composition,
-            SLB24,
+            SLB_2024,
             phase_names=[
                 "forsterite",
                 "mg_wadsleyite",
@@ -55,7 +55,7 @@ def main(material=None):
                 "quartz",
                 "alpha_pbo_2_sio_2",
             ],
-            name="Mg2SiO4 (SLB24)",
+            name="Mg2SiO4 (SLB_2024)",
         )
 
     pressure_ref = 1.0e5
@@ -93,7 +93,7 @@ def main(material=None):
             + ", ".join(amounts)
         )
 
-    forsterite = SLB24.forsterite()
+    forsterite = SLB_2024.forsterite()
     forsterite_temperatures, forsterite_volumes = hugoniot(
         forsterite, pressure_ref, temperature_ref, pressures
     )

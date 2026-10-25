@@ -73,8 +73,9 @@ Both the C++ library and Python source builds require:
   rational arithmetic used by cddlib and the polytope code to handle chemical
   composition constraints.
 - **HDF5 1.10 or newer, with its C development headers and gzip/deflate support**:
-  reads the embedded endmember energy covariance datasets for HP11, HGP18 and
-  HPx_ds636. These data are embedded during the build and read in memory.
+  reads the embedded endmember energy covariance datasets for HP_2011_ds62,
+  HGP_2018_ds633 and HPx_ds636. These data are embedded during the build and
+  read in memory.
 
 Additional tools depend on the build and checks you choose:
 

@@ -13,10 +13,10 @@
 
 import numpy as np
 import pytest
-from burnman_cpp.minerals import IG24, IG25
+from burnman_cpp.minerals import ig51W24, ig51G25
 
 
-@pytest.mark.parametrize("factory", [IG24.liq_W24d, IG25.liq_G25w])
+@pytest.mark.parametrize("factory", [ig51W24.liq_W24d, ig51G25.liq_G25w])
 def test_native_melt_gibbs_composition_derivatives(factory):
     s = factory()
     p = np.arange(1.0, s.n_endmembers + 1)

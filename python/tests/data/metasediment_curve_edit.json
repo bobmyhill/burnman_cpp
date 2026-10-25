@@ -15,7 +15,7 @@
   "model_set": {
     "name": "HPx metapelite",
     "version": "2022-01-23",
-    "dataset": "HP11",
+    "dataset": "HP_2011_ds62",
     "source": "https://hpxeosandthermocalc.org/the-hpx-eos/the-hpx-eos-families/metapelite-set/",
     "citation": "https://doi.org/10.1111/jmg.12071",
     "water": "PS94 H2O; Holland-Powell 2011 thermal reference",

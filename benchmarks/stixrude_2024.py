@@ -19,7 +19,7 @@ import json
 import numpy as np
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import SLB24
+from burnman_cpp.minerals import SLB_2024
 
 PREM = bm.seismic.PREM()
 # The first liquid layer marks the core-mantle boundary in PREM.
@@ -81,33 +81,33 @@ def bulk_composition(lithology):
 def candidate_phases():
     """All ordinary SLB2024 solid solutions and competing pure phases."""
     factories = [
-        ("ol", SLB24.olivine),
-        ("wa", SLB24.wadsleyite),
-        ("ri", SLB24.ringwoodite),
-        ("opx", SLB24.orthopyroxene),
-        ("cpx", SLB24.clinopyroxene),
-        ("hpcpx", SLB24.c2c_pyroxene),
-        ("gt", SLB24.garnet),
-        ("sp", SLB24.mg_fe_aluminous_spinel),
-        ("plg", SLB24.plagioclase),
-        ("ak", SLB24.ilmenite),
-        ("fp", SLB24.ferropericlase),
-        ("bg", SLB24.bridgmanite),
-        ("ppv", SLB24.post_perovskite),
-        ("cf", SLB24.calcium_ferrite_structured_phase),
-        ("nal", SLB24.new_aluminous_phase),
-        ("capv", SLB24.capv),
-        ("neph", SLB24.neph),
-        ("ky", SLB24.ky),
-        ("q", SLB24.qtz),
-        ("coe", SLB24.coes),
-        ("st", SLB24.st),
-        ("seif", SLB24.apbo),
-        ("wo", SLB24.wo),
-        ("pwo", SLB24.pwo),
-        ("Fe-bcc", SLB24.fea),
-        ("Fe-fcc", SLB24.feg),
-        ("Fe-hcp", SLB24.fee),
+        ("ol", SLB_2024.olivine),
+        ("wa", SLB_2024.wadsleyite),
+        ("ri", SLB_2024.ringwoodite),
+        ("opx", SLB_2024.orthopyroxene),
+        ("cpx", SLB_2024.clinopyroxene),
+        ("hpcpx", SLB_2024.c2c_pyroxene),
+        ("gt", SLB_2024.garnet),
+        ("sp", SLB_2024.mg_fe_aluminous_spinel),
+        ("plg", SLB_2024.plagioclase),
+        ("ak", SLB_2024.ilmenite),
+        ("fp", SLB_2024.ferropericlase),
+        ("bg", SLB_2024.bridgmanite),
+        ("ppv", SLB_2024.post_perovskite),
+        ("cf", SLB_2024.calcium_ferrite_structured_phase),
+        ("nal", SLB_2024.new_aluminous_phase),
+        ("capv", SLB_2024.capv),
+        ("neph", SLB_2024.neph),
+        ("ky", SLB_2024.ky),
+        ("q", SLB_2024.qtz),
+        ("coe", SLB_2024.coes),
+        ("st", SLB_2024.st),
+        ("seif", SLB_2024.apbo),
+        ("wo", SLB_2024.wo),
+        ("pwo", SLB_2024.pwo),
+        ("Fe-bcc", SLB_2024.fea),
+        ("Fe-fcc", SLB_2024.feg),
+        ("Fe-hcp", SLB_2024.fee),
     ]
     phases = []
     for name, factory in factories:

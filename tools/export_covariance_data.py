@@ -28,7 +28,11 @@ import numpy as np
 
 from burnman_reference import REFERENCE, ROOT, verify_reference
 
-DATASETS = {"HP11": "HP_2011_ds62", "HGP18": "HGP_2018_ds633", "HPx_ds636": "HPx_ds636"}
+DATASETS = {
+    "HP_2011_ds62": "HP_2011_ds62",
+    "HGP_2018_ds633": "HGP_2018_ds633",
+    "HPx_ds636": "HPx_ds636",
+}
 DATA_DIRECTORY = Path("src/data/input_covariance")
 
 

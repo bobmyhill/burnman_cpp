@@ -21,9 +21,9 @@ import pytest
 import burnman_cpp as bm
 from conftest import make_model
 from burnman_cpp.minerals import (
-    HP11,
-    MB16,
-    HGP18,
+    HP_2011_ds62,
+    mb50NCKFMASHTO,
+    HGP_2018_ds633,
 )
 
 
@@ -818,7 +818,7 @@ def test_basalt_fixed_pt_drops_blocked_zero_amount_phase(pressure, temperature, 
 
 
 def test_polymorph_reduced_variance_has_three_lines():
-    phases = [HP11.andalusite(), HP11.ky(), HP11.sill()]
+    phases = [HP_2011_ds62.andalusite(), HP_2011_ds62.ky(), HP_2011_ds62.sill()]
     r = bm.phase_diagram(
         {"Al": 2.0, "Si": 1.0, "O": 5.0},
         phases,

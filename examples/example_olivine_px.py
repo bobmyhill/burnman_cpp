@@ -14,7 +14,7 @@
 
 """Olivine-polymorph P-X diagram at 1673 K, from Mg2SiO4 to Fe2SiO4.
 
-The candidate set comprises olivine, wadsleyite and ringwoodite from SLB11.
+The candidate set comprises olivine, wadsleyite and ringwoodite from SLB_2011.
 X is the molar fayalite fraction Fe/(Mg+Fe). All stability searches and phase-
 boundary continuation run in C++; plotting uses the standard phase diagram API.
 
@@ -26,7 +26,7 @@ from functools import partial
 from pathlib import Path
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import SLB11
+from burnman_cpp.minerals import SLB_2011
 from burnman_cpp.tools.phase_diagram_helpers import (
     example_parser,
     plot_phase_diagram_example,
@@ -39,9 +39,9 @@ FAYALITE = bm.Composition({"Fe2SiO4": 1.0}, "molar")
 
 def candidate_phases():
     phases = [
-        SLB11.mg_fe_olivine(),
-        SLB11.mg_fe_wadsleyite(),
-        SLB11.mg_fe_ringwoodite(),
+        SLB_2011.mg_fe_olivine(),
+        SLB_2011.mg_fe_wadsleyite(),
+        SLB_2011.mg_fe_ringwoodite(),
     ]
     for phase, name in zip(phases, ["ol", "wa", "ri"]):
         phase.set_name(name)

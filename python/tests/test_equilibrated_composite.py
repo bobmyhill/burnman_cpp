@@ -22,7 +22,7 @@ import pytest
 import burnman_cpp as bm
 from burnman_cpp.classes.equilibratedcomposite import EquilibratedComposite
 from burnman_cpp.constants import gas_constant
-from burnman_cpp.minerals import SLB11, SLB24, available_phase_names, load_dataset
+from burnman_cpp.minerals import SLB_2011, SLB_2024, available_phase_names, load_dataset
 from conftest import oxide_params
 
 
@@ -93,7 +93,7 @@ def test_set_state_reuses_equilibrium_when_enabled(capfd, warm_start, searches):
 
 
 def test_new_phases_enter_and_leave_in_both_directions():
-    phases = [SLB24.qtz(), SLB24.coes(), SLB24.st()]
+    phases = [SLB_2024.qtz(), SLB_2024.coes(), SLB_2024.st()]
     rock = EquilibratedComposite({"SiO2": 1.0}, phases)
     names = []
     for pressure in [1e9, 20e9, 1e9]:
@@ -108,7 +108,7 @@ def test_new_phases_enter_and_leave_in_both_directions():
 
 
 def test_dataset_modules_strings_and_factory_selection():
-    for dataset in [SLB11, "SLB11"]:
+    for dataset in [SLB_2011, "SLB_2011"]:
         rock = EquilibratedComposite(
             {"Mg2SiO4": 1.0},
             dataset,
@@ -126,7 +126,7 @@ def test_dataset_modules_strings_and_factory_selection():
     assert rock.n_moles == pytest.approx(1.0)
 
 
-@pytest.mark.parametrize("dataset", [SLB11, "SLB11"])
+@pytest.mark.parametrize("dataset", [SLB_2011, "SLB_2011"])
 def test_available_phase_names_can_be_selected_without_a_material_state(dataset):
     names = EquilibratedComposite.available_phase_names(dataset)
     assert names == sorted(set(names))
@@ -145,13 +145,13 @@ def test_available_phase_names_can_be_selected_without_a_material_state(dataset)
 
 
 def test_available_phase_names_exclude_relaxed_materials():
-    names = available_phase_names(SLB24)
+    names = available_phase_names(SLB_2024)
     assert {"ferropericlase", "bridgmanite"}.issubset(names)
     assert "ferropericlase_relaxed" not in names
     assert "bridgmanite_relaxed" not in names
-    phases, _ = load_dataset(SLB24, phase_names=names)
+    phases, _ = load_dataset(SLB_2024, phase_names=names)
     assert all(not isinstance(phase, bm.RelaxedSolution) for phase in phases)
-    _, default_selection = load_dataset(SLB24)
+    _, default_selection = load_dataset(SLB_2024)
     assert set(default_selection["phase_names"]).issubset(names)
 
 
@@ -218,7 +218,7 @@ def test_warm_start_rejects_a_weak_solution_saddle():
 
 
 def test_relaxed_response_matches_equilibrium_finite_difference_and_frozen_snapshot():
-    rock = EquilibratedComposite({"MgO": 0.9, "FeO": 0.1}, [SLB24.ferropericlase()])
+    rock = EquilibratedComposite({"MgO": 0.9, "FeO": 0.1}, [SLB_2024.ferropericlase()])
     volume = []
     for temperature in [1999.9, 2000.0, 2000.1]:
         rock.set_state(110e9, temperature)
@@ -292,9 +292,9 @@ def test_evaluate_warm_starts_match_independent_equilibria(capfd):
 
 def test_failed_solve_preserves_accepted_state_and_failure_diagnostics():
     settings = bm.PhaseDiagramSettings()
-    settings.required_eos_phases = [SLB11.forsterite().name]
+    settings.required_eos_phases = [SLB_2011.forsterite().name]
     rock = EquilibratedComposite(
-        {"Mg2SiO4": 1.0}, [SLB11.forsterite()], settings=settings
+        {"Mg2SiO4": 1.0}, [SLB_2011.forsterite()], settings=settings
     )
     rock.set_state(1e9, 1000.0)
     density = rock.density

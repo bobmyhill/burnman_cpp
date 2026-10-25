@@ -45,7 +45,7 @@ from math import isclose
 from pathlib import Path
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import SLB24
+from burnman_cpp.minerals import SLB_2024
 from burnman_cpp.tools.phase_diagram_helpers import (
     example_parser,
     plot_phase_diagram_example,
@@ -136,35 +136,35 @@ PHASE_GLOSSARY = {
 
 def candidate_phases():
     solutions = [
-        (SLB24.olivine, "ol"),
-        (SLB24.wadsleyite, "wa"),
-        (SLB24.ringwoodite, "ri"),
-        (SLB24.orthopyroxene, "opx"),
-        (SLB24.clinopyroxene, "cpx"),
-        (SLB24.c2c_pyroxene, "hpcpx"),
-        (SLB24.garnet, "gt"),
-        (SLB24.mg_fe_aluminous_spinel, "sp"),
-        (SLB24.plagioclase, "pl"),
-        (SLB24.ilmenite, "ak"),
-        (SLB24.ferropericlase, "fp"),
-        (SLB24.bridgmanite, "bg"),
-        (SLB24.post_perovskite, "ppv"),
-        (SLB24.calcium_ferrite_structured_phase, "cf"),
-        (SLB24.new_aluminous_phase, "nal"),
+        (SLB_2024.olivine, "ol"),
+        (SLB_2024.wadsleyite, "wa"),
+        (SLB_2024.ringwoodite, "ri"),
+        (SLB_2024.orthopyroxene, "opx"),
+        (SLB_2024.clinopyroxene, "cpx"),
+        (SLB_2024.c2c_pyroxene, "hpcpx"),
+        (SLB_2024.garnet, "gt"),
+        (SLB_2024.mg_fe_aluminous_spinel, "sp"),
+        (SLB_2024.plagioclase, "pl"),
+        (SLB_2024.ilmenite, "ak"),
+        (SLB_2024.ferropericlase, "fp"),
+        (SLB_2024.bridgmanite, "bg"),
+        (SLB_2024.post_perovskite, "ppv"),
+        (SLB_2024.calcium_ferrite_structured_phase, "cf"),
+        (SLB_2024.new_aluminous_phase, "nal"),
     ]
     pure = [
-        (SLB24.capv, "capv"),
-        (SLB24.neph, "neph"),
-        (SLB24.ky, "ky"),
-        (SLB24.qtz, "q"),
-        (SLB24.coes, "coe"),
-        (SLB24.st, "st"),
-        (SLB24.apbo, "seif"),
-        (SLB24.wo, "wo"),
-        (SLB24.pwo, "pwo"),
-        (SLB24.fea, "Fe-bcc"),
-        (SLB24.feg, "Fe-fcc"),
-        (SLB24.fee, "Fe-hcp"),
+        (SLB_2024.capv, "capv"),
+        (SLB_2024.neph, "neph"),
+        (SLB_2024.ky, "ky"),
+        (SLB_2024.qtz, "q"),
+        (SLB_2024.coes, "coe"),
+        (SLB_2024.st, "st"),
+        (SLB_2024.apbo, "seif"),
+        (SLB_2024.wo, "wo"),
+        (SLB_2024.pwo, "pwo"),
+        (SLB_2024.fea, "Fe-bcc"),
+        (SLB_2024.feg, "Fe-fcc"),
+        (SLB_2024.fee, "Fe-hcp"),
     ]
     phases = []
     for factory, name in solutions + pure:
@@ -236,7 +236,7 @@ def save_json(
         metadata=dict(
             oxide_wt_percent=PYROLITE_OXIDES,
             closed_system=True,
-            dataset="SLB24",
+            dataset="SLB_2024",
             dataset_source=PAPER_URL,
             initial_ferric_fraction=INITIAL_FERRIC_FRACTION,
             solid_only=True,

@@ -25,10 +25,10 @@ using namespace burnman;
 
 TEST_CASE("Hugoniot derivatives include phase amounts and solution composition",
           "[chemistry]") {
-  const auto olivine = minerals::SLB11::mg_fe_olivine();
+  const auto olivine = minerals::SLB_2011::mg_fe_olivine();
   olivine->set_composition(Eigen::Array2d(.7, .3));
   Assemblage a;
-  a.add_phases({olivine, minerals::SLB11::periclase()});
+  a.add_phases({olivine, minerals::SLB_2011::periclase()});
   a.set_fractions(Eigen::Array2d(.6, .4));
   a.set_n_moles(2.);
   a.set_state(1.e5, 300.);
@@ -54,7 +54,7 @@ TEST_CASE("Hugoniot derivatives include phase amounts and solution composition",
 
 TEST_CASE("Reaction equilibria recover independent energy offsets",
           "[chemistry]") {
-  const auto original = minerals::HP11::fo();
+  const auto original = minerals::HP_2011_ds62::fo();
   const auto thermal = std::make_shared<Mineral>(make_combined_mineral(
       {*original}, Eigen::ArrayXd::Ones(1), {1000., 2., 0.}));
   const auto pressure = std::make_shared<Mineral>(make_combined_mineral(
@@ -76,8 +76,8 @@ TEST_CASE("Reaction equilibria recover independent energy offsets",
 
 TEST_CASE("Component chemical potentials conserve elemental composition",
           "[chemistry]") {
-  const auto pv = minerals::SLB11::mg_perovskite();
-  const auto per = minerals::SLB11::periclase();
+  const auto pv = minerals::SLB_2011::mg_perovskite();
+  const auto per = minerals::SLB_2011::periclase();
   Assemblage assemblage;
   assemblage.add_phases({pv, per});
   assemblage.set_fractions(Eigen::Array2d(.5, .5));
@@ -110,7 +110,7 @@ TEST_CASE("Reaction enumeration returns balanced primitive circuits",
 
 TEST_CASE("Hugoniot energy balance is independent of formula-unit scale",
           "[chemistry]") {
-  const auto material = minerals::SLB11::periclase();
+  const auto material = minerals::SLB_2011::periclase();
   auto reference =
       make_combined_mineral({*material}, Eigen::ArrayXd::Constant(1, 2.));
   const Eigen::Array3d pressures(1.e5, 10.e9, 30.e9);

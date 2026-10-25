@@ -21,7 +21,8 @@ using namespace burnman::minerals;
 TEST_CASE("Endmember energy covariances retain names and cross correlations",
           "[native_datasets][covariance]") {
   using Loader = CovarianceData (*)();
-  const std::array<Loader, 3> loaders{HP11::cov, HGP18::cov, HPx_ds636::cov};
+  const std::array<Loader, 3> loaders{HP_2011_ds62::cov, HGP_2018_ds633::cov,
+                                      HPx_ds636::cov};
   const std::array<Eigen::Index, 3> sizes{256, 289, 291};
   for (std::size_t k = 0; k < loaders.size(); ++k) {
     auto first = loaders[k]();

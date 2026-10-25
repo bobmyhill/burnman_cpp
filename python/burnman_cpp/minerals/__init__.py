@@ -11,13 +11,14 @@
 #
 # ------------------------------------------------------
 
-"""Native mineral catalogues, named by publication year.
+"""Native mineral catalogues with Python BurnMan's dataset names.
 
-HP11 uses dataset 6.2; HGP18 and IG18 use dataset 6.33. HPx_ds636,
-IG24 and IG25 provide dataset 6.36 and the W24/G25 igneous families.
-MP14 and MB16 provide metapelite and metabasite solutions, including melts.
+HP_2011_ds62 uses dataset 6.2; HGP_2018_ds633 and ig50NCKFMASHTOCr use
+dataset 6.33. HPx_ds636, ig51W24 and ig51G25 provide dataset 6.36 and the
+W24/G25 igneous families. mp50NCKFMASHTO and mb50NCKFMASHTO provide
+metapelite and metabasite solutions, including melts.
 mp50MnNCKFMASHTO provides Mn-bearing metapelite solutions.
-SLB11, JH15 and SLB24 provide mantle models and relaxed spin solutions.
+SLB_2011, JH_2015 and SLB_2024 provide mantle models and relaxed spin solutions.
 SLB_2005, SLB_2011_ZSB_2013 and SLB_2022 retain the original dataset names.
 ICL_2018, KMFBZ_2017, Matas_etal_2007, Murakami_2013 and Murakami_etal_2012
 provide core and mantle models. RS_2014_liquids supplies magnetic fayalite
@@ -29,8 +30,9 @@ provides metapelite solutions. These catalogues retain their original names.
 The older datasets have no reference free energies; SLB_2011_ZSB_2013 also
 omits chemical formulae. Its elastic and thermal properties remain available.
 Materials created from the same dataset are independent of one another.
-HP11.cov(), HGP18.cov() and HPx_ds636.cov() provide endmember energy covariances.
-SLB24.phase_aliases maps original model names to preferred plot abbreviations.
+HP_2011_ds62.cov(), HGP_2018_ds633.cov() and HPx_ds636.cov() provide
+endmember energy covariances.
+SLB_2024.phase_aliases maps original model names to preferred plot abbreviations.
 model_sets provides matched collections with calibration metadata.
 load_dataset selects candidate models for equilibrium and phase discovery.
 """
@@ -41,17 +43,17 @@ import sys as _sys
 from .. import _core
 from . import SE_2015, Pitzer_Sterner_1994
 from .._core.minerals import (
-    HP11,
-    SLB11,
-    JH15,
-    MP14,
-    MB16,
-    HGP18,
-    IG18,
+    HP_2011_ds62,
+    SLB_2011,
+    JH_2015,
+    mp50NCKFMASHTO,
+    mb50NCKFMASHTO,
+    HGP_2018_ds633,
+    ig50NCKFMASHTOCr,
     HPx_ds636,
-    IG24,
-    IG25,
-    SLB24,
+    ig51W24,
+    ig51G25,
+    SLB_2024,
     DKS_2013_solids,
     DKS_2013_liquids,
     SLB_2005,
@@ -77,17 +79,17 @@ __all__ = [
     "other",
     "SE_2015",
     "Pitzer_Sterner_1994",
-    "HP11",
-    "SLB11",
-    "JH15",
-    "MP14",
-    "MB16",
-    "HGP18",
-    "IG18",
+    "HP_2011_ds62",
+    "SLB_2011",
+    "JH_2015",
+    "mp50NCKFMASHTO",
+    "mb50NCKFMASHTO",
+    "HGP_2018_ds633",
+    "ig50NCKFMASHTOCr",
     "HPx_ds636",
-    "IG24",
-    "IG25",
-    "SLB24",
+    "ig51W24",
+    "ig51G25",
+    "SLB_2024",
     "DKS_2013_solids",
     "DKS_2013_liquids",
     "SLB_2005",
@@ -129,7 +131,7 @@ def _named_materials(dataset):
 def available_phase_names(dataset):
     """Return all dataset names accepted by ``phase_names``, in sorted order.
 
-    Supply a thermodynamic dataset, such as SLB24, or its name, "SLB24".
+    Supply a thermodynamic dataset, such as SLB_2024, or its name, "SLB_2024".
     The list includes pure endmembers and alternate names for materials.
     Relaxed Solution class objects are excluded because equilibrium determines
     their internal compositions. A ModelSet has a prescribed collection of
@@ -147,8 +149,8 @@ def available_phase_names(dataset):
 def load_dataset(dataset, phase_names=None):
     """Return candidate models and metadata describing their selection.
 
-    Supply a thermodynamic dataset (e.g. SLB24), its name ("SLB24"), or a calibrated
-    ModelSet. For example, ``phases, provenance = load_dataset(SLB24)``.
+    Supply a thermodynamic dataset (e.g. SLB_2024), its name ("SLB_2024"), or a calibrated
+    ModelSet. For example, ``phases, provenance = load_dataset(SLB_2024)``.
     Automatic selection collapses aliases, selects ordinary solution models
     and omits pure endmembers already represented within those solutions.
     Equilibrium solvers determine the spin populations of the ordinary models.

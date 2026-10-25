@@ -339,7 +339,7 @@ def calculate_phase_diagram_grid(
 ):
     """Create and refine a diagram, then save equilibria for a resolved result.
 
-    dataset is a mineral module/name (e.g. SLB24), or a calibrated ModelSet.
+    dataset is a mineral module/name (e.g. SLB_2024), or a calibrated ModelSet.
     composition is a Composition object or elemental mole-amount dictionary.
     Oxide masses can be supplied with Composition(..., unit_type="mass").
     phase_names optionally selects named factories in their intended order.

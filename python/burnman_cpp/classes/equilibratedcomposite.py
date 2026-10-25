@@ -74,7 +74,7 @@ class EquilibratedComposite(_core.EquilibratedComposite):
     ``composition`` is a Composition or a dictionary of formula amounts.
     Dictionaries default to moles (elemental dictionaries also work); choose
     ``unit_type='mass'`` for masses in kg. Amounts retain their supplied scale.
-    ``dataset`` is a thermodynamic dataset (such as SLB11), its name, a
+    ``dataset`` is a thermodynamic dataset (such as SLB_2011), its name, a
     calibrated ModelSet class object, or a sequence of candidate Material class
     objects. ``phase_names`` optionally selects materials by their dataset names.
     ``EquilibratedComposite.available_phase_names(dataset)`` lists all available

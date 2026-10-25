@@ -31,7 +31,7 @@ import json
 from pathlib import Path
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import SLB11
+from burnman_cpp.minerals import SLB_2011
 from burnman_cpp.tools.phase_diagram_helpers import (
     example_parser,
     save_figure,
@@ -58,10 +58,10 @@ CONTOURS = {
 
 def candidate_phases():
     phases = [
-        SLB11.periclase(),
-        SLB11.mg_perovskite(),
-        SLB11.mg_akimotoite(),
-        SLB11.mg_ringwoodite(),
+        SLB_2011.periclase(),
+        SLB_2011.mg_perovskite(),
+        SLB_2011.mg_akimotoite(),
+        SLB_2011.mg_ringwoodite(),
     ]
     for phase, name in zip(phases, ALIASES):
         phase.set_name(name)

@@ -10,20 +10,20 @@ Mineral modules use the publication year in both Python and C++:
 
 | Module | Models | Python BurnMan source |
 | --- | --- | --- |
-| `HP11` | Holland & Powell (2011), dataset 6.2 | `HP_2011_ds62` |
-| `SLB11` | Stixrude & Lithgow-Bertelloni (2011) | `SLB_2011` |
-| `JH15` | Jennings & Holland (2015) | `JH_2015` |
-| `MP14` | White et al. (2014), metapelite | `mp50NCKFMASHTO` |
-| `MB16` | Green et al. (2016), metabasite | `mb50NCKFMASHTO` |
-| `HGP18` | Holland et al. (2018), dataset 6.33 and melt | `HGP_2018_ds633` |
-| `IG18` | Legacy 2018 igneous solids and fluid | `ig50NCKFMASHTOCr` |
+| `HP_2011_ds62` | Holland & Powell (2011), dataset 6.2 | `HP_2011_ds62` |
+| `SLB_2011` | Stixrude & Lithgow-Bertelloni (2011) | `SLB_2011` |
+| `JH_2015` | Jennings & Holland (2015) | `JH_2015` |
+| `mp50NCKFMASHTO` | White et al. (2014), metapelite | `mp50NCKFMASHTO` |
+| `mb50NCKFMASHTO` | Green et al. (2016), metabasite | `mb50NCKFMASHTO` |
+| `HGP_2018_ds633` | Holland et al. (2018), dataset 6.33 and melt | `HGP_2018_ds633` |
+| `ig50NCKFMASHTOCr` | Legacy 2018 igneous solids and fluid | `ig50NCKFMASHTOCr` |
 | `HPx_ds636` | THERMOCALC dataset 6.36 | `HPx_ds636` |
-| `IG24` | Weller et al. (2024), dry igneous | `ig51W24` |
-| `IG25` | Green et al. (2025), hydrous igneous | `ig51G25` |
-| `SLB24` | Stixrude & Lithgow-Bertelloni (2024) | `SLB_2024` |
+| `ig51W24` | Weller et al. (2024), dry igneous | `ig51W24` |
+| `ig51G25` | Green et al. (2025), hydrous igneous | `ig51G25` |
+| `SLB_2024` | Stixrude & Lithgow-Bertelloni (2024) | `SLB_2024` |
 
-Use `from burnman_cpp.minerals import MP14` or
-`burnman::minerals::MP14::g()`. The years identify the published models;
+Use `from burnman_cpp.minerals import mp50NCKFMASHTO` or
+`burnman::minerals::mp50NCKFMASHTO::g()`. The years identify the published models;
 the matched collections below also record their later calibration releases.
 
 ```python
@@ -59,7 +59,7 @@ pressure-dependent interactions and ideal activities are retained. In
 particular, melt water has activity `h²`, olivine species have five-fold Mg–Fe
 mixing entropy, and the metabasite melt's `anoL = woL + silL` associate relaxes
 through atomic mass balance. Individual melts are also available as
-`MP14.liq()` and `MB16.L()`, imported directly from pinned Python BurnMan.
+`mp50NCKFMASHTO.liq()` and `mb50NCKFMASHTO.L()`, imported directly from pinned Python BurnMan.
 
 Use **one** metabasite clinopyroxene model: `"dio"` (the default) or `"aug"`.
 HPx explicitly prohibits combining them. The complete Mg-bearing ilmenite
@@ -105,12 +105,12 @@ Independent THERMOCALC benchmarks retain their 10 J/mol absolute-energy checks.
 ## Igneous model sets
 
 ```python
-from burnman_cpp.minerals import IG24, IG25, HPx_ds636, model_sets
+from burnman_cpp.minerals import ig51W24, ig51G25, HPx_ds636, model_sets
 
 models = model_sets.igneous()       # G25, hydrous or anhydrous subalkaline systems
 # models = model_sets.igneous("W24")  # W24, dry alkaline/subalkaline systems
-melt = IG25.liq_G25w()
-fluid = IG25.fl_G25()
+melt = ig51G25.liq_G25w()
+fluid = ig51G25.fl_G25()
 ```
 
 Both collections use dataset **6.36**, with the appropriate solids, melt and
@@ -128,8 +128,8 @@ and Powell (2011) identifies its solid/liquid equations of state. See the
 [authors' igneous notes](https://hpxeosandthermocalc.org/the-hpx-eos/the-hpx-eos-families/hpx-eos-igneous-sets/)
 and the W24 and G25 citations stored in `ModelSet`.
 
-Legacy `IG18` and `HGP18` catalogues remain available. The igneous collection
+Legacy `ig50NCKFMASHTOCr` and `HGP_2018_ds633` catalogues remain available. The igneous collection
 uses G25 because the authors withdrew the H18 melt. Upstream now supplies
 separate olivine and pyroxene endmember identifiers, so the exporter no longer
-repairs those collisions. The older `HGP18` melt still requires its documented
+repairs those collisions. The older `HGP_2018_ds633` melt still requires its documented
 `Alsi2` site-name correction to retain unit jadeite occupancy.

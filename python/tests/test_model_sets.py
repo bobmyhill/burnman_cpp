@@ -22,10 +22,10 @@ import burnman_cpp as bm
 
 from burnman_cpp.minerals import (
     model_sets,
-    IG18,
-    HGP18,
-    MP14,
-    MB16,
+    ig50NCKFMASHTOCr,
+    HGP_2018_ds633,
+    mp50NCKFMASHTO,
+    mb50NCKFMASHTO,
 )
 
 
@@ -34,7 +34,7 @@ def test_model_sets_have_independent_phases_and_ps94_water(family):
     first, second = getattr(model_sets, family)(), getattr(model_sets, family)()
     names = [p.name for p in first.phases]
     assert len(set(names)) == len(names)
-    assert first.dataset == "HP11"
+    assert first.dataset == "HP_2011_ds62"
     assert "PS94" in first.to_dict()["water"]
     water = first.phases[names.index("H2O")]
     # Published and-bi-mu-q-H2O-2.5-600.txt, also checked by the native
@@ -76,7 +76,7 @@ def test_igneous_collection_has_full_melt_and_records_its_scope():
 
 @pytest.mark.parametrize("pressure,temperature", [(2.0e8, 1000.0), (2.0e9, 1400.0)])
 def test_igneous_olivine_retains_its_original_ordered_endmember(pressure, temperature):
-    ol = IG18.ol()
+    ol = ig50NCKFMASHTOCr.ol()
     ol.set_composition([0.0, 0.0, 0.0, 1.0])
     ol.set_state(pressure, temperature)
     assert {k: v for k, v in ol.formula.items() if v} == {
@@ -87,14 +87,16 @@ def test_igneous_olivine_retains_its_original_ordered_endmember(pressure, temper
     }
     # The original Python declaration was the mean of fa and fo, with no
     # correction. Its reused variable name must not select a pyroxene species.
-    fa, fo = HGP18.fa(), HGP18.fo()
+    fa, fo = HGP_2018_ds633.fa(), HGP_2018_ds633.fo()
     for p in (fa, fo):
         p.set_state(pressure, temperature)
     for prop in ("molar_gibbs", "molar_entropy", "molar_volume"):
         assert getattr(ol, prop) == pytest.approx(
             0.5 * (getattr(fa, prop) + getattr(fo, prop)), rel=8.0e-8
         )
-    assert IG18.cfm_cpx().formula["Si"] == 2.0  # The pyroxene species stays available.
+    assert (
+        ig50NCKFMASHTOCr.cfm_cpx().formula["Si"] == 2.0
+    )  # The pyroxene species stays available.
 
 
 @pytest.mark.parametrize("temperature", [1173.15, 1673.15])
@@ -123,7 +125,7 @@ def test_metabasite_keeps_clinopyroxene_calibrations_separate():
         model_sets.metabasite("both")
 
 
-@pytest.mark.parametrize("factory", [MP14.liq, MB16.L])
+@pytest.mark.parametrize("factory", [mp50NCKFMASHTO.liq, mb50NCKFMASHTO.L])
 def test_melt_gibbs_derivatives_with_variable_site_multiplicities(factory):
     s = factory()
     p = np.arange(1.0, s.n_endmembers + 1)
@@ -155,8 +157,8 @@ def test_melt_gibbs_derivatives_with_variable_site_multiplicities(factory):
 @pytest.mark.parametrize(
     "calibration,module,expected",
     [
-        ("G25", "IG25", {"fluid", "hb", "bi", "ms", "ep", "cd"}),
-        ("W24", "IG24", {"nph", "kals", "lct", "mel"}),
+        ("G25", "ig51G25", {"fluid", "hb", "bi", "ms", "ep", "cd"}),
+        ("W24", "ig51W24", {"nph", "kals", "lct", "mel"}),
     ],
 )
 def test_igneous_calibrations_are_complete_and_independent(

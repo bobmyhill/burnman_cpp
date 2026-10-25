@@ -26,17 +26,17 @@ from burnman_cpp import minerals
 
 burnman = pytest.importorskip("burnman")
 DATASETS = {
-    "HP11": "HP_2011_ds62",
-    "HGP18": "HGP_2018_ds633",
-    "MB16": "mb50NCKFMASHTO",
-    "SLB11": "SLB_2011",
-    "JH15": "JH_2015",
-    "MP14": "mp50NCKFMASHTO",
-    "SLB24": "SLB_2024",
-    "IG18": "ig50NCKFMASHTOCr",
+    "HP_2011_ds62": "HP_2011_ds62",
+    "HGP_2018_ds633": "HGP_2018_ds633",
+    "mb50NCKFMASHTO": "mb50NCKFMASHTO",
+    "SLB_2011": "SLB_2011",
+    "JH_2015": "JH_2015",
+    "mp50NCKFMASHTO": "mp50NCKFMASHTO",
+    "SLB_2024": "SLB_2024",
+    "ig50NCKFMASHTOCr": "ig50NCKFMASHTOCr",
     "HPx_ds636": "HPx_ds636",
-    "IG24": "ig51W24",
-    "IG25": "ig51G25",
+    "ig51W24": "ig51W24",
+    "ig51G25": "ig51G25",
     "DKS_2013_solids": "DKS_2013_solids",
     "DKS_2013_liquids": "DKS_2013_liquids",
     "SLB_2005": "SLB_2005",
@@ -141,7 +141,7 @@ def finite_differences(phase, kind):
     )
 
 
-@pytest.mark.parametrize("group", ["HGP18", "HPx_ds636"])
+@pytest.mark.parametrize("group", ["HGP_2018_ds633", "HPx_ds636"])
 @pytest.mark.parametrize("pressure", [1.0e5, 3.0e9])
 @pytest.mark.parametrize("temperature", [700.0, 1200.0, 1800.0])
 @pytest.mark.parametrize("factor", [0.8, -1.0, -0.5])
@@ -198,7 +198,9 @@ def test_ordering_derivatives_match_python_gibbs(
     )
 
 
-@pytest.mark.parametrize("group", ["IG18", "IG24", "IG25", "ig50NCKFMASTOCr"])
+@pytest.mark.parametrize(
+    "group", ["ig50NCKFMASHTOCr", "ig51W24", "ig51G25", "ig50NCKFMASTOCr"]
+)
 def test_kjd_bulk_modulus_matches_python_volume_derivative(group):
     reference = copy.deepcopy(getattr(burnman.minerals, DATASETS[group]).kjd)
     native = getattr(minerals, group).kjd()
@@ -220,6 +222,7 @@ def test_complete_public_inventory(group):
     )
     actual = importlib.import_module(f"burnman_cpp.minerals.{group}")
     assert actual is getattr(minerals, group)
+    assert actual.__name__.rsplit(".", 1)[-1] == DATASETS[group]
     assert all(hasattr(actual, name) for name in expected)
 
 
@@ -402,7 +405,7 @@ def test_every_factory_matches_python_burnman(group, name, value, state):
     ],
 )
 def test_full_and_reduced_melt_inventories(name, n):
-    phase = getattr(minerals.HGP18, name)()
+    phase = getattr(minerals.HGP_2018_ds633, name)()
     assert phase.n_endmembers == n
     assert ("Cr" in phase.elements) == (name == "silicate_melt")
 
@@ -415,7 +418,7 @@ def test_full_and_reduced_melt_inventories(name, n):
     ],
 )
 def test_relaxed_thermal_derivatives_and_state_updates(name, composition):
-    phase = getattr(minerals.SLB24, name)()
+    phase = getattr(minerals.SLB_2024, name)()
     phase.set_composition(composition)
     p, t, dp, dt = 60.0e9, 1800.0, 1.0e6, 0.1
     phase.set_state(p, t)
@@ -440,7 +443,7 @@ def test_relaxed_thermal_derivatives_and_state_updates(name, composition):
     phase.set_state(p, t)
     phase.set_composition(np.array(composition)[::-1])
     assert phase.molar_entropy != pytest.approx(entropy)
-    fresh = getattr(minerals.SLB24, name)()
+    fresh = getattr(minerals.SLB_2024, name)()
     fresh.set_composition(np.array(composition)[::-1])
     fresh.set_state(p, t)
     np.testing.assert_allclose(
@@ -451,8 +454,8 @@ def test_relaxed_thermal_derivatives_and_state_updates(name, composition):
 
 
 def test_relaxed_solution_owns_endmember_state():
-    parent = minerals.SLB24.ferropericlase()
-    template = minerals.SLB24.ferropericlase_relaxed()
+    parent = minerals.SLB_2024.ferropericlase()
+    template = minerals.SLB_2024.ferropericlase_relaxed()
     relaxed = bm.RelaxedSolution(parent, template.dndq.T, template.dndx.T)
     parent.set_state(10.0e9, 1000.0)
     expected = parent.molar_gibbs
@@ -464,7 +467,7 @@ def test_relaxed_solution_owns_endmember_state():
 @pytest.mark.parametrize("name", ["quartz", "stishovite"])
 @pytest.mark.parametrize("temperature", [300.0, 1200.0])
 def test_slb2011_landau_ordered_and_disordered_entropy(name, temperature):
-    native = getattr(minerals.SLB11, name)()
+    native = getattr(minerals.SLB_2011, name)()
     reference = getattr(burnman.minerals.SLB_2011, name)()
     for phase in (native, reference):
         phase.set_state(1.0e5, temperature)

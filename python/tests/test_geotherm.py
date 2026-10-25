@@ -209,9 +209,9 @@ def test_adiabat_reference_and_anchor_state():
 def test_adiabats_conserve_entropy_and_allow_unordered_pressures(kind):
     rock = bm.Mineral(periclase_params())
     if kind == "assemblage":
-        from burnman_cpp.minerals import SLB11
+        from burnman_cpp.minerals import SLB_2011
 
-        rock = bm.Assemblage([rock, SLB11.forsterite()], [0.4, 0.6])
+        rock = bm.Assemblage([rock, SLB_2011.forsterite()], [0.4, 0.6])
     pressures = np.array([100e9, 150e9, 50e9, 100e9, 125e9, 125e9])
     model = geotherm.AdiabaticGeotherm(rock, 1500.0, 100e9)
     temperatures = model.temperatures_from_pressures(pressures)

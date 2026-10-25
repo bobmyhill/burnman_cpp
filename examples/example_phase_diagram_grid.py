@@ -30,7 +30,7 @@ from importlib import import_module
 from pathlib import Path
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import SLB24
+from burnman_cpp.minerals import SLB_2024
 
 EXAMPLES = Path(__file__).resolve().parent
 
@@ -70,11 +70,11 @@ def pyrolite_composition(ferric_fraction=0.03):
 PYROLITE_SETTINGS = bm.PhaseDiagramSettings()
 PYROLITE_SETTINGS.pressure_seeds = PYROLITE_SETTINGS.temperature_seeds = 41
 # Mask the Mg-Tschermak EOS limit at low pressure and high temperature.
-PYROLITE_SETTINGS.required_eos_phases = [SLB24.orthopyroxene().name]
+PYROLITE_SETTINGS.required_eos_phases = [SLB_2024.orthopyroxene().name]
 
 PHASE_DIAGRAMS = [
     dict(
-        dataset="SLB24",
+        dataset="SLB_2024",
         composition=bm.Composition({"SiO2": 1.0}, "molar"),
         diagram="PS",
         lower_corner={"P": 0.5e9, "T": 900.0},
@@ -83,11 +83,11 @@ PHASE_DIAGRAMS = [
         seeds=(5, 5),
         boundary_resolution=(101, 101),
         grid_resolution=(31, 31),
-        plot_kwargs={"pressure_unit": "GPa", "phase_aliases": SLB24.phase_aliases},
+        plot_kwargs={"pressure_unit": "GPa", "phase_aliases": SLB_2024.phase_aliases},
         output_dir=EXAMPLES / "silica_phase_diagram_grid_output",
     ),
     dict(
-        dataset="SLB24",
+        dataset="SLB_2024",
         composition=pyrolite_composition(),
         diagram="PS",
         lower_corner={"P": 0.0, "T": 273.15},
@@ -101,7 +101,7 @@ PHASE_DIAGRAMS = [
         plot_kwargs={
             "pressure_unit": "GPa",
             "entropy_unit": "kB/atom",
-            "phase_aliases": SLB24.phase_aliases,
+            "phase_aliases": SLB_2024.phase_aliases,
         },
         output_dir=EXAMPLES / "pyrolite_sp_phase_diagram_grid_output",
     ),

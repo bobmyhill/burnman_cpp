@@ -7,14 +7,14 @@ import pytest
 from numpy.testing import assert_allclose
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import SLB11
+from burnman_cpp.minerals import SLB_2011
 
 REACTIONS = np.array([[1.0, -1.0, -1.0, 1.0], [1.0, 1.0, -1.0, -1.0]])
 
 
 @pytest.fixture
 def transition():
-    ol, wad = SLB11.mg_fe_olivine(), SLB11.mg_fe_wadsleyite()
+    ol, wad = SLB_2011.mg_fe_olivine(), SLB_2011.mg_fe_wadsleyite()
     for phase in (ol, wad):
         phase.set_composition([0.9, 0.1])
     assemblage = bm.Assemblage([ol, wad], [1.0, 0.0])

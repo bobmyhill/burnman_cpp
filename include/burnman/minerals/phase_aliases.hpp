@@ -16,8 +16,8 @@
 #include <map>
 #include <string>
 
-namespace burnman::minerals::SLB24 {
+namespace burnman::minerals::SLB_2024 {
 /// Preferred plot labels keyed by full model name. These labels do not rename
 /// minerals or alter the identities retained in equilibrium and diagram files.
 const std::map<std::string, std::string> &phase_aliases();
-} // namespace burnman::minerals::SLB24
+} // namespace burnman::minerals::SLB_2024

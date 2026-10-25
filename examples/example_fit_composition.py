@@ -35,7 +35,7 @@ from burnman_cpp.optimize.composition_fitting import (
 
 def main():
     # Example 1: fit single-phase compositional data to a garnet model.
-    gt = minerals.JH15.garnet()
+    gt = minerals.JH_2015.garnet()
     print(f"Endmembers: {gt.endmember_names}")
     print(f"Elements: {gt.elements}")
     print("Stoichiometric array:")

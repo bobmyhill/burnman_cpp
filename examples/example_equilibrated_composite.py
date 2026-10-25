@@ -23,17 +23,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from burnman_cpp import Composition, EquilibratedComposite
-from burnman_cpp.minerals import SLB11
+from burnman_cpp.minerals import SLB_2011
 
 
 def main():
     # Uncomment to print all available phase_names in this dataset.
-    # print(*EquilibratedComposite.available_phase_names(SLB11), sep="\n")
+    # print(*EquilibratedComposite.available_phase_names(SLB_2011), sep="\n")
 
     bulk = Composition({"MgO": 1.8, "FeO": 0.2, "SiO2": 1.0}, "molar")
     rock = EquilibratedComposite(
         bulk,
-        SLB11,
+        SLB_2011,
         phase_names=["mg_fe_olivine", "mg_fe_wadsleyite", "mg_fe_ringwoodite"],
         name="Equilibrated mantle rock",
     )

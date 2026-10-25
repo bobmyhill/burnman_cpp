@@ -158,7 +158,7 @@ def test_optional_solution_fit_python_burnman_parity(
 
     elements, sites, _ = COMPOSITION_CASES[1]
     actual_solution = (
-        minerals.JH15.garnet()
+        minerals.JH_2015.garnet()
         if real_model
         else DummyCompositionSolution(elements, sites)
     )
