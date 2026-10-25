@@ -19,6 +19,7 @@
 #include "burnman/eos/dks_liquid.hpp"
 #include "burnman/eos/dks_solid.hpp"
 #include "burnman/eos/hp.hpp"
+#include "burnman/eos/hp98.hpp"
 #include "burnman/eos/hp_liquid.hpp"
 #include "burnman/eos/macaw.hpp"
 #include "burnman/eos/mie_grueneisen_debye.hpp"
@@ -85,6 +86,8 @@ std::shared_ptr<EquationOfState> make_eos(types::EOSType eos_type) {
     return std::make_shared<HP_TMTL>();
   case types::EOSType::HPTMT:
     return std::make_shared<HP_TMT>();
+  case types::EOSType::HP98:
+    return std::make_shared<HP98>();
   case types::EOSType::CORK:
     return std::make_shared<CORK>();
   default:

@@ -105,6 +105,7 @@ _EOS_NAMES = {
     "hptmt": EOSType.HPTMT,
     "hp_tmtl": EOSType.HPTMTL,
     "hptmtl": EOSType.HPTMTL,
+    "hp98": EOSType.HP98,
     "cork": EOSType.CORK,
     "slb2": EOSType.SLB2,
     "slb3": EOSType.SLB3,

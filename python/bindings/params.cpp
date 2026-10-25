@@ -44,6 +44,7 @@ void bind_params(py::module_ &m) {
              EOSType::ModularMGDWithAnharmonicity)
       .value("HPTMT", EOSType::HPTMT)
       .value("HPTMTL", EOSType::HPTMTL)
+      .value("HP98", EOSType::HP98)
       .value("CORK", EOSType::CORK)
       .value("SLB2", EOSType::SLB2)
       .value("SLB3", EOSType::SLB3)
