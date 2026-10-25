@@ -20,6 +20,7 @@
 #include "burnman/eos/dks_solid.hpp"
 #include "burnman/eos/hp.hpp"
 #include "burnman/eos/hp_liquid.hpp"
+#include "burnman/eos/macaw.hpp"
 #include "burnman/eos/mie_grueneisen_debye.hpp"
 #include "burnman/eos/modified_tait.hpp"
 #include "burnman/eos/modular_mie_grueneisen_debye.hpp"
@@ -44,6 +45,8 @@ std::shared_ptr<EquationOfState> make_eos(types::EOSType eos_type) {
     return std::make_shared<Morse>();
   case types::EOSType::RKprime:
     return std::make_shared<RKprime>();
+  case types::EOSType::MACAW:
+    return std::make_shared<MACAW>();
   case types::EOSType::AA:
     return std::make_shared<AA>();
   case types::EOSType::BroshCalphad:

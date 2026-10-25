@@ -62,7 +62,8 @@ enum class EOSType {
   AA,
   BroshCalphad,
   Morse,
-  RKprime
+  RKprime,
+  MACAW
 };
 
 /**
