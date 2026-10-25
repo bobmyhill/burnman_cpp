@@ -41,8 +41,8 @@ TEST_CASE("PS1994 water volumes and compressibility match Python BurnMan",
       CHECK_THAT(water->get_molar_volume(), WithinRel(state.volume, 2.e-12));
       CHECK_THAT(water->get_density(),
                  WithinRel(.01801528 / state.volume, 2.e-12));
-      // The reference differentiates P(V) and the native EOS differentiates
-      // P(rho), using different finite-difference steps.
+      // Python differentiates P(V) numerically; native derivatives are
+      // analytic.
       CHECK_THAT(water->get_isothermal_bulk_modulus_reuss(),
                  WithinRel(state.bulk_modulus, 2.e-8));
       CHECK(water->get_shear_modulus() == 0.);
@@ -92,9 +92,8 @@ TEST_CASE("PS1994 water thermal derivatives match Python BurnMan",
                                      WithinAbs(state.delta_entropy, 2.e-7));
       const double cp_change = water->get_molar_heat_capacity_p() -
                                reference->get_molar_heat_capacity_p();
-      // Native Cp extrapolates Gibbs-energy second differences at 0.1 and
-      // 0.05 K. Python uses a 0.01 K entropy difference and thermoelastic
-      // identities. Allow their discretization and roundoff errors.
+      // Python uses a 0.01 K entropy difference and thermoelastic identities;
+      // allow its discretization and roundoff error relative to analytic Cp.
       CHECK_THAT(cp_change, WithinRel(state.delta_cp, 2.e-5) ||
                                 WithinAbs(state.delta_cp, 2.e-3));
     }
@@ -162,8 +161,7 @@ TEST_CASE("PS1994 water rejects states outside its documented domain",
   }
 }
 
-TEST_CASE("PS1994 water includes temperature endpoints but excludes derivative "
-          "endpoints",
+TEST_CASE("PS1994 water has analytic derivatives at temperature endpoints",
           "[eos][water][ps1994]") {
   const auto thermal_reference = GENERATE(
       WaterThermalReference::HollandPowell2011, WaterThermalReference::NIST);
@@ -174,8 +172,8 @@ TEST_CASE("PS1994 water includes temperature endpoints but excludes derivative "
     CHECK(std::isfinite(water->get_molar_volume()));
     CHECK(std::isfinite(water->get_molar_gibbs()));
     CHECK(water->get_isothermal_bulk_modulus_reuss() > 0.);
-    CHECK_THROWS_AS(water->get_molar_entropy(), std::invalid_argument);
-    CHECK_THROWS_AS(water->get_molar_heat_capacity_p(), std::invalid_argument);
-    CHECK_THROWS_AS(water->get_thermal_expansivity(), std::invalid_argument);
+    CHECK(std::isfinite(water->get_molar_entropy()));
+    CHECK(water->get_molar_heat_capacity_p() > 0.);
+    CHECK(std::isfinite(water->get_thermal_expansivity()));
   }
 }

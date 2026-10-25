@@ -27,6 +27,7 @@
 #include "burnman/eos/modular_mie_grueneisen_debye.hpp"
 #include "burnman/eos/morse_potential.hpp"
 #include "burnman/eos/murnaghan.hpp"
+#include "burnman/eos/pitzer_sterner.hpp"
 #include "burnman/eos/reciprocal_kprime.hpp"
 #include "burnman/eos/slb.hpp"
 #include "burnman/eos/spock.hpp"
@@ -90,6 +91,8 @@ std::shared_ptr<EquationOfState> make_eos(types::EOSType eos_type) {
     return std::make_shared<HP98>();
   case types::EOSType::CORK:
     return std::make_shared<CORK>();
+  case types::EOSType::PitzerSterner:
+    return std::make_shared<PitzerSterner>();
   default:
     throw std::invalid_argument("Unknown EOS type!");
   }

@@ -3,6 +3,9 @@ Performance benchmarks
 
 Scientific reference comparisons are kept alongside the timing benchmarks:
 
+- [Pitzer & Sterner (1995), Figure 1](pitzer_sterner_1995/README.md):
+  native H₂O/CO₂ compression factors at 1600 K, with an overlay on the
+  published figure and comparisons with the digitized model curves.
 - [de Koker, Karki & Stixrude (2013), nine liquid compositions](dekoker_2013/README.md):
   direct native EOS comparisons with supplement Figures S2–S10 and Table 1.
 - [Stixrude & Lithgow-Bertelloni (2024), Figure 13](stixrude_2024_figure13/README.md):

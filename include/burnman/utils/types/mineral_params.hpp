@@ -50,6 +50,8 @@ struct CorkParams {
   double a_0, a_1, b, c_0, c_1, d_0, d_1;
 };
 
+using PitzerSternerCoefficients = std::array<std::array<double, 6>, 10>;
+
 // SGTE segments: upper temperature and coefficients of
 // 1, T, T ln(T), T^-1, T^-2, T^-3, T^-9, T^2, T^3, T^4, T^7, sqrt(T), ln(T).
 using GibbsCoefficients =
@@ -165,6 +167,11 @@ struct MineralParams {
   std::optional<double> cork_P;
   std::optional<CorkParams> cork_params;
   std::optional<std::array<double, 4>> dcorkdT;
+
+  // Pitzer-Sterner: coefficients of T^-4, T^-2, T^-1, 1, T, T^2.
+  std::optional<PitzerSternerCoefficients> c_coeffs;
+  std::optional<double> Debye_n, Cv_0;
+  std::optional<double> T_min, T_max, P_max;
 };
 
 } // namespace types

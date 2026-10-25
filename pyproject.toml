@@ -43,6 +43,8 @@ sdist.include = [
   "/src/data/input_covariance/*.h5",
   "/benchmarks/dekoker_2013/*.py", "/benchmarks/dekoker_2013/README.md",
   "/benchmarks/dekoker_2013/reference/**",
+  "/benchmarks/pitzer_sterner_1995/*.py", "/benchmarks/pitzer_sterner_1995/README.md",
+  "/benchmarks/pitzer_sterner_1995/reference/**",
   "/benchmarks/stixrude_2024_figure13/**",
   "/benchmarks/stixrude_2024_figure14/**", "/benchmarks/stixrude_2024.py",
   "/tools/export_example_minerals.py",

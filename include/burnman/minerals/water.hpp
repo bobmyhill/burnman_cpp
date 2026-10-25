@@ -40,4 +40,9 @@ std::shared_ptr<Mineral> water_fluid();
 
 /// Select an alternative thermal reference without changing the PS1994 EOS.
 std::shared_ptr<Mineral> water_fluid(WaterThermalReference reference);
+
+namespace Pitzer_Sterner_1994 {
+/// Original Python BurnMan water coefficients and Debye thermal reference.
+std::shared_ptr<Mineral> H2O_Pitzer_Sterner();
+} // namespace Pitzer_Sterner_1994
 } // namespace burnman::minerals

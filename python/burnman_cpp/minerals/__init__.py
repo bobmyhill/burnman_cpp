@@ -35,7 +35,7 @@ from importlib import import_module as _import_module
 import sys as _sys
 
 from .. import _core
-from . import other, SE_2015
+from . import other, SE_2015, Pitzer_Sterner_1994
 from .._core.minerals import (
     HP11,
     SLB11,
@@ -64,6 +64,7 @@ from .._core.minerals import (
 __all__ = [
     "other",
     "SE_2015",
+    "Pitzer_Sterner_1994",
     "HP11",
     "SLB11",
     "JH15",
