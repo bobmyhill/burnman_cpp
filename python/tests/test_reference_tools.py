@@ -20,6 +20,54 @@ import shutil
 import pytest
 
 
+@pytest.fixture
+def covariance_audit(monkeypatch, tmp_path):
+    h5py = pytest.importorskip("h5py")
+    import numpy as np
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[2] / "tools"))
+    audit = importlib.import_module("export_covariance_data")
+    names = np.array(["a", "b"], dtype="S")
+    matrix = np.array([[1.0, 0.5], [0.5, 2.0]], dtype="<f8")
+    path = tmp_path / "covariance.h5"
+    with h5py.File(path, "w") as data:
+        data.attrs.update(audit.attributes("example"))
+        data.create_dataset("endmember_names", data=names)
+        data.create_dataset(
+            "covariance_matrix",
+            data=matrix,
+            compression="gzip",
+            compression_opts=9,
+            shuffle=True,
+        )
+    return audit, path, names, matrix
+
+
+def test_covariance_audit_accepts_original_export_commit(covariance_audit, monkeypatch):
+    audit, path, names, matrix = covariance_audit
+    monkeypatch.setitem(audit.REFERENCE, "commit", "a" * 40)
+    assert audit.check_file(path, "example", names, matrix)
+
+
+@pytest.mark.parametrize("change", ["value", "name", "units", "commit"])
+def test_covariance_audit_rejects_changed_data_and_invalid_metadata(
+    covariance_audit, change
+):
+    import h5py
+
+    audit, path, names, matrix = covariance_audit
+    with h5py.File(path, "r+") as data:
+        if change == "value":
+            data["covariance_matrix"][0, 0] += 1.0
+        elif change == "name":
+            data["endmember_names"][0] = "c"
+        elif change == "units":
+            data.attrs["units"] = "wrong units"
+        else:
+            data.attrs["burnman_commit"] = "not-a-commit"
+    assert not audit.check_file(path, "example", names, matrix)
+
+
 @pytest.fixture(scope="module")
 def ps1994_audit():
     if shutil.which("clang-format") is None:

@@ -56,6 +56,8 @@ COVARIANCE_DATASETS = {"HP11", "HGP18", "HPx_ds636"}
 
 
 def literal(value):
+    if isinstance(value, (bool, np.bool_)):
+        return "true" if value else "false"
     if isinstance(value, str):
         return json.dumps(value, ensure_ascii=True)
     if isinstance(value, dict):

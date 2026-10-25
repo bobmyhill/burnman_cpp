@@ -1,5 +1,5 @@
 {
-  "source": "Corrected Python BurnMan Brosh CALPHAD and SE_2015, including FCC AFM conversion; full Appendix A cold curve, molar SI.",
+  "source": "Python BurnMan Brosh CALPHAD and SE_2015 at bcfe0fa8ea0180cd2178cffe76ea985bc9098dc4, including FCC AFM conversion; full Appendix A cold curve, molar SI.",
   "source_sha256": {
     "burnman/eos/brosh_calphad.py": "bb7fcdd932c9a0a9b644ad9888acc8e6979845ccdd92dd632e3628b908858159",
     "burnman/minerals/SE_2015.py": "7091d68edc18f2c86019b68dd9396b8f3e9ea194a69d99fb04106efc25eb9c43"

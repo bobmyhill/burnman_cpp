@@ -1,5 +1,5 @@
 {
-  "source": "Corrected local Python BurnMan AA, retaining the Cv-based Helmholtz strategy and Figure 5 lambda. This intentionally differs from the older pinned upstream AA.",
+  "source": "Python BurnMan AA at bcfe0fa8ea0180cd2178cffe76ea985bc9098dc4, using the Cv-based Helmholtz strategy and Figure 5 lambda.",
   "sha256": "a5ebee60642c4947b7b9ab443f9f10fda6b29e09013e985b58b864fed5314431",
   "units": "molar SI",
   "params": {
