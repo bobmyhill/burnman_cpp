@@ -83,6 +83,7 @@ __version__ = _core.__version__
 _EOS_NAMES = {
     "auto": EOSType.Auto,
     "vinet": EOSType.Vinet,
+    "murnaghan": EOSType.Murnaghan,
     "mt": EOSType.MT,
     "bm2": EOSType.BM2,
     "bm3": EOSType.BM3,

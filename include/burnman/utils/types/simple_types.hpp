@@ -57,7 +57,8 @@ enum class EOSType {
   DKS_S,
   DKS_L,
   BM4,
-  CORK
+  CORK,
+  Murnaghan
 };
 
 /**
