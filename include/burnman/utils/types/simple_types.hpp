@@ -63,7 +63,8 @@ enum class EOSType {
   BroshCalphad,
   Morse,
   RKprime,
-  MACAW
+  MACAW,
+  HP98
 };
 
 /**
