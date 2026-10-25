@@ -84,6 +84,7 @@ _EOS_NAMES = {
     "auto": EOSType.Auto,
     "vinet": EOSType.Vinet,
     "murnaghan": EOSType.Murnaghan,
+    "morse": EOSType.Morse,
     "aa": EOSType.AA,
     "brosh_calphad": EOSType.BroshCalphad,
     "broshcalphad": EOSType.BroshCalphad,

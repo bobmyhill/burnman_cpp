@@ -60,7 +60,8 @@ enum class EOSType {
   CORK,
   Murnaghan,
   AA,
-  BroshCalphad
+  BroshCalphad,
+  Morse
 };
 
 /**
