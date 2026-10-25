@@ -23,6 +23,7 @@ from . import constants
 from . import optimize
 from .classes import seismic, geotherm
 from .classes.equilibratedcomposite import EquilibratedComposite
+from .classes.relaxedcomposite import RelaxedComposite
 from .classes.layer import Layer, BoundaryLayerPerturbation
 from .classes.planet import Planet
 from ._core.partitioning import calculate_nakajima_fp_pv_partition_coefficient
@@ -299,6 +300,7 @@ __all__ = [
     "Planet",
     "BoundaryLayerPerturbation",
     "EquilibratedComposite",
+    "RelaxedComposite",
     "seismic",
     "geotherm",
     "debye_temperature_models",

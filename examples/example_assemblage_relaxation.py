@@ -1,0 +1,237 @@
+# This file is part of BurnMan - a thermoelastic and thermodynamic toolkit
+# for the Earth and Planetary Sciences
+# Copyright (C) 2012 - 2025 by the BurnMan team, released under the GNU
+# GPL v2 or later.
+
+"""
+example_assemblage_relaxation
+-----------------------------
+
+Adapted from Python BurnMan's example_assemblage_relaxation.py. All materials,
+equilibrium solves and relaxed derivatives use the native C++ implementation;
+the Python BurnMan package is not required.
+
+Run with ``python examples/example_assemblage_relaxation.py`` after installing
+``pip install -e '.[examples]'``.
+
+In this example, we demonstrate how to use the `RelaxedComposite` class
+to compute the properties of a mineral assemblage allowing for
+different levels of compositional and phase relaxation.
+
+The specific example used here is a binary assemblage of olivine and
+wadsleyite at 1600 K, over the pressure range where both phases are
+stable. We compute and compare the isentropic bulk modulus, thermal
+expansivity and specific heat capacity of the assemblage in four cases:
+1) No relaxation (standard Assemblage)
+2) Partial relaxation (Fe-Mg exchange is allowed between olivine and wadsleyite)
+3) Partial relaxation (phase proportions are allowed to change)
+4) Full relaxation (Fe-Mg exchange + phase proportions adjust to equilibrium)
+
+One scientific motivation for this example is to illustrate how
+different relaxation mechanisms can impact the thermodynamic
+properties of mineral assemblages, which is important for:
+1) Interpreting geophysical observations of Earth's interior.
+   For example, how do seismic velocities change
+   across the olivine-wadsleyite transition zone if chemical
+   reactions can take place over seismic timescales?
+2) Understanding mantle convection and dynamics.
+   For example, how does the rate of growth of wadsleyite from olivine
+   affect patterns of mantle convection?
+
+*Uses:*
+
+* :doc:`mineral_database`
+* :class:`burnman_cpp.Assemblage`
+* :func:`burnman_cpp.equilibrate`
+"""
+
+import numpy as np
+import burnman_cpp as bm
+import matplotlib.pyplot as plt
+
+from burnman_cpp import equilibrate
+from burnman_cpp.minerals import SLB11 as SLB_2011
+from burnman_cpp import Assemblage, RelaxedComposite
+from burnman_cpp.tools.chemistry import reaction_matrix_as_strings
+
+
+def solve(composition, assemblage, constraints):
+    # Physical-unit equivalents of the Python example's default tolerances.
+    tolerances = np.r_[1.0, 1.0e-6, np.full(assemblage.n_endmembers, 1.0e-9)]
+    result = equilibrate(composition, assemblage, constraints, tol=tolerances)
+    solutions = result.sol_array.ravel()
+    for solution in solutions:
+        if not solution.success:
+            raise RuntimeError(solution.message)
+    return solutions, result.prm
+
+
+if __name__ == "__main__":
+    # Initialize the minerals we will use in this example.
+    ol = SLB_2011.mg_fe_olivine()
+    wad = SLB_2011.mg_fe_wadsleyite()
+
+    # Create the assemblage with arbitrary proportions
+    assemblage = Assemblage([ol, wad], [1.0, 0.0])
+    ol.set_composition([0.90, 0.10])
+    wad.set_composition([0.90, 0.10])
+
+    # Find the wad-in and ol-in pressures at 1600 K
+    T = 1600.0
+    composition = assemblage.formula.copy()
+    prm = bm.get_equilibration_parameters(assemblage, composition)
+    equality_constraints = [
+        bm.TemperatureConstraint(T),
+        bm.PhaseFractionConstraint(1, 0.0, prm),
+    ]
+    solve(composition, assemblage, equality_constraints)
+    P_wad_in = assemblage.pressure
+
+    equality_constraints = [
+        bm.TemperatureConstraint(T),
+        bm.PhaseFractionConstraint(0, 0.0, prm),
+    ]
+    solve(composition, assemblage, equality_constraints)
+    P_ol_in = assemblage.pressure
+
+    # Now get the unrelaxed properties over the two phase region
+    # at their equilibrated states
+    pressures = np.linspace(P_wad_in + 1.0, P_ol_in - 1.0, 101)
+    equality_constraints = [
+        [bm.PressureConstraint(p) for p in pressures],
+        bm.TemperatureConstraint(T),
+    ]
+
+    sols, prm = solve(composition, assemblage, equality_constraints)
+    # Native equilibrium results store parameter vectors, so restore each state
+    # to read its frozen properties (Python BurnMan stores assemblage snapshots).
+    unrelaxed = []
+    for sol in sols:
+        bm.set_composition_and_state_from_parameters(assemblage, sol.x)
+        unrelaxed.append(
+            [
+                assemblage.isentropic_bulk_modulus_reuss,
+                assemblage.thermal_expansivity,
+                assemblage.molar_heat_capacity_p,
+                assemblage.molar_mass,
+            ]
+        )
+    KS_u, alpha_u, Cp_u, M_u = np.array(unrelaxed).T
+
+    # Create relaxed composites allowing for different levels of relaxation
+    reactions = np.array([[1.0, -1.0, -1.0, 1.0], [1.0, 1.0, -1.0, -1.0]])
+    assemblage_fully_relaxed = RelaxedComposite(assemblage, assemblage.reaction_basis)
+    assemblage_FeMg_exchange = RelaxedComposite(assemblage, reactions[[0], :])
+    assemblage_phase_change = RelaxedComposite(assemblage, reactions[[1], :])
+
+    # Get the relaxed properties over the two phase region, again at their
+    # equilibrated states
+    temperatures = T * np.ones_like(pressures)
+    KS_fm, alpha_fm, Cp_fm, M_fm = assemblage_FeMg_exchange.evaluate(
+        ["K_S", "alpha", "C_p", "molar_mass"], pressures, temperatures
+    )
+    KS_pc, alpha_pc, Cp_pc, M_pc = assemblage_phase_change.evaluate(
+        ["K_S", "alpha", "C_p", "molar_mass"], pressures, temperatures
+    )
+    KS_r, alpha_r, Cp_r, M_r = assemblage_fully_relaxed.evaluate(
+        ["K_S", "alpha", "C_p", "molar_mass"], pressures, temperatures
+    )
+
+    endmember_names = [
+        name for phase in assemblage.phases for name in phase.endmember_names
+    ]
+    reaction_strings = reaction_matrix_as_strings(reactions, endmember_names)
+
+    # Print some results to the screen
+    print(
+        f"The following results are for an olivine-wadsleyite assemblage at {int(T)} K."
+    )
+    print("Order of results:")
+    print("  - Unrelaxed")
+    print(
+        "  - Partial relaxation (Fe-Mg exchange only), allowing reaction\n"
+        f"    {reaction_strings[0]}"
+    )
+    print(
+        "  - Partial relaxation (phase change only), allowing reaction\n"
+        f"    {reaction_strings[1]}"
+    )
+    print("  - Full relaxation")
+    print()
+
+    print(f"Start of ol-wad transition zone at {P_wad_in/1.0e9:.2f} GPa")
+    print(
+        f"Isentropic bulk modulus (GPa): {KS_u[0]/1.0e9:.2f}, {KS_fm[0]/1.0e9:.2f}, {KS_pc[0]/1.0e9:.2f}, {KS_r[0]/1.0e9:.2f}"
+    )
+    print(
+        f"Thermal expansivity (/K): {alpha_u[0]*1.0e6:.2f}e-6, {alpha_fm[0]*1.0e6:.2f}e-6, {alpha_pc[0]*1.0e6:.2f}e-6, {alpha_r[0]*1.0e6:.2f}e-6"
+    )
+    print(
+        f"Specific heat capacity (J/K/kg): {Cp_u[0]/M_u[0]:.1f}, {Cp_fm[0]/M_fm[0]:.1f}, {Cp_pc[0]/M_pc[0]:.1f}, {Cp_r[0]/M_r[0]:.1f}"
+    )
+    print()
+
+    print(
+        f"Middle of ol-wad transition zone at {(P_ol_in + P_wad_in)/2.0/1.0e9:.2f} GPa"
+    )
+    mid_index = len(pressures) // 2
+    print(
+        f"Isentropic bulk modulus (GPa): {KS_u[mid_index]/1.0e9:.2f}, {KS_fm[mid_index]/1.0e9:.2f}, {KS_pc[mid_index]/1.0e9:.2f}, {KS_r[mid_index]/1.0e9:.2f}"
+    )
+    print(
+        f"Thermal expansivity (/K): {alpha_u[mid_index]*1.0e6:.2f}e-6, {alpha_fm[mid_index]*1.0e6:.2f}e-6, {alpha_pc[mid_index]*1.0e6:.2f}e-6, {alpha_r[mid_index]*1.0e6:.2f}e-6"
+    )
+    print(
+        f"Specific heat capacity (J/K/kg): {Cp_u[mid_index]/M_u[mid_index]:.1f}, {Cp_fm[mid_index]/M_fm[mid_index]:.1f}, {Cp_pc[mid_index]/M_pc[mid_index]:.1f}, {Cp_r[mid_index]/M_r[mid_index]:.1f}"
+    )
+    print()
+
+    print(f"End of ol-wad transition zone at {P_ol_in/1.0e9:.2f} GPa")
+    print(
+        f"Isentropic bulk modulus (GPa): {KS_u[-1]/1.0e9:.2f}, {KS_fm[-1]/1.0e9:.2f}, {KS_pc[-1]/1.0e9:.2f}, {KS_r[-1]/1.0e9:.2f}"
+    )
+    print(
+        f"Thermal expansivity (/K): {alpha_u[-1]*1.0e6:.2f}e-6, {alpha_fm[-1]*1.0e6:.2f}e-6, {alpha_pc[-1]*1.0e6:.2f}e-6, {alpha_r[-1]*1.0e6:.2f}e-6"
+    )
+    print(
+        f"Specific heat capacity (J/K/kg): {Cp_u[-1]/M_u[-1]:.1f}, {Cp_fm[-1]/M_fm[-1]:.1f}, {Cp_pc[-1]/M_pc[-1]:.1f}, {Cp_r[-1]/M_r[-1]:.1f}"
+    )
+
+    # Plot the results
+    fig = plt.figure(figsize=(15, 5))
+    ax = [fig.add_subplot(1, 3, i) for i in range(1, 4)]
+    ax[0].plot(pressures / 1.0e9, KS_u / 1.0e9, label="Unrelaxed")
+    ax[0].plot(pressures / 1.0e9, KS_fm / 1.0e9, linestyle="--")
+    ax[0].plot(pressures / 1.0e9, KS_pc / 1.0e9, linestyle=":")
+    ax[0].plot(pressures / 1.0e9, KS_r / 1.0e9)
+    ax[0].set_xlabel("Pressure (GPa)")
+    ax[0].set_ylabel("K$_S$ (GPa)")
+
+    ax[1].plot(pressures / 1.0e9, alpha_u * 1.0e6, label="Unrelaxed")
+    ax[1].plot(pressures / 1.0e9, alpha_fm * 1.0e6, linestyle="--")
+    ax[1].plot(pressures / 1.0e9, alpha_pc * 1.0e6, linestyle=":")
+    ax[1].plot(pressures / 1.0e9, alpha_r * 1.0e6)
+
+    ax[1].set_xlabel("Pressure (GPa)")
+    ax[1].set_ylabel("alpha (1e-6/K)")
+
+    ax[2].plot(pressures / 1.0e9, Cp_u / M_u, label="Unrelaxed")
+    ax[2].plot(
+        pressures / 1.0e9, Cp_fm / M_fm, linestyle="--", label="Fe-Mg exchange only"
+    )
+    ax[2].plot(
+        pressures / 1.0e9, Cp_pc / M_pc, linestyle=":", label="Phase change only"
+    )
+    ax[2].plot(pressures / 1.0e9, Cp_r / M_r, label="Fe-Mg exchange + phase change")
+    ax[2].set_xlabel("Pressure (GPa)")
+    ax[2].set_ylabel("C$_p$ (J/K/kg)")
+    ax[2].legend()
+    plt.show()
+
+    # The results show that allowing for full relaxation
+    # of the assemblage leads to significant reductions in the
+    # isentropic bulk modulus and increases in thermal expansivity
+    # and specific heat capacity across the olivine-wadsleyite
+    # transition. In contrast, allowing only for Fe-Mg exchange
+    # between the two phases or allowing only phase change
+    # has a much smaller effect on these properties.

@@ -432,6 +432,9 @@ public:
   double get_isentropic_thermal_gradient() const;
 
 protected:
+  /// Forget P,T and cached properties without changing composition.
+  void clear_state();
+
   // protected compute functions to override in derived classes
   /**
    * @brief Computes the molar internal energy of the mineral.

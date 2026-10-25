@@ -26,6 +26,12 @@ std::shared_ptr<Material> Material::copy() const {
   throw_not_implemented_error("copy");
 }
 
+void Material::clear_state() {
+  pressure.reset();
+  temperature.reset();
+  reset_cache();
+}
+
 double Material::get_property(const std::string &property_name) const {
   using Getter = double (Material::*)() const;
   static const std::map<std::string, Getter> getters = {

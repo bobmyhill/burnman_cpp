@@ -14,6 +14,7 @@
 #include "bindings.hpp"
 #include "burnman/core/assemblage.hpp"
 #include "burnman/core/mineral.hpp"
+#include "burnman/core/relaxed_composite.hpp"
 #include "burnman/minerals/SE_2015.hpp"
 #include "burnman/minerals/other.hpp"
 
@@ -297,5 +298,53 @@ void bind_materials(py::module_ &m) {
   bind_property<Assemblage>(assemblage, "endmember_partial_entropies",
                             "get_endmember_partial_entropies",
                             &Assemblage::get_endmember_partial_entropies, true);
+
+  auto relaxed =
+      py::class_<RelaxedComposite, Assemblage,
+                 std::shared_ptr<RelaxedComposite>>(m, "RelaxedComposite");
+  relaxed
+      .def(py::init<std::shared_ptr<Assemblage>, const Eigen::MatrixXd &>(),
+           py::arg("composite"), py::arg("relaxation_vectors"))
+      .def(py::init([](const RelaxedComposite &other) {
+             return std::dynamic_pointer_cast<RelaxedComposite>(other.copy());
+           }),
+           py::arg("other"))
+      .def(
+          "set_state",
+          [](RelaxedComposite &self, double p, double t,
+             const std::optional<types::FormulaMap> &bulk) {
+            check_pt(p, t);
+            if (bulk)
+              self.set_state(p, t, *bulk);
+            else
+              self.set_state(p, t);
+          },
+          py::arg("pressure"), py::arg("temperature"),
+          py::arg("bulk_composition") = py::none(),
+          py::call_guard<py::gil_scoped_release>())
+      .def("copy_state_from_unrelaxed",
+           &RelaxedComposite::copy_state_from_unrelaxed)
+      .def("_clear_state", &RelaxedComposite::clear_state)
+      .def_property_readonly("unrelaxed", &RelaxedComposite::get_unrelaxed)
+      .def_property_readonly("n_relaxation_vectors",
+                             &RelaxedComposite::get_n_relaxation_vectors)
+      .def_property_readonly("dndq", &RelaxedComposite::get_dndq,
+                             py::return_value_policy::copy)
+      .def_property_readonly("dqdz_relaxed",
+                             &RelaxedComposite::get_dqdz_relaxed,
+                             py::return_value_policy::copy)
+      .def_property_readonly("_d2Gdqdq_fixed_PT",
+                             &RelaxedComposite::get_structural_hessian,
+                             py::return_value_policy::copy)
+      .def_property_readonly("_d2Gdqdq_fixed_PT_pinv",
+                             &RelaxedComposite::get_susceptibility,
+                             py::return_value_policy::copy)
+      .def_property_readonly("_d2Gdqdz", &RelaxedComposite::get_coupling,
+                             py::return_value_policy::copy)
+      .def_property_readonly("_d2Gdzdz_Q",
+                             &RelaxedComposite::get_frozen_hessian,
+                             py::return_value_policy::copy)
+      .def_property_readonly("_d2Gdzdz", &RelaxedComposite::get_relaxed_hessian,
+                             py::return_value_policy::copy);
 }
 } // namespace burnman::python
