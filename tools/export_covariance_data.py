@@ -12,15 +12,19 @@
 #
 # ------------------------------------------------------
 
-"""Export endmember energy covariances as HDF5 files with gzip compression."""
+"""Export endmember energy covariances as HDF5 files with gzip compression.
+
+Stored commits record export provenance. Audits compare values with the current
+reference pin; exports preserve matching files and their original provenance.
+"""
 
 import argparse
 from importlib import import_module
 from pathlib import Path
+import re
 
 import h5py
 import numpy as np
-import burnman
 
 from burnman_reference import REFERENCE, ROOT, verify_reference
 
@@ -51,7 +55,7 @@ def attributes(dataset):
 
 
 def check_file(path, dataset, names, matrix):
-    """Check data and compression settings without relying on HDF5 version bytes."""
+    """Check values against the current pin, preserving the original export commit."""
     try:
         with h5py.File(path, "r") as data:
             values = data["covariance_matrix"]
@@ -62,9 +66,14 @@ def check_file(path, dataset, names, matrix):
                 and values.compression == "gzip"
                 and values.compression_opts == 9
                 and values.shuffle
+                and re.fullmatch(
+                    r"[0-9a-f]{40}", str(data.attrs.get("burnman_commit", ""))
+                )
+                is not None
                 and all(
                     data.attrs.get(key) == value
                     for key, value in attributes(dataset).items()
+                    if key != "burnman_commit"
                 )
             )
     except (OSError, KeyError, ValueError):
@@ -72,6 +81,8 @@ def check_file(path, dataset, names, matrix):
 
 
 def main():
+    import burnman
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-root", type=Path, default=ROOT)
     parser.add_argument("--check", action="store_true")
@@ -86,6 +97,9 @@ def main():
             if not check_file(path, dataset, names, matrix):
                 mismatches.append(str(filename))
         else:
+            if check_file(path, dataset, names, matrix):
+                print(f"{filename}: unchanged")
+                continue
             path.parent.mkdir(parents=True, exist_ok=True)
             with h5py.File(path, "w", libver="earliest") as data:
                 data.attrs.update(attributes(dataset))

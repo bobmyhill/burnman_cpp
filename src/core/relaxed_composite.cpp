@@ -59,11 +59,12 @@ void RelaxedComposite::set_state(double p, double t,
     throw std::invalid_argument(
         "Pressure and temperature must be finite, T>=0.");
   const auto bulk = composition; // The input may refer to the formula cache.
-  const auto &elements = unrelaxed_->get_elements();
+  const auto &element_names = unrelaxed_->get_elements();
   double total = 0.;
   for (const auto &[element, amount] : bulk) {
     if (!std::isfinite(amount) || amount < 0. ||
-        std::find(elements.begin(), elements.end(), element) == elements.end())
+        std::find(element_names.begin(), element_names.end(), element) ==
+            element_names.end())
       throw std::invalid_argument(
           "Invalid bulk composition for the assemblage.");
     total += amount;
@@ -73,7 +74,7 @@ void RelaxedComposite::set_state(double p, double t,
         "Bulk composition must have a positive amount.");
   Eigen::VectorXd amounts(unrelaxed_->get_n_elements());
   for (Eigen::Index i = 0; i < amounts.size(); ++i) {
-    const auto entry = bulk.find(elements[static_cast<std::size_t>(i)]);
+    const auto entry = bulk.find(element_names[static_cast<std::size_t>(i)]);
     if (entry == bulk.end())
       throw std::invalid_argument(
           "Bulk composition must specify each assemblage element.");
