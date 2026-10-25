@@ -96,7 +96,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: geodynamics/burnman
-          ref: e2cfac31052273b3fa9d5ce905978e97723005e9
+          ref: bcfe0fa8ea0180cd2178cffe76ea985bc9098dc4
           path: build/python-burnman-reference
           persist-credentials: false
 

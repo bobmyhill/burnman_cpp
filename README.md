@@ -252,8 +252,8 @@ comparisons used by GitHub CI:
 
 ```sh
 git clone https://github.com/geodynamics/burnman.git build/python-burnman-reference
-git -C build/python-burnman-reference checkout e2cfac31052273b3fa9d5ce905978e97723005e9
-python -m pip install -e 'build/python-burnman-reference[dev]' 'h5py>=3.8'
+git -C build/python-burnman-reference checkout bcfe0fa8ea0180cd2178cffe76ea985bc9098dc4
+python -m pip install -e 'build/python-burnman-reference[dev]'
 export PYTHONPATH="$PWD/build/python-burnman-reference"
 export PYTHONDONTWRITEBYTECODE=1
 MPLBACKEND=Agg python -m pytest -q -ra python/tests
