@@ -26,32 +26,113 @@ Python authors (as of 2025, from the [BurnMan README](https://github.com/geodyna
 
 ### Published Python wheels
 
-Install the published package with:
+Using Python 3.10 or newer, install the published package into your chosen
+Python environment:
 
 ```sh
 python -m pip install --upgrade pip
 python -m pip install burnman_cpp
 ```
 
-If no matching wheel is available, pip builds from source and needs the dependencies below.
+A virtual environment is optional. To use one, run these commands before
+installing:
+
+```sh
+python -m venv .venv
+source .venv/bin/activate
+```
+
+Pip installs NumPy and SciPy automatically. Published wheels bundle the native
+libraries, so a compiler and native development packages are only needed when
+building from source. If no matching wheel is available, pip builds from source
+and needs the dependencies below.
 
 ### Building from source
 
-Source builds require:
+#### Native dependencies
 
-- A C++17 compiler, such as GCC or Clang.
-- CMake 3.18 or newer.
-- Eigen 3.4 or newer, GSL, NLopt with its C++ headers, cddlib with its GMP
-  library (`cddgmp`), and GMP.
-- Python 3.10 or newer and its development headers for the Python package.
-- Catch2 3.4 or newer for C++ tests and benchmarks.
+Both the C++ library and Python source builds require:
 
-On Ubuntu:
+- **C and C++17 compiler toolchain**, such as GCC or Clang: compiles the native
+  library and, for Python builds, the extension module. CMake also checks for
+  a C compiler when locating HDF5.
+- **CMake 3.18 or newer**: configures the build, locates native dependencies and
+  embeds the covariance datasets. The supplied Makefile also uses CMake for
+  the data embedding step.
+- **Eigen 3.4 or newer**: supplies matrix and vector operations, linear solvers
+  and decompositions for compositions, reactions, solution models and fitting.
+- **GSL (GNU Scientific Library)**: provides root finding, numerical
+  integration, special functions and splines for equations of state and radial
+  planet profiles.
+- **NLopt, including its C++ header `nlopt.hpp`**: performs constrained
+  optimisation for relaxed solutions, fitting, thermobarometry and phase
+  stability calculations.
+- **cddlib, including its GMP-backed library `cddgmp`**: converts composition
+  constraints into polytope vertices for solution and assemblage calculations.
+- **GMP (GNU Multiple Precision Arithmetic Library)**: provides the exact
+  rational arithmetic used by cddlib and the polytope code to handle chemical
+  composition constraints.
+- **HDF5 1.10 or newer, with its C development headers and gzip/deflate support**:
+  reads the embedded endmember energy covariance datasets for HP11, HGP18 and
+  HPx_ds636. These data are embedded during the build and read in memory.
+
+Additional tools depend on the build and checks you choose:
+
+- **Make**: runs the supplied Makefile. CMake builds also need a build tool,
+  such as Make or Ninja.
+- **pkg-config**: lets the Makefile discover HDF5 compiler and linker flags.
+  It is optional for CMake builds.
+- **Catch2 3.4 or newer**: supplies the C++ unit test runner and performance
+  benchmark framework. It is only required when building those targets.
+- **Git**: downloads the source repository and the optional pinned Python
+  BurnMan reference checkout.
+
+#### Python dependencies
+
+For the Python package, also install:
+
+- **Python 3.10 or newer, including its development headers**: runs the package
+  and lets the extension compile against Python.
+- **pip**: builds and installs the Python package and its Python dependencies.
+
+Pip installs these build and runtime dependencies automatically, as specified in
+[pyproject.toml](pyproject.toml):
+
+- **scikit-build-core 0.11 or newer** (build): connects pip's package build
+  process to CMake and packages the compiled extension.
+- **pybind11 3.0 or newer** (build): exposes the C++ classes and functions to
+  Python, including conversions between Eigen matrices and NumPy arrays.
+- **NumPy 1.23 or newer** (runtime): provides arrays for compositions, material
+  properties, covariance matrices and thermodynamic grids.
+- **SciPy 1.9 or newer** (runtime): provides interpolation, sparse matrices,
+  optimisation and smoothing for potential grids and ASPECT table exports.
+
+Optional Python dependencies are installed through extras:
+
+- **pytest 7 or newer** (`test`): runs the Python test suite.
+- **Matplotlib 3.6 or newer** (`examples`): plots examples, phase diagrams and
+  diagnostic figures; it is also needed by the plotting tests.
+- **Python BurnMan 2.1 or newer** (`reference`): enables adapters and comparisons
+  with the original implementation. The reference tests below use a specific
+  Git commit for reproducibility.
+- **h5py 3.8 or newer** (`reference`): exports and checks the HDF5 covariance
+  source files. Ordinary builds and covariance access use native HDF5 directly.
+
+#### Install system dependencies
+
+On Ubuntu 24.04, install the native dependencies and Python development tools:
 
 ```sh
 sudo apt-get update
-sudo apt-get install -y build-essential cmake python3-dev \
-  libeigen3-dev libgsl-dev libnlopt-cxx-dev libcdd-dev libgmp-dev catch2
+sudo apt-get install -y build-essential cmake git pkg-config \
+  python3-dev python3-pip python3-venv \
+  libeigen3-dev libgsl-dev libnlopt-cxx-dev libcdd-dev libgmp-dev libhdf5-dev
+```
+
+For C++ tests and benchmarks, also install Catch2:
+
+```sh
+sudo apt-get install -y catch2
 ```
 
 On macOS, install the Xcode command-line tools if needed, then install the
@@ -59,10 +140,18 @@ dependencies with [Homebrew](https://brew.sh):
 
 ```sh
 xcode-select --install
-brew install python cmake eigen gsl nlopt cddlib gmp catch2
+brew install python cmake pkg-config eigen gsl nlopt cddlib gmp hdf5
 ```
 
-Clone the repository:
+For C++ tests and benchmarks, also install Catch2:
+
+```sh
+brew install catch2
+```
+
+#### Build and install the Python package
+
+Clone the repository, then use your chosen Python environment:
 
 ```sh
 git clone https://github.com/bobmyhill/burnman_cpp.git
@@ -151,7 +240,9 @@ Make also accepts an optional `BUILD_MODE` argument. Available modes:
 
 Debug and test builds use separate outputs, such as `bin/run_tests_debug` and
 `bin/run_tests_test`. Use `CXX`, `EXTRA_INCLUDE` and `EXTRA_LIB` to override the
-compiler and dependency paths.
+compiler and dependency paths. If HDF5 is outside pkg-config's search path, set
+`PKG_CONFIG_PATH` to the directory containing `hdf5.pc`, or pass `HDF5_CFLAGS`
+and `HDF5_LIBS` explicitly to Make.
 
 ### Optional Python BurnMan reference comparisons
 
@@ -162,7 +253,7 @@ comparisons used by GitHub CI:
 ```sh
 git clone https://github.com/geodynamics/burnman.git build/python-burnman-reference
 git -C build/python-burnman-reference checkout e2cfac31052273b3fa9d5ce905978e97723005e9
-python -m pip install -e 'build/python-burnman-reference[dev]'
+python -m pip install -e 'build/python-burnman-reference[dev]' 'h5py>=3.8'
 export PYTHONPATH="$PWD/build/python-burnman-reference"
 export PYTHONDONTWRITEBYTECODE=1
 MPLBACKEND=Agg python -m pytest -q -ra python/tests
@@ -171,6 +262,9 @@ MPLBACKEND=Agg python -m pytest -q -ra python/tests
 ## Formatting
 
 Install the same formatter versions used by GitHub CI:
+
+- **clang-format**: formats C++ sources and headers.
+- **Black**: formats Python sources.
 
 ```sh
 python -m pip install -r contrib/utilities/requirements-format.txt
@@ -191,6 +285,13 @@ directory.
 
 Build, run and report performance benchmarks using the instructions in
 [benchmarks/README.md](benchmarks/README.md).
+
+The Python reporting tools use NumPy and Matplotlib, plus:
+
+- **pandas 1.5 or newer**: processes timing tables and CSV reports.
+
+Install the reporting dependencies with
+`python -m pip install -r benchmarks/requirements.txt`.
 
 ## License
 
