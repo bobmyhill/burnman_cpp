@@ -85,6 +85,8 @@ _EOS_NAMES = {
     "vinet": EOSType.Vinet,
     "murnaghan": EOSType.Murnaghan,
     "aa": EOSType.AA,
+    "brosh_calphad": EOSType.BroshCalphad,
+    "broshcalphad": EOSType.BroshCalphad,
     "mt": EOSType.MT,
     "bm2": EOSType.BM2,
     "bm3": EOSType.BM3,
@@ -131,6 +133,9 @@ def mineral_params(params=None, **kwargs):
     reference moduli, and its coefficient arrays map to ``aa_a``, ``aa_b``,
     ``aa_Theta``, ``aa_lmda`` and ``aa_F``. Set equation_of_state="aa" when
     using the original AA array names, since DKS uses ``a`` for a matrix.
+    Brosh CALPHAD maps ``a``/``c`` to ``brosh_a``/``brosh_c``, and splits
+    ``b`` and ``delta`` into ``b_0``/``b_1`` and ``delta_0``/``delta_1``.
+    ``gibbs_coefficients`` contains ``[T_max, coefficients]`` SGTE segments.
     """
     if isinstance(params, MineralParams):
         if kwargs:
@@ -156,6 +161,20 @@ def mineral_params(params=None, **kwargs):
         aliases.update(
             {name: "aa_" + name for name in ("a", "b", "Theta", "lmda", "F")}
         )
+    elif method is not None and eos_type(method) == EOSType.BroshCalphad:
+        aliases.update({"a": "brosh_a", "c": "brosh_c"})
+        for key, fields in (("b", ("b_0", "b_1")), ("delta", ("delta_0", "delta_1"))):
+            if key not in values:
+                continue
+            pair = values.pop(key)
+            if len(pair) != 2:
+                raise ValueError(f"Brosh {key!r} requires two coefficients.")
+            for field, value in zip(fields, pair):
+                if field in values:
+                    raise ValueError(
+                        f"Parameter {field!r} was supplied more than once through aliases."
+                    )
+                values[field] = value
     used = set()
     for key, value in values.items():
         name = aliases.get(key, key)
@@ -168,6 +187,17 @@ def mineral_params(params=None, **kwargs):
             raise ValueError(f"Unknown mineral parameter: {key!r}")
         if name == "equation_of_state" and value is not None:
             value = eos_type(value)
+        elif name == "gibbs_coefficients" and value is not None:
+            segments = []
+            for upper, coefficients in value:
+                coefficients = list(coefficients)
+                # Python BurnMan's liquid Fe includes an unused trailing zero.
+                if len(coefficients) < 13 or any(coefficients[13:]):
+                    raise ValueError(
+                        "SGTE segments require 13 coefficients; extra padding must be zero."
+                    )
+                segments.append((upper, coefficients[:13]))
+            value = segments
         elif name == "reference_eos" and isinstance(value, (str, EOSType)):
             value = make_eos(value)
         elif name == "Cp" and value is not None and not isinstance(value, CpParams):
