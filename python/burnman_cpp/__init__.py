@@ -21,6 +21,8 @@ from collections.abc import Mapping
 from . import _core
 from . import constants
 from . import optimize
+from .optimize import nonlinear_fitting
+from .optimize.nonlinear_fitting import nonlinear_least_squares_fit
 from .classes import seismic, geotherm
 from .classes.equilibratedcomposite import EquilibratedComposite
 from .classes.relaxedcomposite import RelaxedComposite
@@ -296,6 +298,8 @@ from . import eos
 __all__ = [
     "eos",
     "optimize",
+    "nonlinear_fitting",
+    "nonlinear_least_squares_fit",
     "calculate_nakajima_fp_pv_partition_coefficient",
     "Layer",
     "Planet",
