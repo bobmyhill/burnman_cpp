@@ -19,6 +19,7 @@
 #include "burnman/eos/components/excess_params.hpp"
 #include "burnman/utils/types/mineral_params.hpp"
 #include "burnman/utils/types/simple_types.hpp"
+#include <Eigen/Core>
 #include <memory>
 #include <optional>
 #include <string>
@@ -111,6 +112,13 @@ public:
   // Override public methods
   std::string get_name() const override;
   void set_state(double new_pressure, double new_temperature) override;
+  /** Set V,T using EOS pressure directly when no property modifiers apply.
+   * Otherwise solve the total molar volume, including modifier contributions,
+   * for pressure. pressure_guesses supplies the initial bracket in Pa.
+   */
+  void set_state_with_volume(
+      double volume, double temperature,
+      const Eigen::Vector2d &pressure_guesses = Eigen::Vector2d(0., 1.e10));
   void set_method(types::EOSType new_method) override;
   void set_method(std::shared_ptr<EquationOfState> new_method) override;
 

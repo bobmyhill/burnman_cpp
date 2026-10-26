@@ -18,9 +18,20 @@ from .._core.optimize.eos_fitting import (
     MineralFit,
     fit_PTV_data,
     fit_PTp_data,
+    MineralFitV,
+    fit_VTP_data,
+    fit_VTp_data,
 )
 from .nonlinear_fitting import NonLinearModel
 
 NonLinearModel.register(MineralFit)
 
-__all__ = ["default_mle_tolerances", "MineralFit", "fit_PTV_data", "fit_PTp_data"]
+__all__ = [
+    "default_mle_tolerances",
+    "MineralFit",
+    "fit_PTV_data",
+    "fit_PTp_data",
+    "MineralFitV",
+    "fit_VTP_data",
+    "fit_VTp_data",
+]

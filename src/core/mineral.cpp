@@ -14,8 +14,12 @@
 #include "burnman/core/mineral.hpp"
 #include "burnman/eos/components/property_modifiers.hpp"
 #include "burnman/eos/make_eos.hpp"
+#include "burnman/optim/roots/bracket.hpp"
+#include "burnman/optim/roots/brent.hpp"
 #include "burnman/utils/constants.hpp"
+#include "burnman/utils/exceptions.hpp"
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 #include <variant>
@@ -89,6 +93,84 @@ void Mineral::set_state(double new_pressure, double new_temperature) {
   Material::set_state(new_pressure, new_temperature);
   // Compute property modifiers
   compute_property_modifiers();
+}
+
+void Mineral::set_state_with_volume(double volume, double temperature,
+                                    const Eigen::Vector2d &pressure_guesses) {
+  if (!std::isfinite(volume) || volume <= 0. || !std::isfinite(temperature) ||
+      temperature < 0. || !eos_method)
+    throw std::invalid_argument(
+        "Require positive finite volume, finite T >= 0 and a mineral EOS.");
+  if (property_modifier_params.empty()) {
+    try {
+      const double pressure =
+          eos_method->compute_pressure(temperature, volume, params);
+      if (!std::isfinite(pressure))
+        throw std::runtime_error("EOS returned non-finite pressure.");
+      set_state(pressure, temperature);
+      cache_molar_volume_unmodified(volume);
+      return;
+    } catch (const exceptions::NotImplementedError &) {
+      // EOS implementations without P(V,T) use the same volume solve below.
+    }
+  }
+  if (!pressure_guesses.allFinite() ||
+      pressure_guesses[0] >= pressure_guesses[1])
+    throw std::invalid_argument(
+        "Require two finite, increasing pressure guesses.");
+  struct Residual {
+    Mineral *mineral;
+    double volume, temperature;
+  } residual{this, volume, temperature};
+  const auto delta_volume = +[](double pressure, void *context) -> double {
+    const auto &r = *static_cast<Residual *>(context);
+    try {
+      r.mineral->set_state(pressure, r.temperature);
+      return r.volume - r.mineral->get_molar_volume();
+    } catch (const std::exception &) {
+      // As in Python, out-of-domain low pressures act as infinite volumes.
+      return -std::numeric_limits<double>::infinity();
+    }
+  };
+  double low = pressure_guesses[0], high = pressure_guesses[1];
+  const auto finish = [&](double pressure) {
+    set_state(pressure, temperature);
+    // Cache the EOS volume, excluding the modifier's volume contribution.
+    cache_molar_volume_unmodified(volume - get_property_modifiers().dGdP);
+  };
+  if (delta_volume(low, &residual) == 0.) {
+    finish(low);
+    return;
+  }
+  if (delta_volume(high, &residual) == 0.) {
+    finish(high);
+    return;
+  }
+  if (!optim::roots::bracket_root(delta_volume, residual, low, high,
+                                  pressure_guesses[1] - pressure_guesses[0],
+                                  1.618))
+    throw std::runtime_error(
+        "Cannot find a pressure for the requested volume.");
+  // Replace any out-of-domain endpoint by a finite point on the same side of
+  // the root before handing the bracket to GSL.
+  for (int i = 0; i < 100 && (!std::isfinite(delta_volume(low, &residual)) ||
+                              !std::isfinite(delta_volume(high, &residual)));
+       ++i) {
+    const double middle = 0.5 * (low + high);
+    const double value = delta_volume(middle, &residual);
+    if (value == 0.) {
+      finish(middle);
+      return;
+    }
+    if (value < 0.)
+      low = middle;
+    else
+      high = middle;
+  }
+  const double pressure =
+      optim::roots::brent(delta_volume, residual, low, high, 1.e-8,
+                          4. * std::numeric_limits<double>::epsilon());
+  finish(pressure);
 }
 
 void Mineral::compute_property_modifiers() {
