@@ -73,8 +73,8 @@ void validate_differences(const NonLinearModel &model) {
   if (params.size() == 0 || !params.allFinite())
     throw std::invalid_argument("Require finite, nonempty model parameters.");
   check_vector(model.delta_params, params.size(), "delta_params");
-  if ((model.delta_params.array() <= 0.).any())
-    throw std::invalid_argument("delta_params must be positive.");
+  if ((model.delta_params.array() == 0.).any())
+    throw std::invalid_argument("delta_params must be nonzero.");
 }
 
 MleEstimate mle_estimate_impl(NonLinearModel &model, const Vector &x,

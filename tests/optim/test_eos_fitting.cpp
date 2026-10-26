@@ -12,6 +12,7 @@
 // ------------------------------------------------------
 
 #include "burnman/core/material.hpp"
+#include "burnman/minerals/datasets.hpp"
 #include "burnman/optim/eos_fitting.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <limits>
@@ -36,6 +37,31 @@ TEST_CASE("Default MLE tolerances use fixed energy and pressure scales",
   CHECK(optim::default_mle_tolerances(material, {}).size() == 0);
   CHECK(material.get_pressure() == 1.e5);
   CHECK(material.get_temperature() == 300.);
+}
+
+TEST_CASE("Native mineral fitting preserves exact PTV data and applies bounds",
+          "[eos_fitting]") {
+  auto mineral = minerals::HP_2011_ds62::fo();
+  Eigen::MatrixXd data(8, 3);
+  for (Eigen::Index i = 0; i < data.rows(); ++i) {
+    const double pressure = 1.e9 + static_cast<double>(i) * 1.e9 / 7.;
+    mineral->set_state(pressure, *mineral->params.T_0);
+    data.row(i) << pressure, *mineral->params.T_0, mineral->get_molar_volume();
+  }
+  optim::NonlinearFitOptions options;
+  options.param_tolerance = 1.e-5;
+  auto model = optim::fit_PTV_data(mineral, {"V_0", "K_0", "Kprime_0"}, data,
+                                   {}, std::nullopt, std::nullopt, options);
+  CHECK(model.m == mineral);
+  CHECK(model.popt == model.get_params());
+  CHECK(model.pcov.isZero());
+  CHECK(model.WSS == 0.);
+  Eigen::MatrixXd bounds(3, 2);
+  bounds << 0., 1., 0., 1.e15, 3., 4.;
+  model.bounds = bounds;
+  Eigen::Vector3d trial(*mineral->params.V_0, *mineral->params.K_0, 5.);
+  model.set_params(trial);
+  CHECK(*mineral->params.Kprime_0 == 4.);
 }
 
 TEST_CASE("Default MLE relative tolerances require positive property values",

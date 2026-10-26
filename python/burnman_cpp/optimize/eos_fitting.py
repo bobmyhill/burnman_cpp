@@ -13,6 +13,13 @@
 
 """Helpers for fitting material equations of state."""
 
-from .._core.optimize.eos_fitting import default_mle_tolerances
+from .._core.optimize.eos_fitting import (
+    default_mle_tolerances,
+    MineralFit,
+    fit_PTV_data,
+)
+from .nonlinear_fitting import NonLinearModel
 
-__all__ = ["default_mle_tolerances"]
+NonLinearModel.register(MineralFit)
+
+__all__ = ["default_mle_tolerances", "MineralFit", "fit_PTV_data"]
