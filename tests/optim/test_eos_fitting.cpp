@@ -81,3 +81,27 @@ TEST_CASE("Default MLE relative tolerances require positive property values",
                     std::invalid_argument);
   }
 }
+
+TEST_CASE("Native PT-property fits reproduce exact Gibbs entropy enthalpy and "
+          "expansivity data",
+          "[eos_fitting]") {
+  for (const std::string flag : {"gibbs", "S", "H", "alpha"}) {
+    CAPTURE(flag);
+    auto mineral = minerals::HP_2011_ds62::fo();
+    Eigen::MatrixXd data(8, 3);
+    for (Eigen::Index i = 0; i < data.rows(); ++i) {
+      const double pressure = 1.e9 + static_cast<double>(i) * 1.e9 / 7.;
+      mineral->set_state(pressure, *mineral->params.T_0);
+      data.row(i) << pressure, *mineral->params.T_0,
+          mineral->get_property(flag);
+    }
+    optim::NonlinearFitOptions options;
+    options.param_tolerance = 1.e-5;
+    auto model =
+        optim::fit_PTp_data(mineral, {"V_0", "K_0", "Kprime_0"}, flag, data, {},
+                            {}, std::nullopt, std::nullopt, options);
+    CHECK(model.WSS == 0.);
+    CHECK(model.pcov.isZero());
+    CHECK(std::any_cast<std::string>(model.flags[0]) == flag);
+  }
+}
