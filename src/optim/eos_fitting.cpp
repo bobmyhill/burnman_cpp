@@ -303,7 +303,59 @@ void MineralFit::validate() const {
   NonLinearModel::validate();
 }
 
-MineralFit fit_PTp_data(std::shared_ptr<Mineral> mineral,
+Vector MineralFitV::function(const Vector &x, const std::any &flag) {
+  check_point(x);
+  const std::string name =
+      flag.has_value() ? std::any_cast<std::string>(flag) : "P";
+  m->set_state_with_volume(x[0], x[1]);
+  return Eigen::Vector3d(x[0], x[1], m->get_property(name));
+}
+
+Vector MineralFitV::normal(const Vector &x, const std::any &flag) {
+  check_point(x);
+  const double V = x[0], T = x[1];
+  const std::string name =
+      flag.has_value() ? std::any_cast<std::string>(flag) : "P";
+  double dVdp, dpdT;
+  if (name == "P" || name == "pressure" || name == "S" ||
+      name == "molar_entropy" || name == "helmholtz" ||
+      name == "molar_helmholtz") {
+    m->set_state_with_volume(V, T);
+    if (name == "P" || name == "pressure") {
+      dVdp = -m->get_molar_volume() / m->get_isothermal_bulk_modulus_reuss();
+      dpdT =
+          m->get_thermal_expansivity() * m->get_isothermal_bulk_modulus_reuss();
+    } else if (name == "S" || name == "molar_entropy") {
+      dVdp = 1. / (m->get_thermal_expansivity() *
+                   m->get_isothermal_bulk_modulus_reuss());
+      dpdT = m->get_molar_heat_capacity_v() / T;
+    } else {
+      dVdp = -1. / m->get_pressure();
+      dpdT = -m->get_molar_entropy();
+    }
+  } else {
+    const double dV = V * 1.e-5;
+    constexpr double dT = 1.;
+    const double high_V = function(Eigen::Vector3d(V + dV, T, 0.), name)[2];
+    const double low_V = function(Eigen::Vector3d(V - dV, T, 0.), name)[2];
+    dVdp = 2. * dV / (high_V - low_V);
+    const double high_T = function(Eigen::Vector3d(V, T + dT, 0.), name)[2];
+    const double low_T = function(Eigen::Vector3d(V, T - dT, 0.), name)[2];
+    dpdT = (high_T - low_T) / (2. * dT);
+  }
+  return Eigen::Vector3d(-1., -dVdp * dpdT, dVdp).normalized();
+}
+
+void MineralFitV::validate() const {
+  MineralFit::validate();
+  if ((data.col(0).array() <= 0.).any())
+    throw std::invalid_argument(
+        "Volume-coordinate observations require positive volumes.");
+}
+
+namespace {
+template <typename Model, int covariance_coordinate>
+Model fit_property_data(std::shared_ptr<Mineral> mineral,
                         const std::vector<std::string> &fit_params,
                         const PropertyFlags &property_flags, const Matrix &data,
                         const std::vector<Matrix> &data_covariances,
@@ -313,7 +365,7 @@ MineralFit fit_PTp_data(std::shared_ptr<Mineral> mineral,
                         const NonlinearFitOptions &options) {
   if (!mineral || data.cols() != 3 || data.rows() == 0)
     throw std::invalid_argument(
-        "Require a mineral and nonempty P-T-property triples.");
+        "Require a mineral and nonempty coordinate triples.");
   const auto *single_flag = std::get_if<std::string>(&property_flags);
   const std::vector<std::string> flags =
       single_flag ? std::vector<std::string>(
@@ -328,13 +380,52 @@ MineralFit fit_PTp_data(std::shared_ptr<Mineral> mineral,
   std::vector<Matrix> covariances = data_covariances;
   if (covariances.empty()) {
     Matrix covariance = Matrix::Zero(3, 3);
-    covariance(0, 0) = 1.;
+    covariance(covariance_coordinate, covariance_coordinate) = 1.;
     covariances.assign(static_cast<std::size_t>(data.rows()), covariance);
   }
-  MineralFit model(std::move(mineral), data, covariances, flags, fit_params,
-                   tolerances, delta_params, bounds);
+  Model model(std::move(mineral), data, covariances, flags, fit_params,
+              tolerances, delta_params, bounds);
   nonlinear_least_squares_fit(model, options);
   return model;
+}
+
+} // namespace
+
+MineralFit fit_PTp_data(std::shared_ptr<Mineral> mineral,
+                        const std::vector<std::string> &fit_params,
+                        const PropertyFlags &flags, const Matrix &data,
+                        const std::vector<Matrix> &data_covariances,
+                        const Vector &mle_tolerances,
+                        const std::optional<Vector> &delta_params,
+                        const std::optional<Matrix> &bounds,
+                        const NonlinearFitOptions &options) {
+  return fit_property_data<MineralFit, 0>(
+      std::move(mineral), fit_params, flags, data, data_covariances,
+      mle_tolerances, delta_params, bounds, options);
+}
+
+MineralFitV fit_VTp_data(std::shared_ptr<Mineral> mineral,
+                         const std::vector<std::string> &fit_params,
+                         const PropertyFlags &flags, const Matrix &data,
+                         const std::vector<Matrix> &data_covariances,
+                         const Vector &mle_tolerances,
+                         const std::optional<Vector> &delta_params,
+                         const std::optional<Matrix> &bounds,
+                         const NonlinearFitOptions &options) {
+  return fit_property_data<MineralFitV, 2>(
+      std::move(mineral), fit_params, flags, data, data_covariances,
+      mle_tolerances, delta_params, bounds, options);
+}
+
+MineralFitV fit_VTP_data(std::shared_ptr<Mineral> mineral,
+                         const std::vector<std::string> &fit_params,
+                         const Matrix &data,
+                         const std::vector<Matrix> &data_covariances,
+                         const std::optional<Vector> &delta_params,
+                         const std::optional<Matrix> &bounds,
+                         const NonlinearFitOptions &options) {
+  return fit_VTp_data(std::move(mineral), fit_params, std::string("P"), data,
+                      data_covariances, {}, delta_params, bounds, options);
 }
 
 MineralFit fit_PTV_data(std::shared_ptr<Mineral> mineral,

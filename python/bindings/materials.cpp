@@ -106,6 +106,11 @@ void bind_materials(py::module_ &m) {
           "params", [](const Mineral &self) { return self.params; },
           "A copy of the validated parameters; construct a new mineral to "
           "change them.")
+      .def("set_state_with_volume", &Mineral::set_state_with_volume,
+           py::arg("volume"), py::arg("temperature"),
+           py::arg("pressure_guesses") = Eigen::Vector2d(0., 1.e10),
+           "Set V,T using EOS pressure or inversion of the modified molar "
+           "volume.")
       .def_property(
           "uncertainties",
           [](const Mineral &self) {

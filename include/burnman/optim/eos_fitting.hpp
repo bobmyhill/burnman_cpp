@@ -60,6 +60,17 @@ public:
   std::optional<Eigen::MatrixXd> bounds;
 };
 
+/// Volume-coordinate counterpart of MineralFit; shares parameter handling.
+class MineralFitV : public MineralFit {
+public:
+  using MineralFit::MineralFit;
+  Eigen::VectorXd function(const Eigen::VectorXd &x,
+                           const std::any &flag = {}) override;
+  Eigen::VectorXd normal(const Eigen::VectorXd &x,
+                         const std::any &flag = {}) override;
+  void validate() const override;
+};
+
 using PropertyFlags = std::variant<std::string, std::vector<std::string>>;
 
 /** Fit P-T-property data with a shared flag or one flag per observation.
@@ -85,6 +96,31 @@ fit_PTp_data(std::shared_ptr<Mineral> mineral,
  */
 MineralFit
 fit_PTV_data(std::shared_ptr<Mineral> mineral,
+             const std::vector<std::string> &fit_params,
+             const Eigen::MatrixXd &data,
+             const std::vector<Eigen::MatrixXd> &data_covariances = {},
+             const std::optional<Eigen::VectorXd> &delta_params = std::nullopt,
+             const std::optional<Eigen::MatrixXd> &bounds = std::nullopt,
+             const NonlinearFitOptions &options = {0., 1.e-5, 100, std::nullopt,
+                                                   std::nullopt, true});
+
+/** Fit V-T-property observations, using unit property variance by default.
+ * Flags, tolerances, priors and bounds follow fit_PTp_data().
+ */
+MineralFitV
+fit_VTp_data(std::shared_ptr<Mineral> mineral,
+             const std::vector<std::string> &fit_params,
+             const PropertyFlags &flags, const Eigen::MatrixXd &data,
+             const std::vector<Eigen::MatrixXd> &data_covariances = {},
+             const Eigen::VectorXd &mle_tolerances = {},
+             const std::optional<Eigen::VectorXd> &delta_params = std::nullopt,
+             const std::optional<Eigen::MatrixXd> &bounds = std::nullopt,
+             const NonlinearFitOptions &options = {0., 1.e-5, 100, std::nullopt,
+                                                   std::nullopt, true});
+
+/// fit_VTp_data() with pressure flags; data rows are V (m3/mol), T (K), P (Pa).
+MineralFitV
+fit_VTP_data(std::shared_ptr<Mineral> mineral,
              const std::vector<std::string> &fit_params,
              const Eigen::MatrixXd &data,
              const std::vector<Eigen::MatrixXd> &data_covariances = {},

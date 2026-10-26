@@ -32,7 +32,7 @@ class EquationOfState;
  * material properties.
  * EOS methods should be set with `Material::set_method`
  * P-T-V conditions can be set with `Material::set_state` or
- * `Material::set_state_with_volume`.
+ * `Mineral::set_state_with_volume`.
  *
  * Properties are cached by getter functions. Use `Material::reset_cache()` to
  * manually reset the property cache.
@@ -432,6 +432,10 @@ public:
   double get_isentropic_thermal_gradient() const;
 
 protected:
+  /// Seed the EOS volume immediately after resetting the state/property cache.
+  void cache_molar_volume_unmodified(double volume) {
+    molar_volume_unmodified = volume;
+  }
   /// Forget P,T and cached properties without changing composition.
   void clear_state();
 
