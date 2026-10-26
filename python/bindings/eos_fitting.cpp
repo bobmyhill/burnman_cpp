@@ -81,6 +81,57 @@ Array attributes return independent snapshots; assign a new array to change one.
           },
           py::arg("x"), py::arg("flag") = "V");
   eos_fitting.def(
+      "fit_PTp_data",
+      [](std::shared_ptr<Mineral> mineral,
+         const std::vector<std::string> &fit_params,
+         const optim::PropertyFlags &flags, const Eigen::MatrixXd &data,
+         const std::vector<Eigen::MatrixXd> &data_covariances,
+         const Eigen::VectorXd &mle_tolerances, double param_tolerance,
+         const std::optional<Eigen::VectorXd> &delta_params,
+         const std::optional<Eigen::MatrixXd> &bounds, int max_lm_iterations,
+         const std::optional<Eigen::VectorXd> &param_priors,
+         const std::optional<Eigen::MatrixXd> &param_prior_inv_cov_matrix,
+         bool first_run_differential_evolution, const py::object &,
+         bool verbose) {
+        if (first_run_differential_evolution)
+          throw exceptions::NotImplementedError(
+              "eos_fitting", "fit_PTp_data",
+              "Differential evolution is not yet implemented.");
+        optim::NonlinearFitOptions options;
+        options.param_tolerance = param_tolerance;
+        options.max_lm_iterations = max_lm_iterations;
+        options.param_priors = param_priors;
+        options.param_prior_inv_cov_matrix = param_prior_inv_cov_matrix;
+        options.verbose = verbose;
+        return optim::fit_PTp_data(std::move(mineral), fit_params, flags, data,
+                                   data_covariances, mle_tolerances,
+                                   delta_params, bounds, options);
+      },
+      py::arg("mineral"), py::arg("fit_params"), py::arg("flags"),
+      py::arg("data"),
+      py::arg("data_covariances") = std::vector<Eigen::MatrixXd>{},
+      py::arg("mle_tolerances") = Eigen::VectorXd{},
+      py::arg("param_tolerance") = 1.e-5, py::arg("delta_params") = py::none(),
+      py::arg("bounds") = py::none(), py::arg("max_lm_iterations") = 100,
+      py::arg("param_priors") = py::none(),
+      py::arg("param_prior_inv_cov_matrix") = py::none(),
+      py::arg("first_run_differential_evolution") = false,
+      py::arg("differential_evolution_seed") = py::none(),
+      py::arg("verbose") = true,
+      R"doc(Fit mineral parameters to rows of pressure, temperature and a scalar property.
+
+flags is a property name shared by all rows, or one name per row. A dataset
+may combine properties, for example V, H, S, gibbs and alpha. Coordinates use
+Pa, K and the property's SI units. Supply one 3x3 covariance per row; omission
+gives unit pressure variance with exact temperature and property values.
+
+Empty mle_tolerances select the property defaults at 1e5 Pa and 300 K; explicit
+tolerances skip this state change. Updates the supplied mineral and returns a
+MineralFit with parameters and fit statistics. Bounds and Gaussian priors follow
+nonlinear_least_squares_fit(). Verbose output reports LM iterations; automatic
+outlier diagnostics and differential evolution are not yet implemented.
+)doc");
+  eos_fitting.def(
       "fit_PTV_data",
       [](std::shared_ptr<Mineral> mineral,
          const std::vector<std::string> &fit_params,

@@ -303,19 +303,28 @@ void MineralFit::validate() const {
   NonLinearModel::validate();
 }
 
-MineralFit fit_PTV_data(std::shared_ptr<Mineral> mineral,
+MineralFit fit_PTp_data(std::shared_ptr<Mineral> mineral,
                         const std::vector<std::string> &fit_params,
-                        const Matrix &data,
+                        const PropertyFlags &property_flags, const Matrix &data,
                         const std::vector<Matrix> &data_covariances,
+                        const Vector &mle_tolerances,
                         const std::optional<Vector> &delta_params,
                         const std::optional<Matrix> &bounds,
                         const NonlinearFitOptions &options) {
   if (!mineral || data.cols() != 3 || data.rows() == 0)
     throw std::invalid_argument(
-        "Require a mineral and nonempty P-T-V triples.");
-  const std::vector<std::string> flags(static_cast<std::size_t>(data.rows()),
-                                       "V");
-  const Vector tolerances = default_mle_tolerances(*mineral, flags);
+        "Require a mineral and nonempty P-T-property triples.");
+  const auto *single_flag = std::get_if<std::string>(&property_flags);
+  const std::vector<std::string> flags =
+      single_flag ? std::vector<std::string>(
+                        static_cast<std::size_t>(data.rows()), *single_flag)
+                  : std::get<std::vector<std::string>>(property_flags);
+  if (flags.size() != static_cast<std::size_t>(data.rows()))
+    throw std::invalid_argument(
+        "The number of flags must equal the number of data.");
+  const Vector tolerances = mle_tolerances.size()
+                                ? mle_tolerances
+                                : default_mle_tolerances(*mineral, flags);
   std::vector<Matrix> covariances = data_covariances;
   if (covariances.empty()) {
     Matrix covariance = Matrix::Zero(3, 3);
@@ -326,5 +335,16 @@ MineralFit fit_PTV_data(std::shared_ptr<Mineral> mineral,
                    tolerances, delta_params, bounds);
   nonlinear_least_squares_fit(model, options);
   return model;
+}
+
+MineralFit fit_PTV_data(std::shared_ptr<Mineral> mineral,
+                        const std::vector<std::string> &fit_params,
+                        const Matrix &data,
+                        const std::vector<Matrix> &data_covariances,
+                        const std::optional<Vector> &delta_params,
+                        const std::optional<Matrix> &bounds,
+                        const NonlinearFitOptions &options) {
+  return fit_PTp_data(std::move(mineral), fit_params, std::string("V"), data,
+                      data_covariances, {}, delta_params, bounds, options);
 }
 } // namespace burnman::optim

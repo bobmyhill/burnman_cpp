@@ -17,6 +17,7 @@
 #include "burnman/optim/nonlinear_fitting.hpp"
 #include <Eigen/Core>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace burnman {
@@ -58,6 +59,25 @@ public:
   std::vector<std::string> fit_params;
   std::optional<Eigen::MatrixXd> bounds;
 };
+
+using PropertyFlags = std::variant<std::string, std::vector<std::string>>;
+
+/** Fit P-T-property data with a shared flag or one flag per observation.
+ * Empty mle_tolerances select the property defaults. Omitted covariances give
+ * unit pressure variance with exact temperature and property values.
+ * Updates the supplied mineral and returns the fitted model. Verbose output
+ * reports LM iterations; outlier diagnostics are not included.
+ */
+MineralFit
+fit_PTp_data(std::shared_ptr<Mineral> mineral,
+             const std::vector<std::string> &fit_params,
+             const PropertyFlags &flags, const Eigen::MatrixXd &data,
+             const std::vector<Eigen::MatrixXd> &data_covariances = {},
+             const Eigen::VectorXd &mle_tolerances = {},
+             const std::optional<Eigen::VectorXd> &delta_params = std::nullopt,
+             const std::optional<Eigen::MatrixXd> &bounds = std::nullopt,
+             const NonlinearFitOptions &options = {0., 1.e-5, 100, std::nullopt,
+                                                   std::nullopt, true});
 
 /** Fit P-T-V data; omitted covariances give unit variance in pressure only.
  * The returned model and the supplied mineral contain the fitted parameters.

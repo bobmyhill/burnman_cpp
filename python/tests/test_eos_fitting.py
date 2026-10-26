@@ -22,6 +22,7 @@ from burnman_cpp.optimize.eos_fitting import (
     default_mle_tolerances,
     MineralFit,
     fit_PTV_data,
+    fit_PTp_data,
 )
 
 
@@ -277,6 +278,157 @@ def test_optional_ptv_fit_matches_python(case):
         "weighted_residuals",
         "weights",
         "jacobian",
+    ):
+        assert_allclose(
+            getattr(actual, name),
+            getattr(expected, name),
+            rtol=2.0e-5,
+            atol=1.0e-18,
+            err_msg=name,
+        )
+
+
+@pytest.mark.parametrize(
+    "flag,property_name",
+    [
+        ("gibbs", "molar_gibbs"),
+        ("S", "molar_entropy"),
+        ("H", "molar_enthalpy"),
+        ("alpha", "thermal_expansivity"),
+    ],
+)
+def test_ptp_exact_properties_from_python_baseline(flag, property_name):
+    mineral = bm.minerals.HP_2011_ds62.fo()
+    data = ptv_data(mineral)
+    for row in data:
+        mineral.set_state(*row[:2])
+        row[2] = getattr(mineral, property_name)
+    model = fit_PTp_data(mineral, ["V_0", "K_0", "Kprime_0"], flag, data, verbose=False)
+    assert model.flags == [flag] * len(data)
+    assert_array_equal(model.pcov, np.zeros((3, 3)))
+    assert model.WSS == 0.0
+
+
+def test_ptv_wrapper_matches_general_ptp_volume_fit():
+    first = bm.minerals.HP_2011_ds62.fo()
+    second = bm.minerals.HP_2011_ds62.fo()
+    data = ptv_data(first)
+    data[:, 2] *= 1.0 + np.linspace(-1.0e-4, 1.0e-4, len(data))
+    params = ["V_0", "K_0", "Kprime_0"]
+    ptv = fit_PTV_data(first, params, data, verbose=False)
+    ptp = fit_PTp_data(second, params, ["V"] * len(data), data, verbose=False)
+    for name in ("popt", "pcov", "WSS", "data_mle", "weighted_residuals", "weights"):
+        assert_array_equal(getattr(ptv, name), getattr(ptp, name))
+
+
+def mixed_ptp_data():
+    mineral = bm.minerals.HP_2011_ds62.fo()
+    data, flags, covariances = [], [], []
+    for i, pressure in enumerate(np.linspace(1.0e5, 10.0e9, 8)):
+        temperature = 400.0 + 50.0 * i
+        mineral.set_state(pressure, temperature)
+        for flag, value, sigma in (
+            ("V", mineral.molar_volume, 1.0e-8),
+            ("H", mineral.molar_enthalpy, 100.0),
+        ):
+            data.append([pressure, temperature, value + sigma * (-1) ** i * 0.5])
+            covariance = np.diag([1.0e14, 1.0, sigma**2])
+            # Correlated pressure/property uncertainties in each datum.
+            covariance[0, 2] = covariance[2, 0] = 0.2 * 1.0e7 * sigma
+            covariances.append(covariance)
+            flags.append(flag)
+    return mineral, np.array(data), flags, np.array(covariances)
+
+
+def test_mixed_volume_enthalpy_fit_with_priors_bounds_and_custom_tolerances():
+    mineral, data, flags, cov = mixed_ptp_data()
+    truth = np.array([mineral.params.V_0, mineral.params.H_0])
+    params = mineral.params
+    params.V_0 *= 1.001
+    params.H_0 += 300.0
+    mineral = bm.Mineral(params)
+    tolerances = np.array([1.0e-10 if flag == "V" else 0.1 for flag in flags])
+    bounds = np.array([[truth[0] * 0.99, truth[0] * 1.01], [-np.inf, np.inf]])
+    model = fit_PTp_data(
+        mineral,
+        ["V_0", "H_0"],
+        flags,
+        data,
+        cov,
+        tolerances,
+        bounds=bounds,
+        param_priors=truth,
+        param_prior_inv_cov_matrix=np.diag([1.0e14, 1.0e-6]),
+        verbose=False,
+    )
+    assert model.m is mineral
+    assert model.flags == flags
+    assert_array_equal(model.mle_tolerances, tolerances)
+    assert_array_equal(model.data_covariances, cov)
+    assert model.delta_params[1] < 0.0
+    assert_allclose(model.popt, truth, rtol=1.0e-4)
+    assert_array_equal(model.get_params(), model.popt)
+    assert np.isfinite(model.pcov).all()
+
+
+def test_explicit_mle_tolerances_skip_default_property_scaling():
+    mineral = bm.minerals.HP_2011_ds62.fo()
+    data = ptv_data(mineral)
+    for row in data:
+        mineral.set_state(*row[:2])
+        row[2] = mineral.molar_helmholtz
+    # F is negative, so the default scaled tolerance would be rejected.
+    with pytest.raises(ValueError, match="All MLE tolerances should be > 0"):
+        fit_PTp_data(mineral, ["V_0", "K_0", "Kprime_0"], "F", data, verbose=False)
+    model = fit_PTp_data(
+        mineral,
+        ["V_0", "K_0", "Kprime_0"],
+        "F",
+        data,
+        mle_tolerances=np.ones(len(data)),
+        verbose=False,
+    )
+    assert_array_equal(model.mle_tolerances, np.ones(len(data)))
+    assert model.WSS == 0.0
+
+
+@pytest.mark.parametrize("flags", [[], ["V"], ["V"] * 9])
+def test_wrong_number_of_property_flags_raises_before_changing_state(flags):
+    mineral = bm.minerals.HP_2011_ds62.fo()
+    data = ptv_data(mineral)
+    state = (mineral.pressure, mineral.temperature)
+    with pytest.raises(ValueError, match="number of flags"):
+        fit_PTp_data(mineral, ["V_0"], flags, data, verbose=False)
+    assert (mineral.pressure, mineral.temperature) == state
+
+
+@pytest.mark.parametrize("regularised", [False, True])
+def test_optional_mixed_property_fit_matches_python(regularised):
+    reference = pytest.importorskip("burnman")
+    native, data, flags, cov = mixed_ptp_data()
+    python = reference.minerals.HP_2011_ds62.fo()
+    kwargs = {"data_covariances": cov, "verbose": False}
+    if regularised:
+        kwargs.update(
+            bounds=[[native.params.V_0 * 0.99, native.params.V_0], [-np.inf, np.inf]],
+            mle_tolerances=np.array([1.0e-10 if f == "V" else 0.1 for f in flags]),
+            param_priors=[native.params.V_0, native.params.H_0],
+            param_prior_inv_cov_matrix=np.diag([1.0e14, 1.0e-6]),
+        )
+    actual = fit_PTp_data(native, ["V_0", "H_0"], flags, data, **kwargs)
+    expected = reference.eos_fitting.fit_PTp_data(
+        python, ["V_0", "H_0"], flags, data, **kwargs
+    )
+    for name in (
+        "popt",
+        "pcov",
+        "WSS",
+        "data_mle",
+        "weighted_residuals",
+        "weights",
+        "jacobian",
+        "goodness_of_fit",
+        "noise_variance",
     ):
         assert_allclose(
             getattr(actual, name),
