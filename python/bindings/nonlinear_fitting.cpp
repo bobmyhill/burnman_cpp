@@ -82,6 +82,34 @@ private:
 void bind_nonlinear_fitting(py::module_ &m) {
   auto nonlinear =
       m.attr("optimize").cast<py::module_>().def_submodule("nonlinear_fitting");
+  using Model = optim::NonLinearModel;
+  auto native_model = py::class_<Model>(nonlinear, "_NonLinearModel");
+  native_model.def("get_params", &Model::get_params)
+      .def("set_params", &Model::set_params, py::arg("param_values"))
+      .def("validate", &Model::validate);
+  // Return snapshots, as for the Python-model adapter's result attributes.
+#define ATTRIBUTE(name)                                                        \
+  native_model.def_property(                                                   \
+      #name, [](const Model &self) { return self.name; },                      \
+      [](Model &self, const decltype(Model::name) &value) {                    \
+        self.name = value;                                                     \
+      })
+  ATTRIBUTE(data);
+  ATTRIBUTE(data_covariances);
+  ATTRIBUTE(mle_tolerances);
+  ATTRIBUTE(delta_params);
+  ATTRIBUTE(dof);
+  ATTRIBUTE(n_iterations);
+  ATTRIBUTE(data_mle);
+  ATTRIBUTE(jacobian);
+  ATTRIBUTE(weighted_residuals);
+  ATTRIBUTE(weights);
+  ATTRIBUTE(WSS);
+  ATTRIBUTE(popt);
+  ATTRIBUTE(pcov);
+  ATTRIBUTE(goodness_of_fit);
+  ATTRIBUTE(noise_variance);
+#undef ATTRIBUTE
   nonlinear.def("abs_line_project", &optim::abs_line_project, py::arg("M"),
                 py::arg("n"),
                 "Project a covariance onto the unit direction n.");
@@ -89,6 +117,12 @@ void bind_nonlinear_fitting(py::module_ &m) {
       "mle_estimate",
       [](py::object model, const Eigen::VectorXd &x, const Eigen::VectorXd &x_m,
          const Eigen::MatrixXd &cov, const py::object &flag) {
+        if (py::isinstance<Model>(model)) {
+          const std::any native_flag =
+              flag.is_none() ? std::any{} : std::any(flag.cast<std::string>());
+          return optim::mle_estimate(model.cast<Model &>(), x, x_m, cov,
+                                     native_flag);
+        }
         PythonModel adapter(std::move(model));
         return optim::mle_estimate(adapter, x, x_m, cov, flag);
       },
@@ -98,6 +132,8 @@ void bind_nonlinear_fitting(py::module_ &m) {
   nonlinear.def(
       "find_mle",
       [](py::object model) {
+        if (py::isinstance<Model>(model))
+          return optim::find_mle(model.cast<Model &>());
         PythonModel adapter(std::move(model));
         adapter.load_data(false);
         return optim::find_mle(adapter);
@@ -107,6 +143,10 @@ void bind_nonlinear_fitting(py::module_ &m) {
   nonlinear.def(
       "calculate_jacobian",
       [](py::object model) {
+        if (py::isinstance<Model>(model)) {
+          optim::calculate_jacobian(model.cast<Model &>());
+          return;
+        }
         PythonModel adapter(model);
         adapter.load_data(true);
         optim::calculate_jacobian(adapter);
@@ -120,11 +160,23 @@ void bind_nonlinear_fitting(py::module_ &m) {
          int max_lm_iterations,
          const std::optional<Eigen::VectorXd> &param_priors,
          const std::optional<Eigen::MatrixXd> &param_prior_inv_cov_matrix,
-         bool first_run_differential_evolution, int, bool verbose) {
+         bool first_run_differential_evolution, const py::object &,
+         bool verbose) {
         if (first_run_differential_evolution)
           throw exceptions::NotImplementedError(
               "nonlinear_fitting", "nonlinear_least_squares_fit",
               "Differential evolution is not yet implemented.");
+        optim::NonlinearFitOptions options;
+        options.lm_damping = lm_damping;
+        options.param_tolerance = param_tolerance;
+        options.max_lm_iterations = max_lm_iterations;
+        options.param_priors = param_priors;
+        options.param_prior_inv_cov_matrix = param_prior_inv_cov_matrix;
+        options.verbose = verbose;
+        if (py::isinstance<Model>(model)) {
+          optim::nonlinear_least_squares_fit(model.cast<Model &>(), options);
+          return;
+        }
         if (py::hasattr(model, "validate"))
           model.attr("validate")();
         PythonModel adapter(model);
@@ -135,13 +187,6 @@ void bind_nonlinear_fitting(py::module_ &m) {
             flags.append(py::none());
           model.attr("flags") = flags;
         }
-        optim::NonlinearFitOptions options;
-        options.lm_damping = lm_damping;
-        options.param_tolerance = param_tolerance;
-        options.max_lm_iterations = max_lm_iterations;
-        options.param_priors = param_priors;
-        options.param_prior_inv_cov_matrix = param_prior_inv_cov_matrix;
-        options.verbose = verbose;
         optim::nonlinear_least_squares_fit(adapter, options);
         adapter.store_results();
       },

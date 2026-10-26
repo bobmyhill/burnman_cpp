@@ -99,8 +99,10 @@ def weighted_line():
 
 
 @pytest.mark.parametrize("with_priors", [False, True])
-def test_closed_form_weighted_fit_and_gaussian_prior(with_priors):
+@pytest.mark.parametrize("difference_sign", [1.0, -1.0])
+def test_closed_form_weighted_fit_and_gaussian_prior(with_priors, difference_sign):
     model = weighted_line()
+    model.delta_params *= difference_sign
     X = np.column_stack([model.data[:, 0], np.ones(len(model.data))])
     JTJ = X.T @ X / 0.3**2
     JTy = X.T @ model.data[:, 1] / 0.3**2
