@@ -76,6 +76,8 @@ def fit_stishovite():
     hp_fit = eos_fitting.fit_VTP_data(stv, params, VTP, VTP_covariances, verbose=False)
     print("Optimized equation of state for stishovite (HP):")
     print_fit(hp_fit)
+    nonlinear_fitting.corner_plot(hp_fit.popt, hp_fit.pcov, params)
+    plt.show()
 
     # As in Python, remove the SLB property modifiers to allow direct P(V,T).
     stv_SLB = minerals.SLB_2011.stishovite()

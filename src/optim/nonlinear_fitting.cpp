@@ -453,4 +453,38 @@ Matrix confidence_prediction_bands(NonLinearModel &model, const Matrix &x_array,
     throw std::runtime_error("Non-finite confidence bands.");
   return bands;
 }
+
+ExtremeValues extreme_values(const Vector &weighted_residuals,
+                             double confidence_interval) {
+  const auto n = weighted_residuals.size();
+  if (n == 0)
+    throw std::invalid_argument("Require at least one residual.");
+  if (n == 1 || !std::isfinite(confidence_interval) ||
+      confidence_interval < 0. || confidence_interval > 1.)
+    return {std::numeric_limits<double>::quiet_NaN(), {}, Vector(0)};
+
+  const double count = static_cast<double>(n);
+  const double mean = gsl_cdf_ugaussian_Qinv(1. / count);
+  const double logarithm = std::log(count);
+  const double scale = 0.8 / std::sqrt(logarithm);
+  const double c = 0.33 / std::pow(logarithm, 0.75);
+  const double p = 1. - std::sqrt(confidence_interval);
+  // scipy.stats.genextreme(c) is a reversed, shifted Weibull distribution.
+  const double confidence_bound =
+      mean + scale * (1. - gsl_cdf_weibull_Pinv(p, 1., 1. / c)) / c;
+
+  std::vector<Eigen::Index> indices;
+  for (Eigen::Index i = 0; i < n; ++i)
+    if (std::abs(weighted_residuals[i]) > confidence_bound)
+      indices.push_back(i);
+  Vector probabilities(static_cast<Eigen::Index>(indices.size()));
+  for (std::size_t i = 0; i < indices.size(); ++i) {
+    const double x = (std::abs(weighted_residuals[indices[i]]) - mean) / scale;
+    const double t = 1. - c * x;
+    const double survival = t > 0. ? gsl_cdf_weibull_P(t, 1., 1. / c) : 0.;
+    probabilities[static_cast<Eigen::Index>(i)] =
+        1. - std::pow(survival - 1., 2.);
+  }
+  return {confidence_bound, std::move(indices), std::move(probabilities)};
+}
 } // namespace burnman::optim

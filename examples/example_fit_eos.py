@@ -91,6 +91,8 @@ def fit_stishovite():
     )
 
     print_fit(fitted_eos)
+    nonlinear_fitting.corner_plot(fitted_eos.popt, fitted_eos.pcov, params)
+    plt.show()
 
     T = 298.15
     pressures = np.linspace(1.0e5, 60.0e9, 101)
@@ -182,6 +184,14 @@ def fit_periclase():
         verbose=False,
     )
     print_fit(volume_fit)
+    nonlinear_fitting.corner_plot(volume_fit.popt, volume_fit.pcov, params)
+    fig, ax = plt.subplots()
+    nonlinear_fitting.weighted_residual_plot(
+        ax, volume_fit, plot_axes=[0, 1], scale_axes=[1.0e-9, 1.0]
+    )
+    ax.set_xlabel("Pressure (GPa)")
+    ax.set_ylabel("Temperature (K)")
+    plt.show()
 
     print("3) Fitting to periclase PTV and PT-enthalpy data\n")
 
@@ -245,6 +255,36 @@ def fit_periclase():
         verbose=False,
     )
     print_fit(mixed_fit)
+    nonlinear_fitting.corner_plot(mixed_fit.popt, mixed_fit.pcov, fit_params)
+    fig, ax = plt.subplots()
+    nonlinear_fitting.weighted_residual_plot(
+        ax, mixed_fit, flag="V", plot_axes=[0, 1], scale_axes=[1.0e-9, 1.0]
+    )
+    ax.set_title("Weighted residual plot for volumes")
+    ax.set_xlabel("Pressure (GPa)")
+    ax.set_ylabel("Temperature (K)")
+    fig, ax = plt.subplots()
+    nonlinear_fitting.plot_residuals(
+        ax, mixed_fit.weighted_residuals, flags=mixed_fit.flags
+    )
+    plt.show()
+
+    # Python's extreme-value check brackets the entire dataset at 90% confidence.
+    confidence_interval = 0.9
+    _, indices, probabilities = nonlinear_fitting.extreme_values(
+        mixed_fit.weighted_residuals, confidence_interval
+    )
+    print(
+        f"There are {len(indices)} outliers (at the "
+        f"{100.0 * confidence_interval:.1f}% confidence interval). "
+        "Their indices and probabilities are:"
+    )
+    for index, probability in zip(indices, probabilities):
+        print(
+            f"[{index}]: {100.0 * probability:.2f}% "
+            f"({abs(mixed_fit.weighted_residuals[index]):.1f} s.d. from the model)"
+        )
+    print()
 
     # Compare the heat capacities predicted by the volume-only and joint fits.
     fig, ax = plt.subplots()

@@ -167,3 +167,21 @@ TEST_CASE("Confidence and prediction limits match closed-form line regression",
                                     [](const Vector &x) { return x[1]; })
             .cols() == 0);
 }
+
+TEST_CASE("Extreme-value diagnostics reproduce Python's approximation",
+          "[nonlinear_fitting][diagnostics]") {
+  Vector residuals = Vector::Zero(100);
+  residuals[7] = 5.;
+  residuals[42] = -5.;
+  const auto [bound, indices, probabilities] = extreme_values(residuals, 0.95);
+  CHECK(bound == Approx(3.4600855156444577).epsilon(1.e-13));
+  CHECK(indices == (std::vector<Eigen::Index>{7, 42}));
+  REQUIRE(probabilities.size() == 2);
+  CHECK(probabilities[0] == Approx(3.29595918e-6).epsilon(1.e-8));
+  CHECK(probabilities[1] == probabilities[0]);
+  const auto [empty_bound, empty_indices, empty_probabilities] =
+      extreme_values(Vector::Zero(100), 0.95);
+  CHECK(empty_bound == bound);
+  CHECK(empty_indices.empty());
+  CHECK(empty_probabilities.size() == 0);
+}

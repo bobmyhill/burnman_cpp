@@ -107,6 +107,23 @@ private:
 void bind_nonlinear_fitting(py::module_ &m) {
   auto nonlinear =
       m.attr("optimize").cast<py::module_>().def_submodule("nonlinear_fitting");
+  nonlinear.def(
+      "extreme_values",
+      [](const Eigen::VectorXd &weighted_residuals,
+         double confidence_interval) {
+        if (weighted_residuals.size() == 0) {
+          PyErr_SetString(PyExc_ZeroDivisionError, "float division by zero");
+          throw py::error_already_set();
+        }
+        return optim::extreme_values(weighted_residuals, confidence_interval);
+      },
+      py::arg("weighted_residuals"), py::arg("confidence_interval"),
+      R"doc(Return the extreme-residual threshold, indices and two-tailed probabilities.
+
+Uses Python BurnMan's normal/generalised-extreme-value approximation, intended
+for more than ten observations. Residuals are standardised by their uncertainty.
+The numerical calculation uses GSL. Indices retain observation order.
+)doc");
   using Model = optim::NonLinearModel;
   auto native_model = py::class_<Model>(nonlinear, "_NonLinearModel");
   native_model.def("get_params", &Model::get_params)
