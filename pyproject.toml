@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "burnman_cpp"
-version = "0.11.0"
+version = "0.11.1"
 authors = [{name = "The BurnMan Team", email = "bob.myhill@bristol.ac.uk"}]
 description = "Python bindings for the BurnMan C++ mineral physics library"
 readme = "README.md"
