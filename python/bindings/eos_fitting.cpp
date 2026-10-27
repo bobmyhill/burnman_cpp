@@ -128,8 +128,9 @@ gives unit pressure variance with exact temperature and property values.
 Empty mle_tolerances select the property defaults at 1e5 Pa and 300 K; explicit
 tolerances skip this state change. Updates the supplied mineral and returns a
 MineralFit with parameters and fit statistics. Bounds and Gaussian priors follow
-nonlinear_least_squares_fit(). Verbose output reports LM iterations; automatic
-outlier diagnostics and differential evolution are not yet implemented.
+nonlinear_least_squares_fit(). Verbose output reports LM iterations and Python's
+extreme-residual diagnostic when observation covariances are supplied.
+Differential evolution is not yet implemented.
 )doc");
   eos_fitting.def(
       "fit_PTV_data",
@@ -174,7 +175,8 @@ omitting covariances gives unit pressure variance with exact T and V. Default
 MLE tolerances are evaluated at 1e5 Pa and 300 K. The supplied mineral is updated
 in place and the returned MineralFit contains the parameters and statistics.
 Bounds and Gaussian priors follow nonlinear_least_squares_fit(). Verbose output
-reports LM iterations; automatic outlier diagnostics are not yet implemented.
+reports LM iterations and Python's extreme-residual diagnostic when observation
+covariances are supplied.
 )doc");
   py::class_<optim::MineralFitV, Model>(
       eos_fitting, "MineralFitV",
@@ -246,8 +248,9 @@ gives unit property variance with exact volume and temperature.
 Empty mle_tolerances select the property defaults at 1e5 Pa and 300 K; explicit
 tolerances skip this state change. Updates the supplied mineral and returns a
 MineralFitV with parameters and fit statistics. Bounds and Gaussian priors follow
-nonlinear_least_squares_fit(). Verbose output reports LM iterations; automatic
-outlier diagnostics and differential evolution are not yet implemented.
+nonlinear_least_squares_fit(). Verbose output reports LM iterations and Python's
+extreme-residual diagnostic when observation covariances are supplied.
+Differential evolution is not yet implemented.
 )doc");
   eos_fitting.def(
       "fit_VTP_data",
@@ -292,7 +295,8 @@ omitting covariances gives unit pressure variance with exact V and T. Default
 MLE tolerances are evaluated at 1e5 Pa and 300 K. The supplied mineral is updated
 in place and the returned MineralFitV contains the parameters and statistics.
 Bounds and Gaussian priors follow nonlinear_least_squares_fit(). Verbose output
-reports LM iterations; automatic outlier diagnostics are not yet implemented.
+reports LM iterations and Python's extreme-residual diagnostic when observation
+covariances are supplied.
 )doc");
 }
 } // namespace burnman::python

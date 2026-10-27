@@ -117,4 +117,14 @@ Eigen::MatrixXd confidence_prediction_bands(NonLinearModel &model,
                                             double confidence_interval,
                                             const ScalarModelFunction &f,
                                             const std::any &flag = {});
+
+using ExtremeValues =
+    std::tuple<double, std::vector<Eigen::Index>, Eigen::VectorXd>;
+
+/** Python's extreme-value approximation for standardised normal residuals.
+ * Returns the all-observations confidence threshold, indices outside it and
+ * their two-tailed probabilities. The approximation is intended for n > 10.
+ */
+ExtremeValues extreme_values(const Eigen::VectorXd &weighted_residuals,
+                             double confidence_interval);
 } // namespace burnman::optim

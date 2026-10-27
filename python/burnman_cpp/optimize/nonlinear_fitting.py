@@ -22,6 +22,7 @@ from .._core.optimize.nonlinear_fitting import (
     calculate_jacobian,
     nonlinear_least_squares_fit,
     confidence_prediction_bands,
+    extreme_values,
 )
 
 
@@ -64,4 +65,28 @@ __all__ = [
     "calculate_jacobian",
     "nonlinear_least_squares_fit",
     "confidence_prediction_bands",
+    "extreme_values",
+    "plot_cov_ellipse",
+    "corner_plot",
+    "weighted_residual_plot",
+    "plot_residuals",
 ]
+
+
+def __getattr__(name):
+    if name in {
+        "plot_cov_ellipse",
+        "corner_plot",
+        "weighted_residual_plot",
+        "plot_residuals",
+    }:
+        from . import _fitting_plots
+
+        value = getattr(_fitting_plots, name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(set(globals()) | set(__all__))

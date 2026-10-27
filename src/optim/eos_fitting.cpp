@@ -15,6 +15,9 @@
 #include "burnman/core/material.hpp"
 #include <cmath>
 #include <functional>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
@@ -386,6 +389,36 @@ Model fit_property_data(std::shared_ptr<Mineral> mineral,
   Model model(std::move(mineral), data, covariances, flags, fit_params,
               tolerances, delta_params, bounds);
   nonlinear_least_squares_fit(model, options);
+  if (options.verbose && !data_covariances.empty()) {
+    constexpr double confidence_interval = 0.9;
+    const auto [bound, indices, probabilities] =
+        extreme_values(model.weighted_residuals, confidence_interval);
+    if (!indices.empty()) {
+      std::ostringstream message;
+      message
+          << "The function nonlinear_fitting.extreme_values"
+             "(model.weighted_residuals, confidence_interval) "
+             "has determined that there are "
+          << indices.size()
+          << " data points which have residuals which are not expected at the "
+          << std::fixed << std::setprecision(1) << confidence_interval * 100.
+          << "% confidence level (> " << bound
+          << " s.d. away from the model fit).\n"
+             "Their indices and the probabilities of finding "
+             "such extreme values are:\n";
+      for (Eigen::Index i = 0; i < probabilities.size(); ++i) {
+        const auto index = indices[static_cast<std::size_t>(i)];
+        message << '[' << index << "]: " << std::setprecision(4)
+                << probabilities[i] << " (" << std::setprecision(1)
+                << std::abs(model.weighted_residuals[index])
+                << " s.d. from the model)\n";
+      }
+      message
+          << "You might consider removing them from your fit, "
+             "or increasing the uncertainties in their measured values.\n\n";
+      std::cout << message.str() << std::flush;
+    }
+  }
   return model;
 }
 
