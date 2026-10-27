@@ -117,7 +117,7 @@ public:
    * for pressure. pressure_guesses supplies the initial bracket in Pa.
    */
   void set_state_with_volume(
-      double volume, double temperature,
+      double volume, double new_temperature,
       const Eigen::Vector2d &pressure_guesses = Eigen::Vector2d(0., 1.e10));
   void set_method(types::EOSType new_method) override;
   void set_method(std::shared_ptr<EquationOfState> new_method) override;
