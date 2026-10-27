@@ -95,19 +95,19 @@ void Mineral::set_state(double new_pressure, double new_temperature) {
   compute_property_modifiers();
 }
 
-void Mineral::set_state_with_volume(double volume, double temperature,
+void Mineral::set_state_with_volume(double volume, double new_temperature,
                                     const Eigen::Vector2d &pressure_guesses) {
-  if (!std::isfinite(volume) || volume <= 0. || !std::isfinite(temperature) ||
-      temperature < 0. || !eos_method)
+  if (!std::isfinite(volume) || volume <= 0. ||
+      !std::isfinite(new_temperature) || new_temperature < 0. || !eos_method)
     throw std::invalid_argument(
         "Require positive finite volume, finite T >= 0 and a mineral EOS.");
   if (property_modifier_params.empty()) {
     try {
-      const double pressure =
-          eos_method->compute_pressure(temperature, volume, params);
-      if (!std::isfinite(pressure))
+      const double new_pressure =
+          eos_method->compute_pressure(new_temperature, volume, params);
+      if (!std::isfinite(new_pressure))
         throw std::runtime_error("EOS returned non-finite pressure.");
-      set_state(pressure, temperature);
+      set_state(new_pressure, new_temperature);
       cache_molar_volume_unmodified(volume);
       return;
     } catch (const exceptions::NotImplementedError &) {
@@ -121,11 +121,12 @@ void Mineral::set_state_with_volume(double volume, double temperature,
   struct Residual {
     Mineral *mineral;
     double volume, temperature;
-  } residual{this, volume, temperature};
-  const auto delta_volume = +[](double pressure, void *context) -> double {
+  } residual{this, volume, new_temperature};
+  const auto delta_volume =
+      +[](double trial_pressure, void *context) -> double {
     const auto &r = *static_cast<Residual *>(context);
     try {
-      r.mineral->set_state(pressure, r.temperature);
+      r.mineral->set_state(trial_pressure, r.temperature);
       return r.volume - r.mineral->get_molar_volume();
     } catch (const std::exception &) {
       // As in Python, out-of-domain low pressures act as infinite volumes.
@@ -133,8 +134,8 @@ void Mineral::set_state_with_volume(double volume, double temperature,
     }
   };
   double low = pressure_guesses[0], high = pressure_guesses[1];
-  const auto finish = [&](double pressure) {
-    set_state(pressure, temperature);
+  const auto finish = [&](double new_pressure) {
+    set_state(new_pressure, new_temperature);
     // Cache the EOS volume, excluding the modifier's volume contribution.
     cache_molar_volume_unmodified(volume - get_property_modifiers().dGdP);
   };
@@ -167,10 +168,10 @@ void Mineral::set_state_with_volume(double volume, double temperature,
     else
       high = middle;
   }
-  const double pressure =
+  const double new_pressure =
       optim::roots::brent(delta_volume, residual, low, high, 1.e-8,
                           4. * std::numeric_limits<double>::epsilon());
-  finish(pressure);
+  finish(new_pressure);
 }
 
 void Mineral::compute_property_modifiers() {
