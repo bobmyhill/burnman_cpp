@@ -14,8 +14,10 @@
 #pragma once
 
 #include "burnman/core/mineral.hpp"
+#include "burnman/core/solution.hpp"
 #include "burnman/optim/nonlinear_fitting.hpp"
 #include <Eigen/Core>
+#include <functional>
 #include <string>
 #include <variant>
 #include <vector>
@@ -72,6 +74,57 @@ public:
 };
 
 using PropertyFlags = std::variant<std::string, std::vector<std::string>>;
+
+/// An endmember parameter {name, i}, or a binary interaction {E/S/V, i, j}.
+struct SolutionFitParameter {
+  std::string name;
+  Eigen::Index endmember;
+  std::optional<Eigen::Index> partner = std::nullopt;
+};
+
+/** Fit solution endmember and binary interaction parameters, as in Python.
+ * Observations contain all endmember fractions followed by P, T and a property.
+ * Parameters are flattened in fit_params order; binary interactions use the
+ * Python SolutionFit scaling W_ij*alpha_i*alpha_j/2. The supplied solution is
+ * updated in place. Composition components of the normal are zero.
+ */
+class SolutionFit : public NonLinearModel {
+public:
+  SolutionFit(std::shared_ptr<Solution> solution, const Eigen::MatrixXd &data,
+              const std::vector<Eigen::MatrixXd> &data_covariances,
+              const std::vector<std::string> &flags,
+              const std::vector<SolutionFitParameter> &fit_params,
+              const Eigen::VectorXd &mle_tolerances,
+              const std::optional<Eigen::VectorXd> &delta_params = std::nullopt,
+              const std::optional<Eigen::MatrixXd> &bounds = std::nullopt);
+  Eigen::VectorXd get_params() const override;
+  void set_params(const Eigen::VectorXd &params) override;
+  Eigen::VectorXd function(const Eigen::VectorXd &x,
+                           const std::any &flag = {}) override;
+  Eigen::VectorXd normal(const Eigen::VectorXd &x,
+                         const std::any &flag = {}) override;
+  void validate() const override;
+
+  std::shared_ptr<Solution> m;
+  std::vector<SolutionFitParameter> fit_params;
+  std::vector<std::string> fit_params_strings;
+  std::optional<Eigen::MatrixXd> bounds;
+
+private:
+  void parameters(const std::function<void(double &, double)> &visit) const;
+};
+
+/// Fit X-P-T-property data; omitted covariances give unit pressure variance.
+SolutionFit
+fit_XPTp_data(std::shared_ptr<Solution> solution,
+              const std::vector<SolutionFitParameter> &fit_params,
+              const PropertyFlags &flags, const Eigen::MatrixXd &data,
+              const std::vector<Eigen::MatrixXd> &data_covariances = {},
+              const Eigen::VectorXd &mle_tolerances = {},
+              const std::optional<Eigen::VectorXd> &delta_params = std::nullopt,
+              const std::optional<Eigen::MatrixXd> &bounds = std::nullopt,
+              const NonlinearFitOptions &options = {
+                  0., 1.e-5, 100, std::nullopt, std::nullopt, true});
 
 /** Fit P-T-property data with a shared flag or one flag per observation.
  * Empty mle_tolerances select the property defaults. Omitted covariances give

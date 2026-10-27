@@ -28,6 +28,9 @@
 #include <vector>
 
 namespace burnman {
+namespace optim {
+class SolutionFit;
+}
 
 /**
  * @class Solution
@@ -499,6 +502,8 @@ protected:
   Eigen::MatrixXd compute_volume_hessian() const;
 
 private:
+  friend class optim::SolutionFit;
+
   // Molar fractions - not cached so not deleted by reset_cache()
   Eigen::ArrayXd molar_fractions;
   Eigen::MatrixXd transformation_basis;

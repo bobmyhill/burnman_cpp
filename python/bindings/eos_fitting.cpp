@@ -16,6 +16,24 @@
 #include "burnman/utils/exceptions.hpp"
 
 namespace burnman::python {
+namespace {
+std::vector<optim::SolutionFitParameter>
+solution_fit_parameters(const py::sequence &params) {
+  std::vector<optim::SolutionFitParameter> result;
+  for (const auto &item : params) {
+    const auto p = py::cast<py::sequence>(item);
+    if (py::len(p) != 2 && py::len(p) != 3)
+      throw py::value_error("param length must be two or three");
+    optim::SolutionFitParameter parameter{py::cast<std::string>(p[0]),
+                                          py::cast<Eigen::Index>(p[1])};
+    if (py::len(p) == 3)
+      parameter.partner = py::cast<Eigen::Index>(p[2]);
+    result.push_back(std::move(parameter));
+  }
+  return result;
+}
+} // namespace
+
 void bind_eos_fitting(py::module_ &m) {
   auto eos_fitting =
       m.attr("optimize").cast<py::module_>().def_submodule("eos_fitting");
@@ -297,6 +315,121 @@ in place and the returned MineralFitV contains the parameters and statistics.
 Bounds and Gaussian priors follow nonlinear_least_squares_fit(). Verbose output
 reports LM iterations and Python's extreme-residual diagnostic when observation
 covariances are supplied.
+)doc");
+  using SolutionModel = optim::SolutionFit;
+  py::class_<SolutionModel, optim::NonLinearModel>(
+      eos_fitting, "SolutionFit",
+      R"doc(Fit endmember and binary interaction parameters to X-P-T-property data.
+
+fit_params contains [name, i] for an endmember scalar or coefficient array,
+or [E/S/V, i, j] for a binary interaction. Indices start at zero. Parameters
+are flattened in list order, and bounds apply to the flattened vector.
+Binary values use Python's W_ij*alpha_i*alpha_j/2 convention. The supplied
+solution is shared and updated in place. Normal vectors follow the pin,
+including zero composition components and coordinate-2 numerical differences.
+)doc")
+      .def(py::init([](std::shared_ptr<Solution> solution,
+                       const Eigen::MatrixXd &data,
+                       const std::vector<Eigen::MatrixXd> &covariances,
+                       const std::vector<std::string> &flags,
+                       const py::sequence &fit_params,
+                       const Eigen::VectorXd &mle_tolerances,
+                       const std::optional<Eigen::VectorXd> &delta_params,
+                       const std::optional<Eigen::MatrixXd> &bounds) {
+             return SolutionModel(std::move(solution), data, covariances, flags,
+                                  solution_fit_parameters(fit_params),
+                                  mle_tolerances, delta_params, bounds);
+           }),
+           py::arg("solution"), py::arg("data"), py::arg("data_covariances"),
+           py::arg("flags"), py::arg("fit_params"), py::arg("mle_tolerances"),
+           py::arg("delta_params") = py::none(), py::arg("bounds") = py::none())
+      .def_readonly("m", &SolutionModel::m)
+      .def_property_readonly("fit_params",
+                             [](const SolutionModel &self) {
+                               py::list result;
+                               for (const auto &p : self.fit_params) {
+                                 py::list parameter;
+                                 parameter.append(p.name);
+                                 parameter.append(p.endmember);
+                                 if (p.partner)
+                                   parameter.append(*p.partner);
+                                 result.append(parameter);
+                               }
+                               return result;
+                             })
+      .def_readonly("fit_params_strings", &SolutionModel::fit_params_strings)
+      .def_property_readonly(
+          "bounds", [](const SolutionModel &self) { return self.bounds; })
+      .def_property(
+          "flags",
+          [](const SolutionModel &self) {
+            std::vector<std::string> flags;
+            for (const auto &flag : self.flags)
+              flags.push_back(std::any_cast<std::string>(flag));
+            return flags;
+          },
+          [](SolutionModel &self, const std::vector<std::string> &flags) {
+            self.flags.clear();
+            for (const auto &flag : flags)
+              self.flags.emplace_back(flag);
+          })
+      .def(
+          "function",
+          [](SolutionModel &self, const Eigen::VectorXd &x,
+             const std::string &flag) { return self.function(x, flag); },
+          py::arg("x"), py::arg("flag") = "V")
+      .def(
+          "normal",
+          [](SolutionModel &self, const Eigen::VectorXd &x,
+             const std::string &flag) { return self.normal(x, flag); },
+          py::arg("x"), py::arg("flag") = "V");
+  eos_fitting.def(
+      "fit_XPTp_data",
+      [](std::shared_ptr<Solution> solution, const py::sequence &fit_params,
+         const optim::PropertyFlags &flags, const Eigen::MatrixXd &data,
+         const std::vector<Eigen::MatrixXd> &data_covariances,
+         const Eigen::VectorXd &mle_tolerances, double param_tolerance,
+         const std::optional<Eigen::VectorXd> &delta_params,
+         const std::optional<Eigen::MatrixXd> &bounds, int max_lm_iterations,
+         const std::optional<Eigen::VectorXd> &param_priors,
+         const std::optional<Eigen::MatrixXd> &param_prior_inv_cov_matrix,
+         bool first_run_differential_evolution, const py::object &,
+         bool verbose) {
+        if (first_run_differential_evolution)
+          throw exceptions::NotImplementedError(
+              "eos_fitting", "fit_XPTp_data",
+              "Differential evolution is not yet implemented.");
+        optim::NonlinearFitOptions options;
+        options.param_tolerance = param_tolerance;
+        options.max_lm_iterations = max_lm_iterations;
+        options.param_priors = param_priors;
+        options.param_prior_inv_cov_matrix = param_prior_inv_cov_matrix;
+        options.verbose = verbose;
+        return optim::fit_XPTp_data(std::move(solution),
+                                    solution_fit_parameters(fit_params), flags,
+                                    data, data_covariances, mle_tolerances,
+                                    delta_params, bounds, options);
+      },
+      py::arg("solution"), py::arg("fit_params"), py::arg("flags"),
+      py::arg("data"),
+      py::arg("data_covariances") = std::vector<Eigen::MatrixXd>{},
+      py::arg("mle_tolerances") = Eigen::VectorXd{},
+      py::arg("param_tolerance") = 1.e-5, py::arg("delta_params") = py::none(),
+      py::arg("bounds") = py::none(), py::arg("max_lm_iterations") = 100,
+      py::arg("param_priors") = py::none(),
+      py::arg("param_prior_inv_cov_matrix") = py::none(),
+      py::arg("first_run_differential_evolution") = false,
+      py::arg("differential_evolution_seed") = py::none(),
+      py::arg("verbose") = true,
+      R"doc(Fit solution parameters to endmember fractions, P, T and a scalar property.
+
+fit_params contains [name, i] for an endmember parameter or [E/S/V, i, j]
+for a binary interaction (i < j). flags is a shared property name or one per
+row. Omitted covariances give unit pressure variance and exact remaining
+coordinates. Empty mle_tolerances use the property defaults at 1e5 Pa, 300 K.
+Bounds, Gaussian priors and verbose diagnostics follow fit_PTp_data().
+Updates solution in place and returns a SolutionFit. Differential-evolution
+initialisation is not yet implemented.
 )doc");
 }
 } // namespace burnman::python

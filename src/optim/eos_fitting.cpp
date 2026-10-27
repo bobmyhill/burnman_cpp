@@ -356,19 +356,180 @@ void MineralFitV::validate() const {
         "Volume-coordinate observations require positive volumes.");
 }
 
+SolutionFit::SolutionFit(std::shared_ptr<Solution> solution,
+                         const Matrix &observations,
+                         const std::vector<Matrix> &covariances,
+                         const std::vector<std::string> &property_flags,
+                         const std::vector<SolutionFitParameter> &parameters,
+                         const Vector &tolerances,
+                         const std::optional<Vector> &differences,
+                         const std::optional<Matrix> &parameter_bounds)
+    : m(std::move(solution)), fit_params(parameters), bounds(parameter_bounds) {
+  if (!m || !m->solution_model)
+    throw std::invalid_argument("SolutionFit requires a solution model.");
+  data = observations;
+  data_covariances = covariances;
+  mle_tolerances = tolerances;
+  for (const auto &flag : property_flags)
+    flags.emplace_back(flag);
+  for (const auto &p : fit_params) {
+    std::string label = p.name + " (" + std::to_string(p.endmember);
+    if (p.partner)
+      label += "," + std::to_string(*p.partner);
+    fit_params_strings.push_back(label + ")");
+  }
+  const Vector params = get_params();
+  delta_params = differences
+                     ? *differences
+                     : (params.array() * 1.e-5 + 1.e-10).matrix().eval();
+  validate();
+}
+
+void SolutionFit::parameters(
+    const std::function<void(double &, double)> &visit) const {
+  for (const auto &p : fit_params) {
+    const auto n = m->get_n_endmembers();
+    if (p.endmember < 0 || p.endmember >= n ||
+        (p.partner && (*p.partner < 0 || *p.partner >= n)))
+      throw std::invalid_argument(
+          "Fit parameter endmember index out of range.");
+    if (!p.partner) {
+      parameter(
+          m->solution_model->endmembers[static_cast<std::size_t>(p.endmember)]
+              .params,
+          p.name, [&](double &value) { visit(value, 1.); });
+    } else {
+      auto *regular =
+          dynamic_cast<solution_models::AsymmetricRegularSolution *>(
+              m->solution_model.get());
+      if (!regular)
+        throw std::invalid_argument(
+            "Binary interaction fitting requires a regular solution model.");
+      Matrix *interactions = nullptr;
+      if (p.name == "E")
+        interactions = &regular->W_e;
+      else if (p.name == "S")
+        interactions = &regular->W_s;
+      else if (p.name == "V")
+        interactions = &regular->W_v;
+      else
+        throw std::invalid_argument("Expected an E, S or V interaction.");
+      visit((*interactions)(p.endmember, *p.partner),
+            regular->alphas[p.endmember] * regular->alphas[*p.partner] / 2.);
+    }
+  }
+}
+
+Vector SolutionFit::get_params() const {
+  std::vector<double> values;
+  parameters(
+      [&](double &value, double scale) { values.push_back(value * scale); });
+  return Eigen::Map<const Vector>(values.data(),
+                                  static_cast<Eigen::Index>(values.size()));
+}
+
+void SolutionFit::set_params(const Vector &values) {
+  if (values.size() != get_params().size() || !values.allFinite())
+    throw std::invalid_argument(
+        "Fit parameters must have the expected size and be finite.");
+  Vector clipped = values;
+  if (bounds)
+    clipped = clipped.cwiseMax(bounds->col(0)).cwiseMin(bounds->col(1));
+  Eigen::Index i = 0;
+  parameters(
+      [&](double &value, double scale) { value = clipped[i++] / scale; });
+  for (auto &endmember : m->solution_model->endmembers)
+    endmember.reset_cache();
+  m->reset_cache();
+}
+
+Vector SolutionFit::function(const Vector &x, const std::any &flag) {
+  const auto n = m->get_n_endmembers();
+  if (x.size() != n + 3 || !x.allFinite())
+    throw std::invalid_argument(
+        "SolutionFit requires finite X-P-T-property rows.");
+  m->set_composition(x.head(n).array());
+  m->set_state(x[n], x[n + 1]);
+  Vector f = x;
+  f[n + 2] = m->get_property(property_flag(flag));
+  return f;
+}
+
+Vector SolutionFit::normal(const Vector &x, const std::any &flag) {
+  const auto n = m->get_n_endmembers();
+  if (x.size() != n + 3 || !x.allFinite())
+    throw std::invalid_argument(
+        "SolutionFit requires finite X-P-T-property rows.");
+  m->set_composition(x.head(n).array());
+  const double P = x[n], T = x[n + 1];
+  const std::string name = property_flag(flag);
+  double dPdp, dpdT;
+  if (name == "V" || name == "H" || name == "S" || name == "gibbs") {
+    m->set_state(P, T);
+    const double V = m->get_molar_volume();
+    const double alpha = name == "gibbs" ? 0. : m->get_thermal_expansivity();
+    if (name == "V") {
+      dPdp = -m->get_isothermal_bulk_modulus_reuss() / V;
+      dpdT = alpha * V;
+    } else if (name == "H") {
+      dPdp = 1. / ((1. - T * alpha) * V);
+      dpdT = m->get_molar_heat_capacity_p();
+    } else if (name == "S") {
+      dPdp = -1. / (alpha * V);
+      dpdT = m->get_molar_heat_capacity_p() / T;
+    } else {
+      dPdp = 1. / V;
+      dpdT = -m->get_molar_entropy();
+    }
+  } else {
+    Vector xP0 = x, xP1 = x, xT0 = x, xT1 = x;
+    constexpr double dP = 1.e5, dT = 1.;
+    xP0[n] -= dP;
+    xP1[n] += dP;
+    xT0[n + 1] -= dT;
+    xT1[n + 1] += dT;
+    // Preserve the pinned SolutionFit's coordinate-2 finite differences.
+    // See PYTHON_BURNMAN_POTENTIAL_FIXES.md.
+    const double high_P = function(xP1, flag)[2];
+    const double low_P = function(xP0, flag)[2];
+    dPdp = 2. * dP / (high_P - low_P);
+    const double high_T = function(xT1, flag)[2];
+    const double low_T = function(xT0, flag)[2];
+    dpdT = (high_T - low_T) / (2. * dT);
+  }
+  Vector result = Vector::Zero(x.size());
+  result.tail(3) = Eigen::Vector3d(-1., -dPdp * dpdT, dPdp);
+  return result.normalized();
+}
+
+void SolutionFit::validate() const {
+  if (data.cols() != m->get_n_endmembers() + 3 ||
+      flags.size() != static_cast<std::size_t>(data.rows()))
+    throw std::invalid_argument(
+        "SolutionFit requires X-P-T-property rows and one flag per datum.");
+  if (bounds && (bounds->rows() != get_params().size() || bounds->cols() != 2 ||
+                 bounds->array().isNaN().any() ||
+                 (bounds->col(0).array() > bounds->col(1).array()).any()))
+    throw std::invalid_argument(
+        "Bounds must have one ordered lower/upper pair per parameter.");
+  NonLinearModel::validate();
+}
+
 namespace {
-template <typename Model, int covariance_coordinate>
-Model fit_property_data(std::shared_ptr<Mineral> mineral,
-                        const std::vector<std::string> &fit_params,
+template <typename Model, int covariance_coordinate, typename MaterialType,
+          typename Parameter>
+Model fit_property_data(std::shared_ptr<MaterialType> material,
+                        const std::vector<Parameter> &fit_params,
                         const PropertyFlags &property_flags, const Matrix &data,
                         const std::vector<Matrix> &data_covariances,
                         const Vector &mle_tolerances,
                         const std::optional<Vector> &delta_params,
                         const std::optional<Matrix> &bounds,
-                        const NonlinearFitOptions &options) {
-  if (!mineral || data.cols() != 3 || data.rows() == 0)
-    throw std::invalid_argument(
-        "Require a mineral and nonempty coordinate triples.");
+                        const NonlinearFitOptions &options,
+                        Eigen::Index n_coordinates = 3) {
+  if (!material || data.cols() != n_coordinates || data.rows() == 0)
+    throw std::invalid_argument("Require a material and nonempty observation "
+                                "rows of the expected size.");
   const auto *single_flag = std::get_if<std::string>(&property_flags);
   const std::vector<std::string> flags =
       single_flag ? std::vector<std::string>(
@@ -379,14 +540,16 @@ Model fit_property_data(std::shared_ptr<Mineral> mineral,
         "The number of flags must equal the number of data.");
   const Vector tolerances = mle_tolerances.size()
                                 ? mle_tolerances
-                                : default_mle_tolerances(*mineral, flags);
+                                : default_mle_tolerances(*material, flags);
   std::vector<Matrix> covariances = data_covariances;
   if (covariances.empty()) {
-    Matrix covariance = Matrix::Zero(3, 3);
-    covariance(covariance_coordinate, covariance_coordinate) = 1.;
+    Matrix covariance = Matrix::Zero(n_coordinates, n_coordinates);
+    const auto coordinate =
+        covariance_coordinate < 0 ? n_coordinates - 3 : covariance_coordinate;
+    covariance(coordinate, coordinate) = 1.;
     covariances.assign(static_cast<std::size_t>(data.rows()), covariance);
   }
-  Model model(std::move(mineral), data, covariances, flags, fit_params,
+  Model model(std::move(material), data, covariances, flags, fit_params,
               tolerances, delta_params, bounds);
   nonlinear_least_squares_fit(model, options);
   if (options.verbose && !data_covariances.empty()) {
@@ -423,6 +586,22 @@ Model fit_property_data(std::shared_ptr<Mineral> mineral,
 }
 
 } // namespace
+
+SolutionFit fit_XPTp_data(std::shared_ptr<Solution> solution,
+                          const std::vector<SolutionFitParameter> &fit_params,
+                          const PropertyFlags &flags, const Matrix &data,
+                          const std::vector<Matrix> &data_covariances,
+                          const Vector &mle_tolerances,
+                          const std::optional<Vector> &delta_params,
+                          const std::optional<Matrix> &bounds,
+                          const NonlinearFitOptions &options) {
+  if (!solution || !solution->get_solution_model())
+    throw std::invalid_argument("SolutionFit requires a solution model.");
+  const auto n_coordinates = solution->get_n_endmembers() + 3;
+  return fit_property_data<SolutionFit, -1>(
+      std::move(solution), fit_params, flags, data, data_covariances,
+      mle_tolerances, delta_params, bounds, options, n_coordinates);
+}
 
 MineralFit fit_PTp_data(std::shared_ptr<Mineral> mineral,
                         const std::vector<std::string> &fit_params,
