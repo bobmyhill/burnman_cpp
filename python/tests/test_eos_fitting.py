@@ -207,7 +207,10 @@ def test_mineral_fit_flattens_coefficients_and_invalidates_cached_properties():
     )
     values = np.array([p.V_0, p.Cp.a, p.Cp.b, p.Cp.c, p.Cp.d])
     assert_array_equal(model.get_params(), values)
-    assert_array_equal(model.delta_params, values * 1.0e-5 + 1.0e-10)
+    # Eigen may fuse the multiply and add, rounding differently from NumPy.
+    assert_allclose(
+        model.delta_params, values * 1.0e-5 + 1.0e-10, rtol=1.0e-15, atol=0.0
+    )
     assert (model.delta_params < 0.0).any()
     mineral.set_state(1.0e5, 300.0)
     old_volume = mineral.molar_volume
