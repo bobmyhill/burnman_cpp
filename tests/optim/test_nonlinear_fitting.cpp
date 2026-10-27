@@ -139,3 +139,31 @@ TEST_CASE("Nonlinear fits reject singular problems and invalid dimensions",
     CHECK_THROWS_AS(nonlinear_least_squares_fit(model), std::runtime_error);
   }
 }
+
+TEST_CASE("Confidence and prediction limits match closed-form line regression",
+          "[nonlinear_fitting][bands]") {
+  LineModel model;
+  nonlinear_least_squares_fit(model);
+  Matrix query(2, 2);
+  query << 1., 999., 3., -999.;
+  const Vector before = model.get_params();
+  const Matrix actual = confidence_prediction_bands(
+      model, query, 0.95, [](const Vector &point) { return point[1]; });
+  const double critical = 2.7764451051977987; // t(4), 97.5th percentile.
+  const double noise = model.WSS * 0.04 / 4.;
+  for (Eigen::Index i = 0; i < query.rows(); ++i) {
+    const Eigen::Vector2d design(query(i, 0), 1.);
+    const double mean = design.dot(before);
+    const double variance = design.dot(model.pcov * design);
+    CHECK(actual(0, i) == Approx(mean - critical * std::sqrt(variance)));
+    CHECK(actual(1, i) == Approx(mean + critical * std::sqrt(variance)));
+    CHECK(actual(2, i) ==
+          Approx(mean - critical * std::sqrt(variance + noise)));
+    CHECK(actual(3, i) ==
+          Approx(mean + critical * std::sqrt(variance + noise)));
+  }
+  CHECK(model.get_params() == before);
+  CHECK(confidence_prediction_bands(model, Matrix(0, 2), 0.95,
+                                    [](const Vector &x) { return x[1]; })
+            .cols() == 0);
+}

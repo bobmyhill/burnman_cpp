@@ -16,6 +16,7 @@
 #include "burnman/tools/polytope.hpp"
 #include "burnman/utils/index_utils.hpp"
 #include "burnman/utils/matrix_utils.hpp"
+#include <Eigen/Cholesky>
 #include <Eigen/Eigenvalues>
 #include <algorithm>
 #include <cmath>
@@ -198,7 +199,9 @@ struct FitContext {
   Matrix reactions;
   std::optional<Matrix> dataset;
   bool include_prior;
-  double pressure_scale;
+  Vector scales;
+  Matrix occupancy_matrix;
+  Vector occupancy_baseline;
   Vector fixed;
   std::vector<Eigen::Index> active;
   int evaluations = 0;
@@ -207,8 +210,7 @@ struct FitContext {
     Vector result = fixed;
     for (std::size_t i = 0; i < active.size(); ++i)
       result[active[i]] = values[i];
-    result[0] *= pressure_scale;
-    return result;
+    return result.cwiseProduct(scales);
   }
 
   double value(const std::vector<double> &values) {
@@ -216,22 +218,38 @@ struct FitContext {
     assemblage_set_state_from_params(assemblage, params(values));
     const Matrix C = affinity_covariance(assemblage, reactions, dataset, false);
     const Vector affinity = reactions * assemblage.get_partial_gibbs().matrix();
-    const double misfit =
-        affinity.dot(inverse_covariance(C) * affinity) +
-        (include_prior ? assemblage_state_misfit(assemblage) : 0.);
-    if (!std::isfinite(misfit))
-      throw std::runtime_error("Nonfinite thermobarometry misfit.");
-    return misfit;
+    const Eigen::LLT<Matrix> factor(C);
+    if (factor.info() != Eigen::Success)
+      return std::numeric_limits<double>::infinity();
+    return factor.matrixL().solve(affinity).squaredNorm() +
+           (include_prior ? assemblage_state_misfit(assemblage) : 0.);
   }
 
   double feasible_value(const std::vector<double> &values) {
     try {
-      return value(values);
+      const double result = value(values);
+      return std::isfinite(result) ? result : 1.e30;
     } catch (const std::invalid_argument &) {
       return 1.e30;
     }
   }
 };
+
+void occupancy_constraints(unsigned int m, double *result, unsigned int n,
+                           const double *values, double *gradient,
+                           void *context) {
+  const auto &fit = *static_cast<FitContext *>(context);
+  const Vector params = fit.params(std::vector<double>(values, values + n));
+  const Vector occupancy =
+      fit.occupancy_baseline + fit.occupancy_matrix * params;
+  for (unsigned int i = 0; i < m; ++i) {
+    result[i] = -occupancy[i];
+    if (gradient)
+      for (unsigned int j = 0; j < n; ++j)
+        gradient[i * n + j] =
+            -fit.occupancy_matrix(i, fit.active[j]) * fit.scales[fit.active[j]];
+  }
+}
 
 double objective(const std::vector<double> &values,
                  std::vector<double> &gradient, void *context) {
@@ -367,7 +385,10 @@ double assemblage_affinity_misfit(
   const Matrix C = assemblage_affinity_covariance_matrix(assemblage, R, dataset,
                                                          include_state);
   const Vector affinity = R * assemblage.get_partial_gibbs().matrix();
-  return affinity.dot(inverse_covariance(C) * affinity);
+  const Eigen::LLT<Matrix> factor(C);
+  if (factor.info() != Eigen::Success)
+    return std::numeric_limits<double>::infinity();
+  return factor.matrixL().solve(affinity).squaredNorm();
 }
 
 double assemblage_state_misfit(const Assemblage &assemblage) {
@@ -384,22 +405,19 @@ double assemblage_state_misfit(const Assemblage &assemblage) {
                    delta);
 }
 
-EstimateConditionsResult
-estimate_conditions(Assemblage &assemblage,
-                    const std::optional<minerals::CovarianceData> &dataset,
-                    bool include_prior,
-                    const std::optional<Eigen::Vector2d> &guess,
-                    const Eigen::Vector2d &pressure_bounds,
-                    const Eigen::Vector2d &temperature_bounds,
-                    double pressure_scale, double tolerance, int max_it) {
+EstimateConditionsResult estimate_conditions(
+    Assemblage &assemblage,
+    const std::optional<minerals::CovarianceData> &dataset, bool include_prior,
+    const std::optional<Eigen::Vector2d> &guess,
+    const Eigen::Vector2d &pressure_bounds,
+    const Eigen::Vector2d &temperature_bounds, double tolerance, int max_it) {
   if (!pressure_bounds.allFinite() || !temperature_bounds.allFinite() ||
       pressure_bounds[0] > pressure_bounds[1] ||
       temperature_bounds[0] > temperature_bounds[1] ||
-      temperature_bounds[0] < 0. || !std::isfinite(pressure_scale) ||
-      pressure_scale <= 0. || max_it <= 0)
+      temperature_bounds[0] < 0. || max_it <= 0)
     throw std::invalid_argument(
         "Bounds must be ordered and finite, temperatures nonnegative, "
-        "P_scaling positive and max_it positive.");
+        "and max_it positive.");
   if (!guess && !assemblage.has_state())
     throw std::invalid_argument(
         "Supply guessed_conditions or set the assemblage state.");
@@ -418,8 +436,7 @@ estimate_conditions(Assemblage &assemblage,
       n_free += n;
     }
   const auto close = [](const Eigen::Vector2d &bounds) {
-    return std::abs(bounds[0] - bounds[1]) <=
-           1.e-8 + 1.e-5 * std::abs(bounds[1]);
+    return bounds[0] == bounds[1];
   };
   if (close(pressure_bounds) && close(temperature_bounds) && !n_free)
     throw std::invalid_argument("Both pressure and temperature cannot be fixed "
@@ -433,24 +450,75 @@ estimate_conditions(Assemblage &assemblage,
   if (R.rows() + n_constraints < n_params)
     throw std::invalid_argument("Not enough independent reactions and state "
                                 "priors to constrain the inversion.");
+  // Follow Python's initial weighted-sensitivity preconditioning.
+  assemblage.set_state(
+      std::clamp(initial[0], pressure_bounds[0], pressure_bounds[1]),
+      std::clamp(initial[1], temperature_bounds[0], temperature_bounds[1]));
+  const std::optional<Matrix> transformed =
+      dataset
+          ? std::optional<Matrix>(endmember_covariance(assemblage, *dataset))
+          : std::nullopt;
+  const Matrix initial_covariance =
+      affinity_covariance(assemblage, R, transformed, false);
+  const Eigen::LLT<Matrix> initial_factor(initial_covariance);
+  if (initial_factor.info() != Eigen::Success)
+    throw std::invalid_argument(
+        "Affinity covariance must be positive definite.");
+  Matrix initial_derivatives(assemblage.get_n_endmembers(), 2);
+  initial_derivatives.col(0) =
+      assemblage.get_endmember_partial_volumes().matrix();
+  initial_derivatives.col(1) =
+      -assemblage.get_endmember_partial_entropies().matrix();
+  const Matrix weighted =
+      initial_factor.matrixL().solve((R * initial_derivatives).eval());
+  Eigen::Vector2d curvature = weighted.colwise().squaredNorm().transpose();
+  if (include_prior) {
+    assemblage_state_misfit(assemblage); // Validate the state prior.
+    curvature += assemblage.state_inverse_covariances->diagonal();
+  }
+  Vector scales = Vector::Ones(2 + n_free);
+  for (Eigen::Index i = 0; i < 2; ++i)
+    scales[i] = curvature[i] > 0. ? 1. / std::sqrt(curvature[i]) : 1.;
   Vector lower =
       Vector::Constant(2 + n_free, -std::numeric_limits<double>::infinity());
   Vector upper = -lower;
-  lower[0] = pressure_bounds[0] / pressure_scale;
-  upper[0] = pressure_bounds[1] / pressure_scale;
-  lower[1] = temperature_bounds[0];
-  upper[1] = temperature_bounds[1];
+  lower.head<2>() = Eigen::Vector2d(pressure_bounds[0], temperature_bounds[0])
+                        .cwiseQuotient(scales.head<2>());
+  upper.head<2>() = Eigen::Vector2d(pressure_bounds[1], temperature_bounds[1])
+                        .cwiseQuotient(scales.head<2>());
+  Eigen::Index sites = 0;
+  for (const auto &phase : assemblage.get_phases())
+    if (const auto *solution = dynamic_cast<const Solution *>(phase.get()))
+      if (free_vectors(*solution))
+        sites += solution->get_endmember_occupancies().cols();
+  Matrix occupancy_matrix = Matrix::Zero(sites, 2 + n_free);
+  Vector occupancy_baseline(sites);
+  Eigen::Index row = 0, column = 2;
+  for (const auto &phase : assemblage.get_phases())
+    if (const auto *solution = dynamic_cast<const Solution *>(phase.get())) {
+      const auto count = free_vectors(*solution);
+      if (count) {
+        const Matrix occ = solution->get_endmember_occupancies().matrix();
+        occupancy_matrix.block(row, column, occ.cols(), count) =
+            occ.transpose() * solution->free_compositional_vectors->transpose();
+        occupancy_baseline.segment(row, occ.cols()) =
+            occ.transpose() * solution->baseline_composition->matrix();
+        row += occ.cols();
+        column += count;
+      }
+    }
   FitContext context{assemblage,
                      R,
-                     std::nullopt,
+                     transformed,
                      include_prior,
-                     pressure_scale,
+                     scales,
+                     occupancy_matrix,
+                     occupancy_baseline,
                      Vector::Zero(2 + n_free),
                      {},
                      0};
-  context.fixed[0] =
-      std::clamp(initial[0] / pressure_scale, lower[0], upper[0]);
-  context.fixed[1] = std::clamp(initial[1], lower[1], upper[1]);
+  context.fixed[0] = std::clamp(initial[0] / scales[0], lower[0], upper[0]);
+  context.fixed[1] = std::clamp(initial[1] / scales[1], lower[1], upper[1]);
   std::vector<double> values, active_lower, active_upper;
   for (Eigen::Index i = 0; i < lower.size(); ++i)
     if (lower[i] != upper[i]) {
@@ -462,8 +530,6 @@ estimate_conditions(Assemblage &assemblage,
   assemblage_set_state_from_params(assemblage, context.params(values));
   // Validate observation data before entering the optimizer so input errors
   // are reported directly, rather than interpreted as infeasible trial states.
-  if (dataset)
-    context.dataset = endmember_covariance(assemblage, *dataset);
   context.value(values);
 
   const auto run = [&](nlopt::algorithm algorithm) {
@@ -472,13 +538,16 @@ estimate_conditions(Assemblage &assemblage,
     optimizer.set_min_objective(objective, &context);
     optimizer.set_lower_bounds(active_lower);
     optimizer.set_upper_bounds(active_upper);
+    if (algorithm == nlopt::LD_SLSQP && sites)
+      optimizer.add_inequality_mconstraint(
+          occupancy_constraints, &context,
+          std::vector<double>(static_cast<std::size_t>(sites), 1.e-10));
     optimizer.set_maxeval(max_it);
     optimizer.set_xtol_rel(1.e-9);
     optimizer.set_ftol_abs(1.e-9);
     std::vector<double> steps(context.active.size());
     for (std::size_t i = 0; i < steps.size(); ++i)
-      steps[i] =
-          context.active[i] == 0 ? 100. : (context.active[i] == 1 ? 25. : 0.01);
+      steps[i] = 0.05 * (values[i] != 0. ? std::abs(values[i]) : 0.005);
     optimizer.set_initial_step(steps);
     double minimum = 0.;
     try {
@@ -502,22 +571,39 @@ estimate_conditions(Assemblage &assemblage,
   objective(values, gradient, &context);
   result.jac = Vector::Zero(result.x.size());
   for (std::size_t i = 0; i < gradient.size(); ++i)
-    result.jac[context.active[i]] =
-        gradient[i] / (context.active[i] == 0 ? pressure_scale : 1.);
+    result.jac[context.active[i]] = gradient[i] / scales[context.active[i]];
   assemblage_set_state_from_params(assemblage, result.x);
   result.acov = affinity_covariance(assemblage, R, context.dataset, false);
   Matrix dmudx(assemblage.get_n_endmembers(), 2);
   dmudx.col(0) = assemblage.get_endmember_partial_volumes().matrix();
   dmudx.col(1) = -assemblage.get_endmember_partial_entropies().matrix();
   result.dadx = R * dmudx;
-  // TODO: Investigate the statistical rationale for retaining a P-T-only
-  // Jacobian when free compositional coordinates are optimized. Preserve
-  // the existing P-T covariance calculation and its dimensions meanwhile.
-  Matrix information =
-      result.dadx.transpose() * inverse_covariance(result.acov) * result.dadx;
+  const Eigen::LLT<Matrix> factor(result.acov);
+  if (factor.info() != Eigen::Success)
+    throw std::invalid_argument(
+        "Affinity covariance must be positive definite.");
+  Matrix information = result.dadx.transpose() * factor.solve(result.dadx);
   if (include_prior)
     information += *assemblage.state_inverse_covariances;
-  result.xcov = inverse_covariance(information);
+  Eigen::Vector2i free;
+  Eigen::Index free_count = 0;
+  if (!close(pressure_bounds))
+    free[free_count++] = 0;
+  if (!close(temperature_bounds))
+    free[free_count++] = 1;
+  result.xcov = Matrix::Zero(2, 2);
+  if (free_count) {
+    Matrix block(free_count, free_count);
+    for (Eigen::Index i = 0; i < free_count; ++i)
+      for (Eigen::Index j = 0; j < free_count; ++j)
+        block(i, j) =
+            information(free[i], free[j]) * scales[free[i]] * scales[free[j]];
+    const Matrix inverse = inverse_covariance(block);
+    for (Eigen::Index i = 0; i < free_count; ++i)
+      for (Eigen::Index j = 0; j < free_count; ++j)
+        result.xcov(free[i], free[j]) =
+            inverse(i, j) * scales[free[i]] * scales[free[j]];
+  }
   result.var = result.xcov.diagonal().cwiseMax(0.).cwiseSqrt();
   result.xcorr =
       result.xcov.array() / (result.var * result.var.transpose()).array();

@@ -128,11 +128,11 @@ void bind_thermobarometry(py::module_ &m) {
       [](Assemblage &assemblage, const py::object &data, bool prior,
          const std::optional<Eigen::Vector2d> &guess,
          const Eigen::Vector2d &pressure_bounds,
-         const Eigen::Vector2d &temperature_bounds, double scale,
-         double tolerance, int max_it) {
+         const Eigen::Vector2d &temperature_bounds, double tolerance,
+         int max_it) {
         auto estimate = thermo::estimate_conditions(
             assemblage, dataset_covariance(data), prior, guess, pressure_bounds,
-            temperature_bounds, scale, tolerance, max_it);
+            temperature_bounds, tolerance, max_it);
         if (estimate.degrees_of_freedom <= 0 &&
             PyErr_WarnEx(PyExc_RuntimeWarning,
                          "Degrees of freedom <= 0, cannot compute reduced "
@@ -146,8 +146,7 @@ void bind_thermobarometry(py::module_ &m) {
       py::arg("guessed_conditions") = Eigen::Vector2d(1.e9, 1000.),
       py::arg("pressure_bounds") = Eigen::Vector2d(1.e5, 400.e9),
       py::arg("temperature_bounds") = Eigen::Vector2d(300., 4000.),
-      py::arg("P_scaling") = 1.e6, py::arg("small_fraction_tol") = 0.,
-      py::arg("max_it") = 100,
+      py::arg("small_fraction_tol") = 0., py::arg("max_it") = 100,
       R"doc(Estimate pressure and temperature by minimizing weighted reaction affinities.
 
 Each solution requires compositional_covariances in endmember order. Optional
@@ -157,12 +156,13 @@ Dataset covariances are a dictionary with endmember_names and covariance_matrix.
 P-T prior misfit additionally requires state_priors and state_inverse_covariances.
 
 guessed_conditions is [pressure (Pa), temperature (K)]; None uses the current
-assemblage state. Coincident bounds fix a condition. P_scaling scales pressure
-during optimization. A positive small_fraction_tol reduces the reaction basis
+assemblage state. Equal bounds fix a condition. P/T scaling uses initial weighted
+affinity sensitivities and state priors. A positive small_fraction_tol reduces the reaction basis
 by excluding small endmember contributions. max_it limits optimizer evaluations.
 
 The assemblage is left at the returned conditions. Result x contains P, T and
 free compositional coordinates. xcov, var and xcorr describe P and T only;
+Fixed P/T conditions have zero covariance and undefined correlations.
 dadx contains affinity derivatives with respect to P and T at the optimized
 compositions. Reduced chi-squared and fit are available only for positive
 degrees of freedom. Native Nelder-Mead and SLSQP supply success, status,

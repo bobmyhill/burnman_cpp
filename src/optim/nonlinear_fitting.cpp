@@ -16,6 +16,7 @@
 #include <Eigen/LU>
 #include <algorithm>
 #include <cmath>
+#include <gsl/gsl_cdf.h>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -140,11 +141,17 @@ void calculate_jacobian_impl(NonLinearModel &model) {
       Vector perturbed = params;
       perturbed[j] -= model.delta_params[j];
       model.set_params(perturbed);
+      const double p0 = model.get_params()[j];
       const Vector res_0 = std::get<1>(find_mle_impl(model));
       perturbed[j] = params[j] + model.delta_params[j];
       model.set_params(perturbed);
+      const double p1 = model.get_params()[j];
+      if (p1 == p0)
+        throw std::invalid_argument("Cannot perturb parameter " +
+                                    std::to_string(j) +
+                                    ": both trial values are identical.");
       const Vector res_1 = std::get<1>(find_mle_impl(model));
-      jacobian.col(j) = (res_1 - res_0) / (2. * model.delta_params[j]);
+      jacobian.col(j) = (res_1 - res_0) / (p1 - p0);
     }
   } catch (...) {
     model.set_params(params);
@@ -330,5 +337,120 @@ void nonlinear_least_squares_fit(NonLinearModel &model,
     throw std::runtime_error("Non-finite fitted covariance or noise variance.");
   if (options.verbose)
     std::cout << std::flush;
+}
+
+bool NonLinearModel::flags_equal(const std::any &a, const std::any &b) const {
+  if (!a.has_value() || !b.has_value())
+    return !a.has_value() && !b.has_value();
+  if (a.type() == typeid(std::string) && b.type() == typeid(std::string))
+    return std::any_cast<const std::string &>(a) ==
+           std::any_cast<const std::string &>(b);
+  throw std::invalid_argument("Native model flags must be strings or empty.");
+}
+
+Matrix confidence_prediction_bands(NonLinearModel &model, const Matrix &x_array,
+                                   double confidence_interval,
+                                   const ScalarModelFunction &f,
+                                   const std::any &flag) {
+  validate_differences(model);
+  const Vector params = model.get_params();
+  const auto n = x_array.rows(), p = params.size(), d = model.data.cols();
+  if (d == 0 || x_array.cols() != d || !x_array.allFinite())
+    throw std::invalid_argument(
+        "Queries must be finite and match the model dimension.");
+  if (!f || !std::isfinite(confidence_interval) || confidence_interval <= 0. ||
+      confidence_interval >= 1. || model.dof <= 0)
+    throw std::invalid_argument("Require a scalar function, 0 < "
+                                "confidence_interval < 1 and positive dof.");
+  check_covariance(model.pcov, p, "pcov");
+  if (n == 0)
+    return Matrix(4, 0);
+
+  Vector mean(n), fitted_quantity(n), parameter_steps = Vector::Zero(p);
+  Matrix gradient(n, p), fitted_changes = Matrix::Zero(n, p);
+  double noise_variance = std::numeric_limits<double>::quiet_NaN();
+  try {
+    double squared_residuals = 0.;
+    Eigen::Index matching = 0;
+    for (Eigen::Index i = 0; i < model.data.rows(); ++i) {
+      const auto &observed_flag =
+          model.flags.empty() ? flag : model.flags[static_cast<std::size_t>(i)];
+      if (model.flags_equal(observed_flag, flag)) {
+        const Vector x = model.data.row(i).transpose();
+        const double residual =
+            model.function(x, observed_flag)[d - 1] - x[d - 1];
+        squared_residuals += residual * residual;
+        ++matching;
+      }
+    }
+    const auto noise_dof = model.dof - (model.data.rows() - matching);
+    if (noise_dof > 0)
+      noise_variance = squared_residuals / static_cast<double>(noise_dof);
+    for (Eigen::Index i = 0; i < n; ++i) {
+      const Vector point = model.function(x_array.row(i).transpose(), flag);
+      check_vector(point, d, "Model function");
+      fitted_quantity[i] = point[d - 1];
+      mean[i] = f(point);
+    }
+    for (Eigen::Index j = 0; j < p; ++j) {
+      Vector shifted = params;
+      shifted[j] += model.delta_params[j];
+      model.set_params(shifted);
+      double step = model.get_params()[j] - params[j];
+      if (step == 0.) { // Try the other side at a parameter bound.
+        shifted[j] = params[j] - model.delta_params[j];
+        model.set_params(shifted);
+        step = model.get_params()[j] - params[j];
+      }
+      if (step == 0.) {
+        if (model.pcov(j, j) != 0.)
+          throw std::invalid_argument(
+              "Cannot perturb a parameter with nonzero covariance.");
+        gradient.col(j).setZero();
+        continue;
+      }
+      parameter_steps[j] = step;
+      for (Eigen::Index i = 0; i < n; ++i) {
+        const Vector point = model.function(x_array.row(i).transpose(), flag);
+        check_vector(point, d, "Model function");
+        fitted_changes(i, j) = point[d - 1] - fitted_quantity[i];
+        gradient(i, j) = (f(point) - mean[i]) / step;
+      }
+    }
+    model.set_params(params);
+    model.function(x_array.row(n - 1).transpose(), flag);
+  } catch (...) {
+    model.set_params(params);
+    throw;
+  }
+
+  const double critical = gsl_cdf_tdist_Qinv(0.5 * (1. - confidence_interval),
+                                             static_cast<double>(model.dof));
+  Matrix bands(4, n);
+  for (Eigen::Index i = 0; i < n; ++i) {
+    const Vector derivative = gradient.row(i).transpose();
+    const double variance = derivative.dot(model.pcov * derivative);
+    const double confidence_width = critical * std::sqrt(variance);
+    double prediction_noise = std::numeric_limits<double>::quiet_NaN();
+    // Match Python: identify local response conversion from actual trial
+    // changes.
+    const Vector dy = fitted_changes.row(i).transpose();
+    const Vector df = derivative.cwiseProduct(parameter_steps);
+    const double dy_squared = dy.squaredNorm();
+    if (dy_squared > 0.) {
+      const double conversion = dy.dot(df) / dy_squared;
+      if ((df - conversion * dy).norm() <= 1.e-5 * df.norm())
+        prediction_noise = conversion * conversion * noise_variance;
+    }
+    const double prediction_width =
+        critical * std::sqrt(variance + prediction_noise);
+    bands(0, i) = mean[i] - confidence_width;
+    bands(1, i) = mean[i] + confidence_width;
+    bands(2, i) = mean[i] - prediction_width;
+    bands(3, i) = mean[i] + prediction_width;
+  }
+  if (!bands.topRows(2).allFinite())
+    throw std::runtime_error("Non-finite confidence bands.");
+  return bands;
 }
 } // namespace burnman::optim

@@ -15,6 +15,7 @@
 
 #include <Eigen/Core>
 #include <any>
+#include <functional>
 #include <optional>
 #include <tuple>
 #include <vector>
@@ -38,6 +39,8 @@ public:
   virtual Eigen::VectorXd normal(const Eigen::VectorXd &x,
                                  const std::any &flag = {}) = 0;
   virtual void validate() const;
+  /// Compare model-defined flags; Python adapters use Python equality.
+  virtual bool flags_equal(const std::any &a, const std::any &b) const;
 
   Eigen::MatrixXd data;
   std::vector<Eigen::MatrixXd> data_covariances;
@@ -98,4 +101,20 @@ void calculate_jacobian(NonLinearModel &model);
  */
 void nonlinear_least_squares_fit(NonLinearModel &model,
                                  const NonlinearFitOptions &options = {});
+
+using ScalarModelFunction = std::function<double(const Eigen::VectorXd &)>;
+
+/** Pointwise confidence/prediction intervals for f(function(x)).
+ * Rows are confidence lower/upper, then prediction lower/upper. Propagates pcov
+ * using forward differences at the original queries and a positive Student-t
+ * quantile. Parameters are restored on success or error; differences use actual
+ * bounded displacements. Prediction noise uses matching response residuals and
+ * local response-to-output conversion from parameter trials, following Python.
+ * Prediction rows are NaN when conversion or response noise is unidentified.
+ */
+Eigen::MatrixXd confidence_prediction_bands(NonLinearModel &model,
+                                            const Eigen::MatrixXd &x_array,
+                                            double confidence_interval,
+                                            const ScalarModelFunction &f,
+                                            const std::any &flag = {});
 } // namespace burnman::optim
