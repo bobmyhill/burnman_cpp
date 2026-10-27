@@ -20,6 +20,9 @@
 #include <vector>
 
 namespace burnman {
+namespace optim {
+class SolutionFit;
+}
 namespace solution_models {
 
 /**
@@ -94,6 +97,8 @@ public:
   const Eigen::MatrixXd &get_volume_interactions() const { return W_v; }
 
 private:
+  friend class optim::SolutionFit;
+
   // Alphas (van Laar) and interaction parameters
   Eigen::ArrayXd alphas;
   Eigen::MatrixXd W_e; // energy interactions

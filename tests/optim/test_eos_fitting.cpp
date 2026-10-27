@@ -105,3 +105,41 @@ TEST_CASE("Native PT-property fits reproduce exact Gibbs entropy enthalpy and "
     CHECK(std::any_cast<std::string>(model.flags[0]) == flag);
   }
 }
+
+TEST_CASE(
+    "Native solution fitting shares parameters and uses pressure weighting",
+    "[eos_fitting]") {
+  auto solution = minerals::SLB_2011::mg_fe_olivine();
+  Eigen::MatrixXd data(12, 5);
+  for (Eigen::Index i = 0; i < data.rows(); ++i) {
+    const double fraction = (static_cast<double>(i) + 0.5) / 12.;
+    const double pressure = static_cast<double>(i % 4) * 1.e9;
+    solution->set_composition(Eigen::Array2d(1. - fraction, fraction));
+    solution->set_state(pressure, 800.);
+    data.row(i) << 1. - fraction, fraction, pressure, 800.,
+        solution->get_molar_volume();
+  }
+  optim::NonlinearFitOptions options;
+  options.verbose = false;
+  auto model = optim::fit_XPTp_data(
+      solution, {{"V_0", 0}, {"V_0", 1}, {"V", 0, 1}}, std::string("V"), data,
+      {}, {}, std::nullopt, std::nullopt, options);
+  CHECK(model.m == solution);
+  CHECK(model.popt == model.get_params());
+  CHECK(model.WSS == 0.);
+  CHECK(model.pcov.isZero());
+  CHECK(model.data_covariances[0](2, 2) == 1.);
+  CHECK(model.data_covariances[0].sum() == 1.);
+  CHECK(model.fit_params_strings ==
+        std::vector<std::string>{"V_0 (0)", "V_0 (1)", "V (0,1)"});
+  const auto point = data.row(4).transpose().eval();
+  CHECK(model.normal(point).head(2).isZero());
+  const double old_volume = model.function(point)[4];
+  Eigen::VectorXd trial = model.popt;
+  trial[0] *= 1.001;
+  trial[2] = 1.e-7;
+  model.set_params(trial);
+  CHECK(model.get_params().isApprox(trial));
+  CHECK(solution->get_molar_volume() != old_volume);
+  CHECK(model.function(point)[4] != old_volume);
+}
