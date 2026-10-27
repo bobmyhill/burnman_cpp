@@ -253,7 +253,7 @@ comparisons used by GitHub CI:
 
 ```sh
 git clone https://github.com/geodynamics/burnman.git build/python-burnman-reference
-git -C build/python-burnman-reference checkout bcfe0fa8ea0180cd2178cffe76ea985bc9098dc4
+git -C build/python-burnman-reference checkout b7c54ccf7bfd8583158c6dffe210c004b9570f4d
 python -m pip install -e 'build/python-burnman-reference[dev]'
 export PYTHONPATH="$PWD/build/python-burnman-reference"
 export PYTHONDONTWRITEBYTECODE=1
