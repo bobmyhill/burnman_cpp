@@ -84,5 +84,5 @@ Both commands use `build/benchmarks/` by default. The Python timer accepts
 The GitHub `Benchmarks` workflow runs on pushes, pull requests and manual
 dispatch. It builds and executes the native benchmarks with warnings treated
 as errors, processes their XML, and runs the Python timings against BurnMan
-commit `bcfe0fa8ea0180cd2178cffe76ea985bc9098dc4`. The XML, CTest log and CSV files
+commit `b7c54ccf7bfd8583158c6dffe210c004b9570f4d`. The XML, CTest log and CSV files
 are available as workflow artifacts.

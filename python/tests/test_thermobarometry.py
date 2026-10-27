@@ -303,9 +303,8 @@ def test_optional_python_estimated_conditions_and_statistics(pressure_scaling):
     native_result = thermo.estimate_conditions(
         actual, data, True, [14e9, 1400], P_scaling=pressure_scaling
     )
-    python_result = reference.estimate_conditions(
-        expected, data, True, [14e9, 1400], P_scaling=pressure_scaling
-    )
+    # The pinned Python reference now chooses its pressure and temperature scales.
+    python_result = reference.estimate_conditions(expected, data, True, [14e9, 1400])
     assert native_result.success and python_result.success
     # Different finite-difference gradients and stopping criteria shift the
     # NLopt and SciPy estimates slightly along the correlated P-T uncertainty.

@@ -1,5 +1,5 @@
 {
   "repository": "https://github.com/geodynamics/burnman",
-  "commit": "bcfe0fa8ea0180cd2178cffe76ea985bc9098dc4",
+  "commit": "b7c54ccf7bfd8583158c6dffe210c004b9570f4d",
   "volume_root_xtol_m3_per_mol": 1e-24
 }
