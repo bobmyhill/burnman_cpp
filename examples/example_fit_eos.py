@@ -24,7 +24,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from burnman_cpp import Mineral, constants, eos_fitting, minerals
+from burnman_cpp import Mineral, constants, eos_fitting, minerals, nonlinear_fitting
 
 DATA_DIR = Path(__file__).resolve().parent / "data" / "input_fitting"
 
@@ -100,6 +100,30 @@ def fit_stishovite():
         volumes[i] = stv.molar_volume
 
     fig, ax = plt.subplots()
+    queries = np.column_stack([pressures, np.full(len(pressures), T), volumes])
+    intervals = nonlinear_fitting.confidence_prediction_bands(
+        fitted_eos,
+        queries,
+        0.95,
+        lambda point: point[2],
+        flag="V",
+    )
+    ax.fill_between(
+        pressures / 1.0e9,
+        intervals[2] * 1.0e6,
+        intervals[3] * 1.0e6,
+        color="C0",
+        alpha=0.12,
+        label="95% prediction",
+    )
+    ax.fill_between(
+        pressures / 1.0e9,
+        intervals[0] * 1.0e6,
+        intervals[1] * 1.0e6,
+        color="C0",
+        alpha=0.3,
+        label="95% confidence",
+    )
     ax.plot(pressures / 1.0e9, volumes * 1.0e6, label="Optimized fit for stishovite")
     ax.errorbar(
         PTV[:, 0] / 1.0e9,

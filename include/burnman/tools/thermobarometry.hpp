@@ -41,7 +41,8 @@ Eigen::MatrixXd assemblage_affinity_covariance_matrix(
         std::nullopt,
     bool include_state_uncertainties = false);
 
-/// Reaction affinities weighted by the pseudoinverse of their covariance.
+/// Reaction affinity misfit; infinity if its covariance is not positive
+/// definite.
 double assemblage_affinity_misfit(const Assemblage &assemblage,
                                   const Eigen::MatrixXd &reaction_matrix,
                                   const std::optional<minerals::CovarianceData>
@@ -78,8 +79,8 @@ struct EstimateConditionsResult {
  * composition at the start of the fit, stored in baseline_composition. The
  * assemblage is left at the returned conditions. Prior misfit requires
  * state_priors and state_inverse_covariances. A missing guess uses the
- * assemblage's state. Equal bounds fix the corresponding condition. P_scaling
- * is in Pa.
+ * assemblage's state. Equal bounds fix the corresponding condition. P/T scales
+ * follow their initial weighted affinity sensitivities and state priors.
  */
 EstimateConditionsResult estimate_conditions(
     Assemblage &assemblage,
@@ -90,5 +91,5 @@ EstimateConditionsResult estimate_conditions(
         Eigen::Vector2d(1.e9, 1000.),
     const Eigen::Vector2d &pressure_bounds = Eigen::Vector2d(1.e5, 400.e9),
     const Eigen::Vector2d &temperature_bounds = Eigen::Vector2d(300., 4000.),
-    double P_scaling = 1.e6, double small_fraction_tol = 0., int max_it = 100);
+    double small_fraction_tol = 0., int max_it = 100);
 } // namespace burnman::thermobarometry

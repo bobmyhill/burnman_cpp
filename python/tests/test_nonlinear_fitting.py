@@ -362,3 +362,36 @@ def test_optional_python_burnman_parity(case):
             atol=1.0e-7,
             err_msg=name,
         )
+
+
+@pytest.mark.parametrize("bounds", [(-1.0, 0.0), (0.0, 1.0), (-0.25, 0.5)])
+@pytest.mark.parametrize("sign", [-1.0, 1.0])
+def test_jacobian_uses_clipped_steps_with_in_place_setter(bounds, sign):
+    model = weighted_line()
+    baseline = model.get_params().copy()
+    limits = baseline[0] + np.array(bounds) * abs(model.delta_params[0])
+    model.delta_params[0] *= sign
+
+    def setter(values):
+        model.params[:] = values
+        model.params[0] = np.clip(model.params[0], *limits)
+
+    model.set_params = setter
+    fit.calculate_jacobian(model)
+    expected = -np.column_stack([model.data[:, 0], np.ones(len(model.data))]) / 0.3
+    assert_allclose(model.jacobian, expected, rtol=1e-6, atol=1e-7)
+    assert_array_equal(model.get_params(), baseline)
+
+
+def test_jacobian_rejects_identical_clipped_trials_and_restores_parameters():
+    model = weighted_line()
+    baseline = model.get_params().copy()
+
+    def setter(values):
+        model.params[:] = values
+        model.params[0] = baseline[0]
+
+    model.set_params = setter
+    with pytest.raises(ValueError, match="Cannot perturb parameter 0"):
+        fit.calculate_jacobian(model)
+    assert_array_equal(model.get_params(), baseline)

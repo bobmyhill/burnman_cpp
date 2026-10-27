@@ -17,6 +17,13 @@
 
 namespace burnman::python {
 namespace {
+std::any band_flag(const py::object &flag) {
+  if (flag.is_none())
+    return {};
+  if (py::isinstance<py::str>(flag))
+    return flag.cast<std::string>();
+  return flag;
+}
 // Keep arbitrary Python flags in the adapter; the numerical core treats them
 // as opaque values and is also usable with native C++ models.
 class PythonModel final : public optim::NonLinearModel {
@@ -65,12 +72,30 @@ public:
     object.attr("goodness_of_fit") = goodness_of_fit;
     object.attr("noise_variance") = noise_variance;
   }
+  bool flags_equal(const std::any &a, const std::any &b) const override {
+    return python_flag(a).equal(python_flag(b));
+  }
+  void load_band_data() {
+    data = object.attr("data").cast<Eigen::MatrixXd>();
+    delta_params = object.attr("delta_params").cast<Eigen::VectorXd>();
+    pcov = object.attr("pcov").cast<Eigen::MatrixXd>();
+    dof = object.attr("dof").cast<Eigen::Index>();
+    if (py::hasattr(object, "flags"))
+      for (const auto &flag : object.attr("flags"))
+        flags.emplace_back(band_flag(py::reinterpret_borrow<py::object>(flag)));
+  }
 
 private:
+  static py::object python_flag(const std::any &flag) {
+    if (!flag.has_value())
+      return py::none();
+    if (flag.type() == typeid(std::string))
+      return py::str(std::any_cast<const std::string &>(flag));
+    return std::any_cast<py::object>(flag);
+  }
   Eigen::VectorXd evaluate(const char *method, const Eigen::VectorXd &x,
                            const std::any &flag) const {
-    const py::object value =
-        flag.has_value() ? std::any_cast<py::object>(flag) : py::none();
+    const py::object value = python_flag(flag);
     return object
         .attr(method)(py::cast(x, py::return_value_policy::copy), value)
         .cast<Eigen::VectorXd>();
@@ -110,6 +135,38 @@ void bind_nonlinear_fitting(py::module_ &m) {
   ATTRIBUTE(goodness_of_fit);
   ATTRIBUTE(noise_variance);
 #undef ATTRIBUTE
+  nonlinear.def(
+      "confidence_prediction_bands",
+      [](py::object model, const Eigen::MatrixXd &x_array,
+         double confidence_interval, const py::function &f,
+         const py::object &flag) {
+        const optim::ScalarModelFunction function = [&](const Eigen::VectorXd
+                                                            &x) {
+          return f(py::cast(x, py::return_value_policy::copy)).cast<double>();
+        };
+        const std::any mode = band_flag(flag);
+        if (py::isinstance<Model>(model))
+          return optim::confidence_prediction_bands(
+              model.cast<Model &>(), x_array, confidence_interval, function,
+              mode);
+        PythonModel adapter(std::move(model));
+        adapter.load_band_data();
+        return optim::confidence_prediction_bands(
+            adapter, x_array, confidence_interval, function, mode);
+      },
+      py::arg("model"), py::arg("x_array"), py::arg("confidence_interval"),
+      py::arg("f"), py::arg("flag") = py::none(),
+      R"doc(Return pointwise confidence lower/upper and prediction lower/upper rows.
+
+The centre is f(model.function(x, flag)). Parameter uncertainty uses forward
+finite differences and model.pcov, with a positive Student-t quantile and
+model.dof degrees of freedom. Parameters are restored on success or error.
+Prediction noise uses matching response residuals divided by their residual
+degrees of freedom, converted to output units using the existing parameter
+trials. Prediction rows are NaN when trials do not identify a proportional
+response-to-output conversion or there are insufficient matching observations.
+These follow Python's pointwise approximation. Empty queries return shape (4, 0).
+)doc");
   nonlinear.def("abs_line_project", &optim::abs_line_project, py::arg("M"),
                 py::arg("n"),
                 "Project a covariance onto the unit direction n.");

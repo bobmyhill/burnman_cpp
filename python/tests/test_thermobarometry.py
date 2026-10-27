@@ -159,6 +159,9 @@ def test_polymorph_temperature_at_fixed_pressure():
     assert result.n_params == result.n_reactions == 1
     assert result.degrees_of_freedom == 0
     assert result.xcov.shape == (2, 2)
+    assert_allclose(result.xcov[0], 0.0, atol=0.0)
+    assert_allclose(result.xcov[:, 0], 0.0, atol=0.0)
+    assert np.isnan(result.xcorr[0]).all()
     assert result.dadx.shape == (1, 2)
     assert not hasattr(result, "reduced_chisqr")
     assert not hasattr(result, "fit")
@@ -213,8 +216,13 @@ def test_free_compositional_coordinate_keeps_pt_only_uncertainties():
     assert_allclose(result.x[2], expected_b - 0.35, atol=1e-6)
     assert result.x.shape == (3,)
     assert result.xcov.shape == (2, 2)
+    assert_allclose(result.xcov[0], 0.0, atol=0.0)
+    assert_allclose(result.xcov[:, 0], 0.0, atol=0.0)
+    assert np.isnan(result.xcorr[0]).all()
     assert result.dadx.shape == (1, 2)
     assert result.var.shape == (2,)
+    assert_allclose(result.xcov, 0.0, atol=0.0)
+    assert np.isnan(result.xcorr).all()
     assert result.n_params == 1
     assert_allclose(phase.baseline_composition, [0.65, 0.35])
 
@@ -283,8 +291,7 @@ def test_optional_python_covariance_and_misfit_parity(with_state):
     )
 
 
-@pytest.mark.parametrize("pressure_scaling", [1e6, 1e7])
-def test_optional_python_estimated_conditions_and_statistics(pressure_scaling):
+def test_optional_python_estimated_conditions_and_statistics():
     burnman = pytest.importorskip("burnman")
     from scipy.linalg import sqrtm
     from burnman.tools import thermobarometry as reference
@@ -300,9 +307,7 @@ def test_optional_python_estimated_conditions_and_statistics(pressure_scaling):
     expected = burnman.Composite([ol, wad], [0.5, 0.5])
     expected.state_priors = actual.state_priors
     expected.state_inverse_covariances = actual.state_inverse_covariances
-    native_result = thermo.estimate_conditions(
-        actual, data, True, [14e9, 1400], P_scaling=pressure_scaling
-    )
+    native_result = thermo.estimate_conditions(actual, data, True, [14e9, 1400])
     # The pinned Python reference now chooses its pressure and temperature scales.
     python_result = reference.estimate_conditions(expected, data, True, [14e9, 1400])
     assert native_result.success and python_result.success
@@ -454,3 +459,15 @@ def test_invalid_data_and_unsupported_inversions_raise():
     with pytest.raises(ValueError):
         thermo.assemblage_set_state_from_params(mixture, [13e9, 1400, 2])
     assert_allclose(phase.molar_fractions, before)
+
+
+def test_singular_affinity_covariance_has_infinite_misfit():
+    assemblage, _ = olivine_wadsleyite()
+    for phase in assemblage.phases:
+        phase.compositional_covariances = np.zeros(
+            (phase.n_endmembers, phase.n_endmembers)
+        )
+    R = thermo.get_reaction_matrix(assemblage)
+    assert np.isinf(thermo.assemblage_affinity_misfit(assemblage, R))
+    with pytest.raises(ValueError, match="positive definite"):
+        thermo.estimate_conditions(assemblage, guessed_conditions=[14e9, 1400])

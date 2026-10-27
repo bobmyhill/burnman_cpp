@@ -21,6 +21,7 @@ from .._core.optimize.nonlinear_fitting import (
     find_mle,
     calculate_jacobian,
     nonlinear_least_squares_fit,
+    confidence_prediction_bands,
 )
 
 
@@ -62,4 +63,5 @@ __all__ = [
     "find_mle",
     "calculate_jacobian",
     "nonlinear_least_squares_fit",
+    "confidence_prediction_bands",
 ]

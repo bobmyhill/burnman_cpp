@@ -22,7 +22,7 @@ The measurements, uncertainties, initial guesses and random seed follow Python.
 import matplotlib.pyplot as plt
 import numpy as np
 
-from burnman_cpp import Mineral, constants, eos_fitting, minerals
+from burnman_cpp import Mineral, constants, eos_fitting, minerals, nonlinear_fitting
 
 
 def print_fit(model):
@@ -92,6 +92,33 @@ def fit_stishovite():
         pressures = np.array(
             [model.function([v, 298.15, 0.0], "P")[2] for v in plot_volumes]
         )
+        if model is hp_fit:
+            queries = np.column_stack(
+                [plot_volumes, np.full(len(plot_volumes), 298.15), pressures]
+            )
+            intervals = nonlinear_fitting.confidence_prediction_bands(
+                model,
+                queries,
+                0.95,
+                lambda point: point[2],
+                flag="P",
+            )
+            ax.fill_between(
+                plot_volumes * 1.0e6,
+                intervals[2] / 1.0e9,
+                intervals[3] / 1.0e9,
+                color="C0",
+                alpha=0.12,
+                label="95% prediction",
+            )
+            ax.fill_between(
+                plot_volumes * 1.0e6,
+                intervals[0] / 1.0e9,
+                intervals[1] / 1.0e9,
+                color="C0",
+                alpha=0.3,
+                label="95% confidence",
+            )
         ax.plot(plot_volumes * 1.0e6, pressures / 1.0e9, label=label)
     ax.errorbar(
         VTP[:, 0] * 1.0e6,
@@ -166,6 +193,30 @@ def fit_helmholtz():
         )
         (line,) = ax.plot(
             curve_volumes * 1.0e6, energies / 1.0e3, label=f"{temperature:.0f} K"
+        )
+        queries = np.column_stack(
+            [curve_volumes, np.full(len(curve_volumes), temperature), energies]
+        )
+        intervals = nonlinear_fitting.confidence_prediction_bands(
+            model,
+            queries,
+            0.95,
+            lambda point: point[2],
+            flag="helmholtz",
+        )
+        ax.fill_between(
+            curve_volumes * 1.0e6,
+            intervals[2] / 1.0e3,
+            intervals[3] / 1.0e3,
+            color=line.get_color(),
+            alpha=0.12,
+        )
+        ax.fill_between(
+            curve_volumes * 1.0e6,
+            intervals[0] / 1.0e3,
+            intervals[1] / 1.0e3,
+            color=line.get_color(),
+            alpha=0.3,
         )
         ax.errorbar(
             V_data[mask] * 1.0e6,
