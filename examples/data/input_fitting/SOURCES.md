@@ -20,5 +20,11 @@ The following tables are copied unchanged from Python BurnMan's
   temperature/enthalpy covariance choices. The header labels its reference as
   273 K; the upstream example describes enthalpy relative to 298.15 K.
 
+`Dubrovinsky_Saxena_1997_TV_periclase.dat` is copied unchanged from the same
+directory at the pinned Python BurnMan revision
+`b7c54ccf7bfd8583158c6dffe210c004b9570f4d`. It contains periclase volumes and
+volume uncertainties in cm³/mol at temperatures in K, used for the final
+thermal-expansion comparison in `example_fit_eos.py`.
+
 BurnMan is distributed under GPL v2 or later; these copies are distributed as part
 of burnman_cpp under GPL-3.0-or-later (see the root LICENSE).

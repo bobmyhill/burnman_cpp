@@ -11,38 +11,130 @@
 #
 # ------------------------------------------------------
 
-"""Fit mineral equations of state, following Python example_fit_eos.py.
+"""
+example_fit_eos
+----------------
 
-Fit room-temperature stishovite P-V data, then compare fits to periclase P-T-V
-data alone and combined with low-pressure volume and enthalpy measurements.
-The data, fit parameters and uncertainty assumptions follow the Python example.
-The heat-capacity comparison shows how enthalpy constrains the thermal model.
+This example demonstrates BurnMan's functionality to fit data to
+an EoS of the user's choice.
+
+The first example deals with simple PVT fitting.
+The second example illustrates how powerful it can be to
+provide non-PVT constraints to the same fitting problem.
+
+teaches:
+- least squares fitting
 """
 
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.pyplot as plt
 
-from burnman_cpp import Mineral, constants, eos_fitting, minerals, nonlinear_fitting
+import burnman_cpp as burnman
 
 DATA_DIR = Path(__file__).resolve().parent / "data" / "input_fitting"
 
 
 def molar_volume_from_unit_cell_volume(unit_cell_v, z):
-    return unit_cell_v * constants.Avogadro / 1.0e30 / z
+    return unit_cell_v * burnman.constants.Avogadro / 1.0e30 / z
 
 
-def print_fit(model):
-    print("Optimized equation of state (SI units):")
-    for name, value, variance in zip(model.fit_params, model.popt, np.diag(model.pcov)):
-        print(f"{name}: {value:.8g} +/- {np.sqrt(variance):.3g}")
-    print(f"Goodness of fit: {model.goodness_of_fit:.6g}\n")
+def round_to_n(x, xerr, n):
+    return round(x, -int(np.floor(np.log10(np.abs(xerr)))) + (n - 1))
 
 
-def fit_stishovite():
+def pretty_string_values(
+    popt, pcov, extra_decimal_places=0, combine_value_and_sigma=False
+):
+    """
+    Takes a numpy array of parameters, the corresponding covariance matrix
+    and a set of parameter names and returns the scaled variables and
+    principal 1-s.d.uncertainties (np.sqrt(pcov[i][i])) and scaling factor
+    as three separate lists of strings.
+
+    :param popt: Parameter values
+    :type popt: numpy array
+    :param pcov: Variance-covariance matrix
+    :type pcov: 2D numpy array
+    :param extra_decimal_places: extra precision for values, defaults to 0
+    :type extra_decimal_places: int, optional
+    :param combine_value_and_sigma: give values in value(sigma) format, defaults to False
+    :type combine_value_and_sigma: bool, optional
+    :return: values, uncertainties and the scaling factors
+    :rtype: tuple of 3 lists
+    """
+    pval = []
+    psig = []
+    pscale = []
+    for i, p in enumerate(popt):
+        p_rnd = round_to_n(p, np.sqrt(pcov[i][i]), 1 + extra_decimal_places)
+        c_rnd = round_to_n(
+            np.sqrt(pcov[i][i]), np.sqrt(pcov[i][i]), 1 + extra_decimal_places
+        )
+
+        if p_rnd != 0.0:
+            p_expnt = np.floor(np.log10(np.abs(p_rnd)))
+        else:
+            p_expnt = 0.0
+
+        scale = np.power(10.0, p_expnt)
+        nd = p_expnt - np.floor(np.log10(np.abs(c_rnd))) + extra_decimal_places
+        pval.append(f"{p_rnd / scale:0{nd / 10.0}f}")
+        if combine_value_and_sigma:
+            pval[-1] = f"{pval[-1]}({int(c_rnd / scale * np.power(10, nd))})"
+        psig.append(f"{c_rnd / scale:0{nd / 10.0}f}")
+        pscale.append(f"{scale:.0e}")
+    return (pval, psig, pscale)
+
+
+def pretty_print_values(popt, pcov, params, extra_decimal_places=0):
+    """
+    Takes a numpy array of parameters, the corresponding covariance matrix
+    and a set of parameter names and prints the scaled variables and
+    principal 1-s.d.uncertainties (np.sqrt(pcov[i][i])) and scaling factor
+    in an easy to read format.
+
+    :param popt: Parameter values
+    :type popt: numpy array
+    :param pcov: Variance-covariance matrix
+    :type pcov: 2D numpy array
+    :param extra_decimal_places: extra precision for values, defaults to 0
+    :type extra_decimal_places: int, optional
+    """
+    pval, psig, pscale = pretty_string_values(popt, pcov, extra_decimal_places)
+    for i, p in enumerate(params):
+        print(f"{p:s}: ({pval[i]} +/- {psig[i]}) x {pscale[i]}")
+
+
+def attribute_function(material, attributes):
+    """Evaluate an upstream property or product using native attribute names."""
+    if isinstance(attributes, str):
+        attributes = [attributes]
+    aliases = {
+        "V": "molar_volume",
+        "K_T": "isothermal_bulk_modulus_reuss",
+        "alpha": "thermal_expansivity",
+        "gibbs": "molar_gibbs",
+    }
+    attributes = [aliases.get(name, name) for name in attributes]
+
+    def f(x):
+        material.set_state(x[-3], x[-2])
+        value = 1.0
+        for name in attributes:
+            value *= np.power(getattr(material, name), 1.0)
+        return value
+
+    return f
+
+
+if __name__ == "__main__":
+    print("Least squares equation of state fitting\n")
+
     print("1) Fitting to stishovite room temperature PV data\n")
-    # Pressure (GPa), unit-cell volume (angstrom^3), volume uncertainty (angstrom^3).
+    # Now let's fit some EoS data
+    # Let's just take a bit of data from Andrault et al. (2003) on stishovite
     PV = np.array(
         [
             [0.0001, 46.5126, 0.0061],
@@ -72,180 +164,311 @@ def fit_stishovite():
         ]
     )
 
-    Z = 2.0  # Formula units per stishovite unit cell.
-    molar_volume_factor = constants.Avogadro * 1.0e-30 / Z
-    PTV = np.column_stack(
-        [PV[:, 0] * 1.0e9, np.full(len(PV), 298.15), PV[:, 1] * molar_volume_factor]
-    )
+    Z = 2.0  # number of formula units per unit cell in stishovite
+    PTV = np.array(
+        [
+            PV[:, 0] * 1.0e9,
+            298.15 * np.ones_like(PV[:, 0]),
+            molar_volume_from_unit_cell_volume(PV[:, 1], Z),
+        ]
+    ).T
 
-    # Independent pressure and volume errors; temperature is exact.
-    # As in the Python example, pressure uncertainty is 3% of total pressure.
-    PTV_covariances = np.zeros((len(PV), 3, 3))
-    PTV_covariances[:, 0, 0] = (0.03 * PTV[:, 0]) ** 2
-    PTV_covariances[:, 2, 2] = (PV[:, 2] * molar_volume_factor) ** 2
+    # Here, we assume that the pressure uncertainties are equal to 3% of the total pressure,
+    # that the temperature uncertainties are negligible, and take the unit cell volume
+    # uncertainties from the paper.
+    # We also assume that the uncertainties in pressure and volume are uncorrelated.
+    nul = np.zeros_like(PTV[:, 0])
+    PTV_covariances = np.array(
+        [
+            [0.03 * PTV[:, 0], nul, nul],
+            [nul, nul, nul],
+            [nul, nul, molar_volume_from_unit_cell_volume(PV[:, 2], Z)],
+        ]
+    ).T
+    PTV_covariances = np.power(PTV_covariances, 2.0)
 
-    stv = minerals.HP_2011_ds62.stv()
+    # Here's where we fit the data
+    # The mineral parameters are automatically updated during fitting
+    stv = burnman.minerals.HP_2011_ds62.stv()
     params = ["V_0", "K_0", "Kprime_0"]
-    fitted_eos = eos_fitting.fit_PTV_data(
+    fitted_eos = burnman.eos_fitting.fit_PTV_data(
         stv, params, PTV, PTV_covariances, verbose=False
     )
 
-    print_fit(fitted_eos)
-    nonlinear_fitting.corner_plot(fitted_eos.popt, fitted_eos.pcov, params)
+    # Print the optimized parameters
+    print("Optimized equation of state for stishovite:")
+    pretty_print_values(fitted_eos.popt, fitted_eos.pcov, fitted_eos.fit_params)
+    print("")
+
+    # Create a corner plot of the covariances
+    fig = burnman.nonlinear_fitting.corner_plot(
+        fitted_eos.popt, fitted_eos.pcov, params
+    )
     plt.show()
 
+    # Finally, let's plot our equation of state
     T = 298.15
     pressures = np.linspace(1.0e5, 60.0e9, 101)
     volumes = np.empty_like(pressures)
-    for i, pressure in enumerate(pressures):
-        stv.set_state(pressure, T)
-        volumes[i] = stv.molar_volume
 
-    fig, ax = plt.subplots()
-    queries = np.column_stack([pressures, np.full(len(pressures), T), volumes])
-    intervals = nonlinear_fitting.confidence_prediction_bands(
-        fitted_eos,
-        queries,
-        0.95,
-        lambda point: point[2],
+    PTVs = np.empty((len(pressures), 3))
+    for i, P in enumerate(pressures):
+        stv.set_state(P, T)
+        PTVs[i] = [P, T, stv.molar_volume]
+
+    # Plot the 95% confidence and prediction bands
+    cp_bands = burnman.nonlinear_fitting.confidence_prediction_bands(
+        model=fitted_eos,
+        x_array=PTVs,
+        confidence_interval=0.95,
+        f=attribute_function(stv, "V"),
         flag="V",
     )
-    ax.fill_between(
-        pressures / 1.0e9,
-        intervals[2] * 1.0e6,
-        intervals[3] * 1.0e6,
-        color="C0",
-        alpha=0.12,
-        label="95% prediction",
+
+    plt.plot(
+        PTVs[:, 0] / 1.0e9,
+        cp_bands[0] * 1.0e6,
+        linestyle="--",
+        color="r",
+        label="95% confidence bands",
     )
-    ax.fill_between(
-        pressures / 1.0e9,
-        intervals[0] * 1.0e6,
-        intervals[1] * 1.0e6,
-        color="C0",
-        alpha=0.3,
-        label="95% confidence",
+    plt.plot(PTVs[:, 0] / 1.0e9, cp_bands[1] * 1.0e6, linestyle="--", color="r")
+    plt.plot(
+        PTVs[:, 0] / 1.0e9,
+        cp_bands[2] * 1.0e6,
+        linestyle="--",
+        color="b",
+        label="95% prediction bands",
     )
-    ax.plot(pressures / 1.0e9, volumes * 1.0e6, label="Optimized fit for stishovite")
-    ax.errorbar(
+    plt.plot(PTVs[:, 0] / 1.0e9, cp_bands[3] * 1.0e6, linestyle="--", color="b")
+
+    plt.plot(
+        PTVs[:, 0] / 1.0e9, PTVs[:, 2] * 1.0e6, label="Optimized fit for stishovite"
+    )
+    plt.errorbar(
         PTV[:, 0] / 1.0e9,
         PTV[:, 2] * 1.0e6,
-        xerr=np.sqrt(PTV_covariances[:, 0, 0]) / 1.0e9,
-        yerr=np.sqrt(PTV_covariances[:, 2, 2]) * 1.0e6,
+        xerr=np.sqrt(PTV_covariances.T[0][0]) / 1.0e9,
+        yerr=np.sqrt(PTV_covariances.T[2][2]) * 1.0e6,
         linestyle="None",
         marker="o",
         label="Andrault et al. (2003)",
     )
-    ax.plot(
-        fitted_eos.data_mle[:, 0] / 1.0e9,
-        fitted_eos.data_mle[:, 2] * 1.0e6,
-        "k.",
-        markersize=3,
-        label="Maximum likelihood estimates",
-    )
-    ax.set_xlabel("Pressure (GPa)")
-    ax.set_ylabel("Volume (cm$^3$/mol)")
-    ax.set_title("Stishovite at 298.15 K")
-    ax.legend()
-    fig.tight_layout()
+
+    plt.ylabel("Volume (cm^3/mol)")
+    plt.xlabel("Pressure (GPa)")
+    plt.legend(loc="upper right")
+    plt.title("Stishovite EoS (room temperature)")
     plt.show()
-    return fitted_eos
 
+    # Plot the 95% confidence and prediction bands for the bulk modulus
+    cp_bands = burnman.nonlinear_fitting.confidence_prediction_bands(
+        model=fitted_eos,
+        x_array=PTVs,
+        confidence_interval=0.95,
+        f=attribute_function(stv, "K_T"),
+        flag="V",
+    )
+    plt.plot(
+        PTVs[:, 0] / 1.0e9,
+        (cp_bands[0] + cp_bands[1]) / 2.0e9,
+        color="b",
+        label="Best fit",
+    )
+    plt.plot(
+        PTVs[:, 0] / 1.0e9,
+        (cp_bands[0]) / 1.0e9,
+        linestyle="--",
+        color="r",
+        label="95% confidence band",
+    )
+    plt.plot(PTVs[:, 0] / 1.0e9, (cp_bands[1]) / 1.0e9, linestyle="--", color="r")
+    plt.ylabel("Bulk modulus (GPa)")
+    plt.xlabel("Pressure (GPa)")
+    plt.legend(loc="upper right")
+    plt.title("Stishovite EoS; uncertainty in bulk modulus (room temperature)")
+    plt.show()
 
-def fit_periclase():
     print("2) Fitting to periclase high pressure PTV data only\n")
 
-    # Dewaele et al. (2000): temperatures, pressures and unit-cell volumes.
-    D2000_T, D2000_Terr, _, D2000_P, D2000_Perr, D2000_V, D2000_Verr = np.loadtxt(
-        DATA_DIR / "PVT_MgO_Dewaele_et_al_2000.dat", unpack=True
-    )
-    D2000_P *= 1.0e9
-    D2000_Perr *= 1.0e9
+    # First, let's read in the PVT equation of state data for MgO from Dewaele et al., (2000).
+    (
+        D2000_T,
+        D2000_Terr,
+        D2000_Pta,
+        D2000_P,
+        D2000_Perr,
+        D2000_V,
+        D2000_Verr,
+    ) = np.loadtxt(DATA_DIR / "PVT_MgO_Dewaele_et_al_2000.dat", unpack=True)
+    D2000_P = D2000_P * 1.0e9
+    D2000_Perr = D2000_Perr * 1.0e9
     D2000_V = molar_volume_from_unit_cell_volume(D2000_V, 4.0)
     D2000_Verr = molar_volume_from_unit_cell_volume(D2000_Verr, 4.0)
 
-    PTV_data = np.column_stack([D2000_P, D2000_T, D2000_V])
-    PTV_covariances = np.array(
-        [
-            np.diag(np.square(errors))
-            for errors in zip(D2000_Perr, D2000_Terr, D2000_Verr)
-        ]
-    )
-    # As in Python, fit at 0.1% fractional parameter tolerance initially.
-    param_tolerance = 1.0e-3
-    per_volume = minerals.SLB_2011.periclase()
+    PTV_data = np.array([D2000_P, D2000_T, D2000_V]).T
+    nul = 0.0 * PTV_data[:, 0]
+
+    Pcov = np.power(D2000_Perr, 2.0)
+    Tcov = np.power(D2000_Terr, 2.0)
+    Vcov = np.power(D2000_Verr, 2.0)
+
+    PTV_covariances = np.array([[Pcov, nul, nul], [nul, Tcov, nul], [nul, nul, Vcov]]).T
+
+    # Here's where we fit the data
+    # We choose to fit to the SLB_2011 equation of state with four parameters (V_0, K_0, K'_0, grueneisen_0)
+    per_opt = burnman.minerals.SLB_2011.periclase()
     params = ["V_0", "K_0", "Kprime_0", "grueneisen_0", "q_0"]
-    volume_fit = eos_fitting.fit_PTV_data(
-        per_volume,
-        params,
-        PTV_data,
-        PTV_covariances,
+    param_tolerance = (
+        1.0e-3  # fairly low resolution fitting (corresponding to 0.1% variation)
+    )
+    fitted_eos = burnman.eos_fitting.fit_PTV_data(
+        mineral=per_opt,
+        fit_params=params,
+        data=PTV_data,
+        data_covariances=PTV_covariances,
         param_tolerance=param_tolerance,
         verbose=False,
     )
-    print_fit(volume_fit)
-    nonlinear_fitting.corner_plot(volume_fit.popt, volume_fit.pcov, params)
-    fig, ax = plt.subplots()
-    nonlinear_fitting.weighted_residual_plot(
-        ax, volume_fit, plot_axes=[0, 1], scale_axes=[1.0e-9, 1.0]
+
+    # We're done! That wasn't too painful, was it?!
+    # Print the optimized parameters
+    print("Optimized equation of state:")
+    pretty_print_values(fitted_eos.popt, fitted_eos.pcov, fitted_eos.fit_params)
+    print("\nGoodness of fit:")
+    print(fitted_eos.goodness_of_fit)
+    print("")
+
+    # Create a corner plot of the covariances
+    fig = burnman.nonlinear_fitting.corner_plot(
+        fitted_eos.popt, fitted_eos.pcov, fitted_eos.fit_params
     )
+    plt.show()
+
+    # Now let's plot the residuals
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+    burnman.nonlinear_fitting.weighted_residual_plot(
+        ax=ax,
+        model=fitted_eos,
+        flag="V",
+        sd_limit=3,
+        cmap=plt.cm.RdYlBu,
+        plot_axes=[0, 1],
+        scale_axes=[1.0e-9, 1.0],
+    )
+    ax.set_title("Weighted residual plot for volumes")
     ax.set_xlabel("Pressure (GPa)")
     ax.set_ylabel("Temperature (K)")
     plt.show()
 
-    print("3) Fitting to periclase PTV and PT-enthalpy data\n")
+    # Let's also plot a comparison of heat capacities
+    per_SLB = burnman.minerals.SLB_2011.periclase()
+    per_HP = burnman.minerals.HP_2011_ds62.per()
 
-    # Supplement the high-pressure data with Hazen (1976) lattice parameters.
+    temperatures = np.linspace(200.0, 2000.0, 101)
+    pressures = np.array([298.15] * len(temperatures))
+    plt.plot(
+        temperatures,
+        per_HP.evaluate(["molar_heat_capacity_p"], pressures, temperatures)[0],
+        linestyle="--",
+        label="HP",
+    )
+    plt.plot(
+        temperatures,
+        per_SLB.evaluate(["molar_heat_capacity_p"], pressures, temperatures)[0],
+        linestyle="--",
+        label="SLB",
+    )
+
+    temperatures = np.linspace(200.0, 1200.0, 101)
+    plt.plot(
+        temperatures,
+        per_opt.evaluate(["molar_heat_capacity_p"], pressures, temperatures)[0],
+        label="Optimised fit",
+    )
+
+    plt.legend(loc="lower right")
+    plt.xlim(0.0, temperatures[-1])
+    plt.xlabel("Temperature (K)")
+    plt.ylabel("Heat capacity (J/K/mol)")
+    plt.show()
+
+    print(
+        "Fitting an equation of state using only high pressure P-T-V data can produce some surprising "
+        "(incorrect) thermodynamic predictions. We must use additional data to provide strong "
+        "constraints on all parameters. In this case, we would like to improve our constraints on "
+        "grueneisen_0 and q_0.\n\n"
+        'How should we improve on this "optimal" PVT fit?\n'
+    )
+
+    # 2) Now let's be a bit more exotic and fit enthalpy *and* PVT data together
+
+    print("3) Fitting to periclase PTV *and* PT-enthalpy data\n")
+
+    # Create the mineral instance that we'll optimise
+    per_opt = burnman.minerals.SLB_2011.periclase()
+
+    # Let's use some low pressure volume data to supplement the high pressure data:
     H1976_data = np.loadtxt(DATA_DIR / "Hazen_1976_TV_periclase.dat")
     H1976_T = H1976_data[:, 0] + 273.15
-    H1976_Terr = np.abs(H1976_data[:, 0]) * 0.001
-    H1976_P = np.full(len(H1976_data), 1.0e5)
-    H1976_Perr = np.zeros(len(H1976_data))
-    H1976_V = molar_volume_from_unit_cell_volume(H1976_data[:, 1] ** 3, 4.0)
+    H1976_Terr = np.abs(H1976_data[:, 0]) * 0.001  # assume 0.1% temperature error
+    H1976_P = np.array([1.0e5] * len(H1976_data[:, 0]))
+    H1976_Perr = np.array([0.0] * len(H1976_data[:, 0]))
+    H1976_V = molar_volume_from_unit_cell_volume(np.power(H1976_data[:, 1], 3.0), 4.0)
     H1976_Verr = molar_volume_from_unit_cell_volume(
-        3.0 * H1976_data[:, 1] ** 2 * H1976_data[:, 2], 4.0
+        3.0 * np.power(H1976_data[:, 1], 2.0) * H1976_data[:, 2], 4.0
     )
-    PTV_data = np.column_stack(
+
+    PTV_data = np.array(
         [
             np.concatenate([D2000_P, H1976_P]),
             np.concatenate([D2000_T, H1976_T]),
             np.concatenate([D2000_V, H1976_V]),
         ]
-    )
-    PTV_errors = np.column_stack(
-        [
-            np.concatenate([D2000_Perr, H1976_Perr]),
-            np.concatenate([D2000_Terr, H1976_Terr]),
-            np.concatenate([D2000_Verr, H1976_Verr]),
-        ]
-    )
-    PTV_covariances = np.array([np.diag(errors**2) for errors in PTV_errors])
+    ).T
+    nul = 0.0 * PTV_data[:, 0]
 
-    # Victor and Douglas (1963): relative enthalpy in cal/mol, converted to J/mol.
+    Pcov = np.power(np.concatenate([D2000_Perr, H1976_Perr]), 2.0)
+    Tcov = np.power(np.concatenate([D2000_Terr, H1976_Terr]), 2.0)
+    Vcov = np.power(np.concatenate([D2000_Verr, H1976_Verr]), 2.0)
+
+    PTV_covariances = np.array([[Pcov, nul, nul], [nul, Tcov, nul], [nul, nul, Vcov]]).T
+
+    # Let's load some enthalpy data as extra constraints.
+    # We'll use the data that we used in example_fit_data.py:
     TH_data = np.loadtxt(DATA_DIR / "Victor_Douglas_1963_deltaH_MgO.dat")
-    per_opt = minerals.SLB_2011.periclase()
     per_opt.set_state(1.0e5, 300.0)
+    # Native parameters are returned by value: reconstruct after shifting F_0.
+    # As upstream, this is necessary to fit the enthalpy relative to 298.15.
     parameters = per_opt.params
-    # Shift the initial energy reference as in Python; F_0 remains a fit variable.
     parameters.F_0 -= per_opt.molar_enthalpy
-    per_opt = Mineral(parameters)
-    PTH_data = np.column_stack(
-        [
-            np.full(len(TH_data), 1.0e5),
-            TH_data[:, 0],
-            TH_data[:, 2] * 4.184,
-        ]
-    )
-    PTH_covariances = np.zeros((len(TH_data), 3, 3))
-    PTH_covariances[:, 1, 1] = TH_data[:, 1]
-    PTH_covariances[:, 2, 2] = (TH_data[:, 2] * 4.184 * 0.0004) ** 2
+    per_opt = burnman.Mineral(parameters)
 
-    # One property flag per row lets a single fit combine enthalpy and volume.
-    flags = ["H"] * len(PTH_data) + ["V"] * len(PTV_data)
+    PTH_data = np.array(
+        [TH_data[:, 0] * 0.0 + 1.0e5, TH_data[:, 0], TH_data[:, 2] * 4.184]
+    ).T
+    nul = TH_data[:, 0] * 0.0
+    PTH_covariances = np.array(
+        [
+            [nul, nul, nul],
+            [nul, TH_data[:, 1], nul],
+            [nul, nul, np.power(TH_data[:, 2] * 4.184 * 0.0004, 2.0)],
+        ]
+    ).T
+
+    # Ok, so we've now loaded the new enthalpy data. Let's combine it with the volume data we loaded earlier and create some flags:
+    flags = ["H" for P in PTH_data[:, 0]]
+    flags.extend(["V" for P in PTV_data[:, 0]])
+
     PTp_data = np.concatenate([PTH_data, PTV_data])
     PTp_covariances = np.concatenate([PTH_covariances, PTV_covariances])
+
+    V_mask = [i for i, flag in enumerate(flags) if flag == "V"]
+
+    # And now we can fit our data!
     fit_params = ["V_0", "K_0", "Kprime_0", "grueneisen_0", "q_0", "Debye_0", "F_0"]
-    mixed_fit = eos_fitting.fit_PTp_data(
+    fitted_eos = burnman.eos_fitting.fit_PTp_data(
         mineral=per_opt,
         flags=flags,
         fit_params=fit_params,
@@ -254,90 +477,383 @@ def fit_periclase():
         param_tolerance=param_tolerance,
         verbose=False,
     )
-    print_fit(mixed_fit)
-    nonlinear_fitting.corner_plot(mixed_fit.popt, mixed_fit.pcov, fit_params)
-    fig, ax = plt.subplots()
-    nonlinear_fitting.weighted_residual_plot(
-        ax, mixed_fit, flag="V", plot_axes=[0, 1], scale_axes=[1.0e-9, 1.0]
+
+    # Print the optimized parameters
+    print("Optimized equation of state:")
+    pretty_print_values(fitted_eos.popt, fitted_eos.pcov, fitted_eos.fit_params)
+    print("\nGoodness of fit:")
+    print(fitted_eos.goodness_of_fit)
+    print("")
+
+    # Create a corner plot of the covariances
+    fig = burnman.nonlinear_fitting.corner_plot(
+        fitted_eos.popt, fitted_eos.pcov, fitted_eos.fit_params
+    )
+    plt.show()
+
+    # And a plot of the revised heat capacities
+    per_SLB = burnman.minerals.SLB_2011.periclase()
+    per_HP = burnman.minerals.HP_2011_ds62.per()
+    temperatures = np.linspace(200.0, 2000.0, 101)
+    pressures = np.array([298.15] * len(temperatures))
+    plt.plot(
+        temperatures,
+        per_HP.evaluate(["molar_heat_capacity_p"], pressures, temperatures)[0],
+        linestyle="--",
+        label="HP",
+    )
+    plt.plot(
+        temperatures,
+        per_SLB.evaluate(["molar_heat_capacity_p"], pressures, temperatures)[0],
+        linestyle="--",
+        label="SLB",
+    )
+    plt.plot(
+        temperatures,
+        per_opt.evaluate(["molar_heat_capacity_p"], pressures, temperatures)[0],
+        label="Optimised fit",
+    )
+
+    plt.legend(loc="lower right")
+    plt.xlim(0.0, temperatures[-1])
+    plt.xlabel("Temperature (K)")
+    plt.ylabel("Heat capacity (J/K/mol)")
+    plt.show()
+
+    print(
+        "Hmmm, looks promising. The heat capacities don't blow up any more. "
+        "Let's check the new weighted residuals...\n"
+    )
+
+    # Plot the new residuals
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+    burnman.nonlinear_fitting.weighted_residual_plot(
+        ax=ax,
+        model=fitted_eos,
+        flag="V",
+        sd_limit=3,
+        cmap=plt.cm.RdYlBu,
+        plot_axes=[0, 1],
+        scale_axes=[1.0e-9, 1.0],
     )
     ax.set_title("Weighted residual plot for volumes")
     ax.set_xlabel("Pressure (GPa)")
     ax.set_ylabel("Temperature (K)")
+    plt.show()
+
+    # Create a plot of the residuals
     fig, ax = plt.subplots()
-    nonlinear_fitting.plot_residuals(
-        ax, mixed_fit.weighted_residuals, flags=mixed_fit.flags
+    burnman.nonlinear_fitting.plot_residuals(
+        ax=ax, weighted_residuals=fitted_eos.weighted_residuals, flags=fitted_eos.flags
     )
     plt.show()
 
-    # Python's extreme-value check brackets the entire dataset at 90% confidence.
-    confidence_interval = 0.9
-    _, indices, probabilities = nonlinear_fitting.extreme_values(
-        mixed_fit.weighted_residuals, confidence_interval
-    )
     print(
-        f"There are {len(indices)} outliers (at the "
-        f"{100.0 * confidence_interval:.1f}% confidence interval). "
-        "Their indices and probabilities are:"
+        "Eugh. There are two volume points with very large weighted residuals. "
+        "You might be interested in asking what the chances are that those extreme "
+        "residuals belong in our data set.\n"
+        "Here we use extreme value theory to calculate "
+        "how many of our data have residuals that are greater than we would expect for a "
+        "data set of this size at a given confidence interval. We assume that the errors "
+        "provided by the user are approximately correct "
+        "(i.e. the variance of weighted residuals should be similar to 1).\n"
     )
-    for index, probability in zip(indices, probabilities):
-        print(
-            f"[{index}]: {100.0 * probability:.2f}% "
-            f"({abs(mixed_fit.weighted_residuals[index]):.1f} s.d. from the model)"
+
+    # Let's pick a confidence interval of 90%. Essentially we're now calculating the
+    # number of standard deviations from the mean that would bracket an *entire* data set of
+    # this size 90% of the time.
+    good_data_confidence_interval = 0.9
+    confidence_bound, indices, probabilities = burnman.nonlinear_fitting.extreme_values(
+        fitted_eos.weighted_residuals, good_data_confidence_interval
+    )
+
+    print(
+        "There are {0:d} outliers (at the {1:.1f}% confidence interval). Their indices and probabilities are:".format(
+            len(indices), good_data_confidence_interval * 100.0
         )
-    print()
-
-    # Compare the heat capacities predicted by the volume-only and joint fits.
-    fig, ax = plt.subplots()
-    for mineral, label, max_temperature, linestyle in (
-        (minerals.HP_2011_ds62.per(), "HP", 2000.0, "--"),
-        (minerals.SLB_2011.periclase(), "SLB", 2000.0, "--"),
-        (per_volume, "PTV fit", 1200.0, "-"),
-        (per_opt, "PTV + enthalpy fit", 2000.0, "-"),
-    ):
-        temperatures = np.linspace(200.0, max_temperature, 101)
-        heat_capacities = np.empty_like(temperatures)
-        for i, temperature in enumerate(temperatures):
-            mineral.set_state(1.0e5, temperature)
-            heat_capacities[i] = mineral.molar_heat_capacity_p
-        ax.plot(temperatures, heat_capacities, linestyle=linestyle, label=label)
-    ax.set_xlabel("Temperature (K)")
-    ax.set_ylabel("Heat capacity (J/K/mol)")
-    ax.set_title("Periclase at 1 bar")
-    ax.legend(loc="lower right")
-    fig.tight_layout()
-
-    # Plot enthalpy observations and the corresponding joint-fit prediction.
-    fig, ax = plt.subplots()
-    temperatures = np.linspace(298.15, 1200.0, 101)
-    enthalpies = np.empty_like(temperatures)
-    for i, temperature in enumerate(temperatures):
-        per_opt.set_state(1.0e5, temperature)
-        enthalpies[i] = per_opt.molar_enthalpy
-    ax.plot(temperatures, enthalpies / 1.0e3, label="PTV + enthalpy fit")
-    ax.errorbar(
-        PTH_data[:, 1],
-        PTH_data[:, 2] / 1.0e3,
-        xerr=np.sqrt(PTH_covariances[:, 1, 1]),
-        yerr=np.sqrt(PTH_covariances[:, 2, 2]) / 1.0e3,
-        linestyle="None",
-        marker="o",
-        label="Victor and Douglas (1963)",
     )
-    ax.set_xlabel("Temperature (K)")
-    ax.set_ylabel("Relative enthalpy (kJ/mol)")
-    ax.set_title("Periclase at 1 bar")
-    ax.legend()
-    fig.tight_layout()
+    for i, idx in enumerate(indices):
+        print(
+            "[{0:d}]: {1:.2f}% ({2:.1f} s.d. from the model)".format(
+                idx,
+                probabilities[i] * 100.0,
+                np.abs(fitted_eos.weighted_residuals[idx]),
+            )
+        )
+    print("")
+    print(
+        "As we expected, those two data points are way outside what we should expect. "
+        "Least squares fitting is very sensitive to data with large residuals, "
+        "so we should always consider adjusting uncertainties or removing suspicious data.\n"
+        "Here, the offending data points are so far outside reasonable values that we remove them altogether."
+    )
+
+    mask = [i for i in range(len(fitted_eos.weighted_residuals)) if i not in indices]
+    flags = [flag for i, flag in enumerate(flags) if i not in indices]
+    PTp_data = PTp_data[mask]
+    PTp_covariances = PTp_covariances[mask]
+    fitted_eos = burnman.eos_fitting.fit_PTp_data(
+        mineral=per_opt,
+        flags=flags,
+        fit_params=fit_params,
+        data=PTp_data,
+        data_covariances=PTp_covariances,
+        param_tolerance=1.0e-5,  # higher resolution fitting now that we removed those outliers
+        verbose=False,
+    )
+
+    # Print the optimized parameters
+    print("Optimized equation of state (outliers removed):")
+    pretty_print_values(fitted_eos.popt, fitted_eos.pcov, fitted_eos.fit_params)
+    print("\nGoodness of fit:")
+    print(fitted_eos.goodness_of_fit)
+    print("\n")
+
+    # Create a corner plot of the covariances
+    fig = burnman.nonlinear_fitting.corner_plot(
+        fitted_eos.popt, fitted_eos.pcov, fitted_eos.fit_params
+    )
     plt.show()
-    return volume_fit, mixed_fit
 
+    # Now let's plot the new residuals
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+    burnman.nonlinear_fitting.weighted_residual_plot(
+        ax=ax,
+        model=fitted_eos,
+        flag="V",
+        sd_limit=3,
+        cmap=plt.cm.RdYlBu,
+        plot_axes=[0, 1],
+        scale_axes=[1.0e-9, 1.0],
+    )
+    ax.set_title("Weighted residual plot for volumes")
+    ax.set_xlabel("Pressure (GPa)")
+    ax.set_ylabel("Temperature (K)")
+    plt.show()
 
-def main():
-    print("Least squares equation of state fitting\n")
-    stishovite_fit = fit_stishovite()
-    volume_fit, mixed_fit = fit_periclase()
-    return stishovite_fit, volume_fit, mixed_fit
+    # Create a plot of the residuals
+    fig, ax = plt.subplots()
+    burnman.nonlinear_fitting.plot_residuals(
+        ax=ax, weighted_residuals=fitted_eos.weighted_residuals, flags=fitted_eos.flags
+    )
+    plt.show()
 
+    print(
+        "Hurrah! That looks much better! The patches of positive and negative weighted residuals "
+        "in P-T space have completely disappeared, and the weighted residuals are now distributed "
+        "more evenly about zero. The uncertainties on all the parameters have got much smaller, "
+        "and several have moved outside the previous 1-s.d. uncertainty bounds. "
+        "Cool, huh?! Let's finish this example by looking at some pretty plots "
+        "characterising our optimised equation of state."
+    )
 
-if __name__ == "__main__":
-    main()
+    # A plot of the volumes at 1 bar
+    temperatures = np.linspace(1.0, 3000.0, 101)
+    pressures = np.array([1.0e5] * 101)
+    plt.plot(
+        temperatures,
+        per_HP.evaluate(["V"], pressures, temperatures)[0] * 1.0e6,
+        linestyle="--",
+        label="HP",
+    )
+    plt.plot(
+        temperatures,
+        per_SLB.evaluate(["V"], pressures, temperatures)[0] * 1.0e6,
+        linestyle="--",
+        label="SLB",
+    )
+    plt.plot(
+        temperatures,
+        per_opt.evaluate(["V"], pressures, temperatures)[0] * 1.0e6,
+        label="Optimised fit",
+    )
+
+    DS1997_data = np.loadtxt(DATA_DIR / "Dubrovinsky_Saxena_1997_TV_periclase.dat")
+    plt.errorbar(
+        DS1997_data[:, 0],
+        DS1997_data[:, 1],
+        yerr=DS1997_data[:, 2],
+        linestyle="None",
+        label="Dubrovinsky and Saxena (1997)",
+    )
+    plt.errorbar(
+        H1976_T,
+        H1976_V * 1.0e6,
+        yerr=H1976_Verr * 1.0e6,
+        marker="o",
+        markersize=5,
+        linestyle="None",
+        label="Hazen (1976)",
+    )
+
+    plt.legend(loc="upper left")
+    plt.xlim(0.0, temperatures[-1])
+    plt.xlabel("Temperature (K)")
+    plt.ylabel("Volume (cm^3/mol)")
+    plt.title("Periclase volumes at 1 bar")
+    plt.show()
+
+    # Here we plot our equation of state,
+    # along with the 95% confidence intervals for the volume
+    temperature_sections = [298.15, 2000.0]
+    confidence_interval = 0.95
+    flag_mask = [i for i, flag in enumerate(fitted_eos.flags) if flag == "V"]
+
+    pressures = np.linspace(1.0e5, 100.0e9, 101)
+    for T in temperature_sections:
+        PTVs = np.array(
+            [
+                pressures,
+                [T] * len(pressures),
+                per_opt.evaluate(["V"], pressures, [T] * len(pressures))[0],
+            ]
+        ).T
+
+        # Plot confidence bands on the volumes
+        cp_bands = burnman.nonlinear_fitting.confidence_prediction_bands(
+            model=fitted_eos,
+            x_array=PTVs,
+            confidence_interval=confidence_interval,
+            f=attribute_function(per_opt, "V"),
+            flag="V",
+        )
+
+        plt.plot(
+            PTVs[:, 0] / 1.0e9,
+            (cp_bands[0] + cp_bands[1]) / 2.0 * 1.0e6,
+            label="Optimised fit at {0:.0f} K".format(T),
+        )
+        plt.plot(
+            PTVs[:, 0] / 1.0e9,
+            (cp_bands[0]) * 1.0e6,
+            linestyle="--",
+            color="r",
+            label="{0:.1f}% confidence bands".format(confidence_interval * 100),
+        )
+        plt.plot(PTVs[:, 0] / 1.0e9, (cp_bands[1]) * 1.0e6, linestyle="--", color="r")
+
+        plt.errorbar(
+            fitted_eos.data[:, 0][flag_mask] / 1.0e9,
+            fitted_eos.data[:, 2][flag_mask] * 1.0e6,
+            xerr=np.sqrt(np.asarray(fitted_eos.data_covariances).T[0][0][flag_mask])
+            / 1.0e9,
+            yerr=np.sqrt(np.asarray(fitted_eos.data_covariances).T[2][2][flag_mask])
+            * 1.0e6,
+            linestyle="None",
+            marker="o",
+            label="Data",
+        )
+
+    plt.plot(
+        fitted_eos.data_mle[:, 0][flag_mask] / 1.0e9,
+        fitted_eos.data_mle[:, 2][flag_mask] * 1.0e6,
+        marker="o",
+        markersize=2,
+        color="k",
+        linestyle="None",
+        label="Maximum likelihood estimates",
+    )
+    plt.ylabel("Volume (cm^3/mol)")
+    plt.xlabel("Pressure (GPa)")
+    plt.legend(loc="upper right")
+    plt.title("Data comparison for fitted equation of state as a function of pressure")
+    plt.show()
+
+    # We can also look at the uncertainty in other properties
+    # For example, let's look at the uncertainty in P wave velocities, bulk modulus, thermal expansion and thermal pressure
+    properties_for_confidence_plots = [
+        ("p_wave_velocity", 1.0e-3, "P wave velocity (km/s)"),
+        ("K_T", 1.0e-9, "Bulk modulus (GPa)"),
+        ("alpha", 1.0, "Thermal expansion (/K)"),
+        (["alpha", "K_T"], 1.0e-6, "Thermal pressure (MPa/K)"),
+    ]
+
+    def closest_factors(n):
+        d = int(np.floor(np.sqrt(n)))
+        for i in reversed(range(1, d + 1)):
+            if (n % i) == 0:
+                return i, int(n / i)
+
+    fig = plt.figure()
+    nj, ni = closest_factors(len(properties_for_confidence_plots))
+    ax = [
+        fig.add_subplot(ni, nj, i + 1)
+        for i in range(len(properties_for_confidence_plots))
+    ]
+
+    for T in temperature_sections:
+        PTVs = np.array(
+            [
+                pressures,
+                [T] * len(pressures),
+                per_opt.evaluate(["V"], pressures, [T] * len(pressures))[0],
+            ]
+        ).T
+
+        for i, (material_property, scaling, name) in enumerate(
+            properties_for_confidence_plots
+        ):
+            # Plot the confidence bands for the various material properties
+            cp_bands = burnman.nonlinear_fitting.confidence_prediction_bands(
+                model=fitted_eos,
+                x_array=PTVs,
+                confidence_interval=confidence_interval,
+                f=attribute_function(per_opt, material_property),
+                flag="V",
+            )
+            ax[i].plot(
+                PTVs[:, 0] / 1.0e9,
+                (cp_bands[0] + cp_bands[1]) / 2 * scaling,
+                label="Best fit at {0:.0f} K".format(T),
+            )
+            ax[i].plot(
+                PTVs[:, 0] / 1.0e9,
+                (cp_bands[0]) * scaling,
+                linestyle="--",
+                color="r",
+                label="{0:.1f}% confidence bands".format(confidence_interval * 100),
+            )
+            ax[i].plot(
+                PTVs[:, 0] / 1.0e9, (cp_bands[1]) * scaling, linestyle="--", color="r"
+            )
+
+            ax[i].set_xlabel("Pressure (GPa)")
+            ax[i].set_ylabel(name)
+
+    ax[i].legend(loc="upper right")
+    plt.show()
+
+    # Finally, let's look at the effect of uncertainties in the equation of state on Gibbs energy at high pressure
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+    for T in [298.15, 2000.0]:
+        temperatures = pressures * 0.0 + T
+        PTVs = np.array(
+            [
+                pressures,
+                temperatures,
+                per_opt.evaluate(["V"], pressures, temperatures)[0],
+            ]
+        ).T
+        scaling = 1.0e3
+
+        # Plot the confidence bands for the Gibbs energy
+        cp_bands = burnman.nonlinear_fitting.confidence_prediction_bands(
+            model=fitted_eos,
+            x_array=PTVs,
+            confidence_interval=confidence_interval,
+            f=attribute_function(per_opt, "gibbs"),
+            flag="V",
+        )
+        ax.plot(
+            PTVs[:, 0] / 1.0e9,
+            (cp_bands[0] - cp_bands[1]) / 2 / scaling,
+            label="95% confidence half width at {0:.0f} K".format(T),
+        )
+
+    ax.set_xlabel("Pressure (GPa)")
+    ax.set_ylabel("Gibbs energy uncertainty (kJ/mol)")
+    ax.legend(loc="lower right")
+    plt.show()
