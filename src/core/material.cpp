@@ -13,6 +13,7 @@
 
 #include "burnman/core/material.hpp"
 #include "burnman/utils/exceptions.hpp"
+#include <cmath>
 #include <cstdlib>
 #include <map>
 #include <typeinfo>
@@ -24,6 +25,30 @@ namespace burnman {
 
 std::shared_ptr<Material> Material::copy() const {
   throw_not_implemented_error("copy");
+}
+
+Eigen::MatrixXd Material::evaluate(const std::vector<std::string> &properties,
+                                   const Eigen::ArrayXd &pressures,
+                                   const Eigen::ArrayXd &temperatures) const {
+  if (pressures.size() != temperatures.size())
+    throw std::invalid_argument(
+        "Pressures and temperatures must have the same size.");
+  if (!pressures.isFinite().all() || !temperatures.isFinite().all() ||
+      (temperatures < 0.).any())
+    throw std::invalid_argument(
+        "Pressures must be finite and temperatures finite and nonnegative.");
+  Eigen::MatrixXd result(static_cast<Eigen::Index>(properties.size()),
+                         pressures.size());
+  if (result.size() == 0)
+    return result;
+  auto material = copy();
+  for (Eigen::Index i = 0; i < pressures.size(); ++i) {
+    material->set_state(pressures[i], temperatures[i]);
+    for (std::size_t j = 0; j < properties.size(); ++j)
+      result(static_cast<Eigen::Index>(j), i) =
+          material->get_property(properties[j]);
+  }
+  return result;
 }
 
 void Material::clear_state() {

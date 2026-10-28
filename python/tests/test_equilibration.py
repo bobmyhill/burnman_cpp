@@ -132,9 +132,12 @@ def test_equilibrium_jacobian_against_finite_differences(two_phase_assemblage):
     bm.set_composition_and_state_from_parameters(assemblage, solve.x)
 
 
-def test_free_composition_and_phase_composition_constraint(solution):
+@pytest.mark.parametrize("include_zero", [False, True])
+def test_free_composition_and_phase_composition_constraint(solution, include_zero):
     assemblage = bm.Assemblage([solution], [1.0])
-    free = [{"Mg": -1.0, "Fe": 1.0, "O": 0.0}]
+    free = [{"Mg": -1.0, "Fe": 1.0}]
+    if include_zero:
+        free[0]["O"] = 0.0
     parameters = bm.get_equilibration_parameters(assemblage, COMPOSITION, free)
     assert len(solution.site_names) == 2
     constraint = bm.PhaseCompositionConstraint(

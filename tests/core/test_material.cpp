@@ -13,12 +13,40 @@
 
 #include "burnman/core/equation_of_state.hpp"
 #include "burnman/core/material.hpp"
+#include "burnman/minerals/datasets.hpp"
 #include "burnman/utils/exceptions.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
 #include <string>
 
 using namespace burnman;
+
+TEST_CASE("Material evaluation returns properties without setting its state",
+          "[core][material]") {
+  const auto mineral = minerals::SLB_2011::forsterite();
+  const Eigen::Array2d pressures(1.e9, 10.e9), temperatures(1000., 1500.);
+  const auto values =
+      mineral->evaluate({"P", "T", "rho"}, pressures, temperatures);
+  CHECK_FALSE(mineral->has_state());
+  REQUIRE(values.rows() == 3);
+  REQUIRE(values.cols() == 2);
+  CHECK(values.row(0).transpose().array().isApprox(pressures));
+  CHECK(values.row(1).transpose().array().isApprox(temperatures));
+  CHECK((values.row(2).array() > 0.).all());
+  mineral->set_state(2.e9, 1100.);
+  const double density = mineral->get_density();
+  CHECK_THROWS_AS(mineral->evaluate({"unknown"}, pressures, temperatures),
+                  std::invalid_argument);
+  CHECK(mineral->get_pressure() == 2.e9);
+  CHECK(mineral->get_temperature() == 1100.);
+  CHECK(mineral->get_density() == density);
+  CHECK_THROWS_AS(
+      mineral->evaluate({"rho"}, pressures, Eigen::ArrayXd::Zero(1)),
+      std::invalid_argument);
+  CHECK_THROWS_AS(
+      mineral->evaluate({"rho"}, pressures, Eigen::Array2d(1000., -1.)),
+      std::invalid_argument);
+}
 
 TEST_CASE("Get/Set state", "[core][material]") {
   double test_P = 24e9;

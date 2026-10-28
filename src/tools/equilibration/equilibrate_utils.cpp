@@ -81,13 +81,9 @@ EquilibrationParameters get_equilibration_parameters(
       for (std::size_t j = 0; j < static_cast<std::size_t>(n_elements); ++j) {
         const std::string &el = elements[j];
         auto it = free_compositional_vectors[i].find(el);
-        if (it == free_compositional_vectors[i].end()) {
-          throw std::runtime_error("Element '" + el +
-                                   "' not found in composition!");
-        }
         prm.free_compositional_vectors(static_cast<Eigen::Index>(i),
                                        static_cast<Eigen::Index>(j)) =
-            it->second;
+            it == free_compositional_vectors[i].end() ? 0. : it->second;
       }
     }
   } else {

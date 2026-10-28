@@ -32,6 +32,7 @@ namespace equilibration {
  * @param assemblage Target assemblage.
  * @param composition Bulk composition of the assemblage
  * @param free_compositional_vectors Optional free compositional vectors.
+ * Missing elements in a free vector have zero contribution.
  * @return EquilibrationParameters object.
  */
 EquilibrationParameters get_equilibration_parameters(

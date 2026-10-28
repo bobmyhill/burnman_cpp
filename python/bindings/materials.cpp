@@ -18,6 +18,7 @@
 #include "burnman/minerals/SE_2015.hpp"
 #include "burnman/minerals/other.hpp"
 #include "burnman/minerals/water.hpp"
+#include <pybind11/numpy.h>
 
 namespace burnman::python {
 using namespace pybind11::literals;
@@ -51,6 +52,38 @@ void bind_materials(py::module_ &m) {
       .def("set_name", &Material::set_name, py::arg("name"))
       .def("get_name", &Material::get_name)
       .def_property("name", &Material::get_name, &Material::set_name);
+  material.def(
+      "evaluate",
+      [](const Material &self, const std::vector<std::string> &properties,
+         const py::array_t<double, py::array::c_style | py::array::forcecast>
+             &pressures,
+         const py::array_t<double, py::array::c_style | py::array::forcecast>
+             &temperatures) {
+        if (pressures.ndim() != temperatures.ndim() ||
+            !std::equal(pressures.shape(), pressures.shape() + pressures.ndim(),
+                        temperatures.shape()))
+          throw std::invalid_argument(
+              "pressures and temperatures must have the same shape.");
+        const auto values =
+            self.evaluate(properties,
+                          Eigen::Map<const Eigen::ArrayXd>(pressures.data(),
+                                                           pressures.size()),
+                          Eigen::Map<const Eigen::ArrayXd>(
+                              temperatures.data(), temperatures.size()));
+        std::vector<py::ssize_t> shape{
+            static_cast<py::ssize_t>(properties.size())};
+        shape.insert(shape.end(), pressures.shape(),
+                     pressures.shape() + pressures.ndim());
+        py::array_t<double> result(shape);
+        for (Eigen::Index i = 0; i < values.rows(); ++i)
+          for (Eigen::Index j = 0; j < values.cols(); ++j)
+            result.mutable_data()[i * values.cols() + j] = values(i, j);
+        return result;
+      },
+      py::arg("vars_list"), py::arg("pressures"), py::arg("temperatures"),
+      "Evaluate scalar properties at matching P,T arrays. Return shape "
+      "(len(vars_list), *pressures.shape), preserving the material and its "
+      "phases. Conventional property aliases are accepted.");
   auto formula = [](const Material &self) {
     if (const auto *mineral = dynamic_cast<const Mineral *>(&self)) {
       if (!mineral->params.formula)
@@ -165,6 +198,15 @@ void bind_materials(py::module_ &m) {
   COMPOSITE_PROPERTY(compositional_null_basis);
   COMPOSITE_PROPERTY(reaction_basis);
 #undef COMPOSITE_PROPERTY
+  composite.def_property_readonly(
+      "reaction_basis_as_strings",
+      [](const CompositeMaterial &self) {
+        return py::module_::import("burnman_cpp.tools.chemistry")
+            .attr("reaction_matrix_as_strings")(self.get_reaction_basis(),
+                                                self.get_endmember_names());
+      },
+      "Format reaction_basis using endmember_names, with reactants on the "
+      "left and rational coefficients where possible.");
   bind_property<CompositeMaterial>(composite, "partial_gibbs",
                                    "get_partial_gibbs",
                                    &CompositeMaterial::get_partial_gibbs, true);
