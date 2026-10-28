@@ -15,6 +15,8 @@
 
 from functools import reduce
 from math import gcd
+from pathlib import Path
+import runpy
 
 import numpy as np
 from numpy.testing import assert_allclose
@@ -355,6 +357,48 @@ def test_balanced_reactions_and_strings():
             chemistry.reactions_from_stoichiometric_matrix(matrix)
     with pytest.raises(ValueError):
         chemistry.reactions_from_formulae(["Xx2O"], ["unknown"])
+
+
+def test_reactions_example_balances_all_three_systems(capsys):
+    example = Path(__file__).parents[2] / "examples/example_reactions.py"
+    result = runpy.run_path(str(example), run_name="__main__")
+    output = capsys.readouterr().out
+    for count, endmembers in [(10, 10), (1, 7), (99, 13)]:
+        assert (
+            f"There are {count} forward reactions between the {endmembers} endmembers"
+            in output
+        )
+
+    formulae = [
+        chemistry.dictionarize_formula(formula)
+        for formula in result["endmembers"].values()
+    ]
+    elements = sorted({element for formula in formulae for element in formula})
+    upper_matrix = np.array(
+        [[formula.get(element, 0.0) for element in elements] for formula in formulae]
+    )
+    lower_matrix = result["assemblage"].stoichiometric_matrix
+    lower_reactions = chemistry.reactions_from_stoichiometric_matrix(lower_matrix)
+    for reactions, matrix in [
+        (result["reactions_matrix"], upper_matrix),
+        (result["R"], result["M"]),
+        (lower_reactions, lower_matrix),
+    ]:
+        assert_allclose(reactions @ matrix, 0.0, atol=1.0e-12, rtol=0.0)
+        np.testing.assert_array_equal(reactions, -reactions[::-1])
+        np.testing.assert_array_equal(reactions, np.round(reactions))
+        assert len({tuple(row) for row in reactions}) == len(reactions)
+        for reaction in reactions:
+            assert reduce(gcd, abs(reaction.astype(int))) == 1
+
+    assert result["reactions"] == chemistry.reaction_matrix_as_strings(
+        lower_reactions, result["names"]
+    )
+    upper_strings = chemistry.reaction_matrix_as_strings(
+        result["reactions_matrix"], result["endmembers"]
+    )
+    assert "1 foO = 1 foL" in upper_strings
+    assert "1 wL = 1 wFluid" in upper_strings
 
 
 @pytest.mark.parametrize("Kd", [0.01, 0.5, 1.0, 2.0, 100.0])
