@@ -12,3 +12,5 @@
 # ------------------------------------------------------
 
 """Class modules following the Python BurnMan package structure."""
+
+from .calibrant import Calibrant

@@ -19,6 +19,8 @@ All quantities use SI units: Pa, K, m³/mol, kg/mol and J/mol.
 from collections.abc import Mapping
 
 from . import _core
+from .classes.calibrant import Calibrant
+from . import calibrants
 from . import constants
 from . import optimize
 from .optimize import nonlinear_fitting, eos_fitting
@@ -296,6 +298,8 @@ def equilibrate(
 from . import eos
 
 __all__ = [
+    "Calibrant",
+    "calibrants",
     "eos",
     "optimize",
     "nonlinear_fitting",
