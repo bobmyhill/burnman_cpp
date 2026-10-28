@@ -56,6 +56,13 @@ TEST_CASE_METHOD(PartitioningAssemblageFixture,
                                                 tol_rel));
   CHECK(prm.reduced_free_composition_vectors.row(0).isApprox(
       Eigen::RowVector2d(-1.0, 1.0), tol_rel));
+  free[0].erase("O");
+  const auto sparse =
+      equilibration::get_equilibration_parameters(assemblage, bulk, free);
+  CHECK(sparse.free_compositional_vectors.isApprox(
+      prm.free_compositional_vectors, tol_rel));
+  CHECK(sparse.reduced_free_composition_vectors.isApprox(
+      prm.reduced_free_composition_vectors, tol_rel));
   auto x = equilibration::get_parameter_vector(assemblage, 1);
   CHECK((prm.constraint_matrix * x + prm.constraint_vector).maxCoeff() <=
         tol_abs);

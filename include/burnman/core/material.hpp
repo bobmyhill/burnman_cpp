@@ -15,9 +15,11 @@
 #define BURNMAN_CORE_MATERIAL_HPP_INCLUDED
 
 #include "burnman/utils/types/simple_types.hpp"
+#include <Eigen/Core>
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace burnman {
 
@@ -47,7 +49,6 @@ class EquationOfState;
     print_minerals_of_current_state
     set_state_with_volume
     unroll
-    evaluate
     evaluate_with_volumes
  */
 class Material {
@@ -60,6 +61,15 @@ public:
   virtual std::shared_ptr<Material> copy() const;
   /// Read a scalar thermodynamic property, including its conventional alias.
   double get_property(const std::string &property_name) const;
+
+  /** Evaluate scalar properties at matching pressure/temperature samples.
+   * Rows correspond to properties, columns to samples. Conventional property
+   * aliases are accepted. Evaluation uses an independent copy, preserving
+   * this material and its phases, including when an evaluation fails.
+   */
+  Eigen::MatrixXd evaluate(const std::vector<std::string> &properties,
+                           const Eigen::ArrayXd &pressures,
+                           const Eigen::ArrayXd &temperatures) const;
 
   /**
    * @brief Clears the property cache
