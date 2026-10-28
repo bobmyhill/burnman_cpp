@@ -30,6 +30,7 @@ void bind_eos(py::module_ &m);
 void bind_thermal_components(py::module_ &m);
 void bind_materials(py::module_ &m);
 void bind_composition(py::module_ &m);
+void bind_calibrants(py::module_ &m);
 void bind_linear_fitting(py::module_ &m);
 void bind_nonlinear_fitting(py::module_ &m);
 void bind_eos_fitting(py::module_ &m);

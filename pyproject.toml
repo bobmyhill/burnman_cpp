@@ -49,9 +49,11 @@ sdist.include = [
   "/benchmarks/stixrude_2024_figure14/**", "/benchmarks/stixrude_2024.py",
   "/tools/export_example_minerals.py",
   "/tools/export_covariance_data.py",
+  "/tools/export_calibrants.py",
   "/tools/build_wheel_dependencies.py",
   "/tests/reference/aa1994.json",
   "/tests/reference/brosh_calphad.json",
+  "/tests/reference/calibrants.json", "/tests/reference/burnman.json",
 ]
 sdist.exclude = [
   ".venv/**", "build/**", "bin/**", "*.csv", "benchmark-report.xml", "**/__pycache__/**",
@@ -68,7 +70,7 @@ target-version = ["py310"]
 build = "cp3{10,11,12,13,14,15}-*"
 skip = "*-musllinux_* *-win*"
 test-extras = ["test"]
-test-command = "python -m pytest {project}/python/tests/test_wheel_metadata.py {project}/python/tests/test_bindings.py {project}/python/tests/test_chemistry.py {project}/python/tests/test_covariance.py {project}/python/tests/test_linear_fitting.py {project}/python/tests/test_nonlinear_fitting.py {project}/python/tests/test_confidence_prediction_bands.py {project}/python/tests/test_fitting_diagnostics.py {project}/python/tests/test_eos_fitting.py {project}/python/tests/test_eos_fitting_volumes.py {project}/python/tests/test_composition_fitting.py {project}/python/tests/test_thermobarometry.py {project}/python/tests/test_seismic.py {project}/python/tests/test_geotherm.py {project}/python/tests/test_layer_planet.py {project}/python/tests/test_equilibrated_composite.py {project}/python/tests/test_equilibration.py {project}/python/tests/test_stable_equilibrium.py {project}/python/tests/test_polytope.py -q"
+test-command = "python -m pytest {project}/python/tests/test_wheel_metadata.py {project}/python/tests/test_bindings.py {project}/python/tests/test_chemistry.py {project}/python/tests/test_covariance.py {project}/python/tests/test_linear_fitting.py {project}/python/tests/test_nonlinear_fitting.py {project}/python/tests/test_confidence_prediction_bands.py {project}/python/tests/test_fitting_diagnostics.py {project}/python/tests/test_eos_fitting.py {project}/python/tests/test_eos_fitting_volumes.py {project}/python/tests/test_composition_fitting.py {project}/python/tests/test_thermobarometry.py {project}/python/tests/test_seismic.py {project}/python/tests/test_geotherm.py {project}/python/tests/test_layer_planet.py {project}/python/tests/test_equilibrated_composite.py {project}/python/tests/test_equilibration.py {project}/python/tests/test_stable_equilibrium.py {project}/python/tests/test_polytope.py {project}/python/tests/test_calibrants.py -q"
 
 [tool.cibuildwheel.linux]
 manylinux-x86_64-image = "manylinux_2_28"
