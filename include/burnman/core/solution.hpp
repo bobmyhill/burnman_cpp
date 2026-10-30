@@ -123,7 +123,7 @@ public:
   void set_state(double new_pressure, double new_temperature) override;
   /// Invert the total molar volume, including solution excesses.
   virtual void set_state_with_volume(
-      double volume, double temperature,
+      double volume, double T,
       const Eigen::Vector2d &pressure_guesses = Eigen::Vector2d(0., 1.e10));
   /// Scalar V,T array evaluation on an independent solution copy.
   Eigen::MatrixXd

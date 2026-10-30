@@ -30,9 +30,9 @@ public:
   void set_composition(const Eigen::ArrayXd &fractions,
                        const std::optional<Eigen::VectorXd> &q_initial,
                        bool relaxed = true);
-  void set_state(double pressure, double temperature) override;
-  void set_state(double pressure, double temperature, bool relaxed);
-  void set_state_with_volume(double volume, double temperature,
+  void set_state(double P, double T) override;
+  void set_state(double P, double T, bool relaxed);
+  void set_state_with_volume(double volume, double T,
                              const Eigen::Vector2d &pressure_guesses =
                                  Eigen::Vector2d(0., 1.e10)) override;
   void set_method(types::EOSType method) override;
@@ -84,10 +84,9 @@ private:
   };
   const Responses &responses() const;
   void require_composition() const;
-  void minimize(bool fixed_volume, double volume, double pressure,
-                double temperature, const Eigen::Vector2d &pressure_guesses);
-  void synchronize(const Eigen::ArrayXd &fractions, double pressure,
-                   double temperature);
+  void minimize(bool fixed_volume, double volume, double P, double T,
+                const Eigen::Vector2d &pressure_guesses);
+  void synchronize(const Eigen::ArrayXd &fractions, double P, double T);
   std::shared_ptr<AnisotropicSolution> unrelaxed_;
   Eigen::MatrixXd dndq_, dndx_, inverse_basis_;
   Eigen::ArrayXd independent_;

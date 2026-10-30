@@ -163,7 +163,7 @@ public:
    *
    * @return Pressure in [Pa]
    */
-  double get_pressure() const;
+  virtual double get_pressure() const;
 
   /**
    * @brief Returns current temperature

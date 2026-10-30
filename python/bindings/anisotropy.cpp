@@ -60,7 +60,7 @@ py::object directional_scalar(Directions a, std::optional<Directions> b,
   }
   if (result.ndim() == 0)
     return py::float_(*result.data());
-  return std::move(result);
+  return result;
 }
 
 template <typename Class>

@@ -255,12 +255,11 @@ void AnisotropicMineral::reset_cache() {
   tensors_.reset();
 }
 
-void AnisotropicMineral::set_state(double pressure, double temperature) {
-  if (!std::isfinite(pressure) || !std::isfinite(temperature) ||
-      temperature < 0.)
+void AnisotropicMineral::set_state(double P, double T) {
+  if (!std::isfinite(P) || !std::isfinite(T) || T < 0.)
     throw std::invalid_argument(
         "Require finite pressure and finite temperature >= 0.");
-  Mineral::set_state(pressure, temperature);
+  Mineral::set_state(P, T);
   tensors();
 }
 

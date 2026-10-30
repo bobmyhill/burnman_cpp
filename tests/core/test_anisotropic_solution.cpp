@@ -109,7 +109,7 @@ TEST_CASE("Anisotropic solution composition derivatives at fixed volume",
   const Eigen::Matrix3d rotation = s.get_rotation_matrix(),
                         M = s.get_cell_vectors().transpose();
   const auto dn = s.get_dMdn_fixed_VT(), deps = s.get_depsdn_fixed_VT();
-  for (const Eigen::Array2d direction :
+  for (const Eigen::Array2d &direction :
        {Eigen::Array2d(1., -1.), Eigen::Array2d(1., 0.)}) {
     Eigen::Matrix3d cells[2];
     for (int j = 0; j < 2; ++j) {

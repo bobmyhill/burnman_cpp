@@ -38,6 +38,7 @@ from .classes.anisotropy import (
     TriclinicMaterial,
 )
 from .classes.anisotropicmineral import AnisotropicMineral
+from .classes.hyperelastic import HyperelasticMineral, OutputFrame
 from .classes.anisotropicsolution import AnisotropicSolution, RelaxedAnisotropicSolution
 from .classes.equilibratedcomposite import EquilibratedComposite
 from .classes.relaxedcomposite import RelaxedComposite
@@ -312,6 +313,8 @@ def equilibrate(
 from . import eos
 
 __all__ = [
+    "HyperelasticMineral",
+    "OutputFrame",
     "PolynomialSolution",
     "RelaxedAnisotropicSolution",
     "AnisotropicSolution",

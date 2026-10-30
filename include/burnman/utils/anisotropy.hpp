@@ -16,6 +16,7 @@
 
 #include <Eigen/Core>
 #include <array>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -28,6 +29,10 @@ using ElasticTensor =
 } // namespace burnman::types
 
 namespace burnman::utils {
+/// Right polar decomposition F = R U; return U, V or right Hencky log(U).
+std::pair<Eigen::Matrix3d, Eigen::Matrix3d>
+polar_decomposition(const Eigen::Matrix3d &F,
+                    const std::string &strain_measure = "U");
 types::Vector6d contract_stresses(const Eigen::Matrix3d &tensor);
 types::Vector6d contract_strains(const Eigen::Matrix3d &tensor);
 Eigen::Matrix3d expand_stresses(const types::Vector6d &voigt);

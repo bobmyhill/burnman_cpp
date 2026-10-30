@@ -17,11 +17,11 @@
 
 namespace burnman::solution_models {
 PolynomialSolution::PolynomialSolution(
-    const types::PairedEndmemberList &endmembers, const Interactions &ESV,
+    const types::PairedEndmemberList &endmember_list, const Interactions &ESV,
     const std::vector<std::shared_ptr<Mineral>> &minerals,
     const Interactions &mineral_interactions,
     const std::optional<Eigen::MatrixXd> &transformation)
-    : IdealSolution(endmembers), interaction_endmembers_(minerals),
+    : IdealSolution(endmember_list), interaction_endmembers_(minerals),
       dqdp_(transformation
                 ? *transformation
                 : Eigen::MatrixXd::Identity(n_endmembers, n_endmembers)),
@@ -134,6 +134,8 @@ PolynomialSolution::evaluate(double pressure, double temperature,
     case Property::VoverKT:
       value = m.get_molar_volume() / m.get_isothermal_bulk_modulus_reuss();
       break;
+    default:
+      throw std::invalid_argument("Unknown polynomial interaction property.");
     }
     mineral_values[static_cast<Eigen::Index>(i)] = value;
   }

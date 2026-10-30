@@ -128,37 +128,34 @@ void RelaxedAnisotropicSolution::set_composition(
     relax_at_PTX();
 }
 void RelaxedAnisotropicSolution::synchronize(const Eigen::ArrayXd &fractions,
-                                             double pressure,
-                                             double temperature) {
+                                             double P, double T) {
   unrelaxed_->set_composition(fractions);
-  unrelaxed_->set_state(pressure, temperature);
+  unrelaxed_->set_state(P, T);
   AnisotropicSolution::set_composition(fractions);
-  AnisotropicSolution::set_state(pressure, temperature);
+  AnisotropicSolution::set_state(P, T);
   const Eigen::VectorXd coordinates = inverse_basis_ * fractions.matrix();
   q_initial_ = coordinates.head(dndq_.cols());
   independent_ = coordinates.tail(dndx_.cols()).array();
 }
-void RelaxedAnisotropicSolution::set_state(double pressure,
-                                           double temperature) {
-  set_state(pressure, temperature, true);
+void RelaxedAnisotropicSolution::set_state(double P, double T) {
+  set_state(P, T, true);
 }
-void RelaxedAnisotropicSolution::set_state(double pressure, double temperature,
-                                           bool relaxed) {
+void RelaxedAnisotropicSolution::set_state(double P, double T, bool relaxed) {
   require_composition();
-  unrelaxed_->set_state(pressure, temperature);
+  unrelaxed_->set_state(P, T);
   if (relaxed)
-    minimize(false, 0., pressure, temperature, Eigen::Vector2d(0., 1.e10));
+    minimize(false, 0., P, T, Eigen::Vector2d(0., 1.e10));
   else
-    synchronize(unrelaxed_->get_molar_fractions(), pressure, temperature);
+    synchronize(unrelaxed_->get_molar_fractions(), P, T);
 }
 void RelaxedAnisotropicSolution::set_state_with_volume(
-    double volume, double temperature, const Eigen::Vector2d &guesses) {
+    double volume, double T, const Eigen::Vector2d &guesses) {
   require_composition();
-  if (!std::isfinite(volume) || volume <= 0. || !std::isfinite(temperature) ||
-      temperature < 0. || !guesses.allFinite() || guesses[0] >= guesses[1])
+  if (!std::isfinite(volume) || volume <= 0. || !std::isfinite(T) || T < 0. ||
+      !guesses.allFinite() || guesses[0] >= guesses[1])
     throw std::invalid_argument(
         "Require V > 0, T >= 0 and increasing finite pressure guesses.");
-  minimize(true, volume, 0., temperature, guesses);
+  minimize(true, volume, 0., T, guesses);
 }
 void RelaxedAnisotropicSolution::relax_at_PTX() {
   require_composition();
@@ -177,23 +174,23 @@ void RelaxedAnisotropicSolution::set_method(
 }
 
 void RelaxedAnisotropicSolution::minimize(bool fixed_volume, double volume,
-                                          double pressure, double temperature,
+                                          double P, double T,
                                           const Eigen::Vector2d &guesses) {
   struct Objective {
     std::shared_ptr<Solution> scalar;
     Eigen::VectorXd base;
     Eigen::MatrixXd Q;
-    double volume, pressure, temperature, offset = 0., scale;
+    double volume, P, T, offset = 0., scale;
     bool fixed_volume;
     Eigen::Vector2d guesses;
     double evaluate(const Eigen::VectorXd &dq,
                     Eigen::VectorXd *gradient = nullptr) {
       scalar->set_composition((base + Q * dq).array());
       if (fixed_volume) {
-        scalar->set_state_with_volume(volume, temperature, guesses);
+        scalar->set_state_with_volume(volume, T, guesses);
         guesses << scalar->get_pressure() - 1.e9, scalar->get_pressure() + 1.e9;
       } else
-        scalar->set_state(pressure, temperature);
+        scalar->set_state(P, T);
       if (gradient)
         *gradient = Q.transpose() * scalar->get_partial_gibbs().matrix();
       return fixed_volume ? scalar->get_molar_helmholtz()
@@ -213,10 +210,10 @@ void RelaxedAnisotropicSolution::minimize(bool fixed_volume, double volume,
          unrelaxed_->get_molar_fractions().matrix(),
          dndq_,
          volume,
-         pressure,
-         temperature,
+         P,
+         T,
          0.,
-         std::max(1000., 8.314462618 * temperature),
+         std::max(1000., 8.314462618 * T),
          fixed_volume,
          guesses};
   Eigen::VectorXd delta = Eigen::VectorXd::Zero(dndq_.cols());
@@ -319,7 +316,7 @@ void RelaxedAnisotropicSolution::minimize(bool fixed_volume, double volume,
   if (!fractions.isFinite().all() ||
       (sites * fractions.matrix()).minCoeff() < -1.e-10)
     throw std::runtime_error("Relaxation returned an infeasible composition.");
-  synchronize(fractions, data.scalar->get_pressure(), temperature);
+  synchronize(fractions, data.scalar->get_pressure(), T);
 }
 
 const RelaxedAnisotropicSolution::Responses &
