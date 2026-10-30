@@ -26,6 +26,17 @@ from . import optimize
 from .optimize import nonlinear_fitting, eos_fitting
 from .optimize.nonlinear_fitting import nonlinear_least_squares_fit
 from .classes import seismic, geotherm
+from .classes.anisotropy import (
+    AnisotropicMaterial,
+    IsotropicMaterial,
+    CubicMaterial,
+    HexagonalMaterial,
+    TetragonalMaterial,
+    RhombohedralMaterial,
+    OrthorhombicMaterial,
+    MonoclinicMaterial,
+    TriclinicMaterial,
+)
 from .classes.equilibratedcomposite import EquilibratedComposite
 from .classes.relaxedcomposite import RelaxedComposite
 from .classes.layer import Layer, BoundaryLayerPerturbation
@@ -298,6 +309,15 @@ def equilibrate(
 from . import eos
 
 __all__ = [
+    "AnisotropicMaterial",
+    "IsotropicMaterial",
+    "CubicMaterial",
+    "HexagonalMaterial",
+    "TetragonalMaterial",
+    "RhombohedralMaterial",
+    "OrthorhombicMaterial",
+    "MonoclinicMaterial",
+    "TriclinicMaterial",
     "Calibrant",
     "calibrants",
     "eos",
