@@ -39,6 +39,9 @@ public:
   // Using Mineral objects for now - must be instance not derived class!
   // For derived classes we need unique_ptr instead.
   std::vector<Mineral> endmembers;
+  /// Optional original endmembers for models requiring tensor properties.
+  /// Scalar solution calculations continue to use independent Mineral values.
+  std::vector<std::shared_ptr<Mineral>> polymorphic_endmembers;
   /// use endmembers.emplace_back( ) to add
 
   // Constructor

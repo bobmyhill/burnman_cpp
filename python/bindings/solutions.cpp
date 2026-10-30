@@ -12,6 +12,7 @@
 // ------------------------------------------------------
 
 #include "bindings.hpp"
+#include "burnman/core/anisotropic_mineral.hpp"
 #include "burnman/core/relaxed_solution.hpp"
 #include "burnman/core/solution.hpp"
 
@@ -33,6 +34,32 @@ void check_endmembers(const types::PairedEndmemberList &endmembers) {
                                   "bracketed sites, e.g. '[Mg]O'.");
     }
   }
+}
+
+using Endmembers =
+    std::vector<std::pair<std::shared_ptr<Mineral>, std::string>>;
+
+types::PairedEndmemberList scalar_endmembers(const Endmembers &endmembers) {
+  types::PairedEndmemberList result;
+  for (const auto &[mineral, formula] : endmembers) {
+    if (!mineral)
+      throw std::invalid_argument("Solution endmembers cannot be None.");
+    result.emplace_back(*mineral, formula);
+  }
+  check_endmembers(result);
+  return result;
+}
+
+template <typename Model>
+std::shared_ptr<Model> retain_tensor_endmembers(std::shared_ptr<Model> model,
+                                                const Endmembers &endmembers) {
+  for (const auto &[mineral, formula] : endmembers)
+    if (std::dynamic_pointer_cast<AnisotropicMineral>(mineral)) {
+      for (const auto &entry : endmembers)
+        model->polymorphic_endmembers.push_back(entry.first);
+      break;
+    }
+  return model;
 }
 
 void check_interactions(const Interactions &interactions, std::size_t size,
@@ -75,7 +102,20 @@ void bind_solutions(py::module_ &m) {
   MODEL_PROPERTY(empty_formula);
   MODEL_PROPERTY(general_formula);
 #undef MODEL_PROPERTY
-  model_class
+  model_class.def("clone", &SolutionModel::clone)
+      .def_property_readonly(
+          "endmembers",
+          [](const SolutionModel &self) {
+            py::list result;
+            const auto &formulas = self.get_formulas();
+            for (std::size_t i = 0; i < self.endmembers.size(); ++i) {
+              auto mineral = self.polymorphic_endmembers.empty()
+                                 ? std::make_shared<Mineral>(self.endmembers[i])
+                                 : self.polymorphic_endmembers[i];
+              result.append(py::make_tuple(mineral, formulas[i]));
+            }
+            return result;
+          })
       .def_property_readonly("site_formulae", &SolutionModel::get_formulas)
       .def_property_readonly("endmember_noccupancies",
                              [](const SolutionModel &self) {
@@ -106,19 +146,20 @@ void bind_solutions(py::module_ &m) {
 #undef MODEL_COMPUTE
   py::class_<IdealSolution, SolutionModel, std::shared_ptr<IdealSolution>>(
       m, "IdealSolution")
-      .def(py::init([](const types::PairedEndmemberList &endmembers) {
-             check_endmembers(endmembers);
-             return std::make_shared<IdealSolution>(endmembers);
+      .def(py::init([](const Endmembers &endmembers) {
+             return retain_tensor_endmembers(
+                 std::make_shared<IdealSolution>(scalar_endmembers(endmembers)),
+                 endmembers);
            }),
            py::arg("endmembers"));
   py::class_<AsymmetricRegularSolution, IdealSolution,
              std::shared_ptr<AsymmetricRegularSolution>>(
       m, "AsymmetricRegularSolution")
-      .def(py::init([](const types::PairedEndmemberList &endmembers,
+      .def(py::init([](const Endmembers &endmembers,
                        const std::vector<double> &alphas,
                        const Interactions &energy, const Interactions &volume,
                        const Interactions &entropy) {
-             check_endmembers(endmembers);
+             const auto scalar = scalar_endmembers(endmembers);
              if (alphas.size() != endmembers.size())
                throw std::invalid_argument(
                    "alphas must match the number of endmembers.");
@@ -130,8 +171,10 @@ void bind_solutions(py::module_ &m) {
              check_interactions(energy, endmembers.size());
              check_interactions(volume, endmembers.size(), true);
              check_interactions(entropy, endmembers.size(), true);
-             return std::make_shared<AsymmetricRegularSolution>(
-                 endmembers, alphas, energy, volume, entropy);
+             return retain_tensor_endmembers(
+                 std::make_shared<AsymmetricRegularSolution>(
+                     scalar, alphas, energy, volume, entropy),
+                 endmembers);
            }),
            py::arg("endmembers"), py::arg("alphas"),
            py::arg("energy_interaction"),
@@ -140,19 +183,21 @@ void bind_solutions(py::module_ &m) {
   py::class_<SymmetricRegularSolution, AsymmetricRegularSolution,
              std::shared_ptr<SymmetricRegularSolution>>(
       m, "SymmetricRegularSolution")
-      .def(py::init([](const types::PairedEndmemberList &endmembers,
-                       const Interactions &energy, const Interactions &volume,
-                       const Interactions &entropy) {
-             check_endmembers(endmembers);
-             check_interactions(energy, endmembers.size());
-             check_interactions(volume, endmembers.size(), true);
-             check_interactions(entropy, endmembers.size(), true);
-             return std::make_shared<SymmetricRegularSolution>(
-                 endmembers, energy, volume, entropy);
-           }),
-           py::arg("endmembers"), py::arg("energy_interaction"),
-           py::arg("volume_interaction") = Interactions{},
-           py::arg("entropy_interaction") = Interactions{});
+      .def(
+          py::init([](const Endmembers &endmembers, const Interactions &energy,
+                      const Interactions &volume, const Interactions &entropy) {
+            const auto scalar = scalar_endmembers(endmembers);
+            check_interactions(energy, endmembers.size());
+            check_interactions(volume, endmembers.size(), true);
+            check_interactions(entropy, endmembers.size(), true);
+            return retain_tensor_endmembers(
+                std::make_shared<SymmetricRegularSolution>(scalar, energy,
+                                                           volume, entropy),
+                endmembers);
+          }),
+          py::arg("endmembers"), py::arg("energy_interaction"),
+          py::arg("volume_interaction") = Interactions{},
+          py::arg("entropy_interaction") = Interactions{});
 
   auto solution =
       py::class_<Solution, CompositeMaterial, py::smart_holder>(m, "Solution");

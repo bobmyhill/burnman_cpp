@@ -100,6 +100,26 @@ void bind_anisotropic_mineral(py::module_ &m) {
           py::return_value_policy::copy)
       .def("evaluate_psi", &AnisotropicMineral::evaluate_psi, py::arg("f"),
            py::arg("Pth"));
+  auto bind_internal = [&](const char *name, auto getter) {
+    mineral.def_property_readonly(
+        name,
+        [getter](const AnisotropicMineral &self) {
+          check_state(self);
+          return (self.*getter)();
+        },
+        py::return_value_policy::copy);
+  };
+  bind_internal("_PsiI", &AnisotropicMineral::get_PsiI);
+  bind_internal("_dPsidf_T_Voigt", &AnisotropicMineral::get_dPsidf_T_Voigt);
+  bind_internal("_dPsiIdf_T", &AnisotropicMineral::get_dPsiIdf_T);
+  bind_internal("_dPsiIdT_f", &AnisotropicMineral::get_dPsiIdT_f);
+  bind_internal("_unrotated_F",
+                &AnisotropicMineral::get_deformation_gradient_tensor);
+  bind_internal("_unrotated_dFdf_T", &AnisotropicMineral::get_unrotated_dFdf_T);
+  bind_internal("_unrotated_alpha", &AnisotropicMineral::get_unrotated_alpha);
+  bind_internal(
+      "_unrotated_S_T_Voigt",
+      &AnisotropicMineral::get_unrotated_isothermal_compliance_tensor);
   auto bind_full = [&](const char *name, auto getter) {
     auto call = [getter](const AnisotropicMineral &self) {
       check_state(self);

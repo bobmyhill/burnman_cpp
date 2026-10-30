@@ -51,7 +51,7 @@ struct FaceSolution : Solution {
   // Multiplying the transpose by reduced proportions recovers the composition.
   Eigen::MatrixXd original_basis;
   FaceSolution(const Solution &s, const Eigen::MatrixXd &b)
-      : Solution(s), original_basis(b) {}
+      : Material(s), Solution(s), original_basis(b) {}
 };
 struct FaceMineral : Mineral {
   // One row containing the original endmember coefficients of this face.

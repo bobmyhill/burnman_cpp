@@ -179,7 +179,7 @@ void bind_materials(py::module_ &m) {
                              });
 
   auto composite = py::class_<CompositeMaterial, Material, py::smart_holder>(
-      m, "CompositeMaterial");
+      m, "CompositeMaterial", py::multiple_inheritance());
 #define COMPOSITE_PROPERTY(name)                                               \
   bind_property<CompositeMaterial>(composite, #name, "get_" #name,             \
                                    &CompositeMaterial::get_##name)

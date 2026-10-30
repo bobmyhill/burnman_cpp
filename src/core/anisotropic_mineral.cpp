@@ -57,9 +57,11 @@ const Mineral &require_mineral(const std::shared_ptr<Mineral> &mineral) {
   return *mineral;
 }
 
+} // namespace
+
 // The upper-right block of exp([[A,E],[0,A]]) is the Frechet derivative.
 std::pair<Eigen::Matrix3d, Eigen::Matrix3d>
-expm_frechet(const Eigen::Matrix3d &a, const Eigen::Matrix3d &e) {
+matrix_exponential_frechet(const Eigen::Matrix3d &a, const Eigen::Matrix3d &e) {
   types::Matrix6d block = types::Matrix6d::Zero();
   block.topLeftCorner<3, 3>() = block.bottomRightCorner<3, 3>() = a;
   block.topRightCorner<3, 3>() = e;
@@ -68,6 +70,7 @@ expm_frechet(const Eigen::Matrix3d &a, const Eigen::Matrix3d &e) {
           exponential.topRightCorner<3, 3>()};
 }
 
+namespace {
 void check_shape(const types::NDArray<double> &c) {
   const auto &shape = c.shape();
   if (shape.size() != 4 || shape[0] != 6 || shape[1] != 6 || shape[2] < 2 ||
@@ -97,8 +100,8 @@ deformation_gradient_alpha_and_compliance(double alpha, double beta,
                                           const types::Matrix6d &dPsidf_T,
                                           const Eigen::Matrix3d &dPsiIdf_T,
                                           const Eigen::Matrix3d &dPsiIdT_f) {
-  const auto [F, dFdf] = expm_frechet(PsiI, dPsiIdf_T);
-  const auto dFdT_f = expm_frechet(PsiI, dPsiIdT_f).second;
+  const auto [F, dFdf] = matrix_exponential_frechet(PsiI, dPsiIdf_T);
+  const auto dFdT_f = matrix_exponential_frechet(PsiI, dPsiIdT_f).second;
   const Eigen::Matrix3d invF = F.inverse();
   const Eigen::Matrix3d LP = -beta * dFdf * invF.transpose();
   const Eigen::Matrix3d beta_T = -0.5 * (LP + LP.transpose());
@@ -261,37 +264,58 @@ void AnisotropicMineral::set_state(double pressure, double temperature) {
   tensors();
 }
 
+AnisotropicMineral::AnisotropicMineral()
+    : AnisotropicMaterial(1., types::Matrix6d::Identity()), orthotropic_(false),
+      frame_convention_{0, 1, 2}, cell_vectors_0_(Eigen::Matrix3d::Zero()) {}
+
+void AnisotropicMineral::set_reference_cell(
+    const Eigen::Matrix3d &vectors, const utils::FrameConvention &frame) {
+  cell_vectors_0_ = vectors;
+  frame_convention_ = frame;
+  reset_cache();
+}
+
+AnisotropicMineral::PsiState AnisotropicMineral::compute_psi_state() const {
+  isotropic_mineral_->set_state(get_pressure(), get_temperature());
+  const double volume = isotropic_mineral_->get_molar_volume();
+  const double kt = isotropic_mineral_->get_isothermal_bulk_modulus_reuss();
+  auto cold = *isotropic_mineral_;
+  cold.set_state_with_volume(volume, *params.T_0);
+  PsiState state;
+  state.Pth = get_pressure() - cold.get_pressure();
+  state.dPthdf = cold.get_isothermal_bulk_modulus_reuss() - kt;
+  const double f = std::log(get_molar_volume() / *params.V_0);
+  const auto [psi, df, dp] = evaluate_psi(f, state.Pth);
+  state.PsiI =
+      contract_identity(utils::voigt_notation_to_compliance_tensor(psi));
+  const double alpha_KT =
+      get_thermal_expansivity() * get_isothermal_bulk_modulus_reuss();
+  std::tie(state.dPsidf_T, state.dPsiIdf_T, state.dPsiIdT_f) =
+      convert_f_Pth_to_f_T_derivatives(df, dp, alpha_KT, state.dPthdf);
+  return state;
+}
+
 AnisotropicMineral::Tensors &AnisotropicMineral::tensors() const {
   if (!has_state())
     throw std::runtime_error(
         "Set the mineral state before querying anisotropic properties.");
   if (!tensors_) {
-    isotropic_mineral_->set_state(get_pressure(), get_temperature());
-    const double volume = isotropic_mineral_->get_molar_volume();
-    const double kt = isotropic_mineral_->get_isothermal_bulk_modulus_reuss();
-    auto cold = *isotropic_mineral_;
-    cold.set_state_with_volume(volume, *params.T_0);
     Tensors state;
-    state.Pth = get_pressure() - cold.get_pressure();
-    state.dPthdf = cold.get_isothermal_bulk_modulus_reuss() - kt;
-    const double f = std::log(get_molar_volume() / *params.V_0);
-    const auto [psi, df, dp] = evaluate_psi(f, state.Pth);
-    const auto psiI =
-        contract_identity(utils::voigt_notation_to_compliance_tensor(psi));
+    state.psi = compute_psi_state();
+    const auto &psi = state.psi;
     const double alpha = get_thermal_expansivity();
     const double beta = get_isothermal_compressibility_reuss();
-    const auto [df_T, dfI_T, dTI_f] =
-        convert_f_Pth_to_f_T_derivatives(df, dp, alpha / beta, state.dPthdf);
     if (orthotropic_) {
-      state.F = psiI.exp();
-      state.alpha = dTI_f + alpha * dfI_T;
-      state.unrotated_ST = beta * df_T;
+      state.F = psi.PsiI.exp();
+      state.dFdf = state.F * psi.dPsiIdf_T;
+      state.alpha = psi.dPsiIdT_f + alpha * psi.dPsiIdf_T;
+      state.unrotated_ST = beta * psi.dPsidf_T;
       state.rotation = Eigen::Matrix3d::Identity();
     } else {
-      Eigen::Matrix3d dFdf;
-      std::tie(state.F, dFdf, state.alpha, state.unrotated_ST) =
-          deformation_gradient_alpha_and_compliance(alpha, beta, psiI, df_T,
-                                                    dfI_T, dTI_f);
+      std::tie(state.F, state.dFdf, state.alpha, state.unrotated_ST) =
+          deformation_gradient_alpha_and_compliance(alpha, beta, psi.PsiI,
+                                                    psi.dPsidf_T, psi.dPsiIdf_T,
+                                                    psi.dPsiIdT_f);
       state.rotation = utils::rotation_to_crystallographic_frame(
           cell_vectors_0_ * state.F.transpose(), frame_convention_);
     }
@@ -307,6 +331,30 @@ AnisotropicMineral::Tensors &AnisotropicMineral::tensors() const {
     tensors_ = std::move(state);
   }
   return *tensors_;
+}
+
+const Eigen::Matrix3d &AnisotropicMineral::get_PsiI() const {
+  return tensors().psi.PsiI;
+}
+const types::Matrix6d &AnisotropicMineral::get_dPsidf_T_Voigt() const {
+  return tensors().psi.dPsidf_T;
+}
+const Eigen::Matrix3d &AnisotropicMineral::get_dPsiIdf_T() const {
+  return tensors().psi.dPsiIdf_T;
+}
+const Eigen::Matrix3d &AnisotropicMineral::get_dPsiIdT_f() const {
+  return tensors().psi.dPsiIdT_f;
+}
+const Eigen::Matrix3d &AnisotropicMineral::get_unrotated_dFdf_T() const {
+  return tensors().dFdf;
+}
+Eigen::Matrix3d AnisotropicMineral::get_unrotated_alpha() const {
+  const auto &state = tensors();
+  return state.rotation.transpose() * state.alpha * state.rotation;
+}
+const types::Matrix6d &
+AnisotropicMineral::get_unrotated_isothermal_compliance_tensor() const {
+  return tensors().unrotated_ST;
 }
 
 const std::shared_ptr<Mineral> &
@@ -338,9 +386,9 @@ utils::CellParameters AnisotropicMineral::get_cell_parameters() const {
                                            frame_convention_);
 }
 double AnisotropicMineral::get_thermal_pressure() const {
-  return tensors().Pth;
+  return tensors().psi.Pth;
 }
-double AnisotropicMineral::get_dPthdf() const { return tensors().dPthdf; }
+double AnisotropicMineral::get_dPthdf() const { return tensors().psi.dPthdf; }
 const Eigen::Matrix3d &
 AnisotropicMineral::get_thermal_expansivity_tensor() const {
   return tensors().alpha;

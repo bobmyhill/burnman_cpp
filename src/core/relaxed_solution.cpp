@@ -25,7 +25,8 @@ std::shared_ptr<Material> RelaxedSolution::copy() const {
 RelaxedSolution::RelaxedSolution(Solution solution,
                                  const Eigen::MatrixXd &relaxation_vectors,
                                  const Eigen::MatrixXd &unrelaxed_vectors)
-    : Solution(std::move(solution)), dndq_(relaxation_vectors.transpose()),
+    : Material(solution), Solution(std::move(solution)),
+      dndq_(relaxation_vectors.transpose()),
       dndx_(unrelaxed_vectors.transpose()) {
   set_solution_model(get_solution_model()->clone());
   const auto n = get_n_endmembers();
