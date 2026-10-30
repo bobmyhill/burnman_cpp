@@ -12,12 +12,15 @@
 // ------------------------------------------------------
 
 #include "burnman/core/solution.hpp"
+#include "burnman/optim/roots/bracket.hpp"
+#include "burnman/optim/roots/brent.hpp"
 #include "burnman/tools/averaging/averaging_schemes.hpp"
 #include "burnman/utils/chemistry_utils.hpp"
 #include "burnman/utils/constants.hpp"
 #include "burnman/utils/matrix_utils.hpp"
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <locale>
 #include <sstream>
 #include <stdexcept>
@@ -106,6 +109,61 @@ void Solution::set_state(double new_pressure, double new_temperature) {
   for (Mineral &embr : solution_model->endmembers) {
     embr.set_state(new_pressure, new_temperature);
   }
+}
+
+void Solution::set_state_with_volume(double volume, double temperature,
+                                     const Eigen::Vector2d &guesses) {
+  if (!solution_model ||
+      molar_fractions.size() != solution_model->get_n_endmembers())
+    throw std::runtime_error(
+        "Set the solution model and composition before volume states.");
+  if (!std::isfinite(volume) || volume <= 0. || !std::isfinite(temperature) ||
+      temperature < 0. || !guesses.allFinite() || guesses[0] >= guesses[1])
+    throw std::invalid_argument(
+        "Require V > 0, T >= 0 and increasing finite pressure guesses.");
+  struct Residual {
+    Solution *solution;
+    double volume, temperature;
+  } data{this, volume, temperature};
+  const auto residual = +[](double pressure, void *context) -> double {
+    auto &d = *static_cast<Residual *>(context);
+    try {
+      d.solution->set_state(pressure, d.temperature);
+      return d.volume - d.solution->get_molar_volume();
+    } catch (const std::exception &) {
+      return -std::numeric_limits<double>::infinity();
+    }
+  };
+  double low = guesses[0], high = guesses[1];
+  if (residual(low, &data) == 0.) {
+    set_state(low, temperature);
+    return;
+  }
+  if (residual(high, &data) == 0.) {
+    set_state(high, temperature);
+    return;
+  }
+  if (!optim::roots::bracket_root(residual, data, low, high, high - low, 1.618))
+    throw std::runtime_error(
+        "Cannot bracket solution pressure at the requested volume.");
+  for (int i = 0; i < 100 && (!std::isfinite(residual(low, &data)) ||
+                              !std::isfinite(residual(high, &data)));
+       ++i) {
+    const double middle = 0.5 * (low + high);
+    const double value = residual(middle, &data);
+    if (value == 0.) {
+      set_state(middle, temperature);
+      return;
+    }
+    if (value < 0.)
+      low = middle;
+    else
+      high = middle;
+  }
+  const double pressure =
+      optim::roots::brent(residual, data, low, high, 1.e-8,
+                          4. * std::numeric_limits<double>::epsilon());
+  set_state(pressure, temperature);
 }
 
 Eigen::ArrayXd Solution::get_molar_fractions() const {

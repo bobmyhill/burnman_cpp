@@ -73,3 +73,42 @@ class AnisotropicSolution(_core.AnisotropicSolution):
 for _name, _value in vars(AnisotropicMineral).items():
     if isinstance(_value, property):
         setattr(AnisotropicSolution, _name, _value)
+
+
+class RelaxedAnisotropicSolution(_core.RelaxedAnisotropicSolution):
+    """Relax isochemical endmember exchanges and thermoelastic responses.
+
+    Rows of relaxation_vectors describe rapid exchanges; rows of
+    unrelaxed_vectors define independent composition coordinates. Set their
+    fractions with set_composition(), then set P,T or molar V,T. relaxed=False
+    keeps the supplied structural composition while synchronizing both objects.
+    Tensor susceptibilities assume an interior structural minimum and T > 0.
+    """
+
+    def __init__(
+        self, anisotropic_solution, relaxation_vectors=None, unrelaxed_vectors=None
+    ):
+        if relaxation_vectors is None and isinstance(
+            anisotropic_solution, _core.RelaxedAnisotropicSolution
+        ):
+            _core.RelaxedAnisotropicSolution.__init__(self, anisotropic_solution)
+        else:
+            _core.RelaxedAnisotropicSolution.__init__(
+                self, anisotropic_solution, relaxation_vectors, unrelaxed_vectors
+            )
+        self.anisotropic_params = getattr(
+            anisotropic_solution, "anisotropic_params", None
+        )
+        self.psi_excess_function = getattr(
+            anisotropic_solution, "psi_excess_function", None
+        )
+
+    def copy(self):
+        return type(self)(self)
+
+    evaluate = AnisotropicSolution.evaluate
+
+
+for _name, _value in vars(AnisotropicSolution).items():
+    if isinstance(_value, property):
+        setattr(RelaxedAnisotropicSolution, _name, _value)

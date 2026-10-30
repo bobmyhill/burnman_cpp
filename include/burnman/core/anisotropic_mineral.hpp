@@ -87,19 +87,19 @@ public:
   Eigen::Matrix3d get_unrotated_alpha() const;
   const types::Matrix6d &get_unrotated_isothermal_compliance_tensor() const;
 
-  const types::Matrix6d &get_isothermal_compliance_tensor() const;
-  const types::Matrix6d &get_isothermal_stiffness_tensor() const;
+  virtual const types::Matrix6d &get_isothermal_compliance_tensor() const;
+  virtual const types::Matrix6d &get_isothermal_stiffness_tensor() const;
   const types::Matrix6d &get_unrotated_isothermal_stiffness_tensor() const;
   const types::Matrix6d &get_isentropic_compliance_tensor() const override;
   const types::Matrix6d &get_isentropic_stiffness_tensor() const override;
   types::ElasticTensor get_full_isothermal_compliance_tensor() const;
   types::ElasticTensor get_full_isothermal_stiffness_tensor() const;
-  const Eigen::Matrix3d &get_thermal_expansivity_tensor() const;
+  virtual const Eigen::Matrix3d &get_thermal_expansivity_tensor() const;
   Eigen::Matrix3d get_isothermal_compressibility_tensor() const;
   Eigen::Matrix3d get_isentropic_compressibility_tensor() const;
   Eigen::Matrix3d get_grueneisen_tensor() const;
-  Eigen::Matrix3d get_thermal_stress_tensor() const;
-  double get_molar_isometric_heat_capacity() const;
+  virtual Eigen::Matrix3d get_thermal_stress_tensor() const;
+  virtual double get_molar_isometric_heat_capacity() const;
   double get_isothermal_bulk_modulus_voigt() const;
   double get_isothermal_compressibility_voigt() const;
   double get_isentropic_compressibility_voigt() const;
@@ -113,6 +113,8 @@ protected:
     types::Matrix6d dPsidf_T;
   };
   virtual PsiState compute_psi_state() const;
+  /// Scalar expansion and compressibility for deformation at frozen structure.
+  virtual std::pair<double, double> compute_deformation_alpha_beta() const;
   void set_reference_cell(const Eigen::Matrix3d &vectors,
                           const utils::FrameConvention &frame);
   double compute_density() const override;

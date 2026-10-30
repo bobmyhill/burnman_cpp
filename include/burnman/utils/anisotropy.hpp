@@ -21,11 +21,17 @@
 
 namespace burnman::types {
 using Matrix6d = Eigen::Matrix<double, 6, 6>;
+using Vector6d = Eigen::Matrix<double, 6, 1>;
+using Matrix7d = Eigen::Matrix<double, 7, 7>;
 using ElasticTensor =
     std::array<std::array<std::array<std::array<double, 3>, 3>, 3>, 3>;
 } // namespace burnman::types
 
 namespace burnman::utils {
+types::Vector6d contract_stresses(const Eigen::Matrix3d &tensor);
+types::Vector6d contract_strains(const Eigen::Matrix3d &tensor);
+Eigen::Matrix3d expand_stresses(const types::Vector6d &voigt);
+Eigen::Matrix3d expand_strains(const types::Vector6d &voigt);
 /// Voigt order: 11, 22, 33, 23, 13, 12 (indices are zero based).
 std::pair<std::size_t, std::size_t> voigt_index_to_ij(int m);
 types::ElasticTensor

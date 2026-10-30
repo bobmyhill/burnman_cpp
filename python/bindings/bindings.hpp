@@ -32,6 +32,7 @@ void bind_materials(py::module_ &m);
 void bind_anisotropy(py::module_ &m);
 void bind_anisotropic_mineral(py::module_ &m);
 void bind_anisotropic_solution(py::module_ &m);
+void bind_relaxed_anisotropic_solution(py::module_ &m);
 void bind_composition(py::module_ &m);
 void bind_calibrants(py::module_ &m);
 void bind_linear_fitting(py::module_ &m);

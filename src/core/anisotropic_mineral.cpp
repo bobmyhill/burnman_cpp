@@ -295,6 +295,11 @@ AnisotropicMineral::PsiState AnisotropicMineral::compute_psi_state() const {
   return state;
 }
 
+std::pair<double, double>
+AnisotropicMineral::compute_deformation_alpha_beta() const {
+  return {get_thermal_expansivity(), get_isothermal_compressibility_reuss()};
+}
+
 AnisotropicMineral::Tensors &AnisotropicMineral::tensors() const {
   if (!has_state())
     throw std::runtime_error(
@@ -303,8 +308,7 @@ AnisotropicMineral::Tensors &AnisotropicMineral::tensors() const {
     Tensors state;
     state.psi = compute_psi_state();
     const auto &psi = state.psi;
-    const double alpha = get_thermal_expansivity();
-    const double beta = get_isothermal_compressibility_reuss();
+    const auto [alpha, beta] = compute_deformation_alpha_beta();
     if (orthotropic_) {
       state.F = psi.PsiI.exp();
       state.dFdf = state.F * psi.dPsiIdf_T;
@@ -418,12 +422,12 @@ const types::Matrix6d &
 AnisotropicMineral::get_isentropic_compliance_tensor() const {
   auto &state = tensors();
   if (!state.SS) {
-    Eigen::Matrix<double, 6, 1> alpha;
-    alpha << state.alpha(0, 0), state.alpha(1, 1), state.alpha(2, 2),
-        2. * state.alpha(1, 2), 2. * state.alpha(0, 2), 2. * state.alpha(0, 1);
-    state.SS = state.ST - (get_molar_volume() * get_temperature() /
-                           get_molar_heat_capacity_p()) *
-                              alpha * alpha.transpose();
+    const auto alpha =
+        utils::contract_strains(get_thermal_expansivity_tensor());
+    state.SS =
+        get_isothermal_compliance_tensor() -
+        (get_molar_volume() * get_temperature() / get_molar_heat_capacity_p()) *
+            alpha * alpha.transpose();
   }
   return *state.SS;
 }

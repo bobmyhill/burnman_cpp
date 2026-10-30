@@ -208,6 +208,9 @@ void bind_solutions(py::module_ &m) {
   bind_optional_attribute(solution, "baseline_composition",
                           &Solution::baseline_composition);
   solution
+      .def("set_state_with_volume", &Solution::set_state_with_volume,
+           py::arg("volume"), py::arg("temperature"),
+           py::arg("pressure_guesses") = Eigen::Vector2d(0., 1.e10))
       .def(py::init([](const std::shared_ptr<SolutionModel> &model,
                        const Eigen::ArrayXd &fractions,
                        const std::string &name) {
