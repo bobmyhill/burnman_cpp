@@ -32,6 +32,7 @@ PYBIND11_MODULE(_core, m) {
   burnman::python::bind_params(m);
   burnman::python::bind_eos(m);
   burnman::python::bind_materials(m);
+  burnman::python::bind_anisotropy(m);
   burnman::python::bind_composition(m);
   burnman::python::bind_calibrants(m);
   burnman::python::bind_linear_fitting(m);
