@@ -13,7 +13,7 @@
 
 """Native numerical tools and optional plotting helpers."""
 
-from . import seismic, chemistry, partitioning, thermobarometry
+from . import seismic, chemistry, partitioning, thermobarometry, eos
 
 from .equilibrium_path import (
     EquilibriumPath,
@@ -55,6 +55,7 @@ from .phase_diagram_helpers import (
 )
 
 __all__ = [
+    "eos",
     "seismic",
     "chemistry",
     "partitioning",

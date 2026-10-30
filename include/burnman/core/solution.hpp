@@ -125,6 +125,11 @@ public:
   virtual void set_state_with_volume(
       double volume, double temperature,
       const Eigen::Vector2d &pressure_guesses = Eigen::Vector2d(0., 1.e10));
+  /// Scalar V,T array evaluation on an independent solution copy.
+  Eigen::MatrixXd
+  evaluate_with_volumes(const std::vector<std::string> &properties,
+                        const Eigen::ArrayXd &volumes,
+                        const Eigen::ArrayXd &temperatures) const;
   void set_method(types::EOSType new_method) override;
   void set_method(std::shared_ptr<EquationOfState> new_method) override;
 

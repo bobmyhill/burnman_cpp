@@ -13,6 +13,7 @@
 
 #include "burnman/core/relaxed_solution.hpp"
 #include "burnman/utils/index_utils.hpp"
+#include <Eigen/Eigenvalues>
 #include <nlopt.hpp>
 
 namespace burnman {
@@ -133,6 +134,19 @@ void RelaxedSolution::relax() {
   opt.set_ftol_abs(1.e-12);
   opt.set_maxeval(1000);
   std::vector<double> q(static_cast<std::size_t>(dndq_.cols()), 0.);
+  Solution::set_composition(data.base.array());
+  Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> modes(
+      dndq_.transpose() * get_gibbs_hessian() * dndq_);
+  if (modes.eigenvalues()[0] < -1.e-8) {
+    Eigen::VectorXd seed = 1.e-3 * modes.eigenvectors().col(0);
+    seed /= std::max(1., (dndq_ * seed).norm() / 1.e-3);
+    for (int attempt = 0; attempt < 20; ++attempt, seed *= -.5) {
+      if ((sites * (data.base + dndq_ * seed)).minCoeff() >= -1.e-12) {
+        Eigen::Map<Eigen::VectorXd>(q.data(), dndq_.cols()) = seed;
+        break;
+      }
+    }
+  }
   double value = 0.;
   try {
     opt.optimize(q, value);

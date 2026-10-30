@@ -67,6 +67,7 @@ from ._core import (
     EntropyConstraint,
     FractionType,
     IdealSolution,
+    PolynomialSolution,
     IterationHistory,
     LinearXConstraint,
     Material,
@@ -311,6 +312,7 @@ def equilibrate(
 from . import eos
 
 __all__ = [
+    "PolynomialSolution",
     "RelaxedAnisotropicSolution",
     "AnisotropicSolution",
     "AnisotropicMineral",

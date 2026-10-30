@@ -165,8 +165,7 @@ public:
   double compute_excess_enthalpy(double pressure, double temperature,
                                  const Eigen::ArrayXd &molar_fractions) const;
 
-  // Functions should be made virtual and ovveriden if polynomial
-  // solution model added. All three return 0 at present.
+  // State-independent models have no excess second thermal derivatives.
   /**
    * @brief Compute excess heat capacity at current state.
    *
@@ -187,6 +186,19 @@ public:
    * @returns Excess in [m^3/Pa/mol].
    */
   double compute_VoverKT_excess() const;
+
+  virtual double compute_Cp_excess(double, double,
+                                   const Eigen::ArrayXd &) const {
+    return compute_Cp_excess();
+  }
+  virtual double compute_alphaV_excess(double, double,
+                                       const Eigen::ArrayXd &) const {
+    return compute_alphaV_excess();
+  }
+  virtual double compute_VoverKT_excess(double, double,
+                                        const Eigen::ArrayXd &) const {
+    return compute_VoverKT_excess();
+  }
 
   // Pure virtual functions to be ovveriden in derived classes
   /**
