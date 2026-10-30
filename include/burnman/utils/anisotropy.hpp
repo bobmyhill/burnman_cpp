@@ -33,6 +33,10 @@ voigt_notation_to_stiffness_tensor(const types::Matrix6d &voigt);
 /// Engineering shear compliance requires factors of two on each shear index.
 types::ElasticTensor
 voigt_notation_to_compliance_tensor(const types::Matrix6d &voigt);
+types::Matrix6d contract_compliances(const types::ElasticTensor &tensor);
+types::Matrix6d contract_stiffnesses(const types::ElasticTensor &tensor);
+types::ElasticTensor rotate_elastic_tensor(const types::ElasticTensor &tensor,
+                                           const Eigen::Matrix3d &rotation);
 types::Matrix6d voigt_array_from_cijs(
     const std::vector<double> &cijs,
     const std::vector<std::vector<std::pair<int, int>>> &index_lists);

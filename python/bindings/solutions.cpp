@@ -155,8 +155,7 @@ void bind_solutions(py::module_ &m) {
            py::arg("entropy_interaction") = Interactions{});
 
   auto solution =
-      py::class_<Solution, CompositeMaterial, std::shared_ptr<Solution>>(
-          m, "Solution");
+      py::class_<Solution, CompositeMaterial, py::smart_holder>(m, "Solution");
   bind_optional_attribute(solution, "compositional_covariances",
                           &Solution::compositional_covariances);
   bind_optional_attribute(solution, "free_compositional_vectors",
@@ -234,8 +233,7 @@ void bind_solutions(py::module_ &m) {
   bind_property<Solution>(solution, "endmember_n_occupancies",
                           "get_endmember_n_occupancies",
                           &Solution::get_endmember_n_occupancies);
-  py::class_<RelaxedSolution, Solution, std::shared_ptr<RelaxedSolution>>(
-      m, "RelaxedSolution")
+  py::class_<RelaxedSolution, Solution, py::smart_holder>(m, "RelaxedSolution")
       .def(py::init<Solution, const Eigen::MatrixXd &,
                     const Eigen::MatrixXd &>(),
            py::arg("solution"), py::arg("relaxation_vectors"),

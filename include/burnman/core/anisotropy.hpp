@@ -22,7 +22,7 @@ namespace burnman {
  * Subclasses can override the stiffness and density for state dependent models;
  * reset_cache() invalidates compliance when their state changes.
  */
-class AnisotropicMaterial : public Material {
+class AnisotropicMaterial : public virtual Material {
 public:
   AnisotropicMaterial(double rho, const types::Matrix6d &cijs);
   std::shared_ptr<Material> copy() const override;
@@ -30,7 +30,7 @@ public:
 
   virtual const types::Matrix6d &get_isentropic_stiffness_tensor() const;
   types::ElasticTensor get_full_isentropic_stiffness_tensor() const;
-  const types::Matrix6d &get_isentropic_compliance_tensor() const;
+  virtual const types::Matrix6d &get_isentropic_compliance_tensor() const;
   types::ElasticTensor get_full_isentropic_compliance_tensor() const;
   double get_isentropic_bulk_modulus_voigt() const;
   double get_isentropic_bulk_modulus_vrh() const;
