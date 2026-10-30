@@ -29,8 +29,7 @@ void bind_materials(py::module_ &m) {
   m.def("_se2015_fcc_iron", &minerals::SE_2015::fcc_iron);
   m.def("_se2015_hcp_iron", &minerals::SE_2015::hcp_iron);
   m.def("_se2015_liquid_iron", &minerals::SE_2015::liquid_iron);
-  auto material =
-      py::class_<Material, std::shared_ptr<Material>>(m, "Material");
+  auto material = py::class_<Material, py::smart_holder>(m, "Material");
   material
       .def(
           "set_state",
@@ -122,7 +121,8 @@ void bind_materials(py::module_ &m) {
   bind_property<Material>(material, "molar_mass", "get_molar_mass",
                           &Material::get_molar_mass);
 
-  py::class_<Mineral, Material, std::shared_ptr<Mineral>>(m, "Mineral")
+  py::class_<Mineral, Material, py::smart_holder>(m, "Mineral",
+                                                  py::multiple_inheritance())
       .def(py::init([](const types::MineralParams &params) {
              if (!params.molar_mass || !std::isfinite(*params.molar_mass) ||
                  *params.molar_mass <= 0.0) {
@@ -178,9 +178,8 @@ void bind_materials(py::module_ &m) {
                                return self.get_molar_volume_unmodified();
                              });
 
-  auto composite =
-      py::class_<CompositeMaterial, Material,
-                 std::shared_ptr<CompositeMaterial>>(m, "CompositeMaterial");
+  auto composite = py::class_<CompositeMaterial, Material, py::smart_holder>(
+      m, "CompositeMaterial");
 #define COMPOSITE_PROPERTY(name)                                               \
   bind_property<CompositeMaterial>(composite, #name, "get_" #name,             \
                                    &CompositeMaterial::get_##name)
@@ -211,9 +210,8 @@ void bind_materials(py::module_ &m) {
                                    "get_partial_gibbs",
                                    &CompositeMaterial::get_partial_gibbs, true);
 
-  auto assemblage =
-      py::class_<Assemblage, CompositeMaterial, std::shared_ptr<Assemblage>>(
-          m, "Assemblage");
+  auto assemblage = py::class_<Assemblage, CompositeMaterial, py::smart_holder>(
+      m, "Assemblage");
   bind_optional_attribute(assemblage, "state_priors",
                           &Assemblage::state_priors);
   bind_optional_attribute(assemblage, "state_covariances",
@@ -348,9 +346,8 @@ void bind_materials(py::module_ &m) {
                             "get_endmember_partial_entropies",
                             &Assemblage::get_endmember_partial_entropies, true);
 
-  auto relaxed =
-      py::class_<RelaxedComposite, Assemblage,
-                 std::shared_ptr<RelaxedComposite>>(m, "RelaxedComposite");
+  auto relaxed = py::class_<RelaxedComposite, Assemblage, py::smart_holder>(
+      m, "RelaxedComposite");
   relaxed
       .def(py::init<std::shared_ptr<Assemblage>, const Eigen::MatrixXd &>(),
            py::arg("composite"), py::arg("relaxation_vectors"))

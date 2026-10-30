@@ -16,8 +16,8 @@
 
 namespace burnman::python {
 void bind_equilibrated_composite(py::module_ &m) {
-  py::class_<EquilibratedComposite, Assemblage,
-             std::shared_ptr<EquilibratedComposite>>(m, "EquilibratedComposite")
+  py::class_<EquilibratedComposite, Assemblage, py::smart_holder>(
+      m, "EquilibratedComposite")
       .def(py::init<const types::FormulaMap &,
                     const std::vector<std::shared_ptr<Material>> &,
                     const phase_diagrams::Settings &, bool,

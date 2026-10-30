@@ -49,7 +49,7 @@ namespace burnman {
  * the number of formula units per unit cell.
  *
  */
-class Mineral : public Material {
+class Mineral : public virtual Material {
 public:
   std::shared_ptr<Material> copy() const override;
   /**

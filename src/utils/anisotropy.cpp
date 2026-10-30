@@ -45,6 +45,50 @@ voigt_notation_to_compliance_tensor(const types::Matrix6d &voigt) {
   return voigt_notation_to_stiffness_tensor(compliance);
 }
 
+types::Matrix6d contract_stiffnesses(const types::ElasticTensor &tensor) {
+  types::Matrix6d result;
+  for (int m = 0; m < 6; ++m) {
+    const auto [i, j] = voigt_index_to_ij(m);
+    for (int n = 0; n < 6; ++n) {
+      const auto [k, l] = voigt_index_to_ij(n);
+      result(m, n) = tensor[i][j][k][l];
+    }
+  }
+  return result;
+}
+
+types::Matrix6d contract_compliances(const types::ElasticTensor &tensor) {
+  auto result = contract_stiffnesses(tensor);
+  result.bottomRows<3>() *= 2.;
+  result.rightCols<3>() *= 2.;
+  return result;
+}
+
+types::ElasticTensor rotate_elastic_tensor(const types::ElasticTensor &tensor,
+                                           const Eigen::Matrix3d &rotation) {
+  // Rotate one index at a time, keeping the contraction small.
+  auto result = tensor;
+  for (int axis = 0; axis < 4; ++axis) {
+    const auto input = result;
+    for (std::size_t i = 0; i < 3; ++i)
+      for (std::size_t j = 0; j < 3; ++j)
+        for (std::size_t k = 0; k < 3; ++k)
+          for (std::size_t l = 0; l < 3; ++l) {
+            std::array<std::size_t, 4> indices{i, j, k, l};
+            const auto row = indices[static_cast<std::size_t>(axis)];
+            double value = 0.;
+            for (std::size_t p = 0; p < 3; ++p) {
+              indices[static_cast<std::size_t>(axis)] = p;
+              value += rotation(static_cast<Eigen::Index>(row),
+                                static_cast<Eigen::Index>(p)) *
+                       input[indices[0]][indices[1]][indices[2]][indices[3]];
+            }
+            result[i][j][k][l] = value;
+          }
+  }
+  return result;
+}
+
 types::Matrix6d voigt_array_from_cijs(
     const std::vector<double> &cijs,
     const std::vector<std::vector<std::pair<int, int>>> &index_lists) {

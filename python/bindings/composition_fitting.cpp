@@ -18,8 +18,7 @@ namespace burnman::python {
 void bind_composition_fitting(py::module_ &m) {
   auto optimize = m.attr("optimize").cast<py::module_>();
   auto composition = optimize.def_submodule("composition_fitting");
-  py::class_<optim::DummyCompositionSolution, Solution,
-             std::shared_ptr<optim::DummyCompositionSolution>>(
+  py::class_<optim::DummyCompositionSolution, Solution, py::smart_holder>(
       composition, "DummyCompositionSolution",
       R"doc(A Solution class object for compositions without a thermodynamic model.
 

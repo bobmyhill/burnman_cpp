@@ -65,18 +65,18 @@ py::object directional_scalar(Directions a, std::optional<Directions> b,
 
 template <typename Class>
 void bind_symmetry(py::module_ &m, const char *name, const char *doc) {
-  py::class_<Class, AnisotropicMaterial, std::shared_ptr<Class>>(m, name, doc)
+  py::class_<Class, AnisotropicMaterial, py::smart_holder>(m, name, doc)
       .def(py::init<double, const std::vector<double> &>(), py::arg("rho"),
            py::arg("cijs"));
 }
 } // namespace
 
 void bind_anisotropy(py::module_ &m) {
-  auto material = py::class_<AnisotropicMaterial, Material,
-                             std::shared_ptr<AnisotropicMaterial>>(
+  auto material = py::class_<AnisotropicMaterial, Material, py::smart_holder>(
       m, "AnisotropicMaterial",
       "Elastic material with density (kg/m^3) and symmetric 6x6 isentropic "
-      "stiffness (Pa), in Voigt order 11,22,33,23,13,12.");
+      "stiffness (Pa), in Voigt order 11,22,33,23,13,12.",
+      py::multiple_inheritance());
   material.def(py::init<double, const types::Matrix6d &>(), py::arg("rho"),
                py::arg("cijs"));
 #define PROPERTY(name)                                                         \
