@@ -14,10 +14,41 @@
 """Snapshot audits tolerate numerical roundoff but reject changed references."""
 
 import importlib
+import json
 from pathlib import Path
 import shutil
+import subprocess
+import sys
 
 import pytest
+
+
+@pytest.mark.parametrize("github_output", [False, True])
+def test_reference_pin_cli_reads_policy_changes_from_any_directory(
+    tmp_path, github_output
+):
+    root = Path(__file__).resolve().parents[2]
+    tools = tmp_path / "tools"
+    reference = tmp_path / "tests/reference"
+    tools.mkdir()
+    reference.mkdir(parents=True)
+    script = tools / "burnman_reference.py"
+    shutil.copyfile(root / "tools/burnman_reference.py", script)
+    policy = json.loads((root / "tests/reference/burnman.json").read_text())
+    for commit in ("a" * 40, "b" * 40):
+        policy["commit"] = commit
+        (reference / "burnman.json").write_text(json.dumps(policy))
+        command = [sys.executable, str(script)]
+        if github_output:
+            command.append("--github-output")
+        output = subprocess.check_output(command, cwd=tools, text=True).strip()
+        if github_output:
+            assert dict(line.split("=", 1) for line in output.splitlines()) == {
+                "repository": "geodynamics/burnman",
+                "commit": commit,
+            }
+        else:
+            assert output == commit
 
 
 @pytest.fixture
@@ -92,14 +123,13 @@ def test_ps1994_audit_accepts_roundoff_and_reformatting(ps1994_audit):
         ("0.04140096296511458", "0.04150096296511458", "volume"),
         ("-338143.8857849859", "-338143.8856849859", "Gibbs energy"),
         ("35.58984708602805, 2}", "35.58984708602805, 3}", "stable roots"),
-        (None, "invalid_commit", "provenance"),
+        ("tests/reference/burnman.json", "invalid_policy.json", "provenance"),
     ],
 )
 def test_ps1994_audit_rejects_changed_physics_or_provenance(
     ps1994_audit, original, changed, message
 ):
     audit, stored = ps1994_audit
-    original = audit.POLICY["commit"] if original is None else original
     generated = stored.replace(original, changed, 1)
     assert generated != stored
     with pytest.raises((AssertionError, ValueError), match=message):

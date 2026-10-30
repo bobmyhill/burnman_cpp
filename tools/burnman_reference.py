@@ -13,6 +13,7 @@
 
 """Shared provenance checks for the optional Python BurnMan reference."""
 
+import argparse
 import json
 from pathlib import Path
 import subprocess
@@ -47,3 +48,16 @@ def verify_reference(package):
             "The imported reference does not belong to the pinned checkout."
         )
     return source
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--github-output", action="store_true")
+    args = parser.parse_args()
+    if args.github_output:
+        print(
+            f"repository={REFERENCE['repository'].removeprefix('https://github.com/')}"
+        )
+        print(f"commit={REFERENCE['commit']}")
+    else:
+        print(REFERENCE["commit"])

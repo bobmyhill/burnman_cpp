@@ -39,10 +39,7 @@ def test_complete_catalogue_and_python_structure():
     assert actual == set(STANDARDS)
     assert len(bm.calibrants.__all__) - 1 == 38
     assert bm.Calibrant is Calibrant
-    assert (
-        REFERENCE["commit"]
-        == json.loads((ROOT / "tests/reference/burnman.json").read_text())["commit"]
-    )
+    assert REFERENCE["reference"] == "burnman.json"
 
 
 @pytest.mark.parametrize("identifier", STANDARDS)

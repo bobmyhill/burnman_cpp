@@ -1,5 +1,18 @@
 {
   "repository": "https://github.com/geodynamics/burnman",
-  "commit": "b7c54ccf7bfd8583158c6dffe210c004b9570f4d",
-  "volume_root_xtol_m3_per_mol": 1e-24
+  "commit": "9a5dd62f941e6bf921e68f52d694fbe35e1d45bc",
+  "volume_root_xtol_m3_per_mol": 1e-24,
+  "historical_commits": {
+    "authors_and_model_sets": "39b582cd23954fabd3bdbbee6526a522b1d97bc9",
+    "initial_snapshots_and_tables": "e2cfac31052273b3fa9d5ce905978e97723005e9",
+    "fitting_aa_and_brosh": "bcfe0fa8ea0180cd2178cffe76ea985bc9098dc4",
+    "dubrovinsky_saxena_table": "b7c54ccf7bfd8583158c6dffe210c004b9570f4d",
+    "local_morse_formulas": "51d817117feaf37242c7f3be0d698cbe475ee212"
+  },
+  "external_references": {
+    "hefesto_hillert": {
+      "repository": "https://github.com/stixrude/HeFESToRepository",
+      "commit": "6faa4053d3af7cea7b16c4bfee8b7773fb077f9b"
+    }
+  }
 }

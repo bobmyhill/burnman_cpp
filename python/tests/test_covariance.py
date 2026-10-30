@@ -122,7 +122,7 @@ def test_covariance_export_check_rejects_changed_data(monkeypatch, tmp_path):
     path = tmp_path / exporter.DATA_DIRECTORY / "HP_2011_ds62_cov.h5"
     # A pin update must not rewrite unchanged covariance data or its provenance.
     with h5py.File(path, "r+") as data:
-        data.attrs.modify("burnman_commit", "e2cfac31052273b3fa9d5ce905978e97723005e9")
+        data.attrs.modify("burnman_commit", "a" * 40)
     original = path.read_bytes()
     monkeypatch.setattr("sys.argv", args)
     exporter.main()

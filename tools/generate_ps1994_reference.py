@@ -202,7 +202,7 @@ def generate(source):
     finally:
         burnman.constants.gas_constant = previous_r
     text = CPP_HEADER + f"""/* Generated from Python BurnMan; no C++ output is used.
- * Reference: {POLICY['repository']} at {POLICY['commit']}.
+ * Reference policy: tests/reference/burnman.json.
  * Regenerate with tools/generate_ps1994_reference.py --reference PATH --write.
  * R is matched to PS1994's {POLICY['gas_constant_J_per_mol_K']} J/(mol K).
  * Delta G, S and Cp are relative to {POLICY['reference_pressure_Pa']} Pa at the same T;

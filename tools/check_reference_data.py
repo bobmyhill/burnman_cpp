@@ -310,7 +310,7 @@ class Audit:
                     "",
                     text,
                 )
-                notice = f"// Numerical snapshots: Python BurnMan {REFERENCE['commit']}.\n// Reproduce with tools/check_reference_data.py; see docs/reference_data.md.\n"
+                notice = "// Numerical snapshots: Python BurnMan; see tests/reference/burnman.json.\n// Reproduce with tools/check_reference_data.py.\n"
                 if notice not in text:
                     index = text.index("#include")
                     text = text[:index] + notice + text[index:]

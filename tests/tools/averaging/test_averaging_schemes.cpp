@@ -11,8 +11,8 @@
 //
 // ------------------------------------------------------
 
-// Numerical snapshots: Python BurnMan e2cfac31052273b3fa9d5ce905978e97723005e9.
-// Reproduce with tools/check_reference_data.py; see docs/reference_data.md.
+// Numerical snapshots: Python BurnMan; see tests/reference/burnman.json.
+// Reproduce with tools/check_reference_data.py.
 #include "burnman/tools/averaging/averaging_schemes.hpp"
 #include "tolerances.hpp"
 #include <catch2/catch_template_test_macros.hpp>

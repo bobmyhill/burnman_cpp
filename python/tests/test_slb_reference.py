@@ -438,8 +438,9 @@ def test_finite_magnetic_rewrite_is_exactly_the_original_chs_potential():
 def test_slb2024_magnetic_terms_match_hefesto_ordered_reference(name, tau):
     """Check the authors' Hillert-Jarl specification independently of BurnMan.
 
-    Source: stixrude/HeFESToRepository, hillert.f, commit
-    6faa4053d3af7cea7b16c4bfee8b7773fb077f9b. The ordered reference is
+    Source: stixrude/HeFESToRepository, hillert.f; the commit is recorded as
+    external_references.hefesto_hillert in tests/reference/burnman.json.
+    The ordered reference is
     applied in HeFESTo itself and via an existing CHS + linear combination
     in BurnMan. SLB2024 Appendix A2 eq. A5 has apparently misplaced brackets.
     The exact Curie point is excluded: HeFESTo chooses the low-temperature

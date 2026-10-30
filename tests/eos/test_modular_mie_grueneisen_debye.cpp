@@ -98,8 +98,9 @@ TEST_CASE("Modular MGD validates its components", "[modular_mgd][eos]") {
 }
 
 TEST_CASE("Modular MGD Python snapshots", "[modular_mgd][eos]") {
-  // Python BurnMan e2cfac31052273b3fa9d5ce905978e97723005e9.
-  // ModularMGD at T=2000 K and V/V_0=0.8, parameters() above.
+  // Python BurnMan historical_commits.initial_snapshots_and_tables
+  // (tests/reference/burnman.json). ModularMGD at T=2000 K and V/V_0=0.8,
+  // parameters() above.
   auto p = parameters();
   double expected_p, expected_k, expected_f, expected_s, expected_cv,
       expected_alpha;

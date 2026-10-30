@@ -1,6 +1,7 @@
 These eight reference tables are copied unchanged from Python BurnMan's
-`burnman/data/input_seismic` directory (local source revision
-`e2cfac31052273b3fa9d5ce905978e97723005e9`). Their original headers retain model
+`burnman/data/input_seismic` directory. The source revision is recorded as
+`historical_commits.initial_snapshots_and_tables` in
+[the reference policy](../../../tests/reference/burnman.json). Their original headers retain model
 attribution and units. Models follow `burnman/classes/seismic.py`:
 
 - `prem.txt`: PREM (Dziewonski and Anderson, 1981), with QL6 attenuation
