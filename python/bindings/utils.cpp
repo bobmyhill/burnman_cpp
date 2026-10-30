@@ -13,9 +13,20 @@
 
 #include "bindings.hpp"
 #include "burnman/utils/polygon_utils.hpp"
+#include "burnman/utils/unitcell.hpp"
 
 namespace burnman::python {
 void bind_utils(py::module_ &m) {
+  m.def("cell_parameters_to_vectors", &utils::cell_parameters_to_vectors,
+        py::arg("cell_parameters"),
+        py::arg("frame_convention") = utils::FrameConvention{0, 1, 2});
+  m.def("rotation_to_crystallographic_frame",
+        &utils::rotation_to_crystallographic_frame, py::arg("cell_vectors"),
+        py::arg("frame_convention") = utils::FrameConvention{0, 1, 2});
+  m.def("cell_vectors_to_parameters", &utils::cell_vectors_to_parameters,
+        py::arg("vectors"),
+        py::arg("frame_convention") = utils::FrameConvention{0, 1, 2},
+        py::arg("rotate") = false);
   m.def(
       "visual_center_of_polygon",
       [](const std::vector<Eigen::MatrixXd> &rings, double precision,
