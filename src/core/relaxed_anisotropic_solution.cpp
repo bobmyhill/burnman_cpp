@@ -13,6 +13,7 @@
 
 #include "burnman/core/relaxed_anisotropic_solution.hpp"
 #include "burnman/utils/index_utils.hpp"
+#include <Eigen/Eigenvalues>
 #include <Eigen/LU>
 #include <Eigen/SVD>
 #include <cmath>
@@ -267,6 +268,19 @@ void RelaxedAnisotropicSolution::minimize(bool fixed_volume, double volume,
     optimizer.set_ftol_abs(1.e-14);
     optimizer.set_maxeval(1000);
     std::vector<double> q(static_cast<std::size_t>(dndq_.cols()), 0.);
+    // At a symmetry-breaking transition the previous minimum can become a
+    // stationary maximum. Seed the unstable mode so a gradient method escapes.
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> modes(data.hessian());
+    if (modes.eigenvalues()[0] < -1.e-8) {
+      Eigen::VectorXd seed = 1.e-3 * modes.eigenvectors().col(0);
+      seed /= std::max(1., (dndq_ * seed).norm() / 1.e-3);
+      for (int attempt = 0; attempt < 20; ++attempt, seed *= -.5) {
+        if ((sites * (data.base + dndq_ * seed)).minCoeff() >= -1.e-12) {
+          Eigen::Map<Eigen::VectorXd>(q.data(), dndq_.cols()) = seed;
+          break;
+        }
+      }
+    }
     double energy = 0.;
     try {
       optimizer.optimize(q, energy);

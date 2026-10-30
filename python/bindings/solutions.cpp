@@ -15,6 +15,7 @@
 #include "burnman/core/anisotropic_mineral.hpp"
 #include "burnman/core/relaxed_solution.hpp"
 #include "burnman/core/solution.hpp"
+#include <pybind11/numpy.h>
 
 namespace burnman::python {
 namespace {
@@ -143,6 +144,9 @@ void bind_solutions(py::module_ &m) {
   MODEL_COMPUTE(compute_gibbs_hessian);
   MODEL_COMPUTE(compute_entropy_hessian);
   MODEL_COMPUTE(compute_volume_hessian);
+  MODEL_COMPUTE(compute_Cp_excess);
+  MODEL_COMPUTE(compute_alphaV_excess);
+  MODEL_COMPUTE(compute_VoverKT_excess);
 #undef MODEL_COMPUTE
   py::class_<IdealSolution, SolutionModel, std::shared_ptr<IdealSolution>>(
       m, "IdealSolution")
@@ -199,6 +203,35 @@ void bind_solutions(py::module_ &m) {
           py::arg("volume_interaction") = Interactions{},
           py::arg("entropy_interaction") = Interactions{});
 
+  py::class_<PolynomialSolution, IdealSolution,
+             std::shared_ptr<PolynomialSolution>>(m, "PolynomialSolution")
+      .def(py::init([](const Endmembers &endmembers,
+                       const std::optional<Interactions> &esv,
+                       const std::vector<std::shared_ptr<Mineral>> &minerals,
+                       const std::optional<Interactions> &interactions,
+                       const std::optional<Eigen::MatrixXd> &transformation) {
+             return retain_tensor_endmembers(
+                 std::make_shared<PolynomialSolution>(
+                     scalar_endmembers(endmembers),
+                     esv.value_or(Interactions{}), minerals,
+                     interactions.value_or(Interactions{}), transformation),
+                 endmembers);
+           }),
+           py::arg("endmembers"), py::arg("ESV_interactions") = py::none(),
+           py::arg("interaction_endmembers") =
+               std::vector<std::shared_ptr<Mineral>>{},
+           py::arg("endmember_coefficients_and_interactions") = py::none(),
+           py::arg("transformation_matrix") = py::none())
+      .def_property_readonly("interaction_endmembers",
+                             &PolynomialSolution::get_interaction_endmembers)
+      .def_property_readonly("dqdp", &PolynomialSolution::get_dqdp,
+                             py::return_value_policy::copy)
+      .def_property_readonly("ESV_interactions",
+                             &PolynomialSolution::get_ESV_interactions)
+      .def_property_readonly(
+          "endmember_coefficients_and_interactions",
+          &PolynomialSolution::get_endmember_coefficients_and_interactions);
+
   auto solution =
       py::class_<Solution, CompositeMaterial, py::smart_holder>(m, "Solution");
   bind_optional_attribute(solution, "compositional_covariances",
@@ -208,6 +241,36 @@ void bind_solutions(py::module_ &m) {
   bind_optional_attribute(solution, "baseline_composition",
                           &Solution::baseline_composition);
   solution
+      .def(
+          "evaluate_with_volumes",
+          [](const Solution &self, const std::vector<std::string> &names,
+             const py::array_t<double, py::array::c_style |
+                                           py::array::forcecast> &volumes,
+             const py::array_t<double,
+                               py::array::c_style | py::array::forcecast>
+                 &temperatures) {
+            if (volumes.ndim() != temperatures.ndim() ||
+                !std::equal(volumes.shape(), volumes.shape() + volumes.ndim(),
+                            temperatures.shape()))
+              throw std::invalid_argument(
+                  "volumes and temperatures must have the same shape.");
+            const auto values = self.evaluate_with_volumes(
+                names,
+                Eigen::Map<const Eigen::ArrayXd>(volumes.data(),
+                                                 volumes.size()),
+                Eigen::Map<const Eigen::ArrayXd>(temperatures.data(),
+                                                 temperatures.size()));
+            std::vector<py::ssize_t> shape{
+                static_cast<py::ssize_t>(names.size())};
+            shape.insert(shape.end(), volumes.shape(),
+                         volumes.shape() + volumes.ndim());
+            py::array_t<double> result(shape);
+            for (Eigen::Index i = 0; i < values.rows(); ++i)
+              for (Eigen::Index j = 0; j < values.cols(); ++j)
+                result.mutable_data()[i * values.cols() + j] = values(i, j);
+            return result;
+          },
+          py::arg("vars_list"), py::arg("volumes"), py::arg("temperatures"))
       .def("set_state_with_volume", &Solution::set_state_with_volume,
            py::arg("volume"), py::arg("temperature"),
            py::arg("pressure_guesses") = Eigen::Vector2d(0., 1.e10))

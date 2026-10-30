@@ -12,6 +12,7 @@
 // ------------------------------------------------------
 
 #include "bindings.hpp"
+#include "burnman/core/anisotropic_mineral.hpp"
 #include "burnman/core/assemblage.hpp"
 #include "burnman/core/mineral.hpp"
 #include "burnman/core/relaxed_composite.hpp"
@@ -137,8 +138,32 @@ void bind_materials(py::module_ &m) {
            py::arg("params"))
       .def_property_readonly(
           "params", [](const Mineral &self) { return self.params; },
-          "A copy of the validated parameters; construct a new mineral to "
-          "change them.")
+          "A parameter snapshot; set_parameters() validates and applies "
+          "updates.")
+      .def(
+          "set_parameters",
+          [](Mineral &self, const types::MineralParams &params) {
+            if (dynamic_cast<AnisotropicMineral *>(&self))
+              throw std::invalid_argument(
+                  "Reconstruct anisotropic minerals when changing their scalar "
+                  "reference parameters.");
+            if (!params.molar_mass || !std::isfinite(*params.molar_mass) ||
+                *params.molar_mass <= 0.)
+              throw std::invalid_argument(
+                  "Minerals require a positive finite molar_mass (kg/mol).");
+            Mineral replacement = self;
+            replacement.params = params;
+            if (params.equation_of_state == types::EOSType::Custom)
+              replacement.set_method(self.eos_method);
+            else
+              replacement.set_method(types::EOSType::Auto);
+            self.params = std::move(replacement.params);
+            self.eos_method = std::move(replacement.eos_method);
+            self.reset_cache();
+          },
+          py::arg("params"),
+          "Apply a validated parameter snapshot and invalidate cached "
+          "properties.")
       .def("set_state_with_volume", &Mineral::set_state_with_volume,
            py::arg("volume"), py::arg("temperature"),
            py::arg("pressure_guesses") = Eigen::Vector2d(0., 1.e10),

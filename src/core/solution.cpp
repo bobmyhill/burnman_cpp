@@ -166,6 +166,29 @@ void Solution::set_state_with_volume(double volume, double temperature,
   set_state(pressure, temperature);
 }
 
+Eigen::MatrixXd
+Solution::evaluate_with_volumes(const std::vector<std::string> &properties,
+                                const Eigen::ArrayXd &volumes,
+                                const Eigen::ArrayXd &temperatures) const {
+  if (volumes.size() != temperatures.size() || !volumes.allFinite() ||
+      !temperatures.allFinite() || (volumes <= 0.).any() ||
+      (temperatures < 0.).any())
+    throw std::invalid_argument(
+        "Require matching finite V,T arrays, V > 0 and T >= 0.");
+  Eigen::MatrixXd values(static_cast<Eigen::Index>(properties.size()),
+                         volumes.size());
+  if (!values.size())
+    return values;
+  auto solution = std::dynamic_pointer_cast<Solution>(copy());
+  for (Eigen::Index i = 0; i < volumes.size(); ++i) {
+    solution->set_state_with_volume(volumes[i], temperatures[i]);
+    for (std::size_t j = 0; j < properties.size(); ++j)
+      values(static_cast<Eigen::Index>(j), i) =
+          solution->get_property(properties[j]);
+  }
+  return values;
+}
+
 Eigen::ArrayXd Solution::get_molar_fractions() const {
   return this->molar_fractions;
 }
@@ -446,7 +469,8 @@ double Solution::compute_isothermal_bulk_modulus_reuss() const {
        molar_fractions)
           .sum();
   return get_molar_volume() * 1.0 /
-         (V_over_KT + solution_model->compute_VoverKT_excess());
+         (V_over_KT + solution_model->compute_VoverKT_excess(
+                          get_pressure(), get_temperature(), molar_fractions));
 }
 
 double Solution::compute_isentropic_bulk_modulus_reuss() const {
@@ -502,7 +526,8 @@ double Solution::compute_thermal_expansivity() const {
                    molar_fractions)
                       .sum();
   return (1.0 / get_molar_volume()) *
-         (alphaV + solution_model->compute_alphaV_excess());
+         (alphaV + solution_model->compute_alphaV_excess(
+                       get_pressure(), get_temperature(), molar_fractions));
 }
 
 double Solution::compute_molar_heat_capacity_v() const {
@@ -514,7 +539,9 @@ double Solution::compute_molar_heat_capacity_v() const {
 double Solution::compute_molar_heat_capacity_p() const {
   Eigen::ArrayXd em_Cp =
       map_endmembers_to_array(&Mineral::get_molar_heat_capacity_p);
-  return (em_Cp * molar_fractions).sum() + solution_model->compute_Cp_excess();
+  return (em_Cp * molar_fractions).sum() +
+         solution_model->compute_Cp_excess(get_pressure(), get_temperature(),
+                                           molar_fractions);
 }
 
 double Solution::compute_isentropic_thermal_gradient() const {
