@@ -31,7 +31,7 @@ class AnisotropicSolution : public Solution, public AnisotropicMineral {
 public:
   /// Model polymorphic_endmembers must contain only AnisotropicMineral objects.
   AnisotropicSolution(
-      const std::string &name,
+      const std::string &solution_name,
       std::shared_ptr<solution_models::SolutionModel> solution_model,
       PsiExcessFunction psi_excess_function,
       std::optional<Eigen::ArrayXd> molar_fractions = std::nullopt);
@@ -40,8 +40,8 @@ public:
   std::shared_ptr<Material> copy() const override;
   void reset_cache() override;
   void set_composition(const Eigen::ArrayXd &fractions) override;
-  void set_state(double pressure, double temperature) override;
-  void set_state_with_volume(double volume, double temperature,
+  void set_state(double P, double T) override;
+  void set_state_with_volume(double volume, double T,
                              const Eigen::Vector2d &pressure_guesses =
                                  Eigen::Vector2d(0., 1.e10)) override;
   void set_method(types::EOSType method) override;

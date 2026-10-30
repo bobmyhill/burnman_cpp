@@ -30,7 +30,7 @@ Eigen::Matrix3d weighted_sum(const CompositionTensors &matrices,
 } // namespace
 
 AnisotropicSolution::AnisotropicSolution(
-    const std::string &name,
+    const std::string &solution_name,
     std::shared_ptr<solution_models::SolutionModel> model,
     PsiExcessFunction psi_excess_function,
     std::optional<Eigen::ArrayXd> fractions)
@@ -68,8 +68,8 @@ AnisotropicSolution::AnisotropicSolution(
   auto scalar_model = owned->clone();
   scalar_model->polymorphic_endmembers.clear();
   scalar_solution_->set_solution_model(scalar_model);
-  set_name(name);
-  scalar_solution_->set_name(name);
+  set_name(solution_name);
+  scalar_solution_->set_name(solution_name);
   if (fractions)
     set_composition(*fractions);
 }
@@ -120,23 +120,22 @@ void AnisotropicSolution::set_composition(const Eigen::ArrayXd &fractions) {
     compute_base_properties();
 }
 
-void AnisotropicSolution::set_state(double pressure, double temperature) {
+void AnisotropicSolution::set_state(double P, double T) {
   require_composition();
-  if (!std::isfinite(pressure) || !std::isfinite(temperature) ||
-      temperature < 0.)
+  if (!std::isfinite(P) || !std::isfinite(T) || T < 0.)
     throw std::invalid_argument(
         "Require finite pressure and finite temperature >= 0.");
-  scalar_solution_->set_state(pressure, temperature);
-  Solution::set_state(pressure, temperature);
+  scalar_solution_->set_state(P, T);
+  Solution::set_state(P, T);
   compute_base_properties();
 }
 
 void AnisotropicSolution::set_state_with_volume(
-    double volume, double temperature, const Eigen::Vector2d &guesses) {
+    double volume, double T, const Eigen::Vector2d &guesses) {
   require_composition();
   auto scalar = std::dynamic_pointer_cast<Solution>(scalar_solution_->copy());
-  scalar->set_state_with_volume(volume, temperature, guesses);
-  set_state(scalar->get_pressure(), temperature);
+  scalar->set_state_with_volume(volume, T, guesses);
+  set_state(scalar->get_pressure(), T);
 }
 
 void AnisotropicSolution::set_method(types::EOSType method) {
@@ -166,13 +165,13 @@ void AnisotropicSolution::compute_base_properties() {
 
 AnisotropicMineral::PsiState AnisotropicSolution::compute_psi_state() const {
   require_composition();
-  const double pressure = get_pressure(), temperature = get_temperature();
+  const double P = get_pressure(), T = get_temperature();
   auto &scalar = *scalar_solution_;
-  scalar.set_state(pressure, temperature);
+  scalar.set_state(P, T);
   const double volume = scalar.get_molar_volume();
   const double kt = scalar.get_isothermal_bulk_modulus_reuss();
   const auto fractions = get_molar_fractions();
-  const Eigen::Vector2d guesses(std::max(0., pressure - 2.e9), pressure + 2.e9);
+  const Eigen::Vector2d guesses(std::max(0., P - 2.e9), P + 2.e9);
   PsiState result;
   result.PsiI.setZero();
   result.dPsidf_T.setZero();
@@ -181,19 +180,19 @@ AnisotropicMineral::PsiState AnisotropicSolution::compute_psi_state() const {
   PsiI_mbr_.clear();
   for (std::size_t i = 0; i < endmembers_.size(); ++i) {
     auto &endmember = *endmembers_[i];
-    endmember.set_state_with_volume(volume, temperature, guesses);
+    endmember.set_state_with_volume(volume, T, guesses);
     const double fraction = fractions[static_cast<Eigen::Index>(i)];
     PsiI_mbr_.push_back(endmember.get_PsiI());
     result.PsiI += fraction * endmember.get_PsiI();
     result.dPsidf_T += fraction * endmember.get_dPsidf_T_Voigt();
     result.dPsiIdf_T += fraction * endmember.get_dPsiIdf_T();
     result.dPsiIdT_f += fraction * endmember.get_dPsiIdT_f();
-    endmember.set_state(pressure, temperature);
+    endmember.set_state(P, T);
   }
   auto cold = std::dynamic_pointer_cast<Solution>(scalar.copy());
   cold->set_state_with_volume(volume, T_0);
   const double cold_pressure = cold->get_pressure();
-  result.Pth = pressure - cold_pressure;
+  result.Pth = P - cold_pressure;
   result.dPthdf = cold->get_isothermal_bulk_modulus_reuss() - kt;
   const auto [psi, df, dp, dPsiIdp] =
       psi_excess_function_(std::log(volume), result.Pth, fractions);

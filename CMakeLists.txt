@@ -98,6 +98,7 @@ if(BURNMAN_BUILD_PYTHON)
     python/bindings/materials.cpp
     python/bindings/anisotropy.cpp
     python/bindings/anisotropic_mineral.cpp
+    python/bindings/hyperelastic.cpp
     python/bindings/anisotropic_solution.cpp
     python/bindings/relaxed_anisotropic_solution.cpp
     python/bindings/composition.cpp

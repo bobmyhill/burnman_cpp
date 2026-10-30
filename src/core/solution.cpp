@@ -111,24 +111,24 @@ void Solution::set_state(double new_pressure, double new_temperature) {
   }
 }
 
-void Solution::set_state_with_volume(double volume, double temperature,
+void Solution::set_state_with_volume(double volume, double T,
                                      const Eigen::Vector2d &guesses) {
   if (!solution_model ||
       molar_fractions.size() != solution_model->get_n_endmembers())
     throw std::runtime_error(
         "Set the solution model and composition before volume states.");
-  if (!std::isfinite(volume) || volume <= 0. || !std::isfinite(temperature) ||
-      temperature < 0. || !guesses.allFinite() || guesses[0] >= guesses[1])
+  if (!std::isfinite(volume) || volume <= 0. || !std::isfinite(T) || T < 0. ||
+      !guesses.allFinite() || guesses[0] >= guesses[1])
     throw std::invalid_argument(
         "Require V > 0, T >= 0 and increasing finite pressure guesses.");
   struct Residual {
     Solution *solution;
-    double volume, temperature;
-  } data{this, volume, temperature};
-  const auto residual = +[](double pressure, void *context) -> double {
+    double volume, T;
+  } data{this, volume, T};
+  const auto residual = +[](double P, void *context) -> double {
     auto &d = *static_cast<Residual *>(context);
     try {
-      d.solution->set_state(pressure, d.temperature);
+      d.solution->set_state(P, d.T);
       return d.volume - d.solution->get_molar_volume();
     } catch (const std::exception &) {
       return -std::numeric_limits<double>::infinity();
@@ -136,11 +136,11 @@ void Solution::set_state_with_volume(double volume, double temperature,
   };
   double low = guesses[0], high = guesses[1];
   if (residual(low, &data) == 0.) {
-    set_state(low, temperature);
+    set_state(low, T);
     return;
   }
   if (residual(high, &data) == 0.) {
-    set_state(high, temperature);
+    set_state(high, T);
     return;
   }
   if (!optim::roots::bracket_root(residual, data, low, high, high - low, 1.618))
@@ -152,7 +152,7 @@ void Solution::set_state_with_volume(double volume, double temperature,
     const double middle = 0.5 * (low + high);
     const double value = residual(middle, &data);
     if (value == 0.) {
-      set_state(middle, temperature);
+      set_state(middle, T);
       return;
     }
     if (value < 0.)
@@ -160,10 +160,10 @@ void Solution::set_state_with_volume(double volume, double temperature,
     else
       high = middle;
   }
-  const double pressure =
+  const double P =
       optim::roots::brent(residual, data, low, high, 1.e-8,
                           4. * std::numeric_limits<double>::epsilon());
-  set_state(pressure, temperature);
+  set_state(P, T);
 }
 
 Eigen::MatrixXd

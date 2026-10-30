@@ -60,7 +60,7 @@ public:
 
   std::shared_ptr<Material> copy() const override;
   void reset_cache() override;
-  void set_state(double pressure, double temperature) override;
+  void set_state(double P, double T) override;
   static bool
   check_standard_parameters(const types::NDArray<double> &coefficients);
   static PsiDerivatives
@@ -72,11 +72,11 @@ public:
   bool get_orthotropic() const;
   const utils::FrameConvention &get_frame_convention() const;
   const Eigen::Matrix3d &get_cell_vectors_0() const;
-  const Eigen::Matrix3d &get_deformation_gradient_tensor() const;
-  Eigen::Matrix3d get_unrotated_cell_vectors() const;
-  const Eigen::Matrix3d &get_rotation_matrix() const;
-  Eigen::Matrix3d get_cell_vectors() const;
-  utils::CellParameters get_cell_parameters() const;
+  virtual const Eigen::Matrix3d &get_deformation_gradient_tensor() const;
+  virtual Eigen::Matrix3d get_unrotated_cell_vectors() const;
+  virtual const Eigen::Matrix3d &get_rotation_matrix() const;
+  virtual Eigen::Matrix3d get_cell_vectors() const;
+  virtual utils::CellParameters get_cell_parameters() const;
   double get_thermal_pressure() const;
   double get_dPthdf() const;
   const Eigen::Matrix3d &get_PsiI() const;
@@ -89,7 +89,8 @@ public:
 
   virtual const types::Matrix6d &get_isothermal_compliance_tensor() const;
   virtual const types::Matrix6d &get_isothermal_stiffness_tensor() const;
-  const types::Matrix6d &get_unrotated_isothermal_stiffness_tensor() const;
+  virtual const types::Matrix6d &
+  get_unrotated_isothermal_stiffness_tensor() const;
   const types::Matrix6d &get_isentropic_compliance_tensor() const override;
   const types::Matrix6d &get_isentropic_stiffness_tensor() const override;
   types::ElasticTensor get_full_isothermal_compliance_tensor() const;

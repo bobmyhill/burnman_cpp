@@ -12,9 +12,34 @@
 // ------------------------------------------------------
 
 #include "burnman/utils/anisotropy.hpp"
+#include <Eigen/SVD>
+#include <cmath>
 #include <stdexcept>
 
 namespace burnman::utils {
+std::pair<Eigen::Matrix3d, Eigen::Matrix3d>
+polar_decomposition(const Eigen::Matrix3d &F, const std::string &measure) {
+  if (!F.allFinite())
+    throw std::invalid_argument("Deformation gradient must be finite.");
+  Eigen::JacobiSVD<Eigen::Matrix3d> svd(F, Eigen::ComputeFullU |
+                                               Eigen::ComputeFullV);
+  const Eigen::Vector3d stretches = svd.singularValues();
+  if ((stretches.array() <= 0.).any())
+    throw std::invalid_argument(
+        "Polar decomposition requires a nonsingular deformation gradient.");
+  const Eigen::Matrix3d rotation = svd.matrixU() * svd.matrixV().transpose();
+  if (measure == "U")
+    return {rotation,
+            svd.matrixV() * stretches.asDiagonal() * svd.matrixV().transpose()};
+  if (measure == "V")
+    return {rotation,
+            svd.matrixU() * stretches.asDiagonal() * svd.matrixU().transpose()};
+  if (measure == "H")
+    return {rotation, svd.matrixV() *
+                          stretches.array().log().matrix().asDiagonal() *
+                          svd.matrixV().transpose()};
+  throw std::invalid_argument("Strain measure must be U, V or H.");
+}
 types::Vector6d contract_stresses(const Eigen::Matrix3d &tensor) {
   types::Vector6d result;
   result << tensor(0, 0), tensor(1, 1), tensor(2, 2), tensor(1, 2),

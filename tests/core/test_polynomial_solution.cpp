@@ -51,7 +51,7 @@ TEST_CASE(
   REQUIRE(copy);
   CHECK(copy->get_interaction_endmembers()[0].get() !=
         model->get_interaction_endmembers()[0].get());
-  for (const Eigen::Array2d x :
+  for (const Eigen::Array2d &x :
        {Eigen::Array2d(1., 0.), Eigen::Array2d(0., 1.)}) {
     CHECK(model->compute_excess_partial_volumes(1.e9, 300., x).allFinite());
     CHECK(model->compute_volume_hessian(1.e9, 300., x).allFinite());

@@ -22,7 +22,7 @@ class PolynomialSolution : public IdealSolution {
 public:
   using Interactions = std::vector<std::vector<double>>;
   PolynomialSolution(
-      const types::PairedEndmemberList &endmembers,
+      const types::PairedEndmemberList &endmember_list,
       const Interactions &ESV_interactions = {},
       const std::vector<std::shared_ptr<Mineral>> &interaction_endmembers = {},
       const Interactions &endmember_coefficients_and_interactions = {},
