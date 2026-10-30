@@ -113,7 +113,7 @@ class AnisotropicMineral(_core.AnisotropicMineral):
             else np.asarray(molar_fractions, dtype=float)
         )
         if fractions is not None and fractions.shape != pressures.shape + (
-            self.n_endmembers,
+            getattr(self, "n_unrelaxed_vectors", self.n_endmembers),
         ):
             raise ValueError(
                 "molar_fractions must match the sample shape and number of endmembers."

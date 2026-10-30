@@ -15,6 +15,28 @@
 #include <stdexcept>
 
 namespace burnman::utils {
+types::Vector6d contract_stresses(const Eigen::Matrix3d &tensor) {
+  types::Vector6d result;
+  result << tensor(0, 0), tensor(1, 1), tensor(2, 2), tensor(1, 2),
+      tensor(0, 2), tensor(0, 1);
+  return result;
+}
+types::Vector6d contract_strains(const Eigen::Matrix3d &tensor) {
+  auto result = contract_stresses(tensor);
+  result.tail<3>() *= 2.;
+  return result;
+}
+Eigen::Matrix3d expand_stresses(const types::Vector6d &voigt) {
+  Eigen::Matrix3d result;
+  result << voigt[0], voigt[5], voigt[4], voigt[5], voigt[1], voigt[3],
+      voigt[4], voigt[3], voigt[2];
+  return result;
+}
+Eigen::Matrix3d expand_strains(const types::Vector6d &voigt) {
+  types::Vector6d result = voigt;
+  result.tail<3>() *= .5;
+  return expand_stresses(result);
+}
 std::pair<std::size_t, std::size_t> voigt_index_to_ij(int m) {
   static constexpr std::pair<std::size_t, std::size_t> indices[] = {
       {0, 0}, {1, 1}, {2, 2}, {1, 2}, {0, 2}, {0, 1}};

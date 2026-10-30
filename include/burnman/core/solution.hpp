@@ -121,6 +121,10 @@ public:
 
   // Override public methods
   void set_state(double new_pressure, double new_temperature) override;
+  /// Invert the total molar volume, including solution excesses.
+  virtual void set_state_with_volume(
+      double volume, double temperature,
+      const Eigen::Vector2d &pressure_guesses = Eigen::Vector2d(0., 1.e10));
   void set_method(types::EOSType new_method) override;
   void set_method(std::shared_ptr<EquationOfState> new_method) override;
 

@@ -12,60 +12,14 @@
 // ------------------------------------------------------
 
 #include "burnman/core/anisotropic_solution.hpp"
-#include "burnman/optim/roots/bracket.hpp"
-#include "burnman/optim/roots/brent.hpp"
 #include "burnman/utils/exceptions.hpp"
 #include <Eigen/LU>
 #include <cmath>
-#include <limits>
 #include <stdexcept>
 #include <unsupported/Eigen/MatrixFunctions>
 
 namespace burnman {
 namespace {
-double pressure_at_volume(Solution &solution, double volume, double temperature,
-                          const Eigen::Vector2d &guesses) {
-  if (!std::isfinite(volume) || volume <= 0. || !std::isfinite(temperature) ||
-      temperature < 0. || !guesses.allFinite() || guesses[0] >= guesses[1])
-    throw std::invalid_argument(
-        "Require V > 0, T >= 0 and increasing finite pressure guesses.");
-  struct Residual {
-    Solution *solution;
-    double volume, temperature;
-  } data{&solution, volume, temperature};
-  const auto residual = +[](double pressure, void *context) -> double {
-    auto &d = *static_cast<Residual *>(context);
-    try {
-      d.solution->set_state(pressure, d.temperature);
-      return d.volume - d.solution->get_molar_volume();
-    } catch (const std::exception &) {
-      return -std::numeric_limits<double>::infinity();
-    }
-  };
-  double low = guesses[0], high = guesses[1];
-  if (residual(low, &data) == 0.)
-    return low;
-  if (residual(high, &data) == 0.)
-    return high;
-  if (!optim::roots::bracket_root(residual, data, low, high, high - low, 1.618))
-    throw std::runtime_error(
-        "Cannot bracket solution pressure at the requested volume.");
-  for (int i = 0; i < 100 && (!std::isfinite(residual(low, &data)) ||
-                              !std::isfinite(residual(high, &data)));
-       ++i) {
-    const double middle = 0.5 * (low + high);
-    const double value = residual(middle, &data);
-    if (value == 0.)
-      return middle;
-    if (value < 0.)
-      low = middle;
-    else
-      high = middle;
-  }
-  return optim::roots::brent(residual, data, low, high, 1.e-8,
-                             4. * std::numeric_limits<double>::epsilon());
-}
-
 Eigen::Matrix3d weighted_sum(const CompositionTensors &matrices,
                              const Eigen::ArrayXd &fractions) {
   Eigen::Matrix3d result = Eigen::Matrix3d::Zero();
@@ -181,8 +135,8 @@ void AnisotropicSolution::set_state_with_volume(
     double volume, double temperature, const Eigen::Vector2d &guesses) {
   require_composition();
   auto scalar = std::dynamic_pointer_cast<Solution>(scalar_solution_->copy());
-  set_state(pressure_at_volume(*scalar, volume, temperature, guesses),
-            temperature);
+  scalar->set_state_with_volume(volume, temperature, guesses);
+  set_state(scalar->get_pressure(), temperature);
 }
 
 void AnisotropicSolution::set_method(types::EOSType method) {
@@ -237,9 +191,8 @@ AnisotropicMineral::PsiState AnisotropicSolution::compute_psi_state() const {
     endmember.set_state(pressure, temperature);
   }
   auto cold = std::dynamic_pointer_cast<Solution>(scalar.copy());
-  const double cold_pressure =
-      pressure_at_volume(*cold, volume, T_0, Eigen::Vector2d(0., 1.e10));
-  cold->set_state(cold_pressure, T_0);
+  cold->set_state_with_volume(volume, T_0);
+  const double cold_pressure = cold->get_pressure();
   result.Pth = pressure - cold_pressure;
   result.dPthdf = cold->get_isothermal_bulk_modulus_reuss() - kt;
   const auto [psi, df, dp, dPsiIdp] =
@@ -374,5 +327,10 @@ double AnisotropicSolution::compute_shear_modulus() const {
 double AnisotropicSolution::compute_molar_volume_unmodified() const {
   throw exceptions::NotImplementedError("AnisotropicSolution",
                                         "molar_volume_unmodified");
+}
+std::pair<double, double>
+AnisotropicSolution::compute_deformation_alpha_beta() const {
+  return {scalar_solution_->get_thermal_expansivity(),
+          scalar_solution_->get_isothermal_compressibility_reuss()};
 }
 } // namespace burnman

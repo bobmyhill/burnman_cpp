@@ -62,6 +62,7 @@ public:
 
 protected:
   PsiState compute_psi_state() const override;
+  std::pair<double, double> compute_deformation_alpha_beta() const override;
   double compute_molar_internal_energy() const override;
   double compute_molar_gibbs() const override;
   double compute_molar_helmholtz() const override;

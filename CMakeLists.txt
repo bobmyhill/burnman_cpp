@@ -99,6 +99,7 @@ if(BURNMAN_BUILD_PYTHON)
     python/bindings/anisotropy.cpp
     python/bindings/anisotropic_mineral.cpp
     python/bindings/anisotropic_solution.cpp
+    python/bindings/relaxed_anisotropic_solution.cpp
     python/bindings/composition.cpp
     python/bindings/calibrants.cpp
     python/bindings/linear_fitting.cpp
