@@ -33,7 +33,7 @@ namespace burnman {
  * reaction basis, number of endmembers, element lists, etc.
  *
  */
-class CompositeMaterial : public Material {
+class CompositeMaterial : public virtual Material {
 
 public:
   virtual ~CompositeMaterial() = default;

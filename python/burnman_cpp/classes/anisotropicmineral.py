@@ -94,7 +94,7 @@ class AnisotropicMineral(_core.AnisotropicMineral):
             result.set_state(self.pressure, self.temperature)
         return result
 
-    def evaluate(self, vars_list, pressures, temperatures):
+    def evaluate(self, vars_list, pressures, temperatures, molar_fractions=None):
         """Evaluate scalar/tensor properties on an independent mineral copy."""
         pressures = np.asarray(pressures, dtype=float)
         temperatures = np.asarray(temperatures, dtype=float)
@@ -107,15 +107,30 @@ class AnisotropicMineral(_core.AnisotropicMineral):
         ):
             raise ValueError("Require finite pressure and finite temperature >= 0.")
         names = list(vars_list)
+        fractions = (
+            None
+            if molar_fractions is None
+            else np.asarray(molar_fractions, dtype=float)
+        )
+        if fractions is not None and fractions.shape != pressures.shape + (
+            self.n_endmembers,
+        ):
+            raise ValueError(
+                "molar_fractions must match the sample shape and number of endmembers."
+            )
         if not names or not pressures.size:
             return np.empty((len(names),) + pressures.shape)
         material = self.copy()
+        if fractions is not None:
+            material.set_composition(fractions.reshape(-1, fractions.shape[-1])[0])
         material.set_state(float(pressures.flat[0]), float(temperatures.flat[0]))
         output = [
             np.empty(pressures.shape + np.shape(getattr(material, name)))
             for name in names
         ]
         for index in np.ndindex(pressures.shape):
+            if fractions is not None:
+                material.set_composition(fractions[index])
             material.set_state(float(pressures[index]), float(temperatures[index]))
             for values, name in zip(output, names):
                 values[index] = getattr(material, name)

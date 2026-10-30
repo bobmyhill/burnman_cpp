@@ -38,6 +38,7 @@ from .classes.anisotropy import (
     TriclinicMaterial,
 )
 from .classes.anisotropicmineral import AnisotropicMineral
+from .classes.anisotropicsolution import AnisotropicSolution
 from .classes.equilibratedcomposite import EquilibratedComposite
 from .classes.relaxedcomposite import RelaxedComposite
 from .classes.layer import Layer, BoundaryLayerPerturbation
@@ -310,6 +311,7 @@ def equilibrate(
 from . import eos
 
 __all__ = [
+    "AnisotropicSolution",
     "AnisotropicMineral",
     "AnisotropicMaterial",
     "IsotropicMaterial",

@@ -27,6 +27,10 @@ using PsiDerivatives =
 using PsiFunction =
     std::function<PsiDerivatives(double f, double thermal_pressure)>;
 
+std::pair<Eigen::Matrix3d, Eigen::Matrix3d>
+matrix_exponential_frechet(const Eigen::Matrix3d &matrix,
+                           const Eigen::Matrix3d &direction);
+
 std::tuple<types::Matrix6d, Eigen::Matrix3d, Eigen::Matrix3d>
 convert_f_Pth_to_f_T_derivatives(const types::Matrix6d &dPsidf_Pth,
                                  const types::Matrix6d &dPsidPth_f,
@@ -75,6 +79,13 @@ public:
   utils::CellParameters get_cell_parameters() const;
   double get_thermal_pressure() const;
   double get_dPthdf() const;
+  const Eigen::Matrix3d &get_PsiI() const;
+  const types::Matrix6d &get_dPsidf_T_Voigt() const;
+  const Eigen::Matrix3d &get_dPsiIdf_T() const;
+  const Eigen::Matrix3d &get_dPsiIdT_f() const;
+  const Eigen::Matrix3d &get_unrotated_dFdf_T() const;
+  Eigen::Matrix3d get_unrotated_alpha() const;
+  const types::Matrix6d &get_unrotated_isothermal_compliance_tensor() const;
 
   const types::Matrix6d &get_isothermal_compliance_tensor() const;
   const types::Matrix6d &get_isothermal_stiffness_tensor() const;
@@ -94,6 +105,16 @@ public:
   double get_isentropic_compressibility_voigt() const;
 
 protected:
+  /// Derived solution classes supply their own scalar EOS and reference cell.
+  AnisotropicMineral();
+  struct PsiState {
+    double Pth, dPthdf;
+    Eigen::Matrix3d PsiI, dPsiIdf_T, dPsiIdT_f;
+    types::Matrix6d dPsidf_T;
+  };
+  virtual PsiState compute_psi_state() const;
+  void set_reference_cell(const Eigen::Matrix3d &vectors,
+                          const utils::FrameConvention &frame);
   double compute_density() const override;
   double compute_isentropic_bulk_modulus_reuss() const override;
   double compute_shear_modulus() const override;
@@ -102,8 +123,8 @@ protected:
 
 private:
   struct Tensors {
-    double Pth, dPthdf;
-    Eigen::Matrix3d F, rotation, alpha;
+    PsiState psi;
+    Eigen::Matrix3d F, dFdf, rotation, alpha;
     types::Matrix6d unrotated_ST, ST;
     std::optional<types::Matrix6d> unrotated_CT, CT, SS, CS;
   };
