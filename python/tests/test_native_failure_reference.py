@@ -13,7 +13,7 @@
 
 """Regressions for the native failures, compared with pure Python BurnMan.
 
-Reference: geodynamics/burnman at b7c54ccf7bfd8583158c6dffe210c004b9570f4d.
+Reference: the commit selected in tests/reference/burnman.json.
 The shared test configuration verifies the imported checkout and commit.
 Ordinary reference results are checked separately from tightly solved volumes;
 the latter change only scipy's root tolerance, without changing the EOS.

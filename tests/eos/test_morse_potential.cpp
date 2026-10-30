@@ -53,8 +53,11 @@ TEST_CASE("Morse factory and reference state", "[morse][eos]") {
 }
 
 TEST_CASE("Morse Python reference values", "[morse][eos]") {
-  // burnman.eos.morse_potential at e2cfac31052273b3fa9d5ce905978e97723005e9;
-  // the local 51d817117feaf37242c7f3be0d698cbe475ee212 formulas are identical.
+  // burnman.eos.morse_potential at
+  // historical_commits.initial_snapshots_and_tables
+  // (tests/reference/burnman.json); the local
+  // historical_commits.local_morse_formulas (tests/reference/burnman.json)
+  // formulas are identical.
   struct Reference {
     double ratio, pressure, bulk, energy;
   };

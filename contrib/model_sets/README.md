@@ -94,7 +94,7 @@ descriptions. The papers are [White et al. (2014)](https://doi.org/10.1111/jmg.1
 and [Green et al. (2016)](https://doi.org/10.1111/jmg.12211).
 
 All solids, melts and fluid solutions now come from the same pinned
-[Python BurnMan commit](https://github.com/geodynamics/burnman/tree/39b582cd23954fabd3bdbbee6526a522b1d97bc9).
+[reference policy](../../tests/reference/burnman.json).
 `tools/export_example_minerals.py` exports their parameters and site expressions;
 there are no separate hand-written melt definitions. The catalogue audit and
 reference tests compare every public factory at two non-reference P–T states,

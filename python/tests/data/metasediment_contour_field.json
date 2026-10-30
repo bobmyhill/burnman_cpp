@@ -843,5 +843,5 @@
     "recommended_max_pressure_Pa": 1500000000.0,
     "cautious_max_pressure_Pa": 2000000000.0
   },
-  "description": "Verified garnet-bearing field of the closed 2 wt% H2O shale, using matched mp50NCKFMASHTO/HP_2011_ds62 models and PS94 H2O from pinned BurnMan 39b582cd23954fabd3bdbbee6526a522b1d97bc9."
+  "description": "Verified garnet-bearing field of the closed 2 wt% H2O shale, using matched mp50NCKFMASHTO/HP_2011_ds62 models and PS94 H2O from pinned BurnMan historical_commits.authors_and_model_sets (tests/reference/burnman.json)."
 }

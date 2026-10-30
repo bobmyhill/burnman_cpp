@@ -1,5 +1,5 @@
 {
-  "commit": "b7c54ccf7bfd8583158c6dffe210c004b9570f4d",
+  "reference": "burnman.json",
   "calibrants": {
     "Anderson_1989.Au": {
       "params": {

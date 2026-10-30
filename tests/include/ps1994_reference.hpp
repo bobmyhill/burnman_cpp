@@ -12,12 +12,11 @@
 // ------------------------------------------------------
 
 /* Generated from Python BurnMan; no C++ output is used.
- * Reference: https://github.com/geodynamics/burnman at
- * b7c54ccf7bfd8583158c6dffe210c004b9570f4d. Regenerate with
- * tools/generate_ps1994_reference.py --reference PATH --write. R is matched to
- * PS1994's 8.31451 J/(mol K). Delta G, S and Cp are relative to 100000.0 Pa at
- * the same T; Absolute G, S and Cp use the shared HP2011 ideal-gas thermal
- * reference.
+ * Reference policy: tests/reference/burnman.json.
+ * Regenerate with tools/generate_ps1994_reference.py --reference PATH --write.
+ * R is matched to PS1994's 8.31451 J/(mol K).
+ * Delta G, S and Cp are relative to 100000.0 Pa at the same T;
+ * Absolute G, S and Cp use the shared HP2011 ideal-gas thermal reference.
  */
 #pragma once
 #include <array>

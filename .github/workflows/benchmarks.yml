@@ -92,11 +92,15 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Read BurnMan reference pin
+        id: reference
+        run: python3 tools/burnman_reference.py --github-output >> "$GITHUB_OUTPUT"
+
       - name: Check out reference BurnMan
         uses: actions/checkout@v7
         with:
-          repository: geodynamics/burnman
-          ref: b7c54ccf7bfd8583158c6dffe210c004b9570f4d
+          repository: ${{ steps.reference.outputs.repository }}
+          ref: ${{ steps.reference.outputs.commit }}
           path: build/python-burnman-reference
           persist-credentials: false
 

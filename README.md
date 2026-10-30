@@ -10,7 +10,9 @@ C++ authors:
 * Benedict Heinen
 * Bob (Robert) Myhill
 
-Python authors (as of 2025, from the [BurnMan README](https://github.com/geodynamics/burnman/blob/39b582cd23954fabd3bdbbee6526a522b1d97bc9/Readme.md)):
+Python authors (as of 2025, from the BurnMan README; source commit recorded as
+`historical_commits.authors_and_model_sets` in
+[the reference policy](tests/reference/burnman.json)):
 
 * Bob (Robert) Myhill (main contributor)
 * Sanne Cottaar
@@ -248,12 +250,16 @@ and `HDF5_LIBS` explicitly to Make.
 ### Optional Python BurnMan reference comparisons
 
 The reference version is recorded in [tests/reference/burnman.json](tests/reference/burnman.json).
+Change only its `commit` field to update the pin; CI and developer tools read
+that value, and generated files refer to the policy instead of embedding it.
+Historical source commits in the same file document the original copied data
+and snapshots and do not change with the active pin.
 The tests require that exact commit in a clean Git checkout. To enable the
 comparisons used by GitHub CI:
 
 ```sh
 git clone https://github.com/geodynamics/burnman.git build/python-burnman-reference
-git -C build/python-burnman-reference checkout b7c54ccf7bfd8583158c6dffe210c004b9570f4d
+git -C build/python-burnman-reference checkout "$(python tools/burnman_reference.py)"
 python -m pip install -e 'build/python-burnman-reference[dev]'
 export PYTHONPATH="$PWD/build/python-burnman-reference"
 export PYTHONDONTWRITEBYTECODE=1

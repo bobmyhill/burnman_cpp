@@ -84,8 +84,9 @@ TEST_CASE("CORK parameter validation", "[cork][eos]") {
 }
 
 TEST_CASE("CORK Python reference values", "[cork][eos]") {
-  // Python BurnMan e2cfac31052273b3fa9d5ce905978e97723005e9,
-  // HP_2011_fluids.CO2 evaluated with its CORK equation of state.
+  // Python BurnMan historical_commits.initial_snapshots_and_tables
+  // (tests/reference/burnman.json), HP_2011_fluids.CO2 evaluated with its CORK
+  // equation of state.
   struct State {
     double pressure, temperature, volume, bulk_modulus, alpha, cp, gibbs,
         entropy;

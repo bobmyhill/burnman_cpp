@@ -102,7 +102,8 @@ TEST_CASE("Murnaghan factory and reference state", "[murnaghan][eos]") {
 
 TEST_CASE("Murnaghan Python reference values", "[murnaghan][eos]") {
   // burnman.eos.murnaghan pressure(), bulk_modulus() and energy() at
-  // Python BurnMan e2cfac31052273b3fa9d5ce905978e97723005e9.
+  // Python BurnMan historical_commits.initial_snapshots_and_tables
+  // (tests/reference/burnman.json).
   struct TestData {
     double ratio, pressure, bulk_modulus, energy;
   };

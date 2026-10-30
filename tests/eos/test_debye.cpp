@@ -11,8 +11,8 @@
 //
 // ------------------------------------------------------
 
-// Numerical snapshots: Python BurnMan e2cfac31052273b3fa9d5ce905978e97723005e9.
-// Reproduce with tools/check_reference_data.py; see docs/reference_data.md.
+// Numerical snapshots: Python BurnMan; see tests/reference/burnman.json.
+// Reproduce with tools/check_reference_data.py.
 #include "burnman/eos/components/debye.hpp"
 #include "tolerances.hpp"
 #include <array>

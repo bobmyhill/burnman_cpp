@@ -68,8 +68,9 @@ def test_murnaghan_requires_parameters(missing):
 def test_murnaghan_compressed_mineral_and_energy_reference(energy_key, temperature):
     params = dict(murnaghan_params(), P_0=2.5e9, **{energy_key: -125000.0})
     mineral = bm.Mineral(params)
-    # Python BurnMan e2cfac31052273b3fa9d5ce905978e97723005e9 at V/V_0 = 0.8,
-    # with the reference pressure and energy shifted consistently.
+    # Python BurnMan at V/V_0 = 0.8, with reference P and energy shifted.
+    # Source: historical_commits.initial_snapshots_and_tables in
+    # tests/reference/burnman.json.
     pressure = 56555273737.019379 + params["P_0"]
     volume = 0.8 * params["V_0"]
     energy = 52363.221944027995 - 125000.0 + params["P_0"] * (params["V_0"] - volume)

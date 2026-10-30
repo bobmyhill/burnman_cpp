@@ -1,6 +1,7 @@
 These seven tables are copied unchanged from Python BurnMan's
-`burnman/data/input_geotherm` directory (source revision
-`e2cfac31052273b3fa9d5ce905978e97723005e9`). Model names and column use follow
+`burnman/data/input_geotherm` directory. The source revision is recorded as
+`historical_commits.initial_snapshots_and_tables` in
+[the reference policy](../../../tests/reference/burnman.json). Model names and column use follow
 `burnman/classes/geotherm.py`:
 
 - `brown_81.txt`: Brown and Shankland (1981).

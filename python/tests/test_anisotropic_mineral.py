@@ -27,23 +27,9 @@ from burnman_cpp.classes.anisotropicmineral import (
 
 
 @pytest.fixture
-def python_reference(monkeypatch):
-    """Apply the shear-index correction to the clean pinned reference in memory."""
-    module = pytest.importorskip("burnman.classes.anisotropicmineral")
-    original = module.deformation_gradient_alpha_and_compliance
-
-    def corrected(alpha, beta, psi, df, dfI, dtI):
-        F, dFdf, expansivity, compliance = original(alpha, beta, psi, df, dfI, dtI)
-        L = beta * dFdf @ np.linalg.inv(F).T
-        compressibility = 0.5 * (L + L.T)
-        # The pinned loop corrects columns 3 and 4, repeating column 3.
-        compliance[2, 5] = compliance[5, 2] = (
-            2.0 * compressibility[0, 1] - compliance[0, 5] - compliance[1, 5]
-        )
-        return F, dFdf, expansivity, compliance
-
-    monkeypatch.setattr(module, "deformation_gradient_alpha_and_compliance", corrected)
-    return module
+def python_reference():
+    """Use the unmodified pinned reference, which includes the shear-index fix."""
+    return pytest.importorskip("burnman.classes.anisotropicmineral")
 
 
 def model_parameters(system="orthorhombic", thermal=False):

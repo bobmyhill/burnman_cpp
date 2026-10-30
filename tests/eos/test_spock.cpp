@@ -96,10 +96,10 @@ TEST_CASE("SPOCK reference state and isothermal conventions", "[spock][eos]") {
 }
 
 TEST_CASE("SPOCK Python reference values", "[spock][eos]") {
-  // Python BurnMan e2cfac31052273b3fa9d5ce905978e97723005e9,
-  // burnman.eos.spock.SPOCK: pressure, isothermal_bulk_modulus_reuss,
-  // _molar_helmholtz_energy and gibbs_energy at T=300 K.
-  // Both parameter sets use F_0=-125000 J/mol and P_0=2.5e9 Pa.
+  // Python BurnMan historical_commits.initial_snapshots_and_tables
+  // (tests/reference/burnman.json), burnman.eos.spock.SPOCK: pressure,
+  // isothermal_bulk_modulus_reuss, _molar_helmholtz_energy and gibbs_energy at
+  // T=300 K. Both parameter sets use F_0=-125000 J/mol and P_0=2.5e9 Pa.
   struct TestData {
     double ratio, pressure, bulk_modulus, helmholtz, gibbs;
   };
