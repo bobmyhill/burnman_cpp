@@ -37,6 +37,16 @@ DampedNewtonResult DampedNewtonSolver::solve(
   if (settings.stagnation_iterations < 0)
     throw std::invalid_argument("stagnation_iterations must be nonnegative.");
 
+  if (!x0.size() || !x0.allFinite())
+    throw std::invalid_argument(
+        "Initial parameters must be finite and nonempty.");
+  if (settings.residual_tolerances.size() &&
+      (settings.residual_tolerances.size() != x0.size() ||
+       !settings.residual_tolerances.allFinite() ||
+       (settings.residual_tolerances.array() <= 0.).any()))
+    throw std::invalid_argument(
+        "Residual tolerances must match F and be positive and finite.");
+
   // Make solution result and solver iteration state objects
   DampedNewtonResult sol;
   DampedNewtonSolverState state{x0, F_func, linear_constraints};
@@ -56,10 +66,24 @@ DampedNewtonResult DampedNewtonSolver::solve(
   // Main loop
   while (state.n_iterations < this->settings.max_iterations &&
          !state.minimum_lambda && !state.persistent_bound_violation &&
-         !state.converged && !state.stagnated) {
+         !state.converged && !state.stagnated && !state.singular_failure) {
     state.J = J_func(state.x);
-    state.luJ.compute(state.J);
-    state.dx = state.luJ.solve(-state.F);
+    if (!state.J.allFinite() || !state.F.allFinite()) {
+      state.singular_failure = true;
+      break;
+    }
+    factorize(state);
+    state.dx = solve_linear(-state.F, state);
+    if (!state.dx.allFinite()) {
+      state.singular_failure = true;
+      break;
+    }
+    if (state.jacobian_rank < state.x.size() &&
+        (state.dx.array().abs() < step_tolerances(state.x.size())).all() &&
+        !residual_converged(state.F, state)) {
+      state.singular_failure = true;
+      break;
+    }
     state.dx_norm = state.dx.norm();
     // Get lambda_bounds from function
     state.lambda_bounds = this->settings.lambda_bounds_func(state.dx, state.x);
@@ -79,12 +103,22 @@ DampedNewtonResult DampedNewtonSolver::solve(
       lagrangian_walk_along_constraints(state);
     }
 
+    if (!state.x_j.allFinite() ||
+        (evaluate_constraints(state.x_j, state).array() > 100. * settings.eps)
+            .any()) {
+      state.persistent_bound_violation = true;
+      break;
+    }
     state.F_j = F_func(state.x_j);
-    state.dxbar_j = state.luJ.solve(-state.F_j);
+    state.dxbar_j = solve_linear(-state.F_j, state);
     state.dxbar_j_norm = state.dxbar_j.norm();
     state.converged = is_converged(state);
     state.require_posteriori_loop = !state.converged;
     posteriori_loop(state);
+    if (state.converged) {
+      state.x = state.x_j;
+      state.F = state.F_j;
+    }
     if (settings.stagnation_iterations && !state.converged &&
         !state.minimum_lambda && !state.persistent_bound_violation)
       check_stagnation(state);
@@ -102,9 +136,13 @@ DampedNewtonResult DampedNewtonSolver::solve(
 
   // Final adjustments for constraints
   if (state.converged && !state.persistent_bound_violation) {
-    state.x = state.x_j + state.dxbar_j;
-    if ((evaluate_constraints(state.x, state).array() > 0.0).any()) {
-      state.x -= state.dxbar_j;
+    state.x = state.x_j;
+    const Eigen::VectorXd polished = state.x_j + state.dxbar_j;
+    if (polished.allFinite() &&
+        (evaluate_constraints(polished, state).array() <= 0.).all()) {
+      const Eigen::VectorXd polished_F = F_func(polished);
+      if (residual_converged(polished_F, state))
+        state.x = polished;
     }
   }
 
@@ -113,16 +151,64 @@ DampedNewtonResult DampedNewtonSolver::solve(
   sol.F = F_func(sol.x);
   sol.J = J_func(sol.x);
   sol.F_norm = sol.F.norm();
+  state.J = sol.J;
+  if (state.J.allFinite())
+    factorize(state);
+  sol.jacobian_rank = state.jacobian_rank;
+  state.converged = state.converged && residual_converged(sol.F, state);
   sol.n_iterations = state.n_iterations;
   make_termination_info(sol, state);
 
   return sol;
 }
 
+// Equilibrate before testing rank: pressure, temperature and composition
+// columns (or differently scaled equations) must not be discarded for their
+// units.
+void DampedNewtonSolver::factorize(DampedNewtonSolverState &state) const {
+  state.row_weights = state.J.cwiseAbs().rowwise().maxCoeff().unaryExpr(
+      [](double v) { return v > 0. ? 1. / v : 1.; });
+  Eigen::MatrixXd balanced = state.row_weights.asDiagonal() * state.J;
+  state.column_scales =
+      balanced.cwiseAbs().colwise().maxCoeff().transpose().unaryExpr(
+          [](double v) { return v > 0. ? 1. / v : 1.; });
+  balanced *= state.column_scales.asDiagonal();
+  state.luJ.compute(balanced);
+  // LU's condition estimator can look benign even for duplicate columns.
+  state.svdJ = Eigen::JacobiSVD<Eigen::MatrixXd>(
+      balanced, Eigen::ComputeThinU | Eigen::ComputeThinV);
+  state.svdJ.setThreshold(1. / settings.condition_threshold_lstsq);
+  state.jacobian_rank = state.svdJ.rank();
+  const auto &values = state.svdJ.singularValues();
+  state.use_svd =
+      state.jacobian_rank < state.J.cols() ||
+      values[values.size() - 1] < values[0] / settings.condition_threshold_lu;
+}
+
+Eigen::VectorXd
+DampedNewtonSolver::solve_linear(const Eigen::VectorXd &rhs,
+                                 const DampedNewtonSolverState &state) const {
+  const Eigen::VectorXd weighted = rhs.cwiseProduct(state.row_weights);
+  const Eigen::VectorXd dx = state.use_svd ? state.svdJ.solve(weighted).eval()
+                                           : state.luJ.solve(weighted).eval();
+  return dx.cwiseProduct(state.column_scales);
+}
+
+bool DampedNewtonSolver::residual_converged(
+    const Eigen::VectorXd &F, const DampedNewtonSolverState &state) const {
+  if (!F.allFinite())
+    return false;
+  if (settings.residual_tolerances.size())
+    return (F.cwiseAbs().array() <= settings.residual_tolerances.array()).all();
+  // A pseudoinverse can return a zero correction for an inconsistent system.
+  return state.jacobian_rank == state.x.size() ||
+         F.cwiseProduct(state.row_weights).norm() <= settings.tol;
+}
+
 Eigen::VectorXd DampedNewtonSolver::evaluate_constraints(
     const Eigen::VectorXd &x, const DampedNewtonSolverState &state) const {
   const auto &[A, b] = state.linear_constraints;
-  return A * x + b;
+  return A.rows() ? (A * x + b).eval() : Eigen::VectorXd(0);
 }
 
 void DampedNewtonSolver::update_lambda(DampedNewtonSolverState &state) const {
@@ -149,7 +235,8 @@ bool DampedNewtonSolver::is_converged(
       (state.dx.array().abs() < (10.0 * tolerances).sqrt()).all();
   bool lambda_is_max =
       std::abs(state.lambda - state.lambda_bounds.second) < this->settings.eps;
-  return simplified_step_below_tol && full_step_below_tol && lambda_is_max;
+  return simplified_step_below_tol && full_step_below_tol && lambda_is_max &&
+         residual_converged(state.F_j, state);
 }
 
 void DampedNewtonSolver::check_stagnation(
@@ -161,11 +248,11 @@ void DampedNewtonSolver::check_stagnation(
     // Compare both residuals through the same Jacobian. Corrections have
     // parameter units, avoiding a norm that mixes e.g. Pa and J/mol.
     const double before =
-        (state.luJ.solve(state.progress_F).array() / tolerances)
+        (solve_linear(state.progress_F, state).array() / tolerances)
             .abs()
             .maxCoeff();
     const double after =
-        (state.luJ.solve(state.F).array() / tolerances).abs().maxCoeff();
+        (solve_linear(state.F, state).array() / tolerances).abs().maxCoeff();
     progress = !std::isfinite(before) || !std::isfinite(after) ||
                after < before * (1. - settings.eps);
   }
@@ -319,8 +406,14 @@ void DampedNewtonSolver::lagrangian_walk_along_constraints(
   state.x_j = state.x + state.lambda * state.dx;
   // Check feasibility
   Eigen::VectorXd x_j_min = state.x + lambda_bounds_new.first * state.dx;
+  if (!x_j_min.allFinite() ||
+      (evaluate_constraints(x_j_min, state).array() > 100. * settings.eps)
+          .any()) {
+    state.persistent_bound_violation = true;
+    return;
+  }
   Eigen::VectorXd F_j_min = state.F_func(x_j_min);
-  Eigen::VectorXd dxbar_j_min = state.luJ.solve(-F_j_min);
+  Eigen::VectorXd dxbar_j_min = solve_linear(-F_j_min, state);
   double dxbar_j_min_norm = dxbar_j_min.norm();
   if (dxbar_j_min_norm > state.dx_norm ||
       state.dx.norm() < this->settings.eps) {
@@ -359,11 +452,16 @@ void DampedNewtonSolver::posteriori_loop(DampedNewtonSolverState &state) const {
   while (state.require_posteriori_loop && !state.minimum_lambda &&
          !state.persistent_bound_violation) {
     if (dxbar_j_norm <= state.dx_norm) {
-      if (dxbar_j_norm <= this->settings.eps) {
+      if (dxbar_j_norm <= this->settings.eps &&
+          residual_converged(state.F_func(x_j), state)) {
         state.converged = true;
       }
+      state.x_j = x_j;
+      state.dxbar_j = dxbar_j;
       state.x = x_j;
       state.F = state.F_func(x_j);
+      state.F_j = state.F;
+      state.dxbar_j_norm = dxbar_j_norm;
       state.dxbar = dxbar_j;
       state.dx_prev = state.dx;
       state.require_posteriori_loop = false;
@@ -380,7 +478,7 @@ void DampedNewtonSolver::posteriori_loop(DampedNewtonSolverState &state) const {
       state.lambda = std::max(state.lambda, state.lambda_bounds.first);
       x_j = state.x + state.lambda * state.dx;
       Eigen::VectorXd F_j = state.F_func(x_j);
-      dxbar_j = state.luJ.solve(-F_j);
+      dxbar_j = solve_linear(-F_j, state);
       dxbar_j_norm = dxbar_j.norm();
     }
   }
@@ -389,12 +487,17 @@ void DampedNewtonSolver::posteriori_loop(DampedNewtonSolverState &state) const {
 void DampedNewtonSolver::make_termination_info(
     DampedNewtonResult &sol, const DampedNewtonSolverState &state) const {
   sol.success = state.converged;
+  const bool singular = state.jacobian_rank < state.x.size();
   if (sol.success) {
-    sol.code = 0;
+    sol.code = singular ? 5 : 0;
     sol.message = "The solver successfully found a root after " +
                   std::to_string(state.n_iterations) + " iterations.";
   } else {
-    if (state.minimum_lambda) {
+    if (state.singular_failure ||
+        (singular && !state.persistent_bound_violation)) {
+      sol.code = 6;
+      sol.message = "The singular Jacobian could not produce a converged root.";
+    } else if (state.minimum_lambda) {
       sol.code = 1;
       sol.message = "The function is too non-linear for lower lambda bound (" +
                     std::to_string(state.lambda_bounds.first) + ").";

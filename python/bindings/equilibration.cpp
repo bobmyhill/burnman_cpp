@@ -189,6 +189,7 @@ void bind_equilibration(py::module_ &m) {
   RESULT_FIELD(n_iterations);
   RESULT_FIELD(success);
   RESULT_FIELD(code);
+  RESULT_FIELD(jacobian_rank);
   RESULT_FIELD(message);
   RESULT_FIELD(iteration_history);
 #undef RESULT_FIELD
@@ -285,13 +286,13 @@ void bind_equilibration(py::module_ &m) {
               "are required.");
         const auto parameters =
             get_equilibration_parameters(assemblage, composition, free_vectors);
-        double tol = 1.0e-3;
+        double tol = std::numeric_limits<double>::quiet_NaN();
         Eigen::VectorXd parameter_tolerances;
         if (py::isinstance<py::float_>(tolerance) ||
             py::isinstance<py::int_>(tolerance)) {
           tol = py::cast<double>(tolerance);
           check_scalar(tol, "tol", true);
-        } else {
+        } else if (!tolerance.is_none()) {
           parameter_tolerances = py::cast<Eigen::VectorXd>(tolerance);
           if (parameter_tolerances.size() != parameters.n_parameters ||
               !parameter_tolerances.allFinite() ||

@@ -16,6 +16,8 @@
 #include "tolerances.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <limits>
+#include <stdexcept>
 
 using namespace Catch::Matchers;
 using namespace burnman;
@@ -78,4 +80,20 @@ TEST_CASE_METHOD(PartitioningAssemblageFixture,
   bulk["O"] = 2.0;
   CHECK_THROWS(
       equilibration::get_equilibration_parameters(assemblage, bulk, {}));
+}
+
+TEST_CASE_METHOD(PartitioningAssemblageFixture,
+                 "Invalid equilibrium amounts do not mutate the assemblage",
+                 "[tools][equilibration][equilibrate_utils]") {
+  const auto before = equilibration::get_parameter_vector(assemblage);
+  for (double amount : {-1., std::numeric_limits<double>::quiet_NaN()}) {
+    Eigen::VectorXd invalid = before;
+    invalid[0] *= 2.;
+    invalid[1] *= 0.5;
+    invalid[2] = amount;
+    CHECK_THROWS_AS(equilibration::set_composition_and_state_from_parameters(
+                        assemblage, invalid),
+                    std::invalid_argument);
+    CHECK(equilibration::get_parameter_vector(assemblage) == before);
+  }
 }
