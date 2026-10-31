@@ -357,3 +357,37 @@ TEST_CASE_METHOD(CaPvStishAssemblageFixture,
 // set_fractions using volume fractions
 // set_averaging_scheme(custom scheme with unique ptr)
 // get_isentropic_thermal_gradient
+
+TEST_CASE_METHOD(
+    MultiMineralFixture,
+    "Assemblage phase volumes and effective moduli retain their units",
+    "[core][assemblage]") {
+  Assemblage rock;
+  rock.add_phases({std::make_shared<Mineral>(capv_fix.ca_perovskite),
+                   std::make_shared<Mineral>(stish_fix.stishovite)});
+  rock.set_method(types::EOSType::Auto);
+  for (double fraction : {.6, .2}) {
+    rock.set_fractions({fraction, 1. - fraction});
+    rock.set_state(50.e9, 2000.);
+    rock.set_averaging_scheme(types::AveragingType::Voigt);
+    const auto volumes = rock.get_phase_volumes();
+    const auto fractions = rock.get_volume_fractions();
+    CHECK_THAT(
+        volumes[0],
+        WithinRel(fraction * rock.get_phase(0)->get_molar_volume(), 1.e-14));
+    CHECK_THAT(volumes.sum(), WithinRel(rock.get_molar_volume(), 1.e-14));
+    CHECK_THAT(fractions.sum(), WithinRel(1., 1.e-14));
+    const auto bulk =
+        rock.map_phases_to_array(&Material::get_isentropic_bulk_modulus_reuss);
+    const auto shear = rock.map_phases_to_array(&Material::get_shear_modulus);
+    const double thermodynamic = rock.get_isentropic_bulk_modulus_reuss();
+    CHECK_THAT(rock.get_property("K_eff"),
+               WithinRel((fractions * bulk).sum(), 1.e-14));
+    CHECK_THAT(rock.get_property("G_eff"),
+               WithinRel((fractions * shear).sum(), 1.e-14));
+    rock.set_averaging_scheme(types::AveragingType::Reuss);
+    CHECK_THAT(rock.get_effective_isentropic_bulk_modulus(),
+               WithinRel(1. / (fractions / bulk).sum(), 1.e-14));
+    CHECK(rock.get_isentropic_bulk_modulus_reuss() == thermodynamic);
+  }
+}

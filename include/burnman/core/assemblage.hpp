@@ -245,15 +245,19 @@ public:
   Eigen::ArrayXd get_molar_fractions() const;
 
   /**
-   * @brief Retrieves n_i * V_i.
+   * @brief Retrieves phase contributions x_i * V_i [m^3 per mole of
+   * assemblage].
    *
    * Uses a cached value if available, or calls
-   * `Assemblage::compute_volume_fractions()` and caches the result.
+   * `Assemblage::compute_phase_volumes()` and caches the result.
    *
    * @note Use `Assemblage::reset_cache()` to clear cached values.
    *
    * @return Molar fractions * volumes of phases in assemblage.
    */
+  Eigen::ArrayXd get_phase_volumes() const;
+
+  /// Dimensionless phase volume fractions, summing to one.
   Eigen::ArrayXd get_volume_fractions() const;
 
   /**
@@ -352,13 +356,13 @@ protected:
   Eigen::ArrayXd compute_partial_gibbs() const override;
 
   // Additional Assemblage compute functions
-  Eigen::ArrayXd compute_volume_fractions() const;
+  Eigen::ArrayXd compute_phase_volumes() const;
   Eigen::VectorXd compute_reaction_affinities() const;
 
 private:
   // Seismic bulk modulus uses the selected averaging scheme; thermodynamic
   // Reuss moduli are computed from summed Gibbs derivatives instead.
-  double compute_effective_isentropic_bulk_modulus() const;
+  double compute_effective_isentropic_bulk_modulus() const override;
 
   // Vector of pointers to phases in the assemblage
   std::vector<std::shared_ptr<Material>> phases;
@@ -371,7 +375,7 @@ private:
 
   // Cached properties (can be reset)
   // 1D Eigen arrays (could be made Vectors)
-  mutable std::optional<Eigen::ArrayXd> volume_fractions;
+  mutable std::optional<Eigen::ArrayXd> phase_volumes;
   mutable std::optional<Eigen::VectorXd> reaction_affinities;
 
   // Stored (cached) properties not reset

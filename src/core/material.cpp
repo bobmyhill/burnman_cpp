@@ -73,6 +73,8 @@ double Material::get_property(const std::string &property_name) const {
       PROPERTY(molar_enthalpy),
       PROPERTY(isothermal_bulk_modulus_reuss),
       PROPERTY(isentropic_bulk_modulus_reuss),
+      PROPERTY(effective_isentropic_bulk_modulus),
+      PROPERTY(effective_shear_modulus),
       PROPERTY(isothermal_compressibility_reuss),
       PROPERTY(isentropic_compressibility_reuss),
       PROPERTY(shear_modulus),
@@ -97,6 +99,8 @@ double Material::get_property(const std::string &property_name) const {
       {"H", &Material::get_molar_enthalpy},
       {"K_T", &Material::get_isothermal_bulk_modulus_reuss},
       {"K_S", &Material::get_isentropic_bulk_modulus_reuss},
+      {"K_eff", &Material::get_effective_isentropic_bulk_modulus},
+      {"G_eff", &Material::get_effective_shear_modulus},
       {"beta_T", &Material::get_isothermal_compressibility_reuss},
       {"beta_S", &Material::get_isentropic_compressibility_reuss},
       {"G", &Material::get_shear_modulus},
@@ -150,6 +154,8 @@ void Material::reset_cache() {
   molar_enthalpy.reset();
   isothermal_bulk_modulus_reuss.reset();
   isentropic_bulk_modulus_reuss.reset();
+  effective_isentropic_bulk_modulus.reset();
+  effective_shear_modulus.reset();
   isothermal_compressibility_reuss.reset();
   isentropic_compressibility_reuss.reset();
   shear_modulus.reset();
@@ -293,6 +299,27 @@ double Material::get_isothermal_compressibility_reuss() const {
         compute_isothermal_compressibility_reuss();
   }
   return *isothermal_compressibility_reuss;
+}
+
+double Material::get_effective_isentropic_bulk_modulus() const {
+  if (!effective_isentropic_bulk_modulus)
+    effective_isentropic_bulk_modulus =
+        compute_effective_isentropic_bulk_modulus();
+  return *effective_isentropic_bulk_modulus;
+}
+
+double Material::get_effective_shear_modulus() const {
+  if (!effective_shear_modulus)
+    effective_shear_modulus = compute_effective_shear_modulus();
+  return *effective_shear_modulus;
+}
+
+double Material::compute_effective_isentropic_bulk_modulus() const {
+  return get_isentropic_bulk_modulus_reuss();
+}
+
+double Material::compute_effective_shear_modulus() const {
+  return get_shear_modulus();
 }
 
 double Material::get_isentropic_compressibility_reuss() const {

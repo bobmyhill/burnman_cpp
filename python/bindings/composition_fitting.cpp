@@ -68,7 +68,10 @@ Observed amounts with magnitude below 1e-10 impose exact zero constraints.
 Site occupancies must be nonnegative; endmember coordinates may be signed.
 The solution's composition and state are not changed.
 
-Return (molar_fractions, covariance_matrix, residual). Let x, Cx and rx be the
+Return (molar_fractions, covariance_matrix, residual). With normalize=False,
+the first array contains fitted endmember amounts, without a sum-to-one
+constraint; the tuple label retains the shared API convention. Let x, Cx and rx
+be the
 fitted endmember amounts, their unconstrained covariance and weighted sum of
 squared residuals. If normalize is True, set s=sum(x), p=x/s, C0=Cx/s**2 and
 residual=rx/s; s must be positive. Otherwise p=x, C0=Cx and residual=rx.

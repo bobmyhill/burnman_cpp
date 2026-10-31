@@ -33,7 +33,7 @@ void Assemblage::reset_cache() {
   // Reset cached Material & CompositeMaterial properties
   CompositeMaterial::reset_cache();
   // Reset cached Assemblage properties
-  volume_fractions.reset();
+  phase_volumes.reset();
   reaction_affinities.reset();
   equilibrium_tolerance = 1.0e-3;
 }
@@ -98,11 +98,13 @@ void Assemblage::set_averaging_scheme(types::AveragingType scheme_type) {
   default:
     throw std::invalid_argument("Unknown Averaging Scheme!");
   }
+  reset_cache();
 }
 
 void Assemblage::set_averaging_scheme(
     std::shared_ptr<averaging::AveragingScheme> custom_scheme) {
   this->averaging_scheme = std::move(custom_scheme);
+  reset_cache();
 }
 
 // Eigen::ArrayXd version (core implementation)
@@ -209,11 +211,16 @@ double Assemblage::get_equilibrium_tolerance() const {
 }
 
 // Public getter functions with caching
-Eigen::ArrayXd Assemblage::get_volume_fractions() const {
-  if (!volume_fractions.has_value()) {
-    volume_fractions = compute_volume_fractions();
+Eigen::ArrayXd Assemblage::get_phase_volumes() const {
+  if (!phase_volumes.has_value()) {
+    phase_volumes = compute_phase_volumes();
   }
-  return *volume_fractions;
+  return *phase_volumes;
+}
+
+Eigen::ArrayXd Assemblage::get_volume_fractions() const {
+  const Eigen::ArrayXd volumes = get_phase_volumes();
+  return volumes / volumes.sum();
 }
 
 Eigen::VectorXd Assemblage::get_reaction_affinities() const {
@@ -259,7 +266,7 @@ double Assemblage::compute_molar_volume() const {
 
 double Assemblage::compute_density() const {
   Eigen::ArrayXd densities = map_phases_to_array(&Material::get_density);
-  Eigen::ArrayXd volumes = get_volume_fractions();
+  Eigen::ArrayXd volumes = get_phase_volumes();
   return averaging_scheme->average_density(volumes, densities);
 }
 
@@ -274,7 +281,7 @@ double Assemblage::compute_molar_enthalpy() const {
 }
 
 double Assemblage::compute_isothermal_bulk_modulus_reuss() const {
-  Eigen::ArrayXd volumes = get_volume_fractions();
+  Eigen::ArrayXd volumes = get_phase_volumes();
   Eigen::ArrayXd K_ph =
       map_phases_to_array(&Material::get_isothermal_bulk_modulus_reuss);
   // -d2G/dP2 = sum(x_i V_i/K_Ti), independent of seismic averaging.
@@ -293,7 +300,7 @@ double Assemblage::compute_isentropic_bulk_modulus_reuss() const {
 }
 
 double Assemblage::compute_effective_isentropic_bulk_modulus() const {
-  Eigen::ArrayXd V_frac = get_volume_fractions();
+  Eigen::ArrayXd V_frac = get_phase_volumes();
   Eigen::ArrayXd K_ph =
       map_phases_to_array(&Material::get_isentropic_bulk_modulus_reuss);
   Eigen::ArrayXd G_ph = map_phases_to_array(&Material::get_shear_modulus);
@@ -309,7 +316,7 @@ double Assemblage::compute_isentropic_compressibility_reuss() const {
 }
 
 double Assemblage::compute_shear_modulus() const {
-  Eigen::ArrayXd V_frac = get_volume_fractions();
+  Eigen::ArrayXd V_frac = get_phase_volumes();
   Eigen::ArrayXd K_ph =
       map_phases_to_array(&Material::get_isentropic_bulk_modulus_reuss);
   Eigen::ArrayXd G_ph = map_phases_to_array(&Material::get_shear_modulus);
@@ -319,17 +326,17 @@ double Assemblage::compute_shear_modulus() const {
 // TODO: think about redunancy/replication with `Solution::compute_p_wave...'
 double Assemblage::compute_p_wave_velocity() const {
   constexpr double FOUR_THIRDS = 4.0 / 3.0;
-  return std::sqrt((compute_effective_isentropic_bulk_modulus() +
-                    FOUR_THIRDS * get_shear_modulus()) /
+  return std::sqrt((get_effective_isentropic_bulk_modulus() +
+                    FOUR_THIRDS * get_effective_shear_modulus()) /
                    get_density());
 }
 
 double Assemblage::compute_bulk_sound_velocity() const {
-  return std::sqrt(compute_effective_isentropic_bulk_modulus() / get_density());
+  return std::sqrt(get_effective_isentropic_bulk_modulus() / get_density());
 }
 
 double Assemblage::compute_shear_wave_velocity() const {
-  return std::sqrt(get_shear_modulus() / get_density());
+  return std::sqrt(get_effective_shear_modulus() / get_density());
 }
 
 double Assemblage::compute_grueneisen_parameter() const {
@@ -338,7 +345,7 @@ double Assemblage::compute_grueneisen_parameter() const {
 }
 
 double Assemblage::compute_thermal_expansivity() const {
-  Eigen::ArrayXd volumes = get_volume_fractions();
+  Eigen::ArrayXd volumes = get_phase_volumes();
   Eigen::ArrayXd alphas =
       map_phases_to_array(&Material::get_thermal_expansivity);
   // dV/dT is the sum of each phase's amount * volume * expansivity.
@@ -364,7 +371,7 @@ types::FormulaMap Assemblage::compute_formula() const {
 
 // Compute / setup functions for assemblage properties
 
-Eigen::ArrayXd Assemblage::compute_volume_fractions() const {
+Eigen::ArrayXd Assemblage::compute_phase_volumes() const {
   return map_phases_to_array(&Material::get_molar_volume) * molar_fractions;
 }
 

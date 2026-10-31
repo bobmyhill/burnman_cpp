@@ -105,14 +105,16 @@ inline void check_site_fractions(const Eigen::ArrayXd &fractions,
 // views.
 template <typename Class, typename Getter, typename Binding>
 void bind_property(Binding &cls, const char *name, const char *getter_name,
-                   Getter getter, bool state_required = false) {
+                   Getter getter, bool state_required = false,
+                   const char *description = "") {
   auto call = [getter, state_required](const Class &self) {
     if (state_required)
       check_state(self);
     return (self.*getter)();
   };
-  cls.def_property_readonly(name, call, py::return_value_policy::copy);
-  cls.def(getter_name, call, py::return_value_policy::copy);
+  cls.def_property_readonly(name, call, description,
+                            py::return_value_policy::copy);
+  cls.def(getter_name, call, description, py::return_value_policy::copy);
 }
 // Optional observation data behave like attributes only after assignment.
 // Return snapshots so Python cannot mutate native covariance matrices in place.

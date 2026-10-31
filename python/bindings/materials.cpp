@@ -119,6 +119,23 @@ void bind_materials(py::module_ &m) {
   STATE_PROPERTY(molar_heat_capacity_p);
   STATE_PROPERTY(isentropic_thermal_gradient);
 #undef STATE_PROPERTY
+  bind_property<Material>(
+      material, "effective_isentropic_bulk_modulus",
+      "get_effective_isentropic_bulk_modulus",
+      &Material::get_effective_isentropic_bulk_modulus, true,
+      "Effective seismic bulk modulus [Pa], aliased as K_eff. Assemblages use "
+      "their averaging scheme; scalar minerals use their isentropic modulus. "
+      "This differs from an assemblage's thermodynamic Reuss modulus.");
+  bind_property<Material>(
+      material, "effective_shear_modulus", "get_effective_shear_modulus",
+      &Material::get_effective_shear_modulus, true,
+      "Effective seismic shear modulus [Pa], aliased as G_eff. Assemblages "
+      "use their averaging scheme; scalar minerals use their shear modulus.");
+  bind_property<Material>(material, "K_eff", "get_K_eff",
+                          &Material::get_effective_isentropic_bulk_modulus,
+                          true);
+  bind_property<Material>(material, "G_eff", "get_G_eff",
+                          &Material::get_effective_shear_modulus, true);
   bind_property<Material>(material, "molar_mass", "get_molar_mass",
                           &Material::get_molar_mass);
 
@@ -321,9 +338,15 @@ void bind_materials(py::module_ &m) {
   bind_property<Assemblage>(assemblage, "molar_fractions",
                             "get_molar_fractions",
                             &Assemblage::get_molar_fractions);
+  bind_property<Assemblage>(assemblage, "phase_volumes", "get_phase_volumes",
+                            &Assemblage::get_phase_volumes, true,
+                            "Phase contributions x_i*V_i [m³ per mole of "
+                            "assemblage]. Their sum is molar_volume.");
   bind_property<Assemblage>(assemblage, "volume_fractions",
                             "get_volume_fractions",
-                            &Assemblage::get_volume_fractions, true);
+                            &Assemblage::get_volume_fractions, true,
+                            "Dimensionless phase volume fractions "
+                            "x_i*V_i/sum(x_j*V_j), summing to one.");
   bind_property<Assemblage>(assemblage, "endmembers_per_phase",
                             "get_endmembers_per_phase",
                             &Assemblage::get_endmembers_per_phase);

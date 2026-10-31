@@ -405,7 +405,10 @@ void bind_solutions(py::module_ &m) {
   SOLUTION_PROPERTY(volume_hessian);
 #undef SOLUTION_PROPERTY
   bind_property<Solution>(solution, "molar_fractions", "get_molar_fractions",
-                          &Solution::get_molar_fractions);
+                          &Solution::get_molar_fractions, false,
+                          "Endmember molar fractions. For MechanicalSolution "
+                          "these are signed, unnormalised linear mixing "
+                          "coefficients; the shared API name is retained.");
   bind_property<Solution>(solution, "basis", "get_basis", &Solution::get_basis);
   bind_property<Solution>(solution, "site_names", "get_site_names",
                           &Solution::get_site_names);
