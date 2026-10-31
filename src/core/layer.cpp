@@ -126,6 +126,8 @@ void Layer::set_pressure_mode(const std::string &mode, const Array &pressures,
   if (!bottom_gravity || !std::isfinite(*bottom_gravity) ||
       *bottom_gravity < 0.)
     throw std::invalid_argument("Supply a finite, nonnegative gravity_bottom.");
+  if (inner_radius == 0. && *bottom_gravity != 0.)
+    throw std::invalid_argument("Gravity must be zero at the centre.");
   if (mode == "user-defined")
     detail::check_profile(pressures, n_slices, "Pressures");
   if (mode == "self-consistent" &&
@@ -255,13 +257,13 @@ void Layer::make() {
     pressures = *pressure_top_ + (outer_radius - radii) * 1.e3;
     temperatures = evaluate_temperature(pressures);
     for (int i = 0; i < n_max_iterations_; ++i) {
-      const double previous = pressures.maxCoeff();
+      const Array previous = pressures;
       const auto density = evaluate_density(pressures, temperatures);
       const auto gravity = compute_gravity(density, *gravity_bottom_);
       pressures = compute_pressure(density, gravity, *pressure_top_);
       temperatures = evaluate_temperature(pressures);
-      const double change = std::abs(previous - pressures.maxCoeff()) /
-                            std::max(1., std::abs(pressures.maxCoeff()));
+      const double change = (pressures - previous).abs().maxCoeff() /
+                            std::max(1., pressures.abs().maxCoeff());
       n_iterations_ = i + 1;
       if (verbose)
         std::cout << "Iteration " << n_iterations_
@@ -286,9 +288,12 @@ Layer::Array Layer::get_bullen() const {
   const Array density = get_property("density");
   const Array velocity = get_property("bulk_sound_velocity");
   const Array phi = velocity.square(), kappa = phi * density;
-  return detail::index_gradient(kappa) / detail::index_gradient(pressures_) +
-         detail::index_gradient(phi) / detail::index_gradient(radii) /
-             get_property("gravity");
+  const Array gravity = get_property("gravity");
+  Array gradient = detail::gradient(phi, radii) / gravity;
+  if (n_slices > 2)
+    gradient = (gravity.abs() > 1.e-12)
+                   .select(gradient, std::numeric_limits<double>::quiet_NaN());
+  return detail::gradient(kappa, pressures_) + gradient;
 }
 Layer::Array Layer::get_brunt_vasala() const {
   const Array velocity = get_property("bulk_sound_velocity");

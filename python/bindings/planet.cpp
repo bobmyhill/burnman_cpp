@@ -62,8 +62,17 @@ at an interface. Queries at an exact interface select the deeper layer.
           py::arg("max_delta") = 1.e-5,
           "Set prescribed pressures or iterate hydrostatic equilibrium across "
           "all layers.")
-      .def("make", &Planet::make,
-           "Compute the planet's pressure, temperature and gravity profiles.")
+      .def(
+          "make",
+          [](Planet &self) {
+            self.make();
+            if (!self.converged() &&
+                PyErr_WarnEx(PyExc_RuntimeWarning,
+                             "Planet pressure iteration did not converge.",
+                             1) < 0)
+              throw py::error_already_set();
+          },
+          "Compute the planet's pressure, temperature and gravity profiles.")
       .def(
           "evaluate",
           [](const Planet &self, const std::vector<std::string> &names,

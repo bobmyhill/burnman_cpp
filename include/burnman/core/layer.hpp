@@ -28,6 +28,9 @@ namespace burnman {
  * conditions, then call make() before querying thermodynamic properties.
  * Each radius retains an independent material state. Pressures use Pa,
  * temperatures K and gravity m/s².
+ * Radial integrals use not-a-knot cubic interpolation with local linear
+ * fallback for overshoot on monotone stencils. This fallback suppresses
+ * ringing but does not locate interfaces.
  */
 class Layer {
 public:

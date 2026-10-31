@@ -337,9 +337,10 @@ def test_fourth_order_iron_matches_pressure_bulk_modulus_and_energy_derivatives(
         assert rock.shear_modulus == 0.0
 
 
-def test_layer_and_planet_optional_burnman_reference():
+@pytest.mark.parametrize("n", [10, 41, 101])
+def test_layer_and_planet_optional_burnman_reference(n):
     reference = pytest.importorskip("burnman")
-    native = make_layer(n=101)
+    native = make_layer(n=n)
     native.make()
     params = periclase_params()
     rock = reference.Mineral(params)
@@ -348,13 +349,14 @@ def test_layer_and_planet_optional_burnman_reference():
     layer.set_temperature_mode("user-defined", np.full(native.n_slices, 2000.0))
     layer.set_pressure_mode("self-consistent", pressure_top=22.5e9, gravity_bottom=10.0)
     layer.make()
-    # The native interpolating splines retain all samples; the reference uses
-    # smoothing splines. Compare the resulting radial profiles, not bit patterns.
-    assert_allclose(native.pressures, layer.pressures, rtol=0.01)
-    assert_allclose(native.density, layer.density, rtol=0.002)
-    assert_allclose(native.mass, layer.mass, rtol=0.002)
-    assert_allclose(native.moment_of_inertia, layer.moment_of_inertia, rtol=0.002)
-    planet, core, mantle = make_planet(n=101)
+    assert_allclose(native.pressures, layer.pressures, rtol=1e-9, atol=0.05)
+    assert_allclose(native.gravity, layer.gravity, rtol=1e-10)
+    assert_allclose(native.density, layer.density, rtol=1e-10)
+    assert_allclose(native.mass, layer.mass, rtol=1e-10)
+    assert_allclose(native.moment_of_inertia, layer.moment_of_inertia, rtol=1e-10)
+    assert_allclose(native.bullen, layer.bullen, rtol=1e-8, atol=1e-9)
+    assert_allclose(native.brunt_vasala, layer.brunt_vasala, rtol=1e-8, atol=1e-13)
+    planet, core, mantle = make_planet(n=n)
     planet.make()
     ref_core = reference.Layer("core", core.radii)
     ref_core.set_material(reference.minerals.other.Liquid_Fe_Anderson())
@@ -364,12 +366,13 @@ def test_layer_and_planet_optional_burnman_reference():
     ref_mantle.set_temperature_mode("adiabatic", temperature_top=1200.0)
     ref_planet = reference.Planet("earth_like", [ref_mantle, ref_core])
     ref_planet.make()
-    assert_allclose(planet.pressures, ref_planet.pressures, rtol=0.002, atol=1.0)
-    assert_allclose(planet.temperatures, ref_planet.temperatures, rtol=0.001)
-    assert_allclose(planet.density, ref_planet.density, rtol=0.001)
-    assert_allclose(planet.mass, ref_planet.mass, rtol=0.001)
+    assert_allclose(planet.pressures, ref_planet.pressures, rtol=1e-9, atol=0.05)
+    assert_allclose(planet.gravity, ref_planet.gravity, rtol=1e-10, atol=1e-12)
+    assert_allclose(planet.temperatures, ref_planet.temperatures, rtol=1e-9)
+    assert_allclose(planet.density, ref_planet.density, rtol=1e-10)
+    assert_allclose(planet.mass, ref_planet.mass, rtol=1e-10)
     assert_allclose(
-        planet.moment_of_inertia_factor, ref_planet.moment_of_inertia_factor, rtol=0.001
+        planet.moment_of_inertia_factor, ref_planet.moment_of_inertia_factor, rtol=1e-10
     )
 
 
@@ -427,3 +430,28 @@ def test_fourth_order_iron_optional_burnman_reference():
             python.isothermal_bulk_modulus_reuss,
             rtol=3e-6,
         )
+
+
+def test_optional_pinned_radial_interpolation():
+    reference = pytest.importorskip("burnman")
+    for x in (
+        np.array([0.0, 1.0]),
+        np.array([0.0, 0.2, 1.0]),
+        np.array([0.0, 0.1, 0.4, 1.0]),
+        np.array([0.0, 0.05, 0.2, 0.3, 0.45, 0.47, 0.6, 0.85, 1.0]),
+    ):
+        radii = 1e6 * (1.0 + x)
+        native, python = bm.Layer("test", radii), reference.Layer("test", radii)
+        for density in (
+            8000.0 - 4000.0 * x**3,
+            8000.0 - 4000.0 * (x - 0.53) ** 2,
+            np.where(x <= 0.45, 8000.0, 4000.0),
+        ):
+            gravity = native._compute_gravity(density, 5.0)
+            expected_gravity = python._compute_gravity(density, 5.0)
+            assert_allclose(gravity, expected_gravity, rtol=2e-13)
+            assert_allclose(
+                native._compute_pressure(density, gravity, 1e5),
+                python._compute_pressure(density, expected_gravity, 1e5),
+                rtol=2e-13,
+            )
