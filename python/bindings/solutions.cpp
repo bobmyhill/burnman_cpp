@@ -97,6 +97,13 @@ void check_interactions(const Interactions &interactions, std::size_t size,
     }
   }
 }
+
+py::array_t<double> interaction_tensor(const types::NDArray<double> &values) {
+  const auto n = static_cast<py::ssize_t>(values.shape()[0]);
+  py::array_t<double> result({n, n, n});
+  std::copy(values.data().begin(), values.data().end(), result.mutable_data());
+  return result;
+}
 } // namespace
 
 void bind_solutions(py::module_ &m) {
@@ -230,6 +237,48 @@ void bind_solutions(py::module_ &m) {
           py::arg("endmembers"), py::arg("energy_interaction"),
           py::arg("volume_interaction") = Interactions{},
           py::arg("entropy_interaction") = Interactions{});
+
+  using Binary = SubregularSolution::Interactions;
+  using Ternary = SubregularSolution::TernaryTerms;
+  py::class_<SubregularSolution, IdealSolution,
+             std::shared_ptr<SubregularSolution>>(
+      m, "SubregularSolution",
+      "Ideal site entropy plus subregular binary [W_ij, W_ji] pairs and "
+      "ternary [i, j, k, value] energy, volume and entropy terms.")
+      .def(py::init([](const Endmembers &endmembers, const Binary &energy,
+                       const std::optional<Binary> &volume,
+                       const std::optional<Binary> &entropy,
+                       const std::optional<Ternary> &ternary_e,
+                       const std::optional<Ternary> &ternary_v,
+                       const std::optional<Ternary> &ternary_s) {
+             return retain_tensor_endmembers(
+                 std::make_shared<SubregularSolution>(
+                     scalar_endmembers(endmembers), energy,
+                     volume.value_or(Binary{}), entropy.value_or(Binary{}),
+                     ternary_e.value_or(Ternary{}),
+                     ternary_v.value_or(Ternary{}),
+                     ternary_s.value_or(Ternary{})),
+                 endmembers);
+           }),
+           py::arg("endmembers"), py::arg("energy_interaction"),
+           py::arg("volume_interaction") = py::none(),
+           py::arg("entropy_interaction") = py::none(),
+           py::arg("energy_ternary_terms") = py::none(),
+           py::arg("volume_ternary_terms") = py::none(),
+           py::arg("entropy_ternary_terms") = py::none())
+      .def_property_readonly("Wijke",
+                             [](const SubregularSolution &self) {
+                               return interaction_tensor(
+                                   self.get_energy_interactions());
+                             })
+      .def_property_readonly("Wijks",
+                             [](const SubregularSolution &self) {
+                               return interaction_tensor(
+                                   self.get_entropy_interactions());
+                             })
+      .def_property_readonly("Wijkv", [](const SubregularSolution &self) {
+        return interaction_tensor(self.get_volume_interactions());
+      });
 
   py::class_<PolynomialSolution, IdealSolution,
              std::shared_ptr<PolynomialSolution>>(m, "PolynomialSolution")
