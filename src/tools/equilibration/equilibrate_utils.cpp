@@ -221,6 +221,24 @@ Eigen::VectorXd get_endmember_amounts(const Assemblage &assemblage) {
 
 void set_composition_and_state_from_parameters(
     Assemblage &assemblage, const Eigen::VectorXd &parameters) {
+  // Validate amounts before mutating any phase or its thermodynamic state.
+  if (parameters.size() < 2 + assemblage.get_n_endmembers() ||
+      !parameters.allFinite())
+    throw std::invalid_argument(
+        "Equilibrium parameters must be finite and complete.");
+  Eigen::Index offset = 2;
+  double total_amount = 0.;
+  for (int count : assemblage.get_endmembers_per_phase()) {
+    const double amount = parameters[offset];
+    if (amount <= -1.e-8)
+      throw std::invalid_argument(
+          "Equilibrium parameters contain invalid phase amounts.");
+    total_amount += std::abs(amount);
+    offset += count;
+  }
+  if (!(total_amount > 0.))
+    throw std::invalid_argument(
+        "Equilibrium parameters require a positive total phase amount.");
   // Set P & T (first two parameters)
   assemblage.set_state(parameters(0), parameters(1));
   Eigen::Index n_phases = assemblage.get_n_phases();
@@ -240,13 +258,6 @@ void set_composition_and_state_from_parameters(
     } else {
       ++i;
     }
-  }
-  // An unsuccessful predictor or constrained Newton walk can propose an
-  // inadmissible state. Report it to the corrector's retry path in both debug
-  // and release builds rather than aborting or reflecting a negative amount.
-  if (!phase_amounts.isFinite().all() || (phase_amounts <= -1.0e-8).any()) {
-    throw std::invalid_argument(
-        "Equilibrium parameters contain invalid phase amounts.");
   }
   phase_amounts = phase_amounts.abs();
   double n_moles = phase_amounts.sum();

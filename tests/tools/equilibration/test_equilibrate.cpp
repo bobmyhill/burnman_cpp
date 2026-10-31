@@ -18,6 +18,7 @@
 #include "tolerances.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <limits>
 
 using namespace Catch::Matchers;
 using namespace burnman;
@@ -26,7 +27,7 @@ TEST_CASE_METHOD(PartitioningAssemblageFixture, "equilibrate implementation",
                  "[tools][equilibration]") {
   Eigen::ArrayXd pressures(2), temperatures(2);
   pressures << 1.0e9, 2.0e9;
-  temperatures << 1500.0, 2000.0;
+  temperatures << 1001.0, 2000.0;
   auto constraints = equilibration::make_constraint_list(
       equilibration::make_constraints_from_array<
           equilibration::PressureConstraint>(pressures),
@@ -45,10 +46,8 @@ TEST_CASE_METHOD(PartitioningAssemblageFixture, "equilibrate implementation",
       REQUIRE(solve.iteration_history.has_value());
       CHECK_FALSE(solve.iteration_history->x.empty());
       CHECK(solve.F_norm < 1.0e-7);
-      CHECK_THAT(solve.x(0),
-                 WithinAbs(pressures(static_cast<Eigen::Index>(i)), 1.0));
-      CHECK_THAT(solve.x(1),
-                 WithinAbs(temperatures(static_cast<Eigen::Index>(j)), 1.0e-8));
+      CHECK(solve.x(0) == pressures(static_cast<Eigen::Index>(i)));
+      CHECK(solve.x(1) == temperatures(static_cast<Eigen::Index>(j)));
       const double mg =
           equilibrium_mg_fraction(temperatures(static_cast<Eigen::Index>(j)));
       CHECK_THAT(solve.x(2), WithinAbs(0.5, 1.0e-9));
@@ -97,4 +96,23 @@ TEST_CASE_METHOD(PartitioningAssemblageFixture,
   auto constraints = equilibration::make_constraint_list(
       equilibration::make_constraint<equilibration::PressureConstraint>(1.0e9));
   CHECK_THROWS(equilibration::equilibrate(bulk, assemblage, constraints));
+}
+
+TEST_CASE_METHOD(PartitioningAssemblageFixture,
+                 "equilibrate retains explicit unscaled continuation",
+                 "[tools][equilibration]") {
+  auto constraints = equilibration::make_constraint_list(
+      equilibration::make_constraint<equilibration::PressureConstraint>(1.01e9),
+      equilibration::make_constraint<equilibration::TemperatureConstraint>(
+          1001.));
+  const auto result = equilibration::equilibrate(
+      bulk, assemblage, constraints, {},
+      std::numeric_limits<double>::quiet_NaN(), false, false, 100, false,
+      Eigen::VectorXd(), Eigen::VectorXd());
+  const auto &solve = result.sol_array(0);
+  INFO(solve.message);
+  REQUIRE(solve.success);
+  CHECK(solve.x[0] == 1.01e9);
+  CHECK(solve.x[1] == 1001.);
+  CHECK(solve.F_norm < 1.e-7);
 }

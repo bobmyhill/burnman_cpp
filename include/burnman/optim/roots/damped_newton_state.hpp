@@ -42,9 +42,14 @@ struct DampedNewtonSolverState {
   Eigen::VectorXd dxbar_j; ///< Simplified Newton step at trial iterate.
   Eigen::MatrixXd J;       ///< Current Jacobian matrix J(x).
   Eigen::PartialPivLU<Eigen::MatrixXd> luJ; ///< LU decomposition of J.
-  Eigen::Index n_constraints;               ///< Number of constraints.
-  double dx_norm;                           ///< L2 norm of dx.
-  double dxbar_j_norm;                      ///< L2 norm of dxbar_j.
+  Eigen::JacobiSVD<Eigen::MatrixXd> svdJ;
+  Eigen::VectorXd row_weights, column_scales;
+  bool use_svd = false;
+  bool singular_failure = false;
+  Eigen::Index jacobian_rank = 0;
+  Eigen::Index n_constraints; ///< Number of constraints.
+  double dx_norm;             ///< L2 norm of dx.
+  double dxbar_j_norm;        ///< L2 norm of dxbar_j.
   double h;                   ///< Heuristic used to compute lambda.
   double lambda = 0.0;        ///< Current step scaling (damping) factor.
   LambdaBounds lambda_bounds; ///< Current bounds (min, max) on lambda.

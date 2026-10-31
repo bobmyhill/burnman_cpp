@@ -30,13 +30,15 @@
 
 namespace burnman::equilibration {
 
-EquilibrateResult equilibrate(
-    const types::FormulaMap &composition, Assemblage &assemblage,
-    const ConstraintList &equality_constraints,
-    const std::vector<FreeVectorMap> &free_compositional_vectors, double tol,
-    bool store_iterates, bool store_assemblage, int max_iterations,
-    bool verbose, const Eigen::VectorXd &parameter_tolerances,
-    const Eigen::VectorXd &parameter_scales, int stagnation_iterations) {
+EquilibrateResult
+equilibrate(const types::FormulaMap &composition, Assemblage &assemblage,
+            const ConstraintList &equality_constraints,
+            const std::vector<FreeVectorMap> &free_compositional_vectors,
+            double tol, bool store_iterates, bool store_assemblage,
+            int max_iterations, bool verbose,
+            const Eigen::VectorXd &parameter_tolerances,
+            const std::optional<Eigen::VectorXd> &parameter_scales,
+            int stagnation_iterations) {
   // Check compositions of solutions set
   // TODO:: could implement a has_composition() for convenience here
   for (std::size_t i = 0;
@@ -110,10 +112,16 @@ EquilibrateResult equilibrate(
   // Get parameter vector (x)
   Eigen::VectorXd parameter_vector = get_parameter_vector(
       assemblage, static_cast<int>(n_free_compositional_vectors));
-  const bool scaled = parameter_scales.size() != 0;
-  Eigen::VectorXd scales = scaled
-                               ? parameter_scales
+  const bool scaled = !parameter_scales || parameter_scales->size() != 0;
+  Eigen::VectorXd scales = parameter_scales && parameter_scales->size()
+                               ? *parameter_scales
                                : Eigen::VectorXd::Ones(parameter_vector.size());
+  if (!parameter_scales) {
+    scales[0] = 1.e9;
+    scales[1] = 1.e3;
+  }
+  if (!std::isnan(tol) && (!std::isfinite(tol) || tol <= 0.))
+    throw std::invalid_argument("tol must be positive and finite.");
   if (scales.size() != parameter_vector.size() || !scales.allFinite() ||
       (scales.array() <= 0.).any()) {
     throw std::invalid_argument(
@@ -142,17 +150,18 @@ EquilibrateResult equilibrate(
   optim::roots::DampedNewtonSettings solver_settings;
   solver_settings.store_iterates = store_iterates;
   solver_settings.max_iterations = max_iterations;
-  solver_settings.tol = tol;
-  solver_settings.parameter_tolerances = parameter_tolerances;
   solver_settings.stagnation_iterations = stagnation_iterations;
-  if (scaled) {
-    const Eigen::VectorXd physical_tolerances =
-        parameter_tolerances.size()
-            ? parameter_tolerances
-            : Eigen::VectorXd::Constant(parameter_vector.size(), tol);
-    solver_settings.parameter_tolerances =
-        physical_tolerances.cwiseQuotient(scales);
+  Eigen::VectorXd physical_tolerances = parameter_tolerances;
+  if (!physical_tolerances.size()) {
+    physical_tolerances = Eigen::VectorXd::Constant(
+        parameter_vector.size(), std::isnan(tol) ? 1.e-9 : tol);
+    if (std::isnan(tol)) {
+      physical_tolerances[0] = 1.;
+      physical_tolerances[1] = 1.e-6;
+    }
   }
+  solver_settings.parameter_tolerances =
+      physical_tolerances.cwiseQuotient(scales);
   std::vector<int> embr_per_phase = assemblage.get_endmembers_per_phase();
   solver_settings.lambda_bounds_func = [embr_per_phase,
                                         scales](const Eigen::VectorXd &dx,
@@ -160,8 +169,6 @@ EquilibrateResult equilibrate(
     return lambda_bounds_func(dx.cwiseProduct(scales), x.cwiseProduct(scales),
                               embr_per_phase);
   };
-  // Make solver object
-  optim::roots::DampedNewtonSolver solver(solver_settings);
 
   // Loop over all the problems
   std::size_t n_problems = sol_array.size();
@@ -183,17 +190,59 @@ EquilibrateResult equilibrate(
     // compare mass balance, reaction and imposed conditions in comparable
     // units.
     Eigen::VectorXd weights = Eigen::VectorXd::Ones(parameter_vector.size());
+    F(parameter_vector, assemblage, problem_constraints,
+      prm.reduced_composition_vector, prm.reduced_free_composition_vectors);
+    Eigen::MatrixXd initial_j =
+        J(parameter_vector, assemblage, problem_constraints,
+          prm.reduced_free_composition_vectors) *
+        scales.asDiagonal();
     if (scaled) {
-      F(parameter_vector, assemblage, problem_constraints,
-        prm.reduced_composition_vector, prm.reduced_free_composition_vectors);
-      Eigen::MatrixXd initial_j =
-          J(parameter_vector, assemblage, problem_constraints,
-            prm.reduced_free_composition_vectors) *
-          scales.asDiagonal();
-      for (Eigen::Index i = 0; i < weights.size(); ++i) {
+      for (Eigen::Index i = 0; i < weights.size(); ++i)
         weights[i] = 1. / std::max(initial_j.row(i).norm(), 1.e-30);
+    }
+    if (!parameter_scales) {
+      // Match Python's fixed physical residual units. These also define the
+      // objective minimized when walking along an active phase boundary.
+      weights.setOnes();
+      weights
+          .segment(static_cast<Eigen::Index>(problem_constraints.size()),
+                   assemblage.get_reaction_affinities().size())
+          .setConstant(1.e-3);
+      for (std::size_t i = 0; i < problem_constraints.size(); ++i) {
+        const auto *c = problem_constraints[i].get();
+        const auto row = static_cast<Eigen::Index>(i);
+        if (dynamic_cast<const PressureConstraint *>(c))
+          weights[row] = 1.e-9;
+        else if (dynamic_cast<const TemperatureConstraint *>(c) ||
+                 dynamic_cast<const EntropyConstraint *>(c))
+          weights[row] = 1.e-3;
+        else if (dynamic_cast<const VolumeConstraint *>(c))
+          weights[row] = 1.e6;
       }
     }
+    // Physical residual tolerances, independent of the equation row weights.
+    Eigen::VectorXd residual_tolerances =
+        Eigen::VectorXd::Constant(parameter_vector.size(), 1.e-8);
+    residual_tolerances
+        .segment(static_cast<Eigen::Index>(problem_constraints.size()),
+                 assemblage.get_reaction_affinities().size())
+        .setOnes();
+    for (std::size_t i = 0; i < problem_constraints.size(); ++i) {
+      const auto *c = problem_constraints[i].get();
+      double tolerance = 1.e-8;
+      if (dynamic_cast<const PressureConstraint *>(c))
+        tolerance = 1.;
+      else if (dynamic_cast<const TemperatureConstraint *>(c))
+        tolerance = 1.e-6;
+      else if (dynamic_cast<const VolumeConstraint *>(c))
+        tolerance = 1.e-11 * comp_sum;
+      else if (dynamic_cast<const HugoniotConstraint *>(c))
+        tolerance = 1.; // J/kg
+      residual_tolerances[static_cast<Eigen::Index>(i)] = tolerance;
+    }
+    solver_settings.residual_tolerances =
+        residual_tolerances.cwiseProduct(weights);
+    optim::roots::DampedNewtonSolver solver(solver_settings);
     // Note - mutates assemblage object (might need to clone before)
     optim::roots::DampedNewtonResult sol = solver.solve(
         parameter_vector.cwiseQuotient(scales),
@@ -210,20 +259,30 @@ EquilibrateResult equilibrate(
                  scales.asDiagonal();
         },
         {prm.constraint_matrix * scales.asDiagonal(), prm.constraint_vector});
-    if (scaled) {
-      sol.x = sol.x.cwiseProduct(scales).eval();
-      sol.F = F(sol.x, assemblage, problem_constraints,
-                prm.reduced_composition_vector,
-                prm.reduced_free_composition_vectors);
-      sol.J = J(sol.x, assemblage, problem_constraints,
-                prm.reduced_free_composition_vectors);
-      sol.F_norm = sol.F.norm();
-      if (sol.iteration_history) {
-        for (auto &x : sol.iteration_history->x)
-          x = x.cwiseProduct(scales).eval();
-        for (auto &f : sol.iteration_history->F)
-          f = f.cwiseQuotient(weights).eval();
+    sol.x = sol.x.cwiseProduct(scales).eval();
+    // Preserve exactly prescribed coordinates after the floating-point unit
+    // conversion (e.g. 1001 K / 1000 * 1000 need not equal 1001 K).
+    if (sol.success) {
+      for (const auto &constraint : problem_constraints) {
+        if (const auto *p =
+                dynamic_cast<const PressureConstraint *>(constraint.get()))
+          sol.x[0] = p->get_value();
+        else if (const auto *t = dynamic_cast<const TemperatureConstraint *>(
+                     constraint.get()))
+          sol.x[1] = t->get_value();
       }
+    }
+    sol.F =
+        F(sol.x, assemblage, problem_constraints,
+          prm.reduced_composition_vector, prm.reduced_free_composition_vectors);
+    sol.J = J(sol.x, assemblage, problem_constraints,
+              prm.reduced_free_composition_vectors);
+    sol.F_norm = sol.F.norm();
+    if (sol.iteration_history) {
+      for (auto &x : sol.iteration_history->x)
+        x = x.cwiseProduct(scales).eval();
+      for (auto &f : sol.iteration_history->F)
+        f = f.cwiseQuotient(weights).eval();
     }
 
     double maxres = 0.0;
@@ -278,12 +337,23 @@ EquilibrateResult equilibrate(
           Eigen::VectorXd dF = F(s.x, assemblage, next_constraints,
                                  prm.reduced_composition_vector,
                                  prm.reduced_free_composition_vectors);
-          Eigen::PartialPivLU<Eigen::MatrixXd> luJ(s.J);
-          Eigen::VectorXd new_parameters = s.x + luJ.solve(-dF);
+          // Predict in the same physical units used by the corrector.
+          Eigen::MatrixXd predictor_J =
+              weights.asDiagonal() * s.J * scales.asDiagonal();
+          Eigen::JacobiSVD<Eigen::MatrixXd> predictor(
+              predictor_J, Eigen::ComputeThinU | Eigen::ComputeThinV);
+          predictor.setThreshold(1.e-15);
+          Eigen::VectorXd correction;
+          if (scaled)
+            correction =
+                predictor.solve(-dF.cwiseProduct(weights)).cwiseProduct(scales);
+          else
+            correction = s.J.partialPivLu().solve(-dF);
+          Eigen::VectorXd new_parameters = s.x + correction;
           // Check constraints are satisfied
           Eigen::VectorXd c =
               prm.constraint_matrix * new_parameters + prm.constraint_vector;
-          if ((c.array() <= 0.0).all()) {
+          if (new_parameters.allFinite() && (c.array() <= 0.0).all()) {
             // Constraints satisfied - accept new guess
             parameter_vector = new_parameters;
           } else {

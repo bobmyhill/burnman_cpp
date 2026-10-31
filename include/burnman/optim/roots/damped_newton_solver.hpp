@@ -62,6 +62,12 @@ public:
 private:
   DampedNewtonSettings settings;
 
+  void factorize(DampedNewtonSolverState &state) const;
+  Eigen::VectorXd solve_linear(const Eigen::VectorXd &rhs,
+                               const DampedNewtonSolverState &state) const;
+  bool residual_converged(const Eigen::VectorXd &F,
+                          const DampedNewtonSolverState &state) const;
+
   /**
    * @brief Evaluates the linear constraints (A·x + b)
    */

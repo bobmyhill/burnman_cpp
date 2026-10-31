@@ -140,3 +140,95 @@ TEST_CASE("Newton stagnation preserves nonlinear convergence",
   CHECK_THAT(root.x[1], WithinAbs(std::exp(1.), 1.e-10));
   CHECK(root.F_norm < 1.e-10);
 }
+
+TEST_CASE("Newton solves rank-deficient systems without invalid trials",
+          "[optim][newton]") {
+  DampedNewtonSettings settings;
+  settings.residual_tolerances = Eigen::Vector2d::Constant(1.e-10);
+  const auto jacobian = [](const auto &) -> Eigen::MatrixXd {
+    return (Eigen::Matrix2d() << 1., 1., 2., 2.).finished();
+  };
+  auto residual = [](const Eigen::VectorXd &x) -> Eigen::VectorXd {
+    REQUIRE(x.allFinite());
+    return Eigen::Vector2d(x.sum() - 2., 2. * x.sum() - 4.);
+  };
+  const auto root = DampedNewtonSolver(settings).solve(Eigen::Vector2d::Zero(),
+                                                       residual, jacobian);
+  INFO(root.message);
+  REQUIRE(root.success);
+  CHECK(root.code == 5);
+  CHECK(root.jacobian_rank == 1);
+  CHECK(root.x.allFinite());
+  CHECK_THAT(root.x.sum(), WithinAbs(2., 1.e-10));
+
+  // The same Jacobian cannot satisfy inconsistent equations. Its null-space
+  // residual must not be hidden by a zero minimum-norm Newton correction.
+  auto inconsistent = [](const Eigen::VectorXd &x) -> Eigen::VectorXd {
+    REQUIRE(x.allFinite());
+    return Eigen::Vector2d(x.sum() - 2., 2. * x.sum() - 5.);
+  };
+  const auto failed = DampedNewtonSolver(settings).solve(
+      Eigen::Vector2d::Zero(), inconsistent, jacobian);
+  REQUIRE_FALSE(failed.success);
+  CHECK(failed.code == 6);
+  CHECK(failed.x.allFinite());
+  CHECK(failed.F_norm > 0.1);
+}
+
+TEST_CASE("Newton rank detection respects equation and parameter units",
+          "[optim][newton]") {
+  // Unscaled SVD truncates the pressure column relative to composition.
+  DampedNewtonSettings settings;
+  settings.parameter_tolerances = Eigen::Vector2d(1., 1.e-9);
+  settings.residual_tolerances = Eigen::Vector2d::Constant(1.e-10);
+  const auto root = DampedNewtonSolver(settings).solve(
+      Eigen::Vector2d::Zero(),
+      [](const Eigen::VectorXd &x) -> Eigen::VectorXd {
+        return Eigen::Vector2d(1.e-12 * x[0] + x[1] - 2., 1.e-12 * x[0] - x[1]);
+      },
+      [](const auto &) -> Eigen::MatrixXd {
+        return (Eigen::Matrix2d() << 1.e-12, 1., 1.e-12, -1.).finished();
+      });
+  REQUIRE(root.success);
+  CHECK(root.code == 0);
+  CHECK(root.jacobian_rank == 2);
+  CHECK_THAT(root.x[0], WithinAbs(1.e12, 1.));
+  CHECK_THAT(root.x[1], WithinAbs(1., 1.e-9));
+  CHECK(root.F_norm < 1.e-10);
+}
+
+TEST_CASE("Newton validates component residual tolerances", "[optim][newton]") {
+  DampedNewtonSettings settings;
+  settings.residual_tolerances = Eigen::VectorXd::Constant(1, -1.);
+  CHECK_THROWS_AS(
+      DampedNewtonSolver(settings).solve(
+          Eigen::Vector2d::Zero(), [](const Eigen::VectorXd &x) { return x; },
+          [](const auto &) { return Eigen::Matrix2d::Identity().eval(); }),
+      std::invalid_argument);
+}
+
+TEST_CASE("Newton detects duplicate columns despite a benign LU estimate",
+          "[optim][newton]") {
+  // A duplicate-phase Jacobian can have an apparently benign LU rcond even
+  // though changing the split between the identical phases is unobservable.
+  Eigen::MatrixXd matrix = Eigen::MatrixXd::Zero(6, 6);
+  matrix(0, 0) = matrix(1, 1) = 1.;
+  matrix.row(2) << 0., 0., 0., 3980., 0., -3980.;
+  matrix.row(3) << 0., 0., 0., -35820., 0., 35820.;
+  matrix.row(4) << 0., 0., 1.8, -1., 1.8, -1.;
+  matrix.row(5) << 0., 0., .2, 1., .2, 1.;
+  DampedNewtonSettings settings;
+  settings.residual_tolerances = Eigen::VectorXd::Constant(6, 1.e-9);
+  const auto root = DampedNewtonSolver(settings).solve(
+      Eigen::VectorXd::Zero(6),
+      [&](const Eigen::VectorXd &x) -> Eigen::VectorXd {
+        REQUIRE(x.allFinite());
+        return matrix * (x.array() - 1.).matrix();
+      },
+      [&](const auto &) { return matrix; });
+  INFO(root.message);
+  REQUIRE(root.success);
+  CHECK(root.code == 5);
+  CHECK(root.jacobian_rank == 5);
+  CHECK(root.F_norm < 1.e-9);
+}

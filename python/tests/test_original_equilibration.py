@@ -264,3 +264,69 @@ class equilibration(BurnManTest):
         equality_constraints = [("P", 100000.0), ("T", 300.0)]
         sol, _ = equilibrate(composition, a, equality_constraints)
         self.assertEqual(sol.code, 2)
+
+    def test_binary_solution_convergence(self):
+        import burnman_cpp as burnman
+
+        bdg_endmembers = [
+            [SLB_2011.mg_bridgmanite(), "[Mg]"],
+            [SLB_2011.fe_bridgmanite(), "[Fe]"],
+        ]
+        ppv_endmembers = [
+            [SLB_2011.mg_post_perovskite(), "[Mg]"],
+            [SLB_2011.fe_post_perovskite(), "[Fe]"],
+        ]
+        bdg = burnman.Solution(
+            burnman.IdealSolution(bdg_endmembers), [0.9, 0.1], name="bdg"
+        )
+        ppv = burnman.Solution(
+            burnman.IdealSolution(ppv_endmembers), [0.9, 0.1], name="ppv"
+        )
+        composition = {"Mg": 0.9, "Fe": 0.1, "Si": 1.0, "O": 3.0}
+        assemblage = make_assemblage([bdg, ppv], [0.9, 0.1])
+        bdg.set_composition([0.9, 0.1])
+        ppv.set_composition([0.9, 0.1])
+        temperatures = np.linspace(1000, 4000, 4)
+        assemblage.set_state(120.0e9, temperatures[0])
+        equality_constraints = [("T", temperatures), ("phase_fraction", (ppv, 0.0))]
+        sols, _ = equilibrate(composition, assemblage, equality_constraints)
+        self.assertFalse(any(not s.success for s in sols))
+        # A small pseudoinverse correction alone does not establish equilibrium.
+        for sol in sols:
+            self.assertArraysAlmostEqual(
+                [sol.assemblage.formula[e] for e in composition],
+                list(composition.values()),
+            )
+            self.assertTrue(np.max(np.abs(sol.F[2:4])) < 1.0)
+            self.assertTrue(np.max(np.abs(sol.F[4:])) < 1.0e-8)
+
+    def test_convergence_with_singular_system(self):
+        composition = {"Mg": 1.0, "Fe": 1.0, "Si": 1.0, "O": 4.0}
+        a = make_assemblage(
+            [SLB_2011.mg_fe_olivine(), SLB_2011.mg_fe_olivine()], [0.5, 0.5]
+        )
+        a.phases[0].set_composition([0.1, 0.9])
+        a.phases[1].set_composition([0.9, 0.1])
+        sol, _ = equilibrate(composition, a, [("P", 1.0e5), ("T", 1000.0)])
+        self.assertTrue(sol.success)
+        self.assertEqual(sol.code, 5)  # SINGULAR_SUCCESS
+        for phase in sol.assemblage.phases:
+            self.assertArraysAlmostEqual(phase.molar_fractions, [0.5, 0.5])
+
+    def test_ill_conditioned_jacobian(self):
+        composition = {"Mg": 1.8, "Fe": 0.2, "Si": 1.0, "O": 4.0}
+        a = make_assemblage(
+            [SLB_2011.mg_fe_olivine(), SLB_2011.mg_fe_olivine()], [0.5, 0.5]
+        )
+        a.phases[0].set_composition([0.4, 0.6])
+        a.phases[1].set_composition([0.4, 0.6])
+        sol, _ = equilibrate(composition, a, [("P", 1.0e5), ("T", 300.0)])
+        # Native code 4 remains stagnation; singular failure uses code 6.
+        if sol.code == 5:
+            self.assertTrue(sol.success)
+            for phase in sol.assemblage.phases:
+                self.assertArraysAlmostEqual(phase.molar_fractions, [0.9, 0.1])
+        else:
+            self.assertEqual(sol.code, 6)
+            self.assertFalse(sol.success)
+        self.assertTrue(np.isfinite(sol.x).all())

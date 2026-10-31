@@ -273,7 +273,7 @@ def equilibrate(
     equality_constraints,
     free_compositional_vectors=(),
     *,
-    tol=1.0e-3,
+    tol=None,
     store_iterates=False,
     max_iterations=100,
     verbose=False,
@@ -287,6 +287,10 @@ def equilibrate(
     array). ``result.prm`` describes the unknowns. Each solve exposes success,
     message, x, F and J, and optionally iteration_history. ``tol`` is an
     absolute Newton-step tolerance, either scalar or one value per parameter.
+    The default (``None``) uses 1 Pa, 1e-6 K and 1e-9 for phase amounts,
+    compositions and free bulk coordinates. Equations and parameters are
+    scaled internally; returned values retain physical units. Rank-deficient
+    roots return success code 5; singular failures return code 6.
     ``stagnation_iterations`` optionally stops repeated negligible movements
     without an improving Newton correction, returning failure code 4. Zero
     disables this check; the successful-convergence criteria are unchanged.

@@ -65,6 +65,7 @@ struct DampedNewtonSettings {
       };
   Eigen::VectorXd
       parameter_tolerances; ///< Optional per-parameter Newton step tolerances
+  Eigen::VectorXd residual_tolerances; ///< Optional absolute tolerances on F
   /**
    * Consecutive iterations without progress before returning failure code 4.
    * Zero disables this check. During this window, total parameter movement
@@ -127,8 +128,13 @@ struct DampedNewtonResult {
    * 2 : Failure (descent direction violates constraints)
    * 3 : Failure (maximum iterations reached)
    * 4 : Failure (numerical stagnation, when enabled)
+   * 5 : Successful convergence with a rank-deficient Jacobian
+   * 6 : Failure (singular Jacobian or non-finite Newton correction)
    */
   int code = -1;
+
+  /// Rank of the final Jacobian after row and column equilibration.
+  Eigen::Index jacobian_rank = 0;
 
   /**
    * @brief Human-readable termination message.
