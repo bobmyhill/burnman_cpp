@@ -17,6 +17,7 @@
 // Utility header to include all solution models
 #include "burnman/core/solution_models/asymmetric_regular_solution.hpp"
 #include "burnman/core/solution_models/ideal_solution.hpp"
+#include "burnman/core/solution_models/mechanical_solution.hpp"
 #include "burnman/core/solution_models/polynomial_solution.hpp"
 #include "burnman/core/solution_models/solution_model_base.hpp"
 #include "burnman/core/solution_models/symmetric_regular_solution.hpp"
@@ -33,6 +34,7 @@ namespace burnman {
  * as well as excess thermodynamic properties.
  *
  * Currently implemented solution models are:
+ * - MechanicalSolution
  * - IdealSolution
  * - AsymmetricRegularSolution
  * - SymmetricRegularSolution

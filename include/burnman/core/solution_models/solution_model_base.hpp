@@ -306,6 +306,10 @@ public:
                          const Eigen::ArrayXd &molar_fractions) const = 0;
 
 protected:
+  /// Mechanical mixtures retain formula labels without a shared site model.
+  SolutionModel(const types::PairedEndmemberList &endmember_list,
+                bool process_chemistry);
+
   // Counts
   // Using Eigen::Index (usually std::ptrdiff_t) - cast to size_t for STL
   // containers

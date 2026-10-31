@@ -24,6 +24,7 @@ from . import (
     AsymmetricRegularSolution,
     CombinedMineral,
     IdealSolution,
+    MechanicalSolution,
     Mineral,
     MineralParams,
     Solution,
@@ -33,7 +34,7 @@ from . import (
 
 
 def from_burnman(phase):
-    """Copy a BurnMan mineral or ideal/regular solution into a native object.
+    """Copy a BurnMan mineral or mechanical/ideal/regular solution into a native object.
 
     Includes property modifiers, nested combined endmembers, site formulae,
     and energy/entropy/volume interactions. Unsupported models and parameter
@@ -66,6 +67,8 @@ def from_burnman(phase):
                 )
         elif type(model) is models.IdealSolution:
             native_model = IdealSolution(endmembers)
+        elif type(model) is models.MechanicalSolution:
+            native_model = MechanicalSolution(endmembers)
         else:
             raise TypeError(
                 f"Unsupported BurnMan solution model: {type(model).__name__}"

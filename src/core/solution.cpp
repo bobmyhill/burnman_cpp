@@ -76,8 +76,10 @@ void Solution::set_composition(const Eigen::ArrayXd &composition_vector) {
                              ") does not match number of endmembers (" +
                              std::to_string(get_n_endmembers()) + ").");
   }
-  if (std::abs(composition_vector.sum() - 1.0) >
-      constants::precision::abs_tolerance) {
+  if (!dynamic_cast<const solution_models::MechanicalSolution *>(
+          solution_model.get()) &&
+      std::abs(composition_vector.sum() - 1.0) >
+          constants::precision::abs_tolerance) {
     throw std::runtime_error("Sum of molar fractions not equal to 1.0!");
   }
   molar_fractions = composition_vector;
