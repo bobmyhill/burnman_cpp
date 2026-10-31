@@ -3,7 +3,9 @@
 # Copyright (C) 2012 - 2026 by the BurnMan team, released under the GNU
 # GPL v2 or later.
 
-"""Numerical anisotropic EOS checks, following Python BurnMan."""
+"""Numerical EOS consistency checks, following Python BurnMan."""
+
+import warnings
 
 import numpy as np
 from scipy.linalg import logm, expm
@@ -14,6 +16,203 @@ from ..utils.anisotropy import (
     contract_stresses,
     expand_strains,
 )
+
+
+def check_eos_consistency(
+    m,
+    P=1.0e9,
+    T=300.0,
+    tol=1.0e-4,
+    verbose=False,
+    including_shear_properties=True,
+    equilibration_function=None,
+):
+    """
+    Checks that numerical derivatives of the Gibbs energy of a mineral
+    or composite under given conditions are equal to those provided
+    analytically by the equation of state.
+
+    :param m: The material for which the equation of state
+        is to be checked for consistency.
+    :type m: :class:`burnman_cpp.Material`
+
+    :param P: The pressure at which to check consistency.
+    :type P: float
+
+    :param T: The temperature at which to check consistency.
+    :type T: float
+
+    :param tol: The fractional tolerance for each of the checks.
+    :type tol: float
+
+    :param verbose: Decide whether to print information about each check.
+    :type verbose: bool
+
+    :param including_shear_properties: Decide whether to check shear information,
+        which is pointless for liquids and equations of state
+        without shear modulus parameterizations.
+    :type including_shear_properties: bool
+
+    :param equilibration_function: Function to internally equilibrate object.
+        Called after every set_state.
+        Takes the mineral object as its only argument.
+    :type equilibration_function: function
+
+    :returns: Boolean stating whether all checks have passed.
+    :rtype: bool
+
+    Uses molar properties and changes the state of ``m`` during the checks.
+    """
+    if equilibration_function is None:
+
+        def equilibration_function(mineral):
+            pass
+
+    dT = 1.0
+    dP = 1000.0
+
+    m.set_state(P, T)
+    equilibration_function(m)
+    G0 = m.molar_gibbs
+    S0 = m.molar_entropy
+    V0 = m.molar_volume
+
+    expr = ["G = F + PV", "G = H - TS", "G = E - TS + PV"]
+    eq = [
+        [m.molar_gibbs, (m.molar_helmholtz + P * m.molar_volume)],
+        [m.molar_gibbs, (m.molar_enthalpy - T * m.molar_entropy)],
+        [
+            m.molar_gibbs,
+            (m.molar_internal_energy - T * m.molar_entropy + P * m.molar_volume),
+        ],
+    ]
+
+    m.set_state(P, T + dT)
+    equilibration_function(m)
+    G1 = m.molar_gibbs
+    S1 = m.molar_entropy
+    V1 = m.molar_volume
+
+    m.set_state(P + dP, T)
+    equilibration_function(m)
+    G2 = m.molar_gibbs
+    V2 = m.molar_volume
+
+    # T derivatives
+    m.set_state(P, T + 0.5 * dT)
+    equilibration_function(m)
+    expr.extend(["S = -dG/dT", "alpha = 1/V dV/dT", "C_p = T dS/dT"])
+    eq.extend(
+        [
+            [m.molar_entropy, -(G1 - G0) / dT],
+            [m.thermal_expansivity, (V1 - V0) / dT / (V1 + V0) * 2.0],
+            [
+                m.molar_heat_capacity_p,
+                (T + 0.5 * dT) * (S1 - S0) / dT,
+            ],
+        ]
+    )
+
+    # P derivatives
+    m.set_state(P + 0.5 * dP, T)
+    equilibration_function(m)
+    expr.extend(["V = dG/dP", "K_T = -V dP/dV"])
+    eq.extend(
+        [
+            [m.molar_volume, (G2 - G0) / dP],
+            [m.isothermal_bulk_modulus_reuss, -0.5 * (V2 + V0) * dP / (V2 - V0)],
+        ]
+    )
+
+    expr.extend(
+        ["C_v = Cp - alpha^2*K_T*V*T", "K_S = K_T*Cp/Cv", "gr = alpha*K_T*V/Cv"]
+    )
+    eq.extend(
+        [
+            [
+                m.molar_heat_capacity_v,
+                m.molar_heat_capacity_p
+                - m.thermal_expansivity
+                * m.thermal_expansivity
+                * m.isothermal_bulk_modulus_reuss
+                * m.molar_volume
+                * T,
+            ],
+            [
+                m.isentropic_bulk_modulus_reuss,
+                m.isothermal_bulk_modulus_reuss
+                * m.molar_heat_capacity_p
+                / m.molar_heat_capacity_v,
+            ],
+            [
+                m.grueneisen_parameter,
+                m.thermal_expansivity
+                * m.isothermal_bulk_modulus_reuss
+                * m.molar_volume
+                / m.molar_heat_capacity_v,
+            ],
+        ]
+    )
+
+    if including_shear_properties:
+        expr.append("Vphi = np.sqrt(K_S/rho)")
+        eq.append(
+            [
+                m.bulk_sound_velocity,
+                np.sqrt(m.isentropic_bulk_modulus_reuss / m.density),
+            ]
+        )
+
+        expr.extend(["Vp = np.sqrt((K_S + 4G/3)/rho)", "Vs = np.sqrt(G_S/rho)"])
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            eq.extend(
+                [
+                    [
+                        m.p_wave_velocity,
+                        np.sqrt(
+                            (
+                                m.isentropic_bulk_modulus_reuss
+                                + 4.0 * m.shear_modulus / 3.0
+                            )
+                            / m.density
+                        ),
+                    ],
+                    [m.shear_wave_velocity, np.sqrt(m.shear_modulus / m.density)],
+                ]
+            )
+            if len(w) == 1:
+                print(w[0].message)
+                print(
+                    "\nYou can suppress this message by setting the "
+                    "parameter\nincluding_shear_properties to False "
+                    "when calling check_eos_consistency.\n"
+                )
+        note = ""
+    else:
+        note = " (not including shear properties)"
+
+    consistencies = [
+        np.abs(e[0] - e[1]) < np.abs(tol * e[1]) + np.finfo("float").eps for e in eq
+    ]
+    eos_is_consistent = np.all(consistencies)
+
+    if verbose:
+        print("Checking EoS consistency for {0:s}{1}".format(m.name, note))
+        print("Expressions within tolerance of {0:2f}".format(tol))
+        for i, c in enumerate(consistencies):
+            print("{0:10s} : {1:5s}".format(expr[i], str(c)))
+            if not c:
+                print(eq[i])
+        if eos_is_consistent:
+            print("All EoS consistency constraints satisfied for {0:s}".format(m.name))
+        else:
+            print(
+                "Not satisfied all EoS consistency constraints for {0:s}".format(m.name)
+            )
+
+    return eos_is_consistent
 
 
 def check_anisotropic_eos_consistency(
