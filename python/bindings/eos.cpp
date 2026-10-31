@@ -115,6 +115,17 @@ void bind_eos(py::module_ &m) {
   eos.def("validate_parameters", &EquationOfState::validate_parameters,
           py::arg("params"))
       .def(
+          "compute_density",
+          [](const EquationOfState &self, double volume,
+             const types::MineralParams &params) {
+            if (!std::isfinite(volume) || volume <= 0. || !params.molar_mass ||
+                !std::isfinite(*params.molar_mass) || *params.molar_mass <= 0.)
+              throw std::invalid_argument(
+                  "Density requires positive finite volume and molar mass.");
+            return self.compute_density(volume, params);
+          },
+          py::arg("volume"), py::arg("params"))
+      .def(
           "compute_volume",
           [](EquationOfState &self, double pressure, double temperature,
              types::MineralParams params) {
@@ -159,6 +170,8 @@ void bind_eos(py::module_ &m) {
                        &EquationOfState::compute_thermal_expansivity);
   bind_volume_property("compute_grueneisen_parameter",
                        &EquationOfState::compute_grueneisen_parameter);
+  bind_volume_property("compute_shear_modulus",
+                       &EquationOfState::compute_shear_modulus);
   bind_volume_property("compute_isothermal_bulk_modulus_reuss",
                        &EquationOfState::compute_isothermal_bulk_modulus_reuss);
   bind_volume_property("compute_isentropic_bulk_modulus_reuss",

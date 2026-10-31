@@ -419,3 +419,15 @@ def plot_projected_elastic_properties(
         axes[i].set_yticks([])
 
     return contour_sets, ticks, lines
+
+
+def pretty_plot():
+    """
+    Makes pretty plots. Overwrites the matplotlib default settings to allow
+    for better fonts. Slows down plotting
+    """
+    import matplotlib.pyplot as plt
+
+    plt.rc("text", usetex=True)
+    plt.rcParams["text.latex.preamble"] = "\\usepackage{relsize}"
+    plt.rc("font", family="sanserif")

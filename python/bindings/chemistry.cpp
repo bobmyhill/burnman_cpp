@@ -15,11 +15,16 @@
 #include "bindings.hpp"
 #include "burnman/tools/partitioning.hpp"
 #include "burnman/utils/chemistry_utils.hpp"
+#include "burnman/utils/constants.hpp"
 
 namespace burnman::python {
 void bind_chemistry(py::module_ &m) {
   auto chemistry =
       m.def_submodule("chemistry", "Native reaction chemistry in SI units.");
+  chemistry.attr("atomic_masses") =
+      py::cast(constants::chemistry::atomic_masses);
+  chemistry.attr("IUPAC_element_order") =
+      py::cast(constants::chemistry::IUPAC_element_order);
   chemistry.def("fugacity", &chemistry::fugacity, py::arg("standard_material"),
                 py::arg("assemblage"),
                 "Return component fugacity relative to a standard Material "
