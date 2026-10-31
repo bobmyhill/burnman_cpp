@@ -23,8 +23,10 @@ A spherical material layer on increasing radii in metres.
 
 Set a Material class object, temperature mode and pressure boundary conditions,
 then call make(). Each radius retains an independent material state. Radial
-integrals use GSL cubic splines; property queries at other radii interpolate
-pressure and temperature before evaluating the material.
+integrals use not-a-knot cubic interpolation with a local linear fallback for
+overshoot for monotone profiles (e.g., density jumps at layer boundaries).
+Property queries at other radii interpolate pressure and temperature before
+evaluating the material.
 )doc");
   layer
       .def(py::init([](const std::optional<std::string> &name,
@@ -90,12 +92,21 @@ overlying layer when the layer belongs to a Planet.
 Set 'user-defined' or 'self-consistent' pressures in Pa.
 
 A standalone layer requires gravity_bottom in m/s². Self-consistent pressures
-also require pressure_top in Pa. max_delta limits the relative change in the
-maximum pressure between iterations.
+also require pressure_top in Pa. max_delta limits the largest pressure-profile
+update relative to the largest absolute pressure between iterations.
 )doc")
-      .def("make", &Layer::make,
-           "Compute pressure and temperature profiles and independent material "
-           "states.")
+      .def(
+          "make",
+          [](Layer &self) {
+            self.make();
+            if (!self.converged() &&
+                PyErr_WarnEx(PyExc_RuntimeWarning,
+                             "Layer pressure iteration did not converge.",
+                             1) < 0)
+              throw py::error_already_set();
+          },
+          "Compute pressure and temperature profiles and independent material "
+          "states.")
       .def(
           "evaluate",
           [](const Layer &self, const std::vector<std::string> &names,

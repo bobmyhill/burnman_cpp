@@ -22,12 +22,20 @@ def make_simple_planet():
     mantle = Layer("mantle", np.linspace(3480000.0, 6371000.0, 10))
     mantle.set_material(burnman.minerals.SLB_2011.mg_bridgmanite())
     mantle.set_temperature_mode("adiabatic", temperature_top=1200)
-    myplanet = Planet("earth_like", [core, mantle])
+    myplanet = Planet("earth_like", [core, mantle], max_delta=1e-11)
     myplanet.make()
     return (myplanet, core, mantle)
 
 
 class test_planet(BurnManTest):
+
+    def test_planet_1(self):
+        myplanet, core, mantle = make_simple_planet()
+        assert myplanet.get_layer("core") == core
+        assert myplanet.get_layer_by_radius(2000.0e3) == core
+        assert myplanet.get_layer_by_radius(4000.0e3) == mantle
+        assert myplanet.get_layer_by_radius(5000.0e3) == mantle
+        self.assertFloatEqual(myplanet.pressure[0], 445231466723.2055, tol=1e-4)
 
     def test_sort_layers(self):
         myplanet, core, mantle = make_simple_planet()

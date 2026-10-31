@@ -16,6 +16,7 @@
 #include "burnman/optim/roots/brent.hpp"
 #include "burnman/utils/validate_optionals.hpp"
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 
 namespace burnman::eos {
@@ -67,7 +68,7 @@ double BM4::compute_volume(double pressure, double,
             fourth_order_residual(upper, &state) <=
         0.)
       return optim::roots::brent(&fourth_order_residual, state, lower, upper,
-                                 1.e-14 * *params.V_0);
+                                 std::numeric_limits<double>::min());
   }
   throw std::runtime_error(
       "Cannot bracket a stable fourth-order Birch-Murnaghan volume.");

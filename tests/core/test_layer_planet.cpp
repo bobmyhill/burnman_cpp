@@ -126,27 +126,22 @@ TEST_CASE("Layered planet preserves mass, interfaces and central gravity",
       Planet("gap", {core, uniform_layer("outer", 1.1e6, 2.e6, 4000.)}),
       std::invalid_argument);
 }
-TEST_CASE("Radial gravity and density moments converge for a graded sphere",
+TEST_CASE("Radial gravity and density moments integrate a quadratic density",
           "[layer]") {
   using namespace burnman;
   const double radius = 1.e6, rho = 4000.;
   const double surface_gravity = 4. * pi * constants::physics::gravitation *
                                  rho * radius * (1. / 3. + .25 / 5.);
   const double fourth_moment = rho * std::pow(radius, 5) * (1. / 5. + .25 / 7.);
-  double previous = 1.;
-  for (int count : {9, 17, 33}) {
+  for (int count : {3, 9, 17, 33}) {
     Layer layer("graded", Eigen::ArrayXd::LinSpaced(count, 0., radius));
     const Eigen::ArrayXd density =
         rho * (1. + .25 * (layer.radii / radius).square());
     const auto gravity = layer.compute_gravity(density, 0.);
-    const double error = std::abs(gravity[count - 1] / surface_gravity - 1.);
-    CHECK(error < previous);
-    previous = error;
-    if (count == 33) {
-      CHECK(error < 1.e-5);
-      CHECK_THAT(layer.density_integral(density, 4),
-                 Catch::Matchers::WithinRel(fourth_moment, 1.e-5));
-    }
+    CHECK_THAT(gravity[count - 1],
+               Catch::Matchers::WithinRel(surface_gravity, 1.e-13));
+    CHECK_THAT(layer.density_integral(density, 4),
+               Catch::Matchers::WithinRel(fourth_moment, 1.e-13));
   }
 }
 TEST_CASE("Boundary perturbations retain specified gradients at large Rayleigh "

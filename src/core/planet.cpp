@@ -95,6 +95,8 @@ void Planet::set_pressure_mode(const std::string &mode, const Array &pressures,
   if (!std::isfinite(top) || !std::isfinite(bottom) || bottom < 0.)
     throw std::invalid_argument(
         "Supply finite pressure_top and nonnegative gravity_bottom.");
+  if (radii_[0] == 0. && bottom != 0.)
+    throw std::invalid_argument("Gravity must be zero at the centre.");
   if (mode == "user-defined")
     detail::check_profile(pressures, radii_.size(), "Pressures");
   detail::check_iterations(iterations, delta);
@@ -182,20 +184,18 @@ void Planet::make() {
   if (pressure_mode_ == "user-defined") {
     pressures = userpressures_;
     temperatures = evaluate_temperature(pressures);
-    gravity = compute_gravity(evaluate_density(pressures, temperatures),
-                              gravity_bottom_);
     converged_ = true;
   } else {
     pressures = pressure_top_ + (get_radius_planet() - radii_) * 1.e3;
     temperatures = evaluate_temperature(pressures);
     for (int i = 0; i < n_max_iterations_; ++i) {
-      const double previous = pressures.maxCoeff();
+      const Array previous = pressures;
       const auto density = evaluate_density(pressures, temperatures);
       gravity = compute_gravity(density, gravity_bottom_);
       pressures = compute_pressure(density, gravity, pressure_top_);
       temperatures = evaluate_temperature(pressures);
-      const double change = std::abs(previous - pressures.maxCoeff()) /
-                            std::max(1., std::abs(pressures.maxCoeff()));
+      const double change = (pressures - previous).abs().maxCoeff() /
+                            std::max(1., pressures.abs().maxCoeff());
       n_iterations_ = i + 1;
       if (verbose)
         std::cout << "Iteration " << n_iterations_
@@ -208,6 +208,9 @@ void Planet::make() {
     if (!converged_)
       utils::warn("Planet pressure iteration did not converge: " + name);
   }
+  // Report gravity from the final state, consistently with the mass integral.
+  gravity = compute_gravity(evaluate_density(pressures, temperatures),
+                            gravity_bottom_);
   // Store both sides of each interface, with the actual lower-boundary gravity.
   for (const auto &layer : layers_) {
     layer->reset();

@@ -18,7 +18,8 @@
 #include <cmath>
 #include <functional>
 #include <gsl/gsl_integration.h>
-#include <gsl/gsl_spline.h>
+#include <gsl/gsl_poly.h>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 
@@ -55,26 +56,102 @@ inline double interpolate(double radius, const RadialArray &radii,
   const double fraction = (radius - radii[i - 1]) / (radii[i] - radii[i - 1]);
   return values[i - 1] + fraction * (values[i] - values[i - 1]);
 }
-// Native radial integration uses a cubic interpolant (linear for two points).
-// Integrating separately over each interval preserves material boundaries.
+// A not-a-knot CubicSpline, including two/three-point grids and
+// local linear fallback for overshoot on monotone neighbouring samples
+// (which can occur at density jumps at layer boundaries).
 class RadialSpline {
 public:
   RadialSpline(const RadialArray &radii, const RadialArray &values)
-      : spline_(gsl_spline_alloc(radii.size() > 2 ? gsl_interp_cspline
-                                                  : gsl_interp_linear,
-                                 static_cast<std::size_t>(radii.size())),
-                gsl_spline_free) {
+      : radii_(checked_radii(radii)), coefficients_(4, radii.size() - 1) {
     check_profile(values, radii.size(), "Density or gravity");
-    if (!spline_ || gsl_spline_init(spline_.get(), radii.data(), values.data(),
-                                    static_cast<std::size_t>(radii.size())))
-      throw std::runtime_error("Unable to construct a radial spline.");
+    const auto n = radii.size();
+    const RadialArray h = radii.tail(n - 1) - radii.head(n - 1);
+    const RadialArray delta = values.tail(n - 1) - values.head(n - 1);
+    const RadialArray slope = delta / h;
+    RadialArray derivatives(n);
+    if (n == 2)
+      derivatives.setConstant(slope[0]);
+    else if (n == 3) {
+      derivatives[1] = (h[0] * slope[1] + h[1] * slope[0]) / h.sum();
+      derivatives[0] = 2. * slope[0] - derivatives[1];
+      derivatives[2] = 2. * slope[1] - derivatives[1];
+    } else {
+      RadialArray lower = RadialArray::Zero(n), diagonal(n),
+                  upper = RadialArray::Zero(n), rhs(n);
+      for (Eigen::Index i = 1; i + 1 < n; ++i) {
+        lower[i] = h[i];
+        diagonal[i] = 2. * (h[i - 1] + h[i]);
+        upper[i] = h[i - 1];
+        rhs[i] = 3. * (h[i] * slope[i - 1] + h[i - 1] * slope[i]);
+      }
+      const double first = h[0] + h[1], last = h[n - 3] + h[n - 2];
+      diagonal[0] = h[1];
+      upper[0] = first;
+      rhs[0] =
+          ((h[0] + 2. * first) * h[1] * slope[0] + h[0] * h[0] * slope[1]) /
+          first;
+      lower[n - 1] = last;
+      diagonal[n - 1] = h[n - 3];
+      rhs[n - 1] = (h[n - 2] * h[n - 2] * slope[n - 3] +
+                    (2. * last + h[n - 2]) * h[n - 3] * slope[n - 2]) /
+                   last;
+      // Solve the tridiagonal derivative system in linear time.
+      for (Eigen::Index i = 1; i < n; ++i) {
+        const double factor = lower[i] / diagonal[i - 1];
+        diagonal[i] -= factor * upper[i - 1];
+        rhs[i] -= factor * rhs[i - 1];
+      }
+      derivatives[n - 1] = rhs[n - 1] / diagonal[n - 1];
+      for (Eigen::Index i = n - 2; i >= 0; --i)
+        derivatives[i] = (rhs[i] - upper[i] * derivatives[i + 1]) / diagonal[i];
+    }
+    const RadialArray tolerance =
+        64. * std::numeric_limits<double>::epsilon() *
+        values.head(n - 1).abs().max(values.tail(n - 1).abs());
+    const RadialArray trend = (delta.abs() <= tolerance).select(0., delta);
+    for (Eigen::Index i = 0; i + 1 < n; ++i) {
+      auto c = coefficients_.col(i);
+      const double left = h[i] * derivatives[i],
+                   right = h[i] * derivatives[i + 1];
+      c << left + right - 2. * delta[i], 3. * delta[i] - 2. * left - right,
+          left, values[i];
+      const double before = trend[std::max<Eigen::Index>(0, i - 1)],
+                   after = trend[std::min(n - 2, i + 1)];
+      if (std::min({before, trend[i], after}) < 0. &&
+          std::max({before, trend[i], after}) > 0.)
+        continue;
+      double roots[2] = {};
+      const int count = gsl_poly_solve_quadratic(3. * c[0], 2. * c[1], c[2],
+                                                 &roots[0], &roots[1]);
+      for (int j = 0; j < count; ++j) {
+        const double t = roots[j];
+        if (t <= 0. || t >= 1.)
+          continue;
+        const double value = ((c[0] * t + c[1]) * t + c[2]) * t + c[3];
+        if (value < std::min(values[i], values[i + 1]) - tolerance[i] ||
+            value > std::max(values[i], values[i + 1]) + tolerance[i]) {
+          c << 0., 0., delta[i], values[i];
+          break;
+        }
+      }
+    }
   }
   double operator()(double radius) const {
-    return gsl_spline_eval(spline_.get(), radius, nullptr);
+    if (!std::isfinite(radius) || radius < radii_[0] ||
+        radius > radii_[radii_.size() - 1])
+      throw std::out_of_range("Radius is outside the layer.");
+    const auto upper =
+        std::upper_bound(radii_.data(), radii_.data() + radii_.size(), radius);
+    const auto i =
+        std::min<Eigen::Index>(upper - radii_.data() - 1, radii_.size() - 2);
+    const double t = (radius - radii_[i]) / (radii_[i + 1] - radii_[i]);
+    const auto c = coefficients_.col(i);
+    return ((c[0] * t + c[1]) * t + c[2]) * t + c[3];
   }
 
 private:
-  std::unique_ptr<gsl_spline, decltype(&gsl_spline_free)> spline_;
+  RadialArray radii_;
+  Eigen::Matrix<double, 4, Eigen::Dynamic> coefficients_;
 };
 // Four-point Gauss-Legendre quadrature is exact for products of cubic splines
 // and for the r^4 density moment on each knot interval.
@@ -96,19 +173,37 @@ inline double integrate(const std::function<double(double)> &function,
   }
   return result;
 }
-// numpy.gradient(y, edge_order=2), with first-order ends for two samples.
-inline RadialArray index_gradient(const RadialArray &values) {
+// numpy.gradient(y, x, edge_order=2), with first-order ends for two samples.
+inline RadialArray gradient(const RadialArray &values,
+                            const RadialArray &coordinates) {
   const auto n = values.size();
   RadialArray result(n);
   if (n == 2) {
-    result.setConstant(values[1] - values[0]);
+    result.setConstant((values[1] - values[0]) /
+                       (coordinates[1] - coordinates[0]));
     return result;
   }
-  result[0] = (-3. * values[0] + 4. * values[1] - values[2]) / 2.;
-  result[n - 1] =
-      (3. * values[n - 1] - 4. * values[n - 2] + values[n - 3]) / 2.;
-  for (Eigen::Index i = 1; i + 1 < n; ++i)
-    result[i] = .5 * (values[i + 1] - values[i - 1]);
+  for (Eigen::Index i = 0; i < n; ++i) {
+    const auto middle = std::clamp<Eigen::Index>(i, 1, n - 2);
+    const double h0 = coordinates[middle] - coordinates[middle - 1],
+                 h1 = coordinates[middle + 1] - coordinates[middle];
+    double a, b, c;
+    if (i == 0) {
+      a = -(2. * h0 + h1) / (h0 * (h0 + h1));
+      b = (h0 + h1) / (h0 * h1);
+      c = -h0 / (h1 * (h0 + h1));
+    } else if (i == n - 1) {
+      a = h1 / (h0 * (h0 + h1));
+      b = -(h0 + h1) / (h0 * h1);
+      c = (2. * h1 + h0) / (h1 * (h0 + h1));
+    } else {
+      a = -h1 / (h0 * (h0 + h1));
+      b = (h1 - h0) / (h0 * h1);
+      c = h0 / (h1 * (h0 + h1));
+    }
+    result[i] =
+        a * values[middle - 1] + b * values[middle] + c * values[middle + 1];
+  }
   return result;
 }
 } // namespace burnman::detail
