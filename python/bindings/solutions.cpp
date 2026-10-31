@@ -21,7 +21,8 @@ namespace burnman::python {
 namespace {
 using Interactions = std::vector<std::vector<double>>;
 
-void check_endmembers(const types::PairedEndmemberList &endmembers) {
+void check_endmembers(const types::PairedEndmemberList &endmembers,
+                      bool require_sites) {
   if (endmembers.empty())
     throw std::invalid_argument(
         "A solution model requires at least one endmember.");
@@ -30,7 +31,8 @@ void check_endmembers(const types::PairedEndmemberList &endmembers) {
       throw std::invalid_argument(
           "Solution endmembers require chemical formula dictionaries.");
     }
-    if (formula.empty() || formula.find('[') == std::string::npos) {
+    if (require_sites &&
+        (formula.empty() || formula.find('[') == std::string::npos)) {
       throw std::invalid_argument("Endmember site formulae must include "
                                   "bracketed sites, e.g. '[Mg]O'.");
     }
@@ -40,15 +42,28 @@ void check_endmembers(const types::PairedEndmemberList &endmembers) {
 using Endmembers =
     std::vector<std::pair<std::shared_ptr<Mineral>, std::string>>;
 
-types::PairedEndmemberList scalar_endmembers(const Endmembers &endmembers) {
+types::PairedEndmemberList scalar_endmembers(const Endmembers &endmembers,
+                                             bool require_sites = true) {
   types::PairedEndmemberList result;
   for (const auto &[mineral, formula] : endmembers) {
     if (!mineral)
       throw std::invalid_argument("Solution endmembers cannot be None.");
     result.emplace_back(*mineral, formula);
   }
-  check_endmembers(result);
+  check_endmembers(result, require_sites);
   return result;
+}
+
+void check_model_fractions(const Eigen::ArrayXd &fractions,
+                           const solution_models::SolutionModel &model) {
+  if (dynamic_cast<const solution_models::MechanicalSolution *>(&model)) {
+    if (fractions.size() != model.get_n_endmembers() ||
+        !fractions.isFinite().all())
+      throw std::invalid_argument(
+          "Mechanical coefficients must be finite and match the endmembers.");
+  } else {
+    check_site_fractions(fractions, model.get_endmember_occupancies());
+  }
 }
 
 template <typename Model>
@@ -128,7 +143,7 @@ void bind_solutions(py::module_ &m) {
       [](const SolutionModel &self, double pressure, double temperature,       \
          const Eigen::ArrayXd &fractions) {                                    \
         check_pt(pressure, temperature);                                       \
-        check_site_fractions(fractions, self.get_endmember_occupancies());     \
+        check_model_fractions(fractions, self);                                \
         return self.name(pressure, temperature, fractions);                    \
       },                                                                       \
       py::arg("pressure"), py::arg("temperature"), py::arg("molar_fractions"))
@@ -148,6 +163,19 @@ void bind_solutions(py::module_ &m) {
   MODEL_COMPUTE(compute_alphaV_excess);
   MODEL_COMPUTE(compute_VoverKT_excess);
 #undef MODEL_COMPUTE
+  py::class_<MechanicalSolution, SolutionModel,
+             std::shared_ptr<MechanicalSolution>>(
+      m, "MechanicalSolution",
+      "Linear endmember mixing without configurational entropy or "
+      "interactions. Site formulae are labels; signed and unnormalised "
+      "coefficients are allowed, as in Python BurnMan.")
+      .def(py::init([](const Endmembers &endmembers) {
+             return retain_tensor_endmembers(
+                 std::make_shared<MechanicalSolution>(
+                     scalar_endmembers(endmembers, false)),
+                 endmembers);
+           }),
+           py::arg("endmembers"));
   py::class_<IdealSolution, SolutionModel, std::shared_ptr<IdealSolution>>(
       m, "IdealSolution")
       .def(py::init([](const Endmembers &endmembers) {
@@ -279,8 +307,7 @@ void bind_solutions(py::module_ &m) {
                        const std::string &name) {
              if (!model)
                throw std::invalid_argument("solution_model cannot be None.");
-             check_site_fractions(fractions,
-                                  model->get_endmember_occupancies());
+             check_model_fractions(fractions, *model);
              // Models hold mutable endmember state. Give each solution its own
              // copy.
              auto owned = model->clone();
@@ -299,7 +326,7 @@ void bind_solutions(py::module_ &m) {
       .def(
           "set_composition",
           [](Solution &self, const Eigen::ArrayXd &fractions) {
-            check_site_fractions(fractions, self.get_endmember_occupancies());
+            check_model_fractions(fractions, *self.get_solution_model());
             self.set_composition(fractions);
           },
           py::arg("molar_fractions"));

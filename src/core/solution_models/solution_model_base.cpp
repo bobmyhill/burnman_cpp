@@ -21,7 +21,15 @@
 
 namespace burnman::solution_models {
 
-SolutionModel::SolutionModel(const types::PairedEndmemberList &endmember_list) {
+SolutionModel::SolutionModel(const types::PairedEndmemberList &endmember_list)
+    : SolutionModel(endmember_list, true) {}
+
+SolutionModel::SolutionModel(const types::PairedEndmemberList &endmember_list,
+                             bool process_chemistry)
+    : n_sites(0), n_occupancies(0) {
+  if (endmember_list.empty())
+    throw std::invalid_argument(
+        "A solution model requires at least one endmember.");
   this->n_endmembers = static_cast<Eigen::Index>(endmember_list.size());
   this->endmembers.reserve(static_cast<std::size_t>(this->n_endmembers));
   this->formulas.reserve(static_cast<std::size_t>(this->n_endmembers));
@@ -31,7 +39,13 @@ SolutionModel::SolutionModel(const types::PairedEndmemberList &endmember_list) {
     this->formulas.push_back(formula);
   }
   // Process chemistry sets up site multiplicities/occupancies etc.
-  process_solution_chemistry();
+  if (process_chemistry) {
+    process_solution_chemistry();
+  } else {
+    site_multiplicities.resize(n_endmembers, 0);
+    endmember_occupancies.resize(n_endmembers, 0);
+    endmember_n_occupancies.resize(n_endmembers, 0);
+  }
 }
 
 void SolutionModel::process_solution_chemistry() {
