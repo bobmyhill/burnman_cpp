@@ -1,0 +1,309 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: Copyright (C) 2012-2026 by the BurnMan Team.
+"""Standalone port of upstream tests/test_utils.py.
+
+Reference: tests/reference/burnman.json.
+Original numerical inputs, assertions and tolerances are retained.
+"""
+
+from original_test_support import BurnManTest
+import tempfile
+import os
+import numpy as np
+from scipy.ndimage import gaussian_filter
+from sympy import Matrix, Rational
+import scipy.integrate as integrate
+from burnman_cpp.utils.anisotropy import expand_stresses
+from burnman_cpp.utils.anisotropy import contract_stresses
+from burnman_cpp.utils.anisotropy import expand_strains
+from burnman_cpp.utils.anisotropy import contract_strains
+from burnman_cpp.utils.chemistry import formula_to_string
+from burnman_cpp.utils.misc import extract_lines_between_markers
+from burnman_cpp.utils.misc import run_cli_program_with_input
+from burnman_cpp.utils.math import smooth_array
+from burnman_cpp.utils.math import l2_norm_profile, l2_norm_profiles
+from burnman_cpp.utils.math import chisqr_profiles
+from burnman_cpp.utils.math import independent_row_indices
+from burnman_cpp.utils.math import array_to_rational_matrix
+from burnman_cpp.utils.math import complete_basis, generate_complete_basis
+from burnman_cpp.utils.plotting import visual_center_of_polygon
+
+
+class test_utils(BurnManTest):
+
+    def setUp(self):
+        self.array = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+        self.grid_spacing = np.array([1.0, 1.0])
+        self.gaussian_rms_widths = np.array([1.0, 1.0])
+
+    def test_run_cli(self):
+        output = run_cli_program_with_input(["cat"], "Hello, CLI!\n", verbose=False)
+        self.assertEqual(output, "Hello, CLI!\n")
+
+    def test_extract_lines(self):
+        test_content = (
+            "Header\n    START_MARK\n    Line 1\n    Line 2\n    END_MARK\n    Footer"
+        )
+        with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tmp:
+            tmp.write(test_content)
+            tmp_path = tmp.name
+        result = extract_lines_between_markers(tmp_path, "START_MARK", "END_MARK")
+        self.assertEqual(result[0], "Line 1")
+        self.assertEqual(result[1], "Line 2")
+        result = extract_lines_between_markers(
+            tmp_path, "START_MARK", "END_MARK", inclusive=True
+        )
+        self.assertEqual(result[0], "START_MARK")
+        self.assertEqual(result[1], "Line 1")
+        self.assertEqual(result[2], "Line 2")
+        self.assertEqual(result[3], "END_MARK")
+        os.remove(tmp_path)
+
+    def test_smooth_array_basic_gaussian_smoothing(self):
+        expected = gaussian_filter(self.array, sigma=(1.0, 1.0), mode="reflect")
+        result = smooth_array(
+            self.array, self.grid_spacing, self.gaussian_rms_widths, mode="reflect"
+        )
+        np.testing.assert_allclose(result, expected, rtol=1e-05)
+
+    def test_smooth_array_invalid_mode_uses_scipy_fallback(self):
+        result = smooth_array(
+            self.array, self.grid_spacing, self.gaussian_rms_widths, mode="nearest"
+        )
+        expected = gaussian_filter(self.array, sigma=(1.0, 1.0), mode="nearest")
+        np.testing.assert_allclose(result, expected, rtol=1e-05)
+
+    def test_smooth_array_different_grid_spacing(self):
+        grid_spacing = np.array([0.5, 2.0])
+        sigma = tuple(self.gaussian_rms_widths / grid_spacing)
+        expected = gaussian_filter(self.array, sigma=sigma, mode="reflect")
+        result = smooth_array(
+            self.array, grid_spacing, self.gaussian_rms_widths, mode="reflect"
+        )
+        np.testing.assert_allclose(result, expected, rtol=1e-05)
+
+    def test_l2_norm_exact_match(self):
+        x = np.linspace(0, 10, 100)
+        f = np.sin(x)
+        result = l2_norm_profile(x, f, f)
+        self.assertAlmostEqual(result, 0.0, places=10)
+
+    def test_l2_norm_linear_difference(self):
+        x = np.array([0, 1, 2])
+        f1 = np.array([1, 2, 3])
+        f2 = np.array([1, 1, 1])
+        result = l2_norm_profile(x, f1, f2)
+        self.assertAlmostEqual(result, np.sqrt(3), places=4)
+
+    def test_l2_norm_constant_vs_zero(self):
+        x = np.linspace(0, 1, 5)
+        f1 = np.ones_like(x)
+        f2 = np.zeros_like(x)
+        expected = np.sqrt(integrate.trapezoid(f1**2, x))
+        result = l2_norm_profile(x, f1, f2)
+        self.assertAlmostEqual(result, expected, places=6)
+
+    def test_l2_norm_nonuniform_grid(self):
+        x = np.array([0.0, 0.1, 0.4, 1.0])
+        f1 = np.array([1.0, 2.0, 3.0, 4.0])
+        f2 = np.array([1.0, 2.0, 1.0, 0.0])
+        result = l2_norm_profile(x, f1, f2)
+        self.assertTrue(result > 0)
+
+    def test_l2_norm_input_shape_mismatch(self):
+        x = np.array([0, 1, 2])
+        f1 = np.array([1, 2, 3])
+        f2 = np.array([1, 2])
+        with self.assertRaises(ValueError):
+            l2_norm_profile(x, f1, f2)
+
+    def test_compare_l2_norm_constant_vs_zero_profiles(self):
+        depth = np.linspace(0, 1, 10)
+        calc = [np.ones_like(depth), 2 * np.ones_like(depth)]
+        obs = [np.zeros_like(depth), np.zeros_like(depth)]
+        result = l2_norm_profiles(depth, calc, obs)
+        expected_1 = np.sqrt(integrate.trapezoid(np.ones_like(depth) ** 2, depth))
+        expected_2 = np.sqrt(integrate.trapezoid((2 * np.ones_like(depth)) ** 2, depth))
+        self.assertAlmostEqual(result[0], expected_1, places=6)
+        self.assertAlmostEqual(result[1], expected_2, places=6)
+
+    def test_compare_l2_norm_mismatched_profile_lengths(self):
+        depth = np.array([0, 1, 2])
+        calc = [np.array([1, 2, 3])]
+        obs = [np.array([1, 2])]
+        with self.assertRaises(ValueError):
+            l2_norm_profiles(depth, calc, obs)
+
+    def test_chisqr_perfect_match(self):
+        profile1 = np.array([1.0, 2.0, 3.0])
+        profile2 = np.array([4.0, 5.0, 6.0])
+        calc = [profile1, profile2]
+        obs = [profile1.copy(), profile2.copy()]
+        result = chisqr_profiles(calc, obs)
+        for val in result:
+            self.assertAlmostEqual(val, 0.0, places=12)
+
+    def test_chisqr_known_difference(self):
+        obs = np.array([10, 10, 10])
+        calc = np.array([10, 11, 12])
+        expected = 166.6667
+        result = chisqr_profiles([calc], [obs])
+        self.assertAlmostEqual(result[0], expected, places=3)
+
+    def test_chisqr_multiple_profiles(self):
+        obs1 = np.array([1, 2, 3])
+        obs2 = np.array([4, 5, 6])
+        calc1 = np.array([1.1, 2.1, 3.1])
+        calc2 = np.array([3.9, 4.9, 6.1])
+        result = chisqr_profiles([calc1, calc2], [obs1, obs2])
+
+        def manual_chi(calc, obs):
+            diff = (calc - obs) / (0.01 * np.mean(obs))
+            return np.mean(diff**2)
+
+        expected = [manual_chi(calc1, obs1), manual_chi(calc2, obs2)]
+        for r, e in zip(result, expected):
+            self.assertAlmostEqual(r, e, places=6)
+
+    def test_chisqr_empty_input(self):
+        result = chisqr_profiles([], [])
+        self.assertEqual(len(result), 0)
+
+    def test_chisqr_mismatched_lengths(self):
+        calc = [np.array([1, 2])]
+        obs = []
+        with self.assertRaises(IndexError):
+            chisqr_profiles(calc, obs)
+
+    def test_independent_row_indices(self):
+        arr = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        result = independent_row_indices(arr)
+        self.assertEqual(result, [0, 1, 2])
+
+    def test_independent_row_indices_dependent_rows(self):
+        arr = np.array([[1, 2], [2, 4], [3, 5]])
+        result = independent_row_indices(arr)
+        self.assertEqual(len(result), 2)
+        self.assertTrue(0 in result)
+        self.assertTrue(2 in result)
+
+    def test_independent_row_indices_swap_logic(self):
+        arr = np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]])
+        result = independent_row_indices(arr)
+        self.assertEqual(len(result), 3)
+        self.assertEqual(sorted(result), [0, 1, 2])
+
+    def test_independent_row_indices_rank_deficient_matrix(self):
+        arr = np.array([[1, 1, 1], [2, 2, 2], [3, 3, 3]])
+        result = independent_row_indices(arr)
+        self.assertEqual(result, [0])
+
+    def test_independent_row_indices_floating_point_precision(self):
+        arr = np.array([[1.0, 2.0], [2.0, 4.000001], [0.0, 1.0]])
+        result = independent_row_indices(arr)
+        self.assertEqual(len(result), 2)
+
+    def test_array_to_rational_matrix(self):
+        arr = np.array([[0.5, 0.333], [0.25, 1.125]])
+        result = array_to_rational_matrix(arr)
+        self.assertIsInstance(result, Matrix)
+        self.assertEqual(result.shape, (2, 2))
+        expected = [
+            [Rational(1, 2), Rational(333, 1000)],
+            [Rational(1, 4), Rational(9, 8)],
+        ]
+        for i in range(2):
+            for j in range(2):
+                self.assertEqual(result[i, j], expected[i][j])
+                self.assertIsInstance(result[i, j], Rational)
+
+    def test_complete_basis_flip(self):
+        basis = np.array([[1, 1, 0, 0], [0, 1, 1, 0], [0, 0, 1, 1], [1, 0, 0, 0]])
+        incomplete_basis = np.array([[1, 1, 0, 0], [0, 1, 1, 0], [0, 0, 1, 1]])
+        basis2 = complete_basis(incomplete_basis, True)
+        np.testing.assert_allclose(basis, basis2, rtol=1e-05)
+
+    def test_complete_basis_no_flip(self):
+        basis = np.array([[1, 1, 0, 0], [0, 1, 1, 0], [0, 0, 1, 1], [0, 0, 0, 1]])
+        incomplete_basis = np.array([[1, 1, 0, 0], [0, 1, 1, 0], [0, 0, 1, 1]])
+        basis2 = complete_basis(incomplete_basis, False)
+        np.testing.assert_allclose(basis, basis2, rtol=1e-05)
+
+    def test_complete_basis_full(self):
+        basis = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        basis2 = complete_basis(basis)
+        np.testing.assert_allclose(basis, basis2, rtol=1e-05)
+
+    def test_generate_complete_basis(self):
+        incomplete_basis = np.array([[1, 0, 0], [1, 1, 0]])
+        array = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        c = np.array([[1, 0, 0], [1, 1, 0], [0, 0, 1]])
+        c2 = generate_complete_basis(incomplete_basis, array)
+        np.testing.assert_allclose(c, c2, rtol=1e-05)
+
+    def test_visual_center_square(self):
+        square = [np.array([[0, 0], [10, 0], [10, 10], [0, 10]])]
+        center = visual_center_of_polygon(square, precision=0.01)
+        self.assertTrue(np.allclose(center, [5, 5], atol=0.1))
+
+    def test_visual_center_with_distance(self):
+        square = [np.array([[0, 0], [10, 0], [10, 10], [0, 10]])]
+        center, dist = visual_center_of_polygon(
+            square, precision=0.01, with_distance=True
+        )
+        self.assertTrue(np.allclose(center, [5, 5], atol=0.1))
+        self.assertTrue(abs(dist - 5.0) < 0.2)
+
+    def test_visual_center_narrow_rectangle(self):
+        rect = [np.array([[0, 0], [100, 0], [100, 1], [0, 1]])]
+        center, dist = visual_center_of_polygon(
+            rect, precision=0.01, with_distance=True
+        )
+        self.assertTrue(np.allclose(center[1], 0.5, atol=0.05))
+        self.assertTrue(dist < 1.0)
+
+    def test_visual_center_invalid_input_shape(self):
+        invalid = [np.array([[1, 2, 3]])]
+        with self.assertRaises(ValueError):
+            visual_center_of_polygon(invalid)
+
+    def test_visual_center_tiny_square(self):
+        tiny = [np.array([[0, 0], [0.001, 0], [0.001, 0.001], [0, 0.001]])]
+        center = visual_center_of_polygon(tiny)
+        self.assertTrue(np.allclose(center, [0.0005, 0.0005], atol=0.0001))
+
+    def test_visual_center_long_square(self):
+        tiny = [np.array([[0, 0], [1, 0], [1, 0.001], [0, 0.001]])]
+        center = visual_center_of_polygon(tiny)
+        self.assertTrue(np.allclose(center, [0.5, 0.0005], atol=0.0001))
+
+    def test_formula_to_string(self):
+        formula = {"Si": 1, "O": 4, "Mg": 1.5, "Fe": 0.5}
+        result = formula_to_string(formula, use_fractions=False)
+        self.assertEqual(result, "Mg1.5Fe0.5SiO4")
+        result_frac = formula_to_string(formula)
+        self.assertEqual(result_frac, "Mg3/2Fe1/2SiO4")
+        formula_zero = {"Si": 1.0, "O": 4.0, "Mg": 0.0, "Fe": 2.0}
+        result_zero = formula_to_string(
+            formula_zero, use_fractions=False, significant_figures=1
+        )
+        self.assertEqual(result_zero, "Fe2.0SiO4.0")
+        formula_sf = {"Si": 2, "O": 4, "Mg": 1.123456, "Fe": 0.5}
+        result_sf = formula_to_string(
+            formula_sf, use_fractions=False, significant_figures=2
+        )
+        self.assertEqual(result_sf, "Mg1.12Fe0.5Si2O4")
+
+    def test_expand_contract_stresses(self):
+        stress_tensor = np.array([[1.0, 2.0, 3.0], [2.0, 4.0, 5.0], [3.0, 5.0, 6.0]])
+        voigt = contract_stresses(stress_tensor)
+        expanded = expand_stresses(voigt)
+        for i in range(3):
+            self.assertArraysAlmostEqual(expanded[i], stress_tensor[i])
+
+    def test_expand_contract_strains(self):
+        strain_tensor = np.array([[1.0, 2.0, 3.0], [2.0, 4.0, 5.0], [3.0, 5.0, 6.0]])
+        voigt = contract_strains(strain_tensor)
+        expanded = expand_strains(voigt)
+        for i in range(3):
+            self.assertArraysAlmostEqual(expanded[i], strain_tensor[i])

@@ -218,7 +218,14 @@ void bind_solutions(py::module_ &m) {
            py::arg("endmembers"), py::arg("alphas"),
            py::arg("energy_interaction"),
            py::arg("volume_interaction") = Interactions{},
-           py::arg("entropy_interaction") = Interactions{});
+           py::arg("entropy_interaction") = Interactions{})
+      .def_property_readonly("alphas", &AsymmetricRegularSolution::get_alphas)
+      .def_property_readonly(
+          "We", &AsymmetricRegularSolution::get_energy_interactions)
+      .def_property_readonly(
+          "Ws", &AsymmetricRegularSolution::get_entropy_interactions)
+      .def_property_readonly(
+          "Wv", &AsymmetricRegularSolution::get_volume_interactions);
   py::class_<SymmetricRegularSolution, AsymmetricRegularSolution,
              std::shared_ptr<SymmetricRegularSolution>>(
       m, "SymmetricRegularSolution")
