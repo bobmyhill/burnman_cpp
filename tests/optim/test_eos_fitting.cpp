@@ -14,11 +14,73 @@
 #include "burnman/core/material.hpp"
 #include "burnman/minerals/datasets.hpp"
 #include "burnman/optim/eos_fitting.hpp"
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <cmath>
 #include <limits>
 #include <stdexcept>
 
 using namespace burnman;
+
+namespace {
+// Port of the binary/ternary density-normal checks in tests/test_fitting.py
+// from the Python reference selected by tests/reference/burnman.json.
+void check_solution_fit_density_normal(
+    const std::shared_ptr<Solution> &solution,
+    const std::vector<Eigen::ArrayXd> &compositions) {
+  const auto n = solution->get_n_endmembers();
+  for (const auto &fractions : compositions) {
+    for (const auto &state :
+         {Eigen::Vector2d(5.e9, 1000.), Eigen::Vector2d(25.e9, 1600.)}) {
+      CAPTURE(fractions, state);
+      solution->set_composition(fractions);
+      solution->set_state(state[0], state[1]);
+      const double density = solution->get_density();
+      Eigen::VectorXd point(n + 3);
+      point.head(n) = fractions.matrix();
+      point.tail<3>() << state[0], state[1], density;
+      Eigen::MatrixXd data(1, point.size());
+      data.row(0) = point.transpose();
+      Eigen::MatrixXd covariance =
+          Eigen::MatrixXd::Zero(point.size(), point.size());
+      covariance.diagonal().tail<3>() << 1.e12, 1., 1.;
+      optim::SolutionFit model(solution, data, {covariance}, {"rho"},
+                               {{"V_0", 0}},
+                               Eigen::VectorXd::Constant(1, 1.e-8));
+      // d(rho)/dP = rho/K_T and d(rho)/dT = -alpha*rho.
+      Eigen::VectorXd expected = Eigen::VectorXd::Zero(point.size());
+      expected.tail<3>() << -density /
+                                solution->get_isothermal_bulk_modulus_reuss(),
+          solution->get_thermal_expansivity() * density, 1.;
+      expected.normalize();
+      const auto normal = model.normal(point, std::string("rho"));
+      REQUIRE(normal.allFinite());
+      for (Eigen::Index i = 0; i < point.size(); ++i)
+        CHECK_THAT(
+            normal[i],
+            Catch::Matchers::WithinAbs(
+                expected[i],
+                std::max(1.e-16, 1.e-6 * std::max(std::abs(normal[i]),
+                                                  std::abs(expected[i])))));
+    }
+  }
+}
+} // namespace
+
+TEST_CASE("Original binary solution density fitting normal",
+          "[eos_fitting][solution_density_normal][original]") {
+  check_solution_fit_density_normal(
+      minerals::SLB_2011::mg_fe_olivine(),
+      {Eigen::Array2d(.7, .3), Eigen::Array2d(.2, .8)});
+}
+
+TEST_CASE("Original ternary solution density fitting normal",
+          "[eos_fitting][solution_density_normal][original]") {
+  check_solution_fit_density_normal(
+      minerals::SLB_2011::mg_fe_perovskite(),
+      {Eigen::Array3d(.7, .2, .1), Eigen::Array3d(.2, .5, .3)});
+}
 
 TEST_CASE("Default MLE tolerances use fixed energy and pressure scales",
           "[eos_fitting]") {

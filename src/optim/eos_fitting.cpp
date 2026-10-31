@@ -488,13 +488,12 @@ Vector SolutionFit::normal(const Vector &x, const std::any &flag) {
     xP1[n] += dP;
     xT0[n + 1] -= dT;
     xT1[n + 1] += dT;
-    // Preserve the pinned SolutionFit's coordinate-2 finite differences.
-    // See PYTHON_BURNMAN_POTENTIAL_FIXES.md.
-    const double high_P = function(xP1, flag)[2];
-    const double low_P = function(xP0, flag)[2];
+    // The predicted property follows all composition and state coordinates.
+    const double high_P = function(xP1, flag)[n + 2];
+    const double low_P = function(xP0, flag)[n + 2];
     dPdp = 2. * dP / (high_P - low_P);
-    const double high_T = function(xT1, flag)[2];
-    const double low_T = function(xT0, flag)[2];
+    const double high_T = function(xT1, flag)[n + 2];
+    const double low_T = function(xT0, flag)[n + 2];
     dpdT = (high_T - low_T) / (2. * dT);
   }
   Vector result = Vector::Zero(x.size());
