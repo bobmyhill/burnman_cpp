@@ -186,24 +186,30 @@ def test_binary_interactions_match_python_scaling_and_properties(dataset, name):
         )
 
 
-@pytest.mark.parametrize("flag", ["V", "H", "S", "gibbs", "p_wave_velocity"])
-def test_solution_normals_follow_pin(flag):
+@pytest.mark.parametrize(
+    "name,fractions",
+    [
+        ("mg_fe_olivine", [0.4, 0.6]),
+        ("mg_fe_perovskite", [0.6, 0.3, 0.1]),
+    ],
+)
+@pytest.mark.parametrize("flag", ["V", "H", "S", "gibbs", "p_wave_velocity", "rho"])
+def test_solution_normals_follow_pin(name, fractions, flag):
     reference = pytest.importorskip("burnman")
-    actual = direct_model(bm.minerals.SLB_2011.mg_fe_olivine(), FIT_PARAMS)
+    actual = direct_model(getattr(bm.minerals.SLB_2011, name)(), FIT_PARAMS)
     expected = reference.eos_fitting.SolutionFit(
-        reference.minerals.SLB_2011.mg_fe_olivine(),
+        getattr(reference.minerals.SLB_2011, name)(),
         actual.data,
         actual.data_covariances,
         actual.flags,
         FIT_PARAMS,
         actual.mle_tolerances,
     )
-    x = np.array([0.4, 0.6, 2.0e9, 1000.0, 0.0])
-    assert_allclose(actual.normal(x, flag), expected.normal(x, flag), rtol=1.0e-8)
-    assert_array_equal(actual.normal(x, flag)[:2], [0.0, 0.0])
-    if flag == "p_wave_velocity":
-        # The pinned fallback reads pressure at coordinate 2, not velocity.
-        assert_allclose(actual.normal(x, flag)[-3:], [-(2**-0.5), 0.0, 2**-0.5])
+    x = np.array([*fractions, 2.0e9, 1000.0, 0.0])
+    normal = actual.normal(x, flag)
+    assert np.isfinite(normal).all()
+    assert_allclose(normal, expected.normal(x, flag), rtol=1.0e-8)
+    assert_array_equal(normal[: len(fractions)], 0.0)
 
 
 def test_solution_fit_rejects_unimplemented_de():
