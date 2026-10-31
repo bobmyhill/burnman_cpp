@@ -20,6 +20,7 @@
 #include "burnman/core/solution_models/mechanical_solution.hpp"
 #include "burnman/core/solution_models/polynomial_solution.hpp"
 #include "burnman/core/solution_models/solution_model_base.hpp"
+#include "burnman/core/solution_models/subregular_solution.hpp"
 #include "burnman/core/solution_models/symmetric_regular_solution.hpp"
 
 namespace burnman {
@@ -38,6 +39,7 @@ namespace burnman {
  * - IdealSolution
  * - AsymmetricRegularSolution
  * - SymmetricRegularSolution
+ * - SubregularSolution
  * - PolynomialSolution
  */
 namespace solution_models {

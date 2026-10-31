@@ -28,13 +28,14 @@ from . import (
     Mineral,
     MineralParams,
     Solution,
+    SubregularSolution,
     SymmetricRegularSolution,
     water_fluid,
 )
 
 
 def from_burnman(phase):
-    """Copy a BurnMan mineral or mechanical/ideal/regular solution into a native object.
+    """Copy a BurnMan mineral or supported Gibbs solution into a native object.
 
     Includes property modifiers, nested combined endmembers, site formulae,
     and energy/entropy/volume interactions. Unsupported models and parameter
@@ -69,6 +70,25 @@ def from_burnman(phase):
             native_model = IdealSolution(endmembers)
         elif type(model) is models.MechanicalSolution:
             native_model = MechanicalSolution(endmembers)
+        elif type(model) is models.SubregularSolution:
+            # Retain the full cubic tensors, including terms induced by binaries.
+            def terms(tensor):
+                return [
+                    [*indices, tensor[tuple(indices)]]
+                    for indices in np.argwhere(tensor != 0)
+                ]
+
+            zeros = [
+                [[0.0, 0.0] for _ in endmembers[i + 1 :]]
+                for i in range(len(endmembers) - 1)
+            ]
+            native_model = SubregularSolution(
+                endmembers,
+                zeros,
+                energy_ternary_terms=terms(model.Wijke),
+                volume_ternary_terms=terms(model.Wijkv),
+                entropy_ternary_terms=terms(model.Wijks),
+            )
         else:
             raise TypeError(
                 f"Unsupported BurnMan solution model: {type(model).__name__}"
