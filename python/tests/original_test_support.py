@@ -173,19 +173,6 @@ def ideal_model_call(model, method, *args):
     return getattr(ideal, method)(*args)
 
 
-def native_evaluate(material, names, pressures, temperatures):
-    # The wave modulus K_eff differs from the thermodynamic Reuss modulus.
-    # Read the same native effective modulus via K_eff = rho*v_phi**2.
-    translated = ["bulk_sound_velocity" if name == "K_eff" else name for name in names]
-    values = material.evaluate(translated, pressures, temperatures)
-    if "K_eff" in names:
-        density = material.evaluate(["density"], pressures, temperatures)[0]
-        for i, name in enumerate(names):
-            if name == "K_eff":
-                values[i] = density * values[i] ** 2
-    return values
-
-
 def is_native_factory(value, kind=burnman.Material):
     module = getattr(value, "__module__", "")
     return (

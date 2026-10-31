@@ -307,6 +307,10 @@ public:
    */
   double get_isentropic_bulk_modulus_reuss() const;
 
+  /// Effective seismic moduli [Pa]; composites use their averaging scheme.
+  double get_effective_isentropic_bulk_modulus() const;
+  double get_effective_shear_modulus() const;
+
   /**
    * @brief Retrieves the isothermal compressibility of the mineral.
    *
@@ -571,6 +575,8 @@ protected:
    * @throws `exceptions::NotImplementedError' if default implementation called.
    */
   virtual double compute_isentropic_bulk_modulus_reuss() const;
+  virtual double compute_effective_isentropic_bulk_modulus() const;
+  virtual double compute_effective_shear_modulus() const;
 
   /**
    * @brief Computes the isothermal compressibility of the mineral.
@@ -724,6 +730,8 @@ private:
   mutable std::optional<double> molar_enthalpy;
   mutable std::optional<double> isothermal_bulk_modulus_reuss;
   mutable std::optional<double> isentropic_bulk_modulus_reuss;
+  mutable std::optional<double> effective_isentropic_bulk_modulus;
+  mutable std::optional<double> effective_shear_modulus;
   mutable std::optional<double> isothermal_compressibility_reuss;
   mutable std::optional<double> isentropic_compressibility_reuss;
   mutable std::optional<double> shear_modulus;

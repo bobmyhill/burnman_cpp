@@ -147,7 +147,9 @@ public:
    *
    * @param composition_vector Molar fractions of endmembers.
    * @throws RuntimeError if solution model not set.
-   * @throws RuntimeError if sum(composition_vector) != 1.
+   * @throws RuntimeError if sum(composition_vector) != 1, except for
+   *         MechanicalSolution, which accepts signed, unnormalised
+   * coefficients.
    * @throws RuntimeError if length(composition_vector) != n_endmembers.
    */
   virtual void set_composition(const Eigen::ArrayXd &composition_vector);
@@ -155,6 +157,8 @@ public:
   // Public getters for extra Solution functions
   /**
    * @brief Retrieves molar fractions array.
+   * For MechanicalSolution these are linear mixing coefficients and may be
+   * signed or unnormalised. The shared API name is retained for compatibility.
    */
   Eigen::ArrayXd get_molar_fractions() const;
 

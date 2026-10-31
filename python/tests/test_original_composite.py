@@ -18,6 +18,19 @@ from burnman_cpp import minerals
 
 class composite(BurnManTest):
 
+    def test_evaluate(self):
+        rock = make_assemblage(
+            [minerals.SLB_2005.wuestite(), minerals.SLB_2005.mg_perovskite()],
+            [0.5, 0.5],
+        )
+        K, G = rock.evaluate(["K_eff", "G_eff"], 40.0e9, 2000.0)
+        rock.set_state(40.0e9, 2000.0)
+        # Python's K_eff is the effective seismic modulus, not K_S (Reuss).
+        K2 = rock.K_eff
+        G2 = rock.G_eff
+        self.assertFloatEqual(K, K2)
+        self.assertFloatEqual(G, G2)
+
     def test_density_composite(self):
         pyrolite = make_assemblage(
             [minerals.SLB_2005.mg_perovskite(), minerals.SLB_2005.periclase()],
@@ -103,7 +116,7 @@ class composite(BurnManTest):
         self.assertFloatEqual(108.686, G1 / 1000000000.0)
         rock.set_averaging_scheme(burnman.AveragingType.HashinShtrikmanLower)
         rock.set_state(5000000000.0, 1000.0)
-        G2 = rock.shear_modulus
+        G2 = rock.G_eff
         self.assertFloatEqual(104.451, G2 / 1000000000.0)
         rock.set_averaging_scheme(burnman.AveragingType.HashinShtrikmanUpper)
         rock.set_state(5000000000.0, 1000.0)

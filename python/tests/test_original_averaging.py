@@ -10,7 +10,6 @@ from original_test_support import (
     BurnManTest,
     make_assemblage,
     native_method,
-    native_evaluate,
 )
 import burnman_cpp as burnman
 from burnman_cpp import minerals
@@ -47,8 +46,7 @@ class VRH(BurnManTest):
         rock = make_assemblage([mypericlase()], [1.0])
         rock.set_method(native_method("slb3"))
         rock.set_averaging_scheme(burnman.AveragingType.VRH)
-        rho, v_p, v_s, v_phi, K_vrh, G_vrh = native_evaluate(
-            rock,
+        rho, v_p, v_s, v_phi, K_vrh, G_vrh = rock.evaluate(
             [
                 "density",
                 "p_wave_velocity",
@@ -71,8 +69,7 @@ class VRH(BurnManTest):
         rock = make_assemblage([mypericlase()] * number, [1.0 / number] * number)
         rock.set_method(native_method("slb3"))
         rock.set_averaging_scheme(burnman.AveragingType.VRH)
-        rho, v_p, v_s, v_phi, K_vrh, G_vrh = native_evaluate(
-            rock,
+        rho, v_p, v_s, v_phi, K_vrh, G_vrh = rock.evaluate(
             [
                 "density",
                 "p_wave_velocity",
@@ -103,8 +100,7 @@ class VRH(BurnManTest):
         )
         rock.set_method(native_method("slb3"))
         rock.set_averaging_scheme(burnman.AveragingType.VRH)
-        rho, v_p, v_s, v_phi, K_vrh, G_vrh = native_evaluate(
-            rock,
+        rho, v_p, v_s, v_phi, K_vrh, G_vrh = rock.evaluate(
             [
                 "density",
                 "p_wave_velocity",
@@ -129,8 +125,7 @@ class Reuss(BurnManTest):
     def test_1(self):
         rock = make_assemblage([mypericlase()], [1.0])
         rock.set_averaging_scheme(burnman.AveragingType.Reuss)
-        rho, v_p, v_s, v_phi, K, G = native_evaluate(
-            rock,
+        rho, v_p, v_s, v_phi, K, G = rock.evaluate(
             [
                 "density",
                 "p_wave_velocity",
@@ -152,8 +147,7 @@ class Reuss(BurnManTest):
     def same(self, number):
         rock = make_assemblage([mypericlase()] * number, [1.0 / number] * number)
         rock.set_averaging_scheme(burnman.AveragingType.Reuss)
-        rho, v_p, v_s, v_phi, K, G = native_evaluate(
-            rock,
+        rho, v_p, v_s, v_phi, K, G = rock.evaluate(
             [
                 "density",
                 "p_wave_velocity",
@@ -183,8 +177,7 @@ class Reuss(BurnManTest):
             [0.5, 0.5],
         )
         rock.set_averaging_scheme(burnman.AveragingType.Reuss)
-        rho, v_p, v_s, v_phi, K, G = native_evaluate(
-            rock,
+        rho, v_p, v_s, v_phi, K, G = rock.evaluate(
             [
                 "density",
                 "p_wave_velocity",
@@ -209,8 +202,7 @@ class Voigt(BurnManTest):
     def test_1(self):
         rock = make_assemblage([mypericlase()], [1.0])
         rock.set_averaging_scheme(burnman.AveragingType.Voigt)
-        rho, v_p, v_s, v_phi, K, G = native_evaluate(
-            rock,
+        rho, v_p, v_s, v_phi, K, G = rock.evaluate(
             [
                 "density",
                 "p_wave_velocity",
@@ -232,8 +224,7 @@ class Voigt(BurnManTest):
     def same(self, number):
         rock = make_assemblage([mypericlase()] * number, [1.0 / number] * number)
         rock.set_averaging_scheme(burnman.AveragingType.Voigt)
-        rho, v_p, v_s, v_phi, K, G = native_evaluate(
-            rock,
+        rho, v_p, v_s, v_phi, K, G = rock.evaluate(
             [
                 "density",
                 "p_wave_velocity",
@@ -263,8 +254,7 @@ class Voigt(BurnManTest):
             [0.5, 0.5],
         )
         rock.set_averaging_scheme(burnman.AveragingType.Voigt)
-        rho, v_p, v_s, v_phi, K, G = native_evaluate(
-            rock,
+        rho, v_p, v_s, v_phi, K, G = rock.evaluate(
             [
                 "density",
                 "p_wave_velocity",
@@ -289,8 +279,7 @@ class HSLower(BurnManTest):
     def test_1(self):
         rock = make_assemblage([mypericlase()], [1.0])
         rock.set_averaging_scheme(burnman.AveragingType.HashinShtrikmanLower)
-        rho, v_p, v_s, v_phi, K, G = native_evaluate(
-            rock,
+        rho, v_p, v_s, v_phi, K, G = rock.evaluate(
             [
                 "density",
                 "p_wave_velocity",
@@ -312,8 +301,7 @@ class HSLower(BurnManTest):
     def same(self, number):
         rock = make_assemblage([mypericlase()] * number, [1.0 / number] * number)
         rock.set_averaging_scheme(burnman.AveragingType.HashinShtrikmanLower)
-        rho, v_p, v_s, v_phi, K, G = native_evaluate(
-            rock,
+        rho, v_p, v_s, v_phi, K, G = rock.evaluate(
             [
                 "density",
                 "p_wave_velocity",
@@ -343,8 +331,7 @@ class HSLower(BurnManTest):
             [0.5, 0.5],
         )
         rock.set_averaging_scheme(burnman.AveragingType.HashinShtrikmanLower)
-        rho, v_p, v_s, v_phi, K, G = native_evaluate(
-            rock,
+        rho, v_p, v_s, v_phi, K, G = rock.evaluate(
             [
                 "density",
                 "p_wave_velocity",
@@ -369,8 +356,7 @@ class HSUpper(BurnManTest):
     def test_1(self):
         rock = make_assemblage([mypericlase()], [1.0])
         rock.set_averaging_scheme(burnman.AveragingType.HashinShtrikmanUpper)
-        rho, v_p, v_s, v_phi, K, G = native_evaluate(
-            rock,
+        rho, v_p, v_s, v_phi, K, G = rock.evaluate(
             [
                 "density",
                 "p_wave_velocity",
@@ -392,8 +378,7 @@ class HSUpper(BurnManTest):
     def same(self, number):
         rock = make_assemblage([mypericlase()] * number, [1.0 / number] * number)
         rock.set_averaging_scheme(burnman.AveragingType.HashinShtrikmanUpper)
-        rho, v_p, v_s, v_phi, K, G = native_evaluate(
-            rock,
+        rho, v_p, v_s, v_phi, K, G = rock.evaluate(
             [
                 "density",
                 "p_wave_velocity",
@@ -423,8 +408,7 @@ class HSUpper(BurnManTest):
             [0.5, 0.5],
         )
         rock.set_averaging_scheme(burnman.AveragingType.HashinShtrikmanUpper)
-        rho, v_p, v_s, v_phi, K, G = native_evaluate(
-            rock,
+        rho, v_p, v_s, v_phi, K, G = rock.evaluate(
             [
                 "density",
                 "p_wave_velocity",
@@ -449,8 +433,7 @@ class HSAverage(BurnManTest):
     def test_1(self):
         rock = make_assemblage([mypericlase()], [1.0])
         rock.set_averaging_scheme(burnman.AveragingType.HashinShtrikman)
-        rho, v_p, v_s, v_phi, K, G = native_evaluate(
-            rock,
+        rho, v_p, v_s, v_phi, K, G = rock.evaluate(
             [
                 "density",
                 "p_wave_velocity",
@@ -471,8 +454,7 @@ class HSAverage(BurnManTest):
     def same(self, number):
         rock = make_assemblage([mypericlase()] * number, [1.0 / number] * number)
         rock.set_averaging_scheme(burnman.AveragingType.HashinShtrikman)
-        rho, v_p, v_s, v_phi, K, G = native_evaluate(
-            rock,
+        rho, v_p, v_s, v_phi, K, G = rock.evaluate(
             [
                 "density",
                 "p_wave_velocity",
@@ -502,8 +484,7 @@ class HSAverage(BurnManTest):
             [0.5, 0.5],
         )
         rock.set_averaging_scheme(burnman.AveragingType.HashinShtrikman)
-        rho, v_p, v_s, v_phi, K, G = native_evaluate(
-            rock,
+        rho, v_p, v_s, v_phi, K, G = rock.evaluate(
             [
                 "density",
                 "p_wave_velocity",
