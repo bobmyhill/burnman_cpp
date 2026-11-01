@@ -114,9 +114,8 @@ def test_python_reference(system, excess, python_reference):
         original_model,
         excess_psi,
         {"coefficient": 0.025 if excess else 0.0},
+        [0.8, 0.2],
     )
-    # The pinned Python constructor dispatches composition before initialization.
-    original.set_composition([0.8, 0.2])
     native = make_solution(system, excess)
     properties = [
         "molar_volume",
@@ -319,6 +318,8 @@ def test_states_copies_evaluation_and_validation():
         solution.set_state(1.0e9, 300.0)
     solution.set_composition([0.8, 0.2])
     assert not solution.has_state()
+    assert solution.formula == {"Mg": 1.6, "Fe": 0.4, "Si": 1.0, "O": 4.0}
+    assert solution.get_formula() == solution.formula
     expected = np.prod(
         [
             np.linalg.det(m.cell_vectors_0) ** x
@@ -341,6 +342,8 @@ def test_states_copies_evaluation_and_validation():
     assert copy.endmembers[0][0] is not solution.endmembers[0][0]
     copy.set_composition([0.3, 0.7])
     copy.set_state(1.0e9, 300.0)
+    assert copy.formula == {"Mg": 0.6, "Fe": 1.4, "Si": 1.0, "O": 4.0}
+    assert solution.formula == {"Mg": 1.6, "Fe": 0.4, "Si": 1.0, "O": 4.0}
     assert solution.pressure == 20.0e9
     assert solution.endmembers[0][0].pressure == 20.0e9
     stiffness = solution.isentropic_stiffness_tensor
