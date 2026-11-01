@@ -56,6 +56,18 @@ TEST_CASE("DKS factory and reference states", "[dks][eos]") {
   CHECK(liquid->get_shear_modulus() == 0.);
 }
 
+TEST_CASE("DKS solid cold curve does not require a pressure offset",
+          "[dks][eos]") {
+  auto p = minerals::DKS_2013_solids::periclase()->params;
+  eos::DKS_S model;
+  for (const auto pressure :
+       {std::optional<double>{}, std::optional<double>{2.5e9}}) {
+    p.P_0 = pressure;
+    CHECK(model.compute_pressure(*p.T_0, *p.V_0, p) == 0.);
+    CHECK(model.compute_volume(0., *p.T_0, p) == *p.V_0);
+  }
+}
+
 TEST_CASE("DKS derivatives and pressure-volume inversion", "[dks][eos]") {
   for (auto mineral : {minerals::DKS_2013_solids::perovskite(),
                        minerals::DKS_2013_liquids::SiO2_liquid()}) {

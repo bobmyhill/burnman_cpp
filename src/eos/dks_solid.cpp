@@ -96,8 +96,11 @@ double DKS_S::compute_volume(double pressure, double temperature,
 double DKS_S::compute_pressure(double temperature, double volume,
                                const types::MineralParams &p) const {
   dks_detail::check_state(temperature, volume);
-  return BM3::compute_birch_murnaghan(*p.V_0 / volume, p) +
-         gamma(volume, p) * *p.Cv * (temperature - *p.T_0) / volume;
+  // DKS's cold curve has zero reference pressure and does not use P_0.
+  const double f = .5 * (std::pow(*p.V_0 / volume, 2. / 3.) - 1.);
+  const double cold = 3. * *p.K_0 * f * std::pow(1. + 2. * f, 2.5) *
+                      (1. + 1.5 * (*p.Kprime_0 - 4.) * f);
+  return cold + gamma(volume, p) * *p.Cv * (temperature - *p.T_0) / volume;
 }
 double
 DKS_S::compute_grueneisen_parameter(double, double, double volume,
