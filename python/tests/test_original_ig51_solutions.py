@@ -23,6 +23,23 @@ from burnman_cpp.tools.eos import check_eos_consistency
 
 class ig51_solutions(BurnManTest):
 
+    def test_buffer_stoichiometry_and_energies(self):
+        for module in (ig51W24, ig51G25):
+            for label, recipe in (
+                ("fmq", (("fa", -3.0), ("q", 3.0), ("mt", 2.0))),
+                ("nno", (("NiO", 2.0), ("Ni", -2.0))),
+            ):
+                with self.subTest(dataset=module.__name__, buffer=label):
+                    buffer = getattr(module, label)()
+                    self.assertEqual(buffer.formula, {"O": 2.0})
+                    buffer.set_state(1.0e9, 1200.0)
+                    expected = 0.0
+                    for endmember, amount in recipe:
+                        mineral = getattr(HPx_ds636, endmember)()
+                        mineral.set_state(1.0e9, 1200.0)
+                        expected += amount * mineral.molar_gibbs
+                    self.assertAlmostEqual(buffer.molar_gibbs, expected)
+
     def test_duplicated_endmember_labels(self):
         for module in (ig51W24, ig51G25):
             with self.subTest(dataset=module.__name__):

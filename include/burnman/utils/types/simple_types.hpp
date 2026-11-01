@@ -42,7 +42,7 @@ enum class EOSType {
   Vinet,
   MT,
   BM3,
-  BM2,
+  BM3Shear2,
   MGD2,
   MGD3,
   HPTMT,

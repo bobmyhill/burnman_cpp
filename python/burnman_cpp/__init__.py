@@ -113,7 +113,7 @@ _EOS_NAMES = {
     "brosh_calphad": EOSType.BroshCalphad,
     "broshcalphad": EOSType.BroshCalphad,
     "mt": EOSType.MT,
-    "bm2": EOSType.BM2,
+    "bm3shear2": EOSType.BM3Shear2,
     "bm3": EOSType.BM3,
     "bm4": EOSType.BM4,
     "spock": EOSType.SPOCK,
@@ -427,33 +427,6 @@ from ._core import (
     PhaseFieldPolygon,
     PhaseDiagramPolygons,
 )
-from .tools.phase_diagram import (
-    calculate_phase_diagram_patch,
-    merge_phase_diagrams,
-    phase_diagram_field_regions,
-    phase_diagram_problem_regions,
-    save_phase_diagram,
-    load_phase_diagram,
-    plot_phase_diagram,
-    plot_phase_diagram_contours,
-    refine_phase_diagram,
-)
-from .tools.contours import phase_diagram_contour_levels
-from .tools.equilibrium_path import (
-    EquilibriumPath,
-    calculate_equilibrium_path,
-    sample_equilibrium_path,
-    plot_mode_box,
-)
-from .tools.properties import (
-    phase_diagram_grid,
-    phase_diagram_grid_chunks,
-    load_property_grid_chunks,
-    retry_property_grid_chunks,
-    save_property_grid,
-    load_property_grid,
-    evaluate_property_grid,
-)
 from ._core import (
     assemblage_properties,
     thermodynamic_property_names,
@@ -508,20 +481,6 @@ __all__ += [
     "plot_phase_diagram",
 ]
 
-from .tools.potential_grid import (
-    PotentialGrid,
-    load_potential_grid,
-    save_potential_grid,
-    infill_potential_grid,
-    smooth_potential_grid,
-)
-from .tools.phase_diagram_workflow import (
-    PhaseDiagramCalculation,
-    PotentialGridCalculation,
-    calculate_phase_diagram_grid,
-    calculate_potential_grid,
-)
-from .tools.aspect import AspectTableExport, write_aspect_entropy_pressure_table
 
 __all__ += [
     "PotentialGrid",
@@ -536,3 +495,55 @@ __all__ += [
     "AspectTableExport",
     "write_aspect_entropy_pressure_table",
 ]
+
+_LAZY_TOOLS = {
+    "calculate_phase_diagram_patch",
+    "merge_phase_diagrams",
+    "phase_diagram_field_regions",
+    "phase_diagram_problem_regions",
+    "save_phase_diagram",
+    "load_phase_diagram",
+    "plot_phase_diagram",
+    "plot_phase_diagram_contours",
+    "refine_phase_diagram",
+    "phase_diagram_contour_levels",
+    "EquilibriumPath",
+    "calculate_equilibrium_path",
+    "sample_equilibrium_path",
+    "plot_mode_box",
+    "phase_diagram_grid",
+    "phase_diagram_grid_chunks",
+    "load_property_grid_chunks",
+    "retry_property_grid_chunks",
+    "save_property_grid",
+    "load_property_grid",
+    "evaluate_property_grid",
+    "PotentialGrid",
+    "load_potential_grid",
+    "save_potential_grid",
+    "infill_potential_grid",
+    "smooth_potential_grid",
+    "PhaseDiagramCalculation",
+    "PotentialGridCalculation",
+    "calculate_phase_diagram_grid",
+    "calculate_potential_grid",
+    "AspectTableExport",
+    "write_aspect_entropy_pressure_table",
+}
+
+
+def __getattr__(name):
+    from importlib import import_module
+
+    if name in {"tools", "utils"}:
+        value = import_module(f".{name}", __name__)
+    elif name in _LAZY_TOOLS:
+        value = getattr(import_module(".tools", __name__), name)
+    else:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    globals()[name] = value
+    return value
+
+
+def __dir__():
+    return sorted(set(globals()) | set(__all__) | {"tools", "utils"})

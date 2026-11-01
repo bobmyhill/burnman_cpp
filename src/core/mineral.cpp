@@ -247,7 +247,7 @@ types::FormulaMap Mineral::compute_formula() const {
     return *params.formula;
   } else {
     // can't use get_class_name at the moment because it is private
-    throw std::invalid_argument("No Mineral formula set!");
+    throw std::invalid_argument("Mineral parameters have no formula.");
   }
 }
 

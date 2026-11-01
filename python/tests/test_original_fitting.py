@@ -11,6 +11,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import burnman_cpp as burnman
+from burnman_cpp.optimize.eos_fitting import SolutionFit
 from burnman_cpp.optimize.linear_fitting import weighted_constrained_least_squares
 from burnman_cpp.optimize.nonlinear_fitting import (
     NonLinearModel,
@@ -64,6 +65,45 @@ class JacobianLineModel(NonLinearModel):
 
 
 class test_fitting(BurnManTest):
+
+    def test_solution_fit_array_parameter_round_trip(self):
+        for bounded in (False, True):
+            with self.subTest(bounded=bounded):
+                solution = burnman.minerals.JH_2015.garnet()
+                fit_params = [["Cp", 0], ["V_0", 1], ["Cp", 1], ["E", 0, 1]]
+                values = np.array(
+                    [10.0, 20.0, 30.0, 40.0, 4.5e-5, 50.0, 60.0, 70.0, 80.0, 2000.0]
+                )
+                expected = values.copy()
+                bounds = None
+                if bounded:
+                    bounds = np.tile([-np.inf, np.inf], (len(values), 1))
+                    bounds[2, 1] = 25.0
+                    bounds[8, 1] = 75.0
+                    expected[2] = 25.0
+                    expected[8] = 75.0
+
+                n_coordinates = solution.n_endmembers + 3
+                fractions = np.zeros(solution.n_endmembers)
+                fractions[0] = 1.0
+                solution.set_composition(fractions)
+                solution.set_state(1.0e9, 1000.0)
+                data = np.array([[*fractions, 1.0e9, 1000.0, solution.molar_volume]])
+                covariance = np.zeros((1, n_coordinates, n_coordinates))
+                covariance[0, -3, -3] = 1.0
+                model = SolutionFit(
+                    solution=solution,
+                    data=data,
+                    data_covariances=covariance,
+                    flags=["V"],
+                    fit_params=fit_params,
+                    mle_tolerances=np.full(1, 1.0e-10),
+                    bounds=bounds,
+                )
+                model.set_params(values)
+                self.assertArraysAlmostEqual(
+                    model.get_params(), expected, tol=0.0, tol_zero=0.0
+                )
 
     def test_plot_residuals_without_flags(self):
         for kwargs in [{}, {"flags": []}, {"flags": np.array([])}, {"flags": None}]:

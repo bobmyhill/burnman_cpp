@@ -155,8 +155,8 @@ def mineral_property_benchmarks(output_dir=DEFAULT_OUTPUT_DIR):
     eos_map = {
         "mt": "MT",
         "vinet": "Vinet",
-        # C++ BM2 uses third-order compression and second-order shear.
-        "bm3shear2": "BM2",
+        # C++ BM3Shear2 uses third-order compression and second-order shear.
+        "bm3shear2": "BM3Shear2",
         "bm3": "BM3",
         "mgd2": "MGD2",
         "mgd3": "MGD3",

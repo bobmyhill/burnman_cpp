@@ -120,7 +120,7 @@ def from_burnman(phase):
 
             reference_name = type(params["reference_eos"]).__name__
             reference_names = {
-                "BM2": "bm2",
+                "BM3Shear2": "bm3shear2",
                 "BM3": "bm3",
                 "BM4": "bm4",
                 "Vinet": "vinet",

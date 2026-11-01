@@ -309,7 +309,7 @@ SLB3::compute_shear_modulus_delta(double temperature, double volume,
 double SLB2::compute_shear_modulus(double pressure [[maybe_unused]],
                                    double temperature, double volume,
                                    const types::MineralParams &params) const {
-  return BM2::compute_second_order_shear_modulus(volume, params) -
+  return BM3Shear2::compute_second_order_shear_modulus(volume, params) -
          compute_shear_modulus_delta(temperature, volume, params);
 }
 

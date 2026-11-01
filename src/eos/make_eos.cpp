@@ -53,8 +53,8 @@ std::shared_ptr<EquationOfState> make_eos(types::EOSType eos_type) {
     return std::make_shared<AA>();
   case types::EOSType::BroshCalphad:
     return std::make_shared<BroshCalphad>();
-  case types::EOSType::BM2:
-    return std::make_shared<BM2>();
+  case types::EOSType::BM3Shear2:
+    return std::make_shared<BM3Shear2>();
   case types::EOSType::BM3:
     return std::make_shared<BM3>();
   case types::EOSType::BM4:

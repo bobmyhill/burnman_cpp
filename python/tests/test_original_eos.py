@@ -19,6 +19,28 @@ import logging
 logging.basicConfig(level=logging.CRITICAL)
 
 
+class mypericlase(burnman.Mineral):
+    def __init__(self):
+        super().__init__(
+            {
+                "equation_of_state": "slb3",
+                "T_0": 300.0,
+                "P_0": 0.0,
+                "V_0": 1.124e-05,
+                "K_0": 161000000000.0,
+                "Kprime_0": 3.8,
+                "G_0": 131000000000.0,
+                "Gprime_0": 2.1,
+                "molar_mass": 0.0403,
+                "n": 2,
+                "Debye_0": 773.0,
+                "grueneisen_0": 1.5,
+                "q_0": 1.5,
+                "eta_s_0": 2.8,
+            }
+        )
+
+
 class Fe_Dewaele(burnman.Mineral):
     """
     Dewaele et al., 2006, Physical Review Letters
@@ -132,6 +154,27 @@ class alpha_quartz(burnman.Mineral):
 
 
 class eos(BurnManTest):
+
+    def test_reference_values(self):
+        rock = mypericlase()
+        pressure, temperature = 0.0, 300.0
+        params = parameter_dict(rock.params)
+        for method in ["slb2", "slb3", "bm3shear2", "bm3"]:
+            rock.set_method(burnman.eos_type(method))
+            rock.set_state(pressure, temperature)
+            self.assertFloatEqual(rock.molar_volume, params["V_0"])
+            self.assertFloatEqual(rock.isothermal_bulk_modulus_reuss, params["K_0"])
+            self.assertFloatEqual(rock.shear_modulus, params["G_0"])
+            self.assertFloatEqual(rock.density, params["molar_mass"] / params["V_0"])
+            alpha_test = rock.thermal_expansivity
+            Cp_test = rock.molar_heat_capacity_p
+        for method in ["slb2", "slb3"]:
+            rock.set_method(burnman.eos_type(method))
+            rock.set_state(pressure, temperature)
+            self.assertFloatEqual(rock.molar_heat_capacity_p, 37.076768469502042)
+            self.assertFloatEqual(rock.molar_heat_capacity_v, 36.577717628901553)
+            self.assertFloatEqual(rock.thermal_expansivity, 3.031905596878513e-5)
+            self.assertFloatEqual(rock.grueneisen_parameter, params["grueneisen_0"])
 
     def test_reference_values_vinet(self):
         rock = Fe_Dewaele()
@@ -427,10 +470,9 @@ class test_cold_eos_reference_pressure(BurnManTest):
         }
 
     def _mineral(self, eos, reference_pressure):
-        # Native BM2 uses the BM3 bulk curve with second-order shear.
         params = dict(
             self.params,
-            equation_of_state="bm2" if eos == "bm3shear2" else eos,
+            equation_of_state=eos,
             P_0=reference_pressure,
         )
         if eos == "bm4":

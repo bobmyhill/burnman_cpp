@@ -8,7 +8,6 @@
 import warnings
 
 import numpy as np
-from scipy.linalg import logm, expm
 from ..utils.anisotropy import (
     contract_compliances,
     contract_stiffnesses,
@@ -247,6 +246,8 @@ def check_anisotropic_eos_consistency(
     :returns: Boolean stating whether all checks have passed.
     :rtype: bool
     """
+    from scipy.linalg import logm, expm
+
     if equilibration_function is None:
 
         def equilibration_function(mineral):
@@ -515,6 +516,8 @@ def check_hyperelastic_eos_consistency(
     :returns: Whether every check passes.
     :rtype: bool
     """
+    from scipy.linalg import logm, expm
+
     deformation_gradient = np.asarray(deformation_gradient, dtype=float)
     if (
         deformation_gradient.shape != (3, 3)
