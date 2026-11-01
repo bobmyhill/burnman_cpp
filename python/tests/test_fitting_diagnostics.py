@@ -123,19 +123,22 @@ def test_covariance_ellipse_matches_geometry_and_pinned_python(plt):
     assert actual.get_alpha() == expected.get_alpha()
 
 
-def test_corner_plot_layout_and_ellipses_match_python(plt):
+@pytest.mark.parametrize("n_params", [2, 3])
+def test_corner_plot_layout_and_ellipses_match_python(plt, n_params):
     reference = pytest.importorskip("burnman").nonlinear_fitting
-    parameters = np.array([1.0e-5, 2.0e11, -4.0])
-    errors = np.array([2.0e-7, 1.0e9, 0.2])
-    covariance = np.outer(errors, errors) * np.array(
-        [[1.0, 0.3, -0.1], [0.3, 1.0, 0.2], [-0.1, 0.2, 1.0]]
+    parameters = np.array([1.0e-5, 2.0e11, -4.0])[:n_params]
+    errors = np.array([2.0e-7, 1.0e9, 0.2])[:n_params]
+    covariance = (
+        np.outer(errors, errors)
+        * np.array([[1.0, 0.3, -0.1], [0.3, 1.0, 0.2], [-0.1, 0.2, 1.0]])[
+            :n_params, :n_params
+        ]
     )
-    actual, axes = fit.corner_plot(parameters, covariance, ["V_0", "K_0", "q_0"], 2.0)
-    expected, _ = reference.corner_plot(
-        parameters, covariance, ["V_0", "K_0", "q_0"], 2.0
-    )
-    assert axes.shape == (2, 2)
-    assert len(actual.axes) == len(expected.axes) == 3
+    names = ["V_0", "K_0", "q_0"][:n_params]
+    actual, axes = fit.corner_plot(parameters, covariance, names, 2.0)
+    expected, _ = reference.corner_plot(parameters, covariance, names, 2.0)
+    assert axes.shape == (n_params - 1, n_params - 1)
+    assert len(actual.axes) == len(expected.axes) == n_params * (n_params - 1) // 2
     assert_allclose(actual.get_size_inches(), expected.get_size_inches())
     for a, e in zip(actual.axes, expected.axes):
         assert a.get_xlabel() == e.get_xlabel()
@@ -147,12 +150,6 @@ def test_corner_plot_layout_and_ellipses_match_python(plt):
             [a.patches[0].width, a.patches[0].height, a.patches[0].angle],
             [e.patches[0].width, e.patches[0].height, e.patches[0].angle],
         )
-
-
-def test_pinned_two_parameter_corner_plot_failure_is_preserved(plt):
-    # The pin returns a scalar Axes for a 1x1 subplot grid, then indexes it.
-    with pytest.raises(TypeError, match="not subscriptable"):
-        fit.corner_plot(np.array([1.0, 2.0]), np.eye(2))
 
 
 def test_weighted_residual_projection_and_colours_match_python(plt):
@@ -186,15 +183,18 @@ def test_weighted_residual_projection_and_colours_match_python(plt):
     assert cmap._rgba_under is None
 
 
-def test_residual_histogram_and_reference_normal_match_python(plt):
+@pytest.mark.parametrize("flags", [None, ["V"] * 4 + ["H"] * 4])
+def test_residual_histogram_and_reference_normal_match_python(plt, flags):
     reference = pytest.importorskip("burnman").nonlinear_fitting
     residuals = np.array([-2.0, -1.5, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0])
-    flags = ["V"] * 4 + ["H"] * 4
+    kwargs = {} if flags is None else {"flags": flags}
     _, a = plt.subplots()
-    assert fit.plot_residuals(a, residuals, n_bins=6, flags=flags) is None
+    assert fit.plot_residuals(a, residuals, n_bins=6, **kwargs) is None
     _, e = plt.subplots()
-    assert reference.plot_residuals(e, residuals, n_bins=6, flags=flags) is None
-    assert len(a.patches) == len(e.patches) == 10
+    assert reference.plot_residuals(e, residuals, n_bins=6, **kwargs) is None
+    n_groups = 1 if flags is None else 2
+    assert len(a.patches) == len(e.patches) == 6 * n_groups
+    assert len(a.lines) == len(e.lines) == n_groups
     for actual, expected in zip(a.patches, e.patches):
         assert_allclose(
             [actual.get_x(), actual.get_y(), actual.get_width(), actual.get_height()],
@@ -211,13 +211,6 @@ def test_residual_histogram_and_reference_normal_match_python(plt):
     assert a.get_legend_handles_labels()[1] == e.get_legend_handles_labels()[1]
     assert a.get_xlabel() == e.get_xlabel()
     assert a.get_ylabel() == e.get_ylabel()
-
-
-def test_pinned_default_histogram_is_empty(plt):
-    _, axes = plt.subplots()
-    with pytest.warns(UserWarning, match="No artists"):
-        fit.plot_residuals(axes, np.linspace(-2.0, 2.0, 20))
-    assert len(axes.patches) == len(axes.lines) == 0
 
 
 def test_eos_verbose_outlier_diagnostic_with_supplied_covariances(capfd):
