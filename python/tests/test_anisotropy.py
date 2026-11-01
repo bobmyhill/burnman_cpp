@@ -26,8 +26,8 @@ CASES = [
     ("HexagonalMaterial", [220, 80, 70, 250, 65]),
     ("TetragonalMaterial", [220, 80, 70, 250, 65, 75]),
     ("TetragonalMaterial", [220, 80, 70, 8, 250, 65, 75]),
-    ("RhombohedralMaterial", [220, 80, 70, 8, 250, 65, 75]),
-    ("RhombohedralMaterial", [220, 80, 70, 8, 6, 250, 65, 75]),
+    ("RhombohedralMaterial", [220, 80, 70, 8, 250, 65, 70]),
+    ("RhombohedralMaterial", [220, 80, 70, 8, 6, 250, 65, 70]),
     ("OrthorhombicMaterial", [320, 68, 72, 201, 77, 233, 64, 78, 80]),
     ("MonoclinicMaterial", [220, 80, 70, 8, 230, 75, 6, 250, 7, 65, 5, 70, 75]),
     (
@@ -88,9 +88,13 @@ def test_isotropic_limits_and_direction_shapes():
             np.sqrt(np.array([88.0e9, shear, shear]) / 2735.0), speeds.shape
         ),
     )
-    assert material.christoffel_tensor(np.empty((0, 3))).shape == (0, 3, 3)
-    assert material.wave_velocities(np.empty((0, 3)))[0].shape == (0, 3)
-    assert material.isentropic_youngs_modulus(np.empty((0, 3))).shape == (0,)
+    for method in (
+        material.christoffel_tensor,
+        material.wave_velocities,
+        material.isentropic_youngs_modulus,
+    ):
+        with pytest.raises(ValueError, match="nonempty"):
+            method(np.empty((0, 3)))
 
 
 @pytest.mark.parametrize("name,cijs", CASES)
@@ -169,6 +173,8 @@ def test_invalid_inputs_and_snapshots():
     for name, cijs in CASES:
         with pytest.raises(ValueError):
             getattr(anisotropy, name)(3000.0, [])
+    with pytest.raises(ValueError, match="real"):
+        bm.AnisotropicMaterial(3000.0, np.eye(6, dtype=complex))
     c = np.eye(6)
     material = bm.AnisotropicMaterial(3000.0, c)
     c[:] = 0.0
