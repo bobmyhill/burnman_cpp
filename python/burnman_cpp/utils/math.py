@@ -14,6 +14,20 @@ from collections import Counter
 import itertools
 
 
+def unit_normalize(a, order=2, axis=-1):
+    """
+    Normalize each vector along the given axis using the requested norm.
+    Zero and nonfinite vectors raise AssertionError.
+    """
+    a = np.asarray(a)
+    assert np.all(np.isfinite(a)), "Vectors must be finite"
+    norms = np.linalg.norm(a, ord=order, axis=axis, keepdims=True)
+    assert np.all(np.isfinite(norms)) and np.all(
+        norms > 0.0
+    ), "Vector norms must be finite and nonzero"
+    return a / norms
+
+
 def round_to_n(x, xerr, n):
     return round(x, -int(np.floor(np.log10(np.abs(xerr)))) + (n - 1))
 

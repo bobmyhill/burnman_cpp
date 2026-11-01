@@ -15,6 +15,7 @@
 #include <Eigen/Eigenvalues>
 #include <Eigen/LU>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 
 namespace burnman {
@@ -22,7 +23,20 @@ namespace {
 Eigen::Vector3d unit_normalize(const Eigen::Vector3d &direction) {
   if (!direction.allFinite())
     throw std::invalid_argument("Directions must be finite.");
-  return direction.normalized();
+  const double norm = direction.norm();
+  if (!std::isfinite(norm) || norm <= 0.)
+    throw std::invalid_argument("Direction norms must be finite and nonzero.");
+  return direction / norm;
+}
+
+template <typename Matrix>
+void check_symmetric(const Matrix &tensor, const char *name) {
+  if (!tensor.allFinite())
+    throw std::invalid_argument(std::string(name) + " must be finite.");
+  const double tolerance = 100. * std::numeric_limits<double>::epsilon() *
+                           tensor.cwiseAbs().maxCoeff();
+  if ((tensor - tensor.transpose()).cwiseAbs().maxCoeff() > tolerance)
+    throw std::invalid_argument(std::string(name) + " must be symmetric.");
 }
 
 double contract(const types::ElasticTensor &tensor, const Eigen::Vector3d &a,
@@ -73,6 +87,10 @@ types::Matrix6d tetragonal_tensor(std::vector<double> cijs) {
 types::Matrix6d rhombohedral_tensor(std::vector<double> cijs) {
   if (cijs.size() != 7 && cijs.size() != 8)
     throw std::invalid_argument("Rhombohedral materials require 7 or 8 Cijs.");
+  const double c66 = (cijs[0] - cijs[1]) / 2.;
+  if (!std::isfinite(c66) || !std::isfinite(cijs.back()) ||
+      std::abs(cijs.back() - c66) > 1.e-12 * std::abs(c66))
+    throw std::invalid_argument("Rhombohedral C66 must equal (C11 - C12)/2.");
   cijs.insert(cijs.begin() + 4, -cijs[3]);
   if (cijs.size() == 8)
     return utils::voigt_array_from_cijs(cijs, {{{0, 0}, {1, 1}},
@@ -102,9 +120,21 @@ AnisotropicMaterial::AnisotropicMaterial(double rho,
     : rho_(rho), stiffness_(cijs) {
   if (!std::isfinite(rho) || rho <= 0.)
     throw std::invalid_argument("Density must be positive and finite.");
-  if (!cijs.allFinite() || !cijs.isApprox(cijs.transpose(), 1.e-5))
+  if (!cijs.allFinite() || !(cijs.array() == cijs.transpose().array()).all())
     throw std::invalid_argument(
         "Stiffness tensor must be finite and symmetric.");
+}
+
+void AnisotropicMaterial::assert_stable() const {
+  const auto &c = get_isentropic_stiffness_tensor();
+  check_symmetric(c, "Stiffness tensor");
+  const Eigen::SelfAdjointEigenSolver<types::Matrix6d> eig(
+      c, Eigen::EigenvaluesOnly);
+  if (eig.info() != Eigen::Success)
+    throw std::runtime_error("Stiffness eigendecomposition failed.");
+  if ((eig.eigenvalues().array() <= 0.).any())
+    throw std::domain_error(
+        "Stiffness tensor must be positive definite for elastic stability.");
 }
 
 std::shared_ptr<Material> AnisotropicMaterial::copy() const {
@@ -257,11 +287,18 @@ double AnisotropicMaterial::isentropic_poissons_ratio(
 std::pair<Eigen::Vector3d, Eigen::Matrix3d>
 AnisotropicMaterial::wave_velocities(
     const Eigen::Vector3d &propagation_direction) const {
-  const Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eig(
-      christoffel_tensor(propagation_direction));
+  const auto acoustic = christoffel_tensor(propagation_direction);
+  check_symmetric(acoustic, "Christoffel tensor");
+  const Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eig(acoustic);
   if (eig.info() != Eigen::Success)
     throw std::runtime_error("Christoffel eigendecomposition failed.");
-  return {(eig.eigenvalues().reverse().array() / get_density()).sqrt().matrix(),
+  if ((eig.eigenvalues().array() < 0.).any())
+    throw std::domain_error("Christoffel tensor has negative eigenvalues; real "
+                            "wave speeds are undefined.");
+  const double rho = get_density();
+  if (!std::isfinite(rho) || rho <= 0.)
+    throw std::invalid_argument("Density must be positive and finite.");
+  return {(eig.eigenvalues().reverse().array() / rho).sqrt().matrix(),
           eig.eigenvectors().rowwise().reverse()};
 }
 

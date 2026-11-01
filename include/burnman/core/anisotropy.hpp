@@ -28,6 +28,10 @@ public:
   std::shared_ptr<Material> copy() const override;
   void reset_cache() override;
 
+  /// Opt-in positive-definiteness check for symmetric unstressed elasticity.
+  /// Nonhydrostatic states require their stress-dependent acoustic criteria.
+  void assert_stable() const;
+
   virtual const types::Matrix6d &get_isentropic_stiffness_tensor() const;
   types::ElasticTensor get_full_isentropic_stiffness_tensor() const;
   virtual const types::Matrix6d &get_isentropic_compliance_tensor() const;
@@ -94,7 +98,7 @@ public:
   std::shared_ptr<Material> copy() const override;
 };
 
-/// Cijs: [C11, C12, C13, C14, (C15), C33, C44, C66].
+/// Cijs: [C11, C12, C13, C14, (C15), C33, C44, C66], C66=(C11-C12)/2.
 class RhombohedralMaterial : public AnisotropicMaterial {
 public:
   RhombohedralMaterial(double rho, const std::vector<double> &cijs);

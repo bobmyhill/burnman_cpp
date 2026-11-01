@@ -24,6 +24,7 @@ from burnman_cpp.classes.anisotropicmineral import (
     convert_f_Pth_to_f_T_derivatives,
     deformation_gradient_alpha_and_compliance,
 )
+from burnman_cpp.utils.anisotropy import voigt_notation_to_stiffness_tensor
 
 
 @pytest.fixture
@@ -206,9 +207,14 @@ def test_consistency_and_rotations(system):
         mineral.unrotated_cell_vectors.T
     )
     assert_allclose(r, independent_r, atol=1.0e-14)
-    full = bm.AnisotropicMaterial(
-        1.0, mineral._unrotated_isothermal_stiffness_tensor
-    ).full_isentropic_stiffness_tensor
+    unrotated = mineral._unrotated_isothermal_stiffness_tensor
+    assert_allclose(
+        unrotated,
+        unrotated.T,
+        rtol=0.0,
+        atol=100.0 * np.finfo(float).eps * np.max(np.abs(unrotated)),
+    )
+    full = voigt_notation_to_stiffness_tensor(unrotated)
     rotated = np.einsum("ip,jq,kr,ls,pqrs->ijkl", r, r, r, r, full)
     assert_allclose(
         rotated, mineral.full_isothermal_stiffness_tensor, atol=0.01, rtol=1.0e-11

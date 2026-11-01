@@ -20,10 +20,25 @@ namespace {
 using Directions =
     py::array_t<double, py::array::c_style | py::array::forcecast>;
 
+py::array real_array(const py::handle &input, const char *name) {
+  auto array = py::array::ensure(input);
+  if (!array || array.dtype().kind() == 'c')
+    throw std::invalid_argument(std::string(name) + " must be real.");
+  return array;
+}
+
 std::vector<py::ssize_t> direction_shape(const Directions &directions) {
-  if (directions.ndim() == 0 || directions.shape(directions.ndim() - 1) != 3)
-    throw std::invalid_argument("Directions must have shape (..., 3).");
+  if (directions.ndim() == 0 || directions.size() == 0 ||
+      directions.shape(directions.ndim() - 1) != 3)
+    throw std::invalid_argument(
+        "Directions must have shape (..., 3) and be nonempty.");
   return {directions.shape(), directions.shape() + directions.ndim() - 1};
+}
+
+Directions checked_directions(const py::handle &input) {
+  Directions directions(real_array(input, "Directions"));
+  direction_shape(directions);
+  return directions;
 }
 
 py::array_t<double> full_tensor(const types::ElasticTensor &tensor) {
@@ -77,8 +92,18 @@ void bind_anisotropy(py::module_ &m) {
       "Elastic material with density (kg/m^3) and symmetric 6x6 isentropic "
       "stiffness (Pa), in Voigt order 11,22,33,23,13,12.",
       py::multiple_inheritance());
-  material.def(py::init<double, const types::Matrix6d &>(), py::arg("rho"),
-               py::arg("cijs"));
+  material.def(
+      py::init([](double rho, const py::object &input) {
+        const auto cijs = real_array(input, "Stiffness tensor");
+        if (cijs.ndim() != 2 || cijs.shape(0) != 6 || cijs.shape(1) != 6)
+          throw std::invalid_argument("cijs must be in Voigt notation (6x6).");
+        return std::make_shared<AnisotropicMaterial>(
+            rho, py::cast<types::Matrix6d>(cijs));
+      }),
+      py::arg("rho"), py::arg("cijs"));
+  material.def("assert_stable", &AnisotropicMaterial::assert_stable,
+               "Validate positive-definite symmetric stiffness for unstressed "
+               "elasticity.");
 #define PROPERTY(name)                                                         \
   bind_property<AnisotropicMaterial>(material, #name, "get_" #name,            \
                                      &AnisotropicMaterial::get_##name)
@@ -108,9 +133,9 @@ void bind_anisotropy(py::module_ &m) {
   auto bind_direction = [&](const char *name, auto method) {
     material.def(
         name,
-        [method](const AnisotropicMaterial &self, Directions d) {
+        [method](const AnisotropicMaterial &self, const py::object &d) {
           return directional_scalar(
-              d, std::nullopt,
+              checked_directions(d), std::nullopt,
               [&](const Eigen::Vector3d &a, const Eigen::Vector3d &) {
                 return (self.*method)(a);
               });
@@ -125,9 +150,11 @@ void bind_anisotropy(py::module_ &m) {
                        const char *second) {
     material.def(
         name,
-        [method](const AnisotropicMaterial &self, Directions a, Directions b) {
+        [method](const AnisotropicMaterial &self, const py::object &a,
+                 const py::object &b) {
           return directional_scalar(
-              a, b, [&](const Eigen::Vector3d &x, const Eigen::Vector3d &y) {
+              checked_directions(a), checked_directions(b),
+              [&](const Eigen::Vector3d &x, const Eigen::Vector3d &y) {
                 return (self.*method)(x, y);
               });
         },
@@ -141,7 +168,8 @@ void bind_anisotropy(py::module_ &m) {
             "lateral_direction");
   material.def(
       "christoffel_tensor",
-      [](const AnisotropicMaterial &self, const Directions &directions) {
+      [](const AnisotropicMaterial &self, const py::object &input) {
+        const auto directions = checked_directions(input);
         auto shape = direction_shape(directions);
         shape.insert(shape.end(), {3, 3});
         py::array_t<double> result(shape);
@@ -156,7 +184,8 @@ void bind_anisotropy(py::module_ &m) {
       py::arg("propagation_direction"));
   material.def(
       "wave_velocities",
-      [](const AnisotropicMaterial &self, const Directions &directions) {
+      [](const AnisotropicMaterial &self, const py::object &input) {
+        const auto directions = checked_directions(input);
         auto shape = direction_shape(directions);
         shape.push_back(3);
         py::array_t<double> velocities(shape);
@@ -180,9 +209,9 @@ void bind_anisotropy(py::module_ &m) {
                                    "Cijs: [C11, C12, C13, C33, C44].");
   bind_symmetry<TetragonalMaterial>(
       m, "TetragonalMaterial", "Cijs: [C11, C12, C13, (C16), C33, C44, C66].");
-  bind_symmetry<RhombohedralMaterial>(
-      m, "RhombohedralMaterial",
-      "Cijs: [C11, C12, C13, C14, (C15), C33, C44, C66].");
+  bind_symmetry<RhombohedralMaterial>(m, "RhombohedralMaterial",
+                                      "Cijs: [C11, C12, C13, C14, (C15), C33, "
+                                      "C44, C66], with C66=(C11-C12)/2.");
   bind_symmetry<OrthorhombicMaterial>(
       m, "OrthorhombicMaterial",
       "Cijs: [C11, C12, C13, C22, C23, C33, C44, C55, C66].");

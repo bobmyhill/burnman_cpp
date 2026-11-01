@@ -127,7 +127,7 @@ TEST_CASE("Crystal symmetry constraints and copies", "[core][anisotropy]") {
   CHECK(t(0, 5) == 4.);
   CHECK(t(1, 5) == -4.);
   const RhombohedralMaterial rhombohedral(3000.,
-                                          {1., 2., 3., 4., 5., 6., 7., 8.});
+                                          {1., 2., 3., 4., 5., 6., 7., -.5});
   const auto &r = rhombohedral.get_isentropic_stiffness_tensor();
   CHECK(r(0, 3) == 4.);
   CHECK(r(1, 3) == -4.);
@@ -164,4 +164,101 @@ TEST_CASE("Invalid elastic inputs", "[core][anisotropy]") {
   CHECK_THROWS_AS(material.christoffel_tensor(Eigen::Vector3d(
                       std::numeric_limits<double>::quiet_NaN(), 0., 0.)),
                   std::invalid_argument);
+}
+
+TEST_CASE("Exact stiffness symmetry and finite elastic inputs",
+          "[core][anisotropy]") {
+  const IsotropicMaterial material(3300., {40.e9, 24.e9});
+  const auto original = material.get_isentropic_stiffness_tensor();
+  for (double invalid : {std::numeric_limits<double>::quiet_NaN(),
+                         std::numeric_limits<double>::infinity()}) {
+    auto c = original;
+    c(0, 0) = invalid;
+    CHECK_THROWS_AS(AnisotropicMaterial(3300., c), std::invalid_argument);
+  }
+  auto c = original;
+  c(0, 1) = std::nextafter(c(0, 1), std::numeric_limits<double>::infinity());
+  REQUIRE(c.isApprox(c.transpose()));
+  CHECK_THROWS_AS(AnisotropicMaterial(3300., c), std::invalid_argument);
+  CHECK(c(0, 1) != original(0, 1));
+}
+
+TEST_CASE("Every directional property rejects zero and nonfinite vectors",
+          "[core][anisotropy]") {
+  const IsotropicMaterial material(3300., {40.e9, 24.e9});
+  for (const Eigen::Vector3d &bad :
+       {Eigen::Vector3d(0., 0., 0.),
+        Eigen::Vector3d(std::numeric_limits<double>::quiet_NaN(), 0., 1.),
+        Eigen::Vector3d(std::numeric_limits<double>::infinity(), 0., 1.)}) {
+    CHECK_THROWS_AS(material.christoffel_tensor(bad), std::invalid_argument);
+    CHECK_THROWS_AS(material.wave_velocities(bad), std::invalid_argument);
+    CHECK_THROWS_AS(material.isentropic_linear_compressibility(bad),
+                    std::invalid_argument);
+    CHECK_THROWS_AS(material.isentropic_youngs_modulus(bad),
+                    std::invalid_argument);
+    for (bool first : {false, true}) {
+      const Eigen::Vector3d a = first ? bad : Eigen::Vector3d::UnitX();
+      const Eigen::Vector3d b = first ? Eigen::Vector3d::UnitY() : bad;
+      CHECK_THROWS_AS(material.isentropic_shear_modulus(a, b),
+                      std::invalid_argument);
+      CHECK_THROWS_AS(material.isentropic_poissons_ratio(a, b),
+                      std::invalid_argument);
+    }
+  }
+}
+
+TEST_CASE(
+    "Elastic stability is opt in and negative acoustic modes are rejected",
+    "[core][anisotropy]") {
+  const IsotropicMaterial stable(3300., {40.e9, 24.e9});
+  CHECK_NOTHROW(stable.assert_stable());
+  const IsotropicMaterial unstable(3300., {40.e9, -1.e9});
+  CHECK(unstable.get_isentropic_stiffness_tensor()(3, 3) < 0.);
+  CHECK_THROWS_AS(unstable.assert_stable(), std::domain_error);
+  CHECK_THROWS_AS(unstable.wave_velocities(Eigen::Vector3d::UnitX()),
+                  std::domain_error);
+}
+
+TEST_CASE(
+    "Computed acoustic tensors are checked before the symmetric eigensolve",
+    "[core][anisotropy]") {
+  class ComputedMaterial : public AnisotropicMaterial {
+  public:
+    ComputedMaterial()
+        : AnisotropicMaterial(3300., types::Matrix6d::Identity()) {}
+    types::Matrix6d stiffness = types::Matrix6d::Identity();
+    const types::Matrix6d &get_isentropic_stiffness_tensor() const override {
+      return stiffness;
+    }
+  } material;
+  material.stiffness(0, 1) = .1;
+  const Eigen::Vector3d direction(1., 1., 0.);
+  const auto acoustic = material.christoffel_tensor(direction);
+  REQUIRE_FALSE(acoustic.isApprox(acoustic.transpose()));
+  CHECK_THROWS_AS(material.wave_velocities(direction), std::invalid_argument);
+  CHECK_THROWS_AS(material.assert_stable(), std::invalid_argument);
+}
+
+TEST_CASE("Rhombohedral C66 and threefold rotation invariance",
+          "[core][anisotropy]") {
+  const Eigen::Matrix3d rotation =
+      Eigen::AngleAxisd(2. * std::acos(-1.) / 3., Eigen::Vector3d::UnitZ())
+          .toRotationMatrix();
+  const Eigen::Vector3d direction(1., 2., 3.);
+  for (std::vector<double> cijs :
+       {std::vector<double>{220., 80., 70., 8., 250., 65., 70.},
+        std::vector<double>{220., 80., 70., 8., 6., 250., 65., 70.}}) {
+    for (auto &c : cijs)
+      c *= 1.e9;
+    const RhombohedralMaterial material(3300., cijs);
+    CHECK_NOTHROW(material.assert_stable());
+    CHECK(material.christoffel_tensor(rotation * direction)
+              .isApprox(rotation * material.christoffel_tensor(direction) *
+                            rotation.transpose(),
+                        1.e-12));
+    CHECK(material.wave_velocities(direction).first.isApprox(
+        material.wave_velocities(rotation * direction).first, 1.e-12));
+    cijs.back() = 75.e9;
+    CHECK_THROWS_AS(RhombohedralMaterial(3300., cijs), std::invalid_argument);
+  }
 }
