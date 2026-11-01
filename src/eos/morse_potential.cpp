@@ -115,8 +115,9 @@ double
 Morse::compute_helmholtz_free_energy(double, double, double volume,
                                      const types::MineralParams &p) const {
   const auto z = strain(volume / *p.V_0, p);
-  return *p.F_0 + 4.5 * *p.K_0 * *p.V_0 * z.integral * z.integral +
-         *p.P_0 * (*p.V_0 - volume);
+  double intPdV = -4.5 * *p.K_0 * *p.V_0 * z.integral * z.integral;
+  intPdV += *p.P_0 * (volume - *p.V_0);
+  return -intPdV + *p.F_0;
 }
 double Morse::compute_gibbs_free_energy(double pressure, double temperature,
                                         double volume,

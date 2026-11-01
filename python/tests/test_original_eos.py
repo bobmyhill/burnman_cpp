@@ -6,11 +6,13 @@ Reference: tests/reference/burnman.json.
 Original numerical inputs, assertions and tolerances are retained.
 """
 
-from original_test_support import BurnManTest, parameter_dict, eos_call
+from original_test_support import BurnManTest, parameter_dict, eos_call, mineral_eos
 import warnings
+import numpy as np
 import burnman_cpp as burnman
 from burnman_cpp import minerals
 from burnman_cpp.eos import debye
+from burnman_cpp.tools.eos import check_eos_consistency
 from burnman_cpp.utils.chemistry import dictionarize_formula, formula_mass
 import logging
 
@@ -265,6 +267,71 @@ class eos(BurnManTest):
 
 class test_eos_validation(BurnManTest):
 
+    def _cold_mineral(self, method, reference=False):
+        params = {
+            "equation_of_state": method,
+            # The original loop carries these defaults from its initial BM3.
+            "F_0": 0.0,
+            "P_0": 0.0,
+            "V_0": 7.95626e-6,
+            "K_0": 109.7e9,
+            "Kprime_0": 4.66,
+            "Kprime_inf": 3.00,
+            "Kprime_prime_0": -0.043e-9,
+            "Kdprime_0": -4.66 / 100.0e9,
+            "molar_mass": 0.055845,
+        }
+        # Upstream BM4 consumes Kprime_prime_0; MT and SPOCK consume Kdprime_0.
+        # The native representation has one field, so select the model's value.
+        if method == "bm4":
+            params["Kdprime_0"] = params["Kprime_prime_0"]
+        del params["Kprime_prime_0"]
+        if reference:
+            params.update(F_0=1000.0, T_0=100.0, P_0=1.0e10)
+        return burnman.Mineral(params)
+
+    def test_reference_energies(self):
+        eoses = ["bm3", "bm4", "vinet", "mt", "morse", "rkprime"]
+        energies = []
+        for eos in eoses:
+            m = self._cold_mineral(eos, reference=True)
+            m.set_state(m.params.P_0, m.params.T_0)
+            energies.append(m.molar_helmholtz)
+        self.assertArraysAlmostEqual(energies, [m.params.F_0] * len(energies))
+
+    def test_energy_derivatives(self):
+        eoses = [
+            "bm3",
+            "bm4",
+            "vinet",
+            "mt",
+            "morse",
+            "rkprime",
+            "macaw",
+            "spock",
+            "murnaghan",
+        ]
+        calculated = []
+        derivative = []
+        for eos in eoses:
+            m = self._cold_mineral(eos)
+            P_0 = 10.0e9
+            dP = 10000.0
+            pressures = np.array([P_0 - 0.5 * dP, P_0, P_0 + 0.5 * dP])
+            temperatures = np.zeros(3)
+            E, G, H, A, V, KT = m.evaluate(
+                ["molar_internal_energy", "gibbs", "H", "helmholtz", "V", "K_T"],
+                pressures,
+                temperatures,
+            )
+            calculated.append(P_0)
+            derivative.append(-(E[2] - E[0]) / (V[2] - V[0]))
+            calculated.append(V[1])
+            derivative.append((G[2] - G[0]) / dP)
+            calculated.append(-V[1] / KT[1])
+            derivative.append((V[2] - V[0]) / dP)
+        self.assertArraysAlmostEqual(calculated, derivative)
+
     def test_no_shear_error(self):
 
         class mymineralwithoutshear(burnman.Mineral):
@@ -342,3 +409,86 @@ class test_eos_validation(BurnManTest):
             m.set_state(P * 1.01, T)
             m.set_state_with_volume(V, T)
         self.assertAlmostEqual(m.pressure / 100000.0, P / 100000.0, places=3)
+
+
+class test_cold_eos_reference_pressure(BurnManTest):
+    def setUp(self):
+        self.eoses = ["bm3shear2", "bm3", "bm4", "vinet", "morse", "spock"]
+        self.params = {
+            "F_0": 1000.0,
+            "T_0": 100.0,
+            "V_0": 7.95626e-6,
+            "K_0": 109.7e9,
+            "Kprime_0": 4.66,
+            "Kprime_inf": 3.0,
+            "Kprime_prime_0": -0.043e-9,
+            "Kdprime_0": -4.66 / 100.0e9,
+            "molar_mass": 0.055845,
+        }
+
+    def _mineral(self, eos, reference_pressure):
+        # Native BM2 uses the BM3 bulk curve with second-order shear.
+        params = dict(
+            self.params,
+            equation_of_state="bm2" if eos == "bm3shear2" else eos,
+            P_0=reference_pressure,
+        )
+        if eos == "bm4":
+            params["Kdprime_0"] = params["Kprime_prime_0"]
+        del params["Kprime_prime_0"]
+        return burnman.Mineral(params)
+
+    def _helmholtz(self, m, volume):
+        params, eos = m.params, mineral_eos(m)
+        T = params.T_0
+        P = eos.compute_pressure(T, volume, params)
+        return eos.compute_gibbs_free_energy(P, T, volume, params) - P * volume
+
+    def test_reference_pressure_work(self):
+        for eos in self.eoses:
+            zero = self._mineral(eos, 0.0)
+            for P_0 in [1.0e5, 2.5e9, 1.0e10]:
+                m = self._mineral(eos, P_0)
+                for ratio in [0.8, 1.0, 1.1]:
+                    with self.subTest(eos=eos, P_0=P_0, ratio=ratio):
+                        V = ratio * self.params["V_0"]
+                        self.assertFloatEqual(
+                            self._helmholtz(m, V) - self._helmholtz(zero, V),
+                            P_0 * (self.params["V_0"] - V),
+                            tol=1.0e-10,
+                            tol_zero=1.0e-8,
+                        )
+
+    def test_reference_energies(self):
+        for eos in self.eoses:
+            for P_0 in [0.0, 1.0e5, 2.5e9, 1.0e10]:
+                with self.subTest(eos=eos, P_0=P_0):
+                    m = self._mineral(eos, P_0)
+                    self.assertFloatEqual(
+                        self._helmholtz(m, self.params["V_0"]),
+                        self.params["F_0"],
+                        tol=1.0e-12,
+                        tol_zero=1.0e-8,
+                    )
+                    m.set_state(P_0, self.params["T_0"])
+                    self.assertFloatEqual(m.molar_helmholtz, self.params["F_0"])
+
+    def test_eos_consistency(self):
+        for eos in self.eoses:
+            for P_0 in [1.0e5, 2.5e9, 1.0e10]:
+                m = self._mineral(eos, P_0)
+                # Reference calibration at V_0 is checked separately.
+                for ratio in [0.8, 0.9, 1.1]:
+                    with self.subTest(eos=eos, P_0=P_0, ratio=ratio):
+                        V = ratio * self.params["V_0"]
+                        P = mineral_eos(m).compute_pressure(
+                            self.params["T_0"], V, m.params
+                        )
+                        self.assertTrue(
+                            check_eos_consistency(
+                                m,
+                                P=P,
+                                T=self.params["T_0"],
+                                including_shear_properties=False,
+                            )
+                        )

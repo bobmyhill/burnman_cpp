@@ -104,6 +104,7 @@ TEST_CASE("Modular MGD Python snapshots", "[modular_mgd][eos]") {
   auto p = parameters();
   double expected_p, expected_k, expected_f, expected_s, expected_cv,
       expected_alpha;
+  double work_factor = 1.;
   SECTION("BM3 with SLB Debye") {
     expected_p = 53328936217.04308;
     expected_k = 303971835297.05597;
@@ -123,6 +124,7 @@ TEST_CASE("Modular MGD Python snapshots", "[modular_mgd][eos]") {
     expected_alpha = 1.5869290966747644e-5;
   }
   SECTION("SPOCK with two power laws") {
+    work_factor = 2.;
     p.reference_eos = eos::make_eos(types::EOSType::SPOCK);
     p.debye_temperature_model = std::make_shared<dt::PowerLawGamma>();
     expected_p = 53792019771.07384;
@@ -135,6 +137,8 @@ TEST_CASE("Modular MGD Python snapshots", "[modular_mgd][eos]") {
   eos::ModularMGD e;
   e.validate_parameters(p);
   const double t = 2000., v = .8 * *p.V_0;
+  // Historical BM3/Vinet omitted the pressure work; SPOCK used its opposite.
+  expected_f += work_factor * *p.P_0 * (*p.V_0 - v);
   const double pressure = e.compute_pressure(t, v, p);
   CHECK_THAT(pressure, WithinRel(expected_p, 2.e-12));
   CHECK_THAT(e.compute_isothermal_bulk_modulus_reuss(pressure, t, v, p),

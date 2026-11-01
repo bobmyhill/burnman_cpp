@@ -100,6 +100,8 @@ TEST_CASE("SPOCK Python reference values", "[spock][eos]") {
   // (tests/reference/burnman.json), burnman.eos.spock.SPOCK: pressure,
   // isothermal_bulk_modulus_reuss, _molar_helmholtz_energy and gibbs_energy at
   // T=300 K. Both parameter sets use F_0=-125000 J/mol and P_0=2.5e9 Pa.
+  // The historical energies use the opposite pressure-work sign. Correct
+  // that known contribution below, retaining the original snapshot literals.
   struct TestData {
     double ratio, pressure, bulk_modulus, helmholtz, gibbs;
   };
@@ -144,6 +146,7 @@ TEST_CASE("SPOCK Python reference values", "[spock][eos]") {
   eos::SPOCK spock;
   spock.validate_parameters(params);
   const double v = data.ratio * *params.V_0;
+  const double work_correction = 2. * *params.P_0 * (*params.V_0 - v);
   CAPTURE(data.ratio, t);
   CHECK_THAT(spock.compute_pressure(t, v, params),
              WithinRel(data.pressure, 2.0e-12));
@@ -153,10 +156,11 @@ TEST_CASE("SPOCK Python reference values", "[spock][eos]") {
       spock.compute_isothermal_bulk_modulus_reuss(data.pressure, t, v, params),
       WithinRel(data.bulk_modulus, 2.0e-13));
   CHECK_THAT(spock.compute_helmholtz_free_energy(data.pressure, t, v, params),
-             WithinRel(data.helmholtz, 2.0e-12));
+             WithinRel(data.helmholtz + work_correction, 2.0e-12));
   // The small Gibbs value in one row subtracts energies of order 1e5 J/mol.
   CHECK_THAT(spock.compute_gibbs_free_energy(data.pressure, t, v, params),
-             WithinRel(data.gibbs, 2.0e-12) || WithinAbs(data.gibbs, 2.0e-8));
+             WithinRel(data.gibbs + work_correction, 2.0e-12) ||
+                 WithinAbs(data.gibbs + work_correction, 2.0e-8));
   CHECK_THAT(
       spock.compute_volume(spock.compute_pressure(t, v, params), t, params),
       WithinRel(v, 2.0e-13));
