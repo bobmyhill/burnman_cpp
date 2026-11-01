@@ -84,13 +84,7 @@ void bind_materials(py::module_ &m) {
       "Evaluate scalar properties at matching P,T arrays. Return shape "
       "(len(vars_list), *pressures.shape), preserving the material and its "
       "phases. Conventional property aliases are accepted.");
-  auto formula = [](const Material &self) {
-    if (const auto *mineral = dynamic_cast<const Mineral *>(&self)) {
-      if (!mineral->params.formula)
-        throw std::invalid_argument("Mineral parameters have no formula.");
-    }
-    return self.get_formula();
-  };
+  auto formula = [](const Material &self) { return self.get_formula(); };
   material.def_property_readonly("formula", formula)
       .def("get_formula", formula);
 #define STATE_PROPERTY(name)                                                   \
