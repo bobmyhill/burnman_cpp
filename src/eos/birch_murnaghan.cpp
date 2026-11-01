@@ -221,9 +221,8 @@ double BM3::compute_molar_internal_energy(
   return -intPdV + *params.E_0;
 }
 
-double
-BM2::compute_second_order_shear_modulus(double volume,
-                                        const types::MineralParams &params) {
+double BM3Shear2::compute_second_order_shear_modulus(
+    double volume, const types::MineralParams &params) {
   double x = *params.V_0 / volume;
   double cbrt_x = std::cbrt(x);
   double x23 = cbrt_x * cbrt_x;
@@ -253,11 +252,10 @@ BM3::compute_third_order_shear_modulus(double volume,
   return G;
 }
 
-// Second order (BM2)
-double BM2::compute_shear_modulus(double pressure [[maybe_unused]],
-                                  double temperature [[maybe_unused]],
-                                  double volume,
-                                  const types::MineralParams &params) const {
+// Second order (BM3Shear2)
+double BM3Shear2::compute_shear_modulus(
+    double pressure [[maybe_unused]], double temperature [[maybe_unused]],
+    double volume, const types::MineralParams &params) const {
   return compute_second_order_shear_modulus(volume, params);
 }
 

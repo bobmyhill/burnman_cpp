@@ -18,7 +18,8 @@ inline void check_close(double actual, double expected, double rtol = 1.e-5,
 
 // SciPy quad's adaptive Gauss-Kronrod integration and default tolerances.
 template <typename Function>
-double quad(Function function, double a, double b, double atol = 1.49e-8) {
+double quad(Function function, double a, double b, double atol = 1.49e-8,
+            double rtol = 1.49e-8) {
   if (a == b)
     return 0.;
   std::unique_ptr<gsl_integration_workspace,
@@ -33,7 +34,7 @@ double quad(Function function, double a, double b, double atol = 1.49e-8) {
   double result, error;
   const int status =
       gsl_integration_qags(&integrand, std::min(a, b), std::max(a, b), atol,
-                           1.49e-8, 1000, workspace.get(), &result, &error);
+                           rtol, 1000, workspace.get(), &result, &error);
   REQUIRE(status == 0);
   return a < b ? result : -result;
 }

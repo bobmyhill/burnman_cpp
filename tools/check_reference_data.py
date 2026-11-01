@@ -96,7 +96,6 @@ def parameters(text, variable="params"):
 
 
 def make_eos(method, params):
-    method = {"bm2": "bm3shear2"}.get(method, method)
     return burnman.Mineral(dict(params, equation_of_state=method))
 
 
@@ -432,7 +431,7 @@ def audit_eos(audit):
                 def evaluate(ratio):
                     return [
                         eos_value(
-                            make_eos("bm2", p) if key == "G2" else mineral,
+                            make_eos("bm3shear2", p) if key == "G2" else mineral,
                             key,
                             0.0,
                             300.0,

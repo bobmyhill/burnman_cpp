@@ -83,10 +83,10 @@ TEST_CASE("Check reference volume", "[birch-murnaghan][eos]") {
   auto T = GENERATE(300.0, 2000.0);
   double V = *params_a.V_0;
   eos::BM3 bm3;
-  eos::BM2 bm2;
+  eos::BM3Shear2 bm3shear2;
   // EOS calculations require validated parameters, including the E_0 default.
   bm3.validate_parameters(params_a);
-  bm2.validate_parameters(params_b);
+  bm3shear2.validate_parameters(params_b);
   REQUIRE(params_a.E_0.has_value());
   REQUIRE(*params_a.E_0 == 0.0);
   CHECK_THAT(bm3.compute_isothermal_bulk_modulus_reuss(P, T, V, params_a),
@@ -103,11 +103,11 @@ TEST_CASE("Check reference volume", "[birch-murnaghan][eos]") {
              WithinRel(0.0, tol_rel) || WithinAbs(0.0, tol_abs));
   CHECK_THAT(bm3.compute_volume(0.0, T, params_a),
              WithinRel(V, tol_rel) || WithinAbs(V, tol_abs));
-  // Check BM3 and BM2 shear modulus
+  // Check BM3 and BM3Shear2 shear modulus
   CHECK_THAT(bm3.compute_shear_modulus(P, T, V, params_a),
              WithinRel(*params_a.G_0, tol_rel) ||
                  WithinAbs(*params_a.G_0, tol_abs));
-  CHECK_THAT(bm2.compute_shear_modulus(P, T, V, params_b),
+  CHECK_THAT(bm3shear2.compute_shear_modulus(P, T, V, params_b),
              WithinRel(*params_b.G_0, tol_rel) ||
                  WithinAbs(*params_b.G_0, tol_abs));
 }
@@ -119,7 +119,7 @@ TEST_CASE("Athermal EOS conventions", "[birch-murnaghan][eos]") {
   auto V = GENERATE(5.0e-6, 10.0e-6);
   // Set up test params
   types::MineralParams params;
-  params.equation_of_state = types::EOSType::BM2;
+  params.equation_of_state = types::EOSType::BM3Shear2;
   params.T_0 = 300.0;
   params.P_0 = 0.0;
   params.V_0 = 11.24e-6;
@@ -131,10 +131,10 @@ TEST_CASE("Athermal EOS conventions", "[birch-murnaghan][eos]") {
   params.G_0 = std::nan("");
   params.Gprime_0 = std::nan("");
   params.grueneisen_0 = 1.5;
-  eos::BM2 bm2;
-  CHECK(bm2.compute_grueneisen_parameter(P, T, V, params) == 0);
-  CHECK(bm2.compute_thermal_expansivity(P, T, V, params) == 0);
-  CHECK(bm2.compute_entropy(P, T, V, params) == 0);
+  eos::BM3Shear2 bm3shear2;
+  CHECK(bm3shear2.compute_grueneisen_parameter(P, T, V, params) == 0);
+  CHECK(bm3shear2.compute_thermal_expansivity(P, T, V, params) == 0);
+  CHECK(bm3shear2.compute_entropy(P, T, V, params) == 0);
   // This athermal EOS does not supply physical heat capacities; its numerical
   // placeholders are deliberately not treated as thermodynamic reference data.
 }
@@ -153,20 +153,20 @@ TEST_CASE("Shear modulus expansion", "[birch-murnaghan][eos]") {
   params.Kprime_0 = 3.8;
   params.molar_mass = 0.0403;
   params.napfu = 2;
-  eos::BM2 bm2;
+  eos::BM3Shear2 bm3shear2;
   eos::BM3 bm3;
   // Validating should set G0/G' to nan
   bm3.validate_parameters(params);
-  REQUIRE_NOTHROW(bm2.compute_shear_modulus(P, T, V, params));
+  REQUIRE_NOTHROW(bm3shear2.compute_shear_modulus(P, T, V, params));
   REQUIRE_NOTHROW(bm3.compute_shear_modulus(P, T, V, params));
-  CHECK(std::isnan(bm2.compute_shear_modulus(P, T, V, params)));
+  CHECK(std::isnan(bm3shear2.compute_shear_modulus(P, T, V, params)));
   CHECK(std::isnan(bm3.compute_shear_modulus(P, T, V, params)));
   // Set G0/G'0
   params.G_0 = 131.0e9;
   params.Gprime_0 = 2.1;
   CHECK_FALSE(std::isnan(bm3.compute_shear_modulus(P, T, V, params)));
   // Ensure expansion order different
-  CHECK_FALSE(bm2.compute_shear_modulus(P, T, V, params) ==
+  CHECK_FALSE(bm3shear2.compute_shear_modulus(P, T, V, params) ==
               bm3.compute_shear_modulus(P, T, V, params));
 }
 
@@ -205,7 +205,7 @@ TEST_CASE("Birch-Murnaghan python reference values", "[birch-murnaghan][eos]") {
 
   SECTION("Test volume dependent functions A") {
     eos::BM3 bm3;
-    eos::BM2 bm2;
+    eos::BM3Shear2 bm3shear2;
     // P & T unused
     double P = 0.0;
     double T = 300.0;
@@ -237,7 +237,7 @@ TEST_CASE("Birch-Murnaghan python reference values", "[birch-murnaghan][eos]") {
                    P, T, test_data.input * (*params_a.V_0), params_a),
                WithinRel(test_data.expected_E, tol_rel) ||
                    WithinAbs(test_data.expected_E, tol_abs));
-    CHECK_THAT(bm2.compute_shear_modulus(
+    CHECK_THAT(bm3shear2.compute_shear_modulus(
                    P, T, test_data.input * (*params_a.V_0), params_a),
                WithinRel(test_data.expected_G2, tol_rel) ||
                    WithinAbs(test_data.expected_G2, tol_abs));
@@ -248,7 +248,7 @@ TEST_CASE("Birch-Murnaghan python reference values", "[birch-murnaghan][eos]") {
   }
   SECTION("Test volume dependent functions B") {
     eos::BM3 bm3;
-    eos::BM2 bm2;
+    eos::BM3Shear2 bm3shear2;
     // P & T unused
     double P = 20.e9;
     double T = 2000.0;
@@ -280,7 +280,7 @@ TEST_CASE("Birch-Murnaghan python reference values", "[birch-murnaghan][eos]") {
                    P, T, test_data.input * (*params_b.V_0), params_b),
                WithinRel(test_data.expected_E, tol_rel) ||
                    WithinAbs(test_data.expected_E, tol_abs));
-    CHECK_THAT(bm2.compute_shear_modulus(
+    CHECK_THAT(bm3shear2.compute_shear_modulus(
                    P, T, test_data.input * (*params_b.V_0), params_b),
                WithinRel(test_data.expected_G2, tol_rel) ||
                    WithinAbs(test_data.expected_G2, tol_abs));
@@ -318,15 +318,15 @@ TEST_CASE("Birch-Murnaghan python reference values", "[birch-murnaghan][eos]") {
                    WithinAbs(expected_G_bb, tol_abs));
   }
   SECTION("Test volume") {
-    eos::BM2 bm2;
+    eos::BM3Shear2 bm3shear2;
     double T = 2000.0;
     double V_a = 0.9 * (*params_a.V_0);
     double V_b = 0.5 * (*params_b.V_0);
-    double P_a = bm2.compute_pressure(T, V_a, params_a);
-    double P_b = bm2.compute_pressure(T, V_b, params_b);
-    CHECK_THAT(bm2.compute_volume(P_a, T, params_a),
+    double P_a = bm3shear2.compute_pressure(T, V_a, params_a);
+    double P_b = bm3shear2.compute_pressure(T, V_b, params_b);
+    CHECK_THAT(bm3shear2.compute_volume(P_a, T, params_a),
                WithinRel(V_a, tol_rel) || WithinAbs(V_a, tol_abs));
-    CHECK_THAT(bm2.compute_volume(P_b, T, params_b),
+    CHECK_THAT(bm3shear2.compute_volume(P_b, T, params_b),
                WithinRel(V_b, tol_rel) || WithinAbs(V_b, tol_abs));
   }
 }

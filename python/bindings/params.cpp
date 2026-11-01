@@ -31,7 +31,7 @@ void bind_params(py::module_ &m) {
       .value("AA", EOSType::AA)
       .value("BroshCalphad", EOSType::BroshCalphad)
       .value("MT", EOSType::MT)
-      .value("BM2", EOSType::BM2)
+      .value("BM3Shear2", EOSType::BM3Shear2)
       .value("BM3", EOSType::BM3)
       .value("BM4", EOSType::BM4)
       .value("SPOCK", EOSType::SPOCK)

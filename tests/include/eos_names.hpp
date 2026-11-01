@@ -19,8 +19,8 @@
 
 inline constexpr const char *eos_string(burnman::types::EOSType eos_type) {
   switch (eos_type) {
-  case burnman::types::EOSType::BM2:
-    return "BM2";
+  case burnman::types::EOSType::BM3Shear2:
+    return "BM3Shear2";
   case burnman::types::EOSType::BM3:
     return "BM3";
   case burnman::types::EOSType::SPOCK:

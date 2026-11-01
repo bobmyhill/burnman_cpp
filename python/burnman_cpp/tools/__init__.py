@@ -13,109 +13,79 @@
 
 """Native numerical tools and optional plotting helpers."""
 
-from . import seismic, chemistry, partitioning, thermobarometry, eos
+from importlib import import_module as _import_module
 
-from .equilibrium_path import (
-    EquilibriumPath,
-    calculate_equilibrium_path,
-    sample_equilibrium_path,
-    plot_mode_box,
-)
+_MODULES = ("eos", "seismic", "chemistry", "partitioning", "thermobarometry")
+_EXPORTS = {
+    "equilibrium_path": (
+        "EquilibriumPath",
+        "calculate_equilibrium_path",
+        "sample_equilibrium_path",
+        "plot_mode_box",
+    ),
+    "contours": ("phase_diagram_contour_levels",),
+    "properties": (
+        "phase_diagram_grid",
+        "phase_diagram_grid_chunks",
+        "load_property_grid_chunks",
+        "retry_property_grid_chunks",
+        "save_property_grid",
+        "load_property_grid",
+        "evaluate_property_grid",
+    ),
+    "phase_diagram": (
+        "calculate_phase_diagram_patch",
+        "merge_phase_diagrams",
+        "phase_diagram_field_regions",
+        "phase_diagram_problem_regions",
+        "save_phase_diagram",
+        "load_phase_diagram",
+        "plot_phase_diagram",
+        "plot_phase_diagram_contours",
+        "refine_phase_diagram",
+    ),
+    "phase_diagram_helpers": (
+        "example_parser",
+        "load_example",
+        "plot_phase_diagram_example",
+        "refine_saved",
+        "report_phase_diagram",
+        "run_phase_diagram_example",
+        "save_figure",
+        "write_phase_diagram",
+    ),
+    "potential_grid": (
+        "PotentialGrid",
+        "load_potential_grid",
+        "save_potential_grid",
+        "infill_potential_grid",
+        "smooth_potential_grid",
+    ),
+    "phase_diagram_workflow": (
+        "PhaseDiagramCalculation",
+        "PotentialGridCalculation",
+        "calculate_phase_diagram_grid",
+        "calculate_potential_grid",
+    ),
+    "aspect": (
+        "AspectTableExport",
+        "write_aspect_entropy_pressure_table",
+    ),
+}
+_SYMBOLS = {name: module for module, names in _EXPORTS.items() for name in names}
+__all__ = [*_MODULES, *_SYMBOLS]
 
-from .contours import phase_diagram_contour_levels
-from .properties import (
-    phase_diagram_grid,
-    phase_diagram_grid_chunks,
-    load_property_grid_chunks,
-    retry_property_grid_chunks,
-    save_property_grid,
-    load_property_grid,
-    evaluate_property_grid,
-)
-from .phase_diagram import (
-    calculate_phase_diagram_patch,
-    merge_phase_diagrams,
-    phase_diagram_field_regions,
-    phase_diagram_problem_regions,
-    save_phase_diagram,
-    load_phase_diagram,
-    plot_phase_diagram,
-    plot_phase_diagram_contours,
-    refine_phase_diagram,
-)
-from .phase_diagram_helpers import (
-    example_parser,
-    load_example,
-    plot_phase_diagram_example,
-    refine_saved,
-    report_phase_diagram,
-    run_phase_diagram_example,
-    save_figure,
-    write_phase_diagram,
-)
 
-__all__ = [
-    "eos",
-    "seismic",
-    "chemistry",
-    "partitioning",
-    "thermobarometry",
-    "EquilibriumPath",
-    "calculate_equilibrium_path",
-    "sample_equilibrium_path",
-    "plot_mode_box",
-    "phase_diagram_grid",
-    "phase_diagram_grid_chunks",
-    "load_property_grid_chunks",
-    "retry_property_grid_chunks",
-    "save_property_grid",
-    "load_property_grid",
-    "evaluate_property_grid",
-    "calculate_phase_diagram_patch",
-    "merge_phase_diagrams",
-    "phase_diagram_field_regions",
-    "phase_diagram_problem_regions",
-    "save_phase_diagram",
-    "load_phase_diagram",
-    "phase_diagram_contour_levels",
-    "plot_phase_diagram",
-    "plot_phase_diagram_contours",
-    "refine_phase_diagram",
-    "example_parser",
-    "load_example",
-    "plot_phase_diagram_example",
-    "refine_saved",
-    "report_phase_diagram",
-    "run_phase_diagram_example",
-    "save_figure",
-    "write_phase_diagram",
-]
+def __getattr__(name):
+    if name in _MODULES or name in _EXPORTS:
+        value = _import_module(f".{name}", __name__)
+    elif name in _SYMBOLS:
+        value = getattr(_import_module(f".{_SYMBOLS[name]}", __name__), name)
+    else:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    globals()[name] = value
+    return value
 
-from .potential_grid import (
-    PotentialGrid,
-    load_potential_grid,
-    save_potential_grid,
-    infill_potential_grid,
-    smooth_potential_grid,
-)
-from .phase_diagram_workflow import (
-    PhaseDiagramCalculation,
-    PotentialGridCalculation,
-    calculate_phase_diagram_grid,
-    calculate_potential_grid,
-)
-from .aspect import AspectTableExport, write_aspect_entropy_pressure_table
 
-__all__ += [
-    "PotentialGrid",
-    "load_potential_grid",
-    "save_potential_grid",
-    "infill_potential_grid",
-    "smooth_potential_grid",
-    "PhaseDiagramCalculation",
-    "calculate_phase_diagram_grid",
-    "PotentialGridCalculation",
-    "calculate_potential_grid",
-    "AspectTableExport",
-    "write_aspect_entropy_pressure_table",
-]
+def __dir__():
+    return sorted(set(globals()) | set(__all__) | set(_EXPORTS))

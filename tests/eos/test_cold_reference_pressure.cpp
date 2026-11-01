@@ -7,9 +7,9 @@
 
 using namespace burnman;
 namespace {
-constexpr std::array models{types::EOSType::BM2,   types::EOSType::BM3,
-                            types::EOSType::BM4,   types::EOSType::Vinet,
-                            types::EOSType::Morse, types::EOSType::SPOCK};
+constexpr std::array models{types::EOSType::BM3Shear2, types::EOSType::BM3,
+                            types::EOSType::BM4,       types::EOSType::Vinet,
+                            types::EOSType::Morse,     types::EOSType::SPOCK};
 types::MineralParams parameters(types::EOSType type) {
   types::MineralParams p;
   p.equation_of_state = type;

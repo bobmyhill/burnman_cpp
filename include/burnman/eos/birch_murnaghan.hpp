@@ -26,7 +26,7 @@ namespace eos {
  *
  * The EOS is third order in strain, and has no temperature dependence.
  * Uses third order expansion also for shear modulus. To fit shear modulus
- * to second order expansion @see BM2
+ * to second order expansion @see BM3Shear2
  *
  * @note All functions assume SI units for all properties.
  */
@@ -133,7 +133,7 @@ private:
 };
 
 /**
- * @class BM2
+ * @class BM3Shear2
  * @brief Birch-Murnaghan EOS with second order expansion for shear modulus.
  *
  * Derived from BM3.
@@ -142,7 +142,7 @@ private:
  *
  * @note All functions assume SI units for all properties.
  */
-class BM2 : public BM3 {
+class BM3Shear2 : public BM3 {
 public:
   /**
    * @brief Second order exapansion for shear modulus

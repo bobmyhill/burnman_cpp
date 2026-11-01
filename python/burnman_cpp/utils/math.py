@@ -7,9 +7,6 @@ Reference: tests/reference/burnman.json.
 """
 
 import numpy as np
-from scipy.ndimage import gaussian_filter
-from scipy.interpolate import RegularGridInterpolator
-import scipy.integrate as integrate
 from collections import Counter
 import itertools
 
@@ -236,6 +233,8 @@ def smooth_array(
 
     # gaussian_filter works with standard deviations normalised to
     # the grid spacing.
+    from scipy.ndimage import gaussian_filter
+
     sigma = tuple(np.array(gaussian_rms_widths) / np.array(grid_spacing))
 
     if mode == "inverse_mirror":
@@ -299,6 +298,8 @@ def interp_smoothed_array_and_derivatives(
         the first derivatives with respect to x and y.
     :rtype: tuple
     """
+
+    from scipy.interpolate import RegularGridInterpolator
 
     dx = x_values[1] - x_values[0]
     dy = y_values[1] - y_values[0]
@@ -396,6 +397,8 @@ def l2_norm_profile(x, funca, funcb):
     :return: L2 norm (scalar)
     :rtype: float
     """
+    import scipy.integrate as integrate
+
     diff = np.square(funca - funcb)
     return np.sqrt(integrate.trapezoid(diff, x))
 
