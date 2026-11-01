@@ -107,10 +107,7 @@ ModularMGD::compute_state(double t, double v,
   auto ref_params = p;
   if (uses_internal_energy_reference(p.reference_eos.get()))
     ref_params.E_0 = *p.F_0;
-  double pref = p.reference_eos->compute_pressure(t0, v, ref_params);
-  // Native BM3 omits P_0 in pressure; Python BM3 includes it.
-  if (dynamic_cast<const BM3 *>(p.reference_eos.get()))
-    pref += *p.P_0;
+  const double pref = p.reference_eos->compute_pressure(t0, v, ref_params);
   const double fref =
       p.reference_eos->compute_gibbs_free_energy(pref, t0, v, ref_params) -
       pref * v;

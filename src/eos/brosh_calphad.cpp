@@ -5,6 +5,7 @@
 #include "burnman/optim/roots/brent.hpp"
 #include "burnman/utils/constants.hpp"
 #include "burnman/utils/validate_optionals.hpp"
+#include "reference_states.hpp"
 #include <Eigen/LU>
 #include <algorithm>
 #include <cmath>
@@ -174,6 +175,17 @@ void require_finite(const std::optional<double> &value, const char *name) {
         std::string("Nonfinite BroshCalphad parameter: ") + name);
 }
 } // namespace
+
+detail::BroshCaloric detail::brosh_sgte(double t, const Params &p) {
+  const auto s = sgte(t, p);
+  return {s.g, s.s, s.cp};
+}
+
+detail::BroshThermal detail::brosh_thermal(double pressure, const Params &p) {
+  check_state(pressure, *p.T_0, p);
+  const auto s = pressure_state(pressure, p);
+  return {s.theta, s.i};
+}
 
 void BroshCalphad::validate_parameters(Params &p) {
   require_finite(p.V_0, "V_0");

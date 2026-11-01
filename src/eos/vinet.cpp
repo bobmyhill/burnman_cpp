@@ -26,6 +26,8 @@ void Vinet::validate_parameters(types::MineralParams &params) {
   utils::require_set(params.K_0, "K_0");
   utils::require_set(params.Kprime_0, "Kprime_0");
   // Set defaults for missing values
+  if (params.F_0)
+    params.E_0 = params.F_0;
   utils::fallback_to_default(params.E_0, 0.0);
   utils::fallback_to_default(params.P_0, 0.0);
   utils::fallback_to_default(params.G_0, std::nan(""));
@@ -116,7 +118,8 @@ double Vinet::compute_molar_internal_energy(
   double eta_mu = eta * mu;
   double intPdV = 9.0 * (*params.V_0) * (*params.K_0) / (eta * eta) *
                   ((1.0 - eta_mu) * std::exp(eta_mu) - 1.0);
-  return -intPdV + (*params.E_0);
+  intPdV += *params.P_0 * (volume - *params.V_0);
+  return -intPdV + *params.E_0;
 }
 
 // Meaningless parameters for isothermal EOS
@@ -142,7 +145,7 @@ double Vinet::compute_molar_heat_capacity_v(double pressure [[maybe_unused]],
                                             double volume [[maybe_unused]],
                                             const types::MineralParams &params
                                             [[maybe_unused]]) const {
-  return 1.0e99;
+  return 1.0e-99;
 }
 
 double Vinet::compute_molar_heat_capacity_p(double pressure [[maybe_unused]],
@@ -150,7 +153,7 @@ double Vinet::compute_molar_heat_capacity_p(double pressure [[maybe_unused]],
                                             double volume [[maybe_unused]],
                                             const types::MineralParams &params
                                             [[maybe_unused]]) const {
-  return 1.0e99;
+  return 1.0e-99;
 }
 
 double Vinet::compute_thermal_expansivity(double pressure [[maybe_unused]],

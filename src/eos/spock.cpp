@@ -209,8 +209,7 @@ double SPOCK::compute_helmholtz_free_energy(
     strain_energy = -*params.V_0 * *params.K_0 * std::exp(b) / a *
                     std::pow(b, (c - 1.0) / a) * (i1 - i2);
   }
-  // Preserve the reference-pressure energy convention in Python SPOCK.
-  return *params.F_0 + *params.P_0 * (volume - *params.V_0) + strain_energy;
+  return *params.F_0 + *params.P_0 * (*params.V_0 - volume) + strain_energy;
 }
 
 double

@@ -45,8 +45,6 @@ void BM4::validate_parameters(types::MineralParams &params) {
   utils::require_set(params.Kdprime_0, "Kdprime_0");
   if (!std::isfinite(*params.Kdprime_0))
     throw std::invalid_argument("Kdprime_0 must be finite.");
-  if (params.F_0)
-    params.E_0 = params.F_0;
 }
 double BM4::compute_pressure(double, double volume,
                              const types::MineralParams &params) const {
@@ -102,10 +100,10 @@ BM4::compute_molar_internal_energy(double, double, double volume,
   const double zeta =
       .375 * (*params.K_0 * *params.Kdprime_0 +
               *params.Kprime_0 * (*params.Kprime_0 - 7.) + 143. / 9.);
-  return *params.E_0 +
-         4.5 * *params.K_0 * *params.V_0 * f * f *
-             (1. - (4. / 3.) * xi * f + 2. * zeta * f * f) +
-         *params.P_0 * (*params.V_0 - volume);
+  double intPdV = -4.5 * *params.K_0 * *params.V_0 * f * f *
+                  (1. - (4. / 3.) * xi * f + 2. * zeta * f * f);
+  intPdV += *params.P_0 * (volume - *params.V_0);
+  return -intPdV + *params.E_0;
 }
 double
 BM4::compute_helmholtz_free_energy(double pressure, double temperature,
@@ -120,6 +118,8 @@ void BM3::validate_parameters(types::MineralParams &params) {
   utils::require_set(params.K_0, "K_0");
   utils::require_set(params.Kprime_0, "Kprime_0");
   // Set defaults for missing values
+  if (params.F_0)
+    params.E_0 = params.F_0;
   utils::fallback_to_default(params.E_0, 0.0);
   utils::fallback_to_default(params.P_0, 0.0);
   utils::fallback_to_default(params.G_0, std::nan(""));
@@ -148,7 +148,8 @@ double BM3::compute_birch_murnaghan(double inv_compression,
   double x53 = inv_compression * x23;
   double x73 = inv_compression * inv_compression * cbrt_x;
   return 1.5 * (*params.K_0) * (x73 - x53) *
-         (1 + (0.75 * (*params.Kprime_0 - 4) * (x23 - 1)));
+             (1 + (0.75 * (*params.Kprime_0 - 4) * (x23 - 1))) +
+         *params.P_0;
 }
 
 double BM3::compute_volume(double pressure, double temperature [[maybe_unused]],
@@ -215,8 +216,9 @@ double BM3::compute_molar_internal_energy(
   // 9/16 = 0.5625
   double fac = 0.5625 * (*params.V_0) * (*params.K_0);
   double intPdV =
-      fac * ((t * t * t * (*params.Kprime_0)) + (t * t * (6 - 4 * x)));
-  return *params.E_0 + intPdV;
+      -fac * ((t * t * t * (*params.Kprime_0)) + (t * t * (6 - 4 * x)));
+  intPdV += *params.P_0 * (volume - *params.V_0);
+  return -intPdV + *params.E_0;
 }
 
 double
@@ -282,7 +284,7 @@ double BM3::compute_molar_heat_capacity_v(double pressure [[maybe_unused]],
                                           double volume [[maybe_unused]],
                                           const types::MineralParams &params
                                           [[maybe_unused]]) const {
-  return 1.0e99;
+  return 1.0e-99;
 }
 
 double BM3::compute_molar_heat_capacity_p(double pressure [[maybe_unused]],
@@ -290,7 +292,7 @@ double BM3::compute_molar_heat_capacity_p(double pressure [[maybe_unused]],
                                           double volume [[maybe_unused]],
                                           const types::MineralParams &params
                                           [[maybe_unused]]) const {
-  return 1.0e99;
+  return 1.0e-99;
 }
 
 double BM3::compute_thermal_expansivity(double pressure [[maybe_unused]],

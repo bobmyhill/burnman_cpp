@@ -48,7 +48,9 @@ class test_hyperelastic(BurnManTest):
             return contract(np.einsum("ia,jb,kc,ld,abcd->ijkl", Q, Q, Q, Q, value))
         return np.einsum("ia,jb,kc,ld,abcd->ijkl", Q, Q, Q, Q, value)
 
-    def _get_hyperelastic_mineral(self, orthotropic=False, thermal_shear=False):
+    def _get_hyperelastic_mineral(
+        self, orthotropic=False, thermal_shear=False, reference_energy_shift=0.0
+    ):
         """
         Build a HyperelasticMineral instance with the requested
         symmetry and, optionally, a thermal shear component to the
@@ -87,6 +89,13 @@ class test_hyperelastic(BurnManTest):
             fo, cell_parameters, constants, frame_convention=[0, 1, 2]
         )
         self.assertTrue(check_anisotropic_eos_consistency(m_hydrostatic))
+        if reference_energy_shift:
+            params = fo.params
+            params.F_0 += reference_energy_shift
+            fo.set_parameters(params)
+            m_hydrostatic = AnisotropicMineral(
+                fo, cell_parameters, constants, frame_convention=[0, 1, 2]
+            )
         return HyperelasticMineral(m_hydrostatic)
 
     def _set_finite_strain_state(self, m):
@@ -447,6 +456,33 @@ class test_hyperelastic(BurnManTest):
                     self.assertFloatEqual(curvature, heat_capacity, tol=2e-05)
         finally:
             m.set_state_with_molar_cell_vectors(cell_vectors, T)
+
+    def test_derivatives_independent_of_reference_energy(self):
+        """Adding a constant to the energy leaves all derivatives unchanged."""
+        m = self._get_hyperelastic_mineral()
+        self._set_finite_strain_state(m)
+        cells, T = m.cell_vectors.copy(), m.temperature
+        properties = [
+            "cauchy_stress",
+            "isothermal_stiffness_tensor",
+            "molar_entropy",
+            "molar_isometric_heat_capacity",
+            "thermal_stress",
+        ]
+        expected = {p: np.array(getattr(m, p), copy=True) for p in properties}
+        energy = m.molar_helmholtz
+        # Native tensor parameters are snapshots; rebuild the shifted reference.
+        shifted = self._get_hyperelastic_mineral(reference_energy_shift=1.0e12)
+        shifted.set_state_with_molar_cell_vectors(cells, T)
+        self.assertAlmostEqual((shifted.molar_helmholtz - energy) / 1.0e12, 1.0)
+        for prop in properties:
+            with self.subTest(property=prop):
+                self.assertArraysAlmostEqual(
+                    np.asarray(getattr(shifted, prop)).ravel(),
+                    expected[prop].ravel(),
+                    tol=1.0e-12,
+                    tol_zero=1.0e-12,
+                )
 
     def test_eos_consistency(self):
         """

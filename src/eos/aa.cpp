@@ -5,6 +5,7 @@
 #include "burnman/optim/roots/brent.hpp"
 #include "burnman/utils/constants.hpp"
 #include "burnman/utils/validate_optionals.hpp"
+#include "reference_states.hpp"
 #include <cmath>
 #include <limits>
 #include <type_traits>
@@ -95,6 +96,11 @@ struct Model {
             fraction,
             h,
             c};
+  }
+  double reference_bulk_modulus(const Reference &s) const {
+    return s.prefactor * ((5. / 3.) * s.q * (1. - xi1 * s.q + xi2 * s.q * s.q) +
+                          (2. / 3.) * (s.q + 1.) *
+                              (1. - 2. * xi1 * s.q + 3. * xi2 * s.q * s.q));
   }
   double cv(double t, const Coefficients &c) const {
     return ck + c.a * t * t / (c.theta * c.theta + t * t) +
@@ -195,11 +201,7 @@ struct Model {
           .36 * c.xi * f.fx + 2. * s.gamma * dt * cvl +
           s.gamma * s.gamma * s.t * dt * cvt +
           cvs * (dt * gl - s.t * s.gamma * s.gamma);
-      const double ks =
-          s.prefactor * ((5. / 3.) * s.q * (1. - xi1 * s.q + xi2 * s.q * s.q) +
-                         (2. / 3.) * (s.q + 1.) *
-                             (1. - 2. * xi1 * s.q + 3. * xi2 * s.q * s.q));
-      result.kt = ks + (f_l + f_ll) / v;
+      result.kt = reference_bulk_modulus(s) + (f_l + f_ll) / v;
     }
     return result;
   }
@@ -230,6 +232,13 @@ void require_finite(const std::optional<T> &value, const char *name) {
   throw std::invalid_argument(std::string("AA requires finite ") + name + ".");
 }
 } // namespace
+
+detail::AAReference detail::aa_reference(double volume, const Params &p) {
+  check_state(*p.T_0, volume);
+  const Model model(p);
+  const auto s = model.reference<true>(volume);
+  return {s.energy, s.t, s.pressure, model.reference_bulk_modulus(s)};
+}
 
 void AA::validate_parameters(Params &p) {
 #define REQUIRED(name) require_finite(p.name, #name)

@@ -25,6 +25,8 @@ void MT::validate_parameters(types::MineralParams &params) {
   utils::require_set(params.Kprime_0, "Kprime_0");
   utils::require_set(params.Kdprime_0, "Kdprime_0");
   // Check for optional parameters and set defaults if missing
+  if (params.F_0)
+    params.E_0 = params.F_0;
   utils::fallback_to_default(params.E_0, 0.0);
   utils::fallback_to_default(params.P_0, 1.0e5);
   utils::fallback_to_default(params.G_0, std::nan(""));
