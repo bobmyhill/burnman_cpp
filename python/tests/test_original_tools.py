@@ -33,6 +33,41 @@ from burnman_cpp.tools.thermobarometry import estimate_conditions
 from burnman_cpp.tools.thermobarometry import get_reaction_matrix
 from burnman_cpp.tools.thermobarometry import assemblage_affinity_misfit
 from burnman_cpp.tools.thermobarometry import assemblage_state_misfit
+from burnman_cpp.tools.thermobarometry import assemblage_affinity_covariance_matrix
+from burnman_cpp.tools.thermobarometry import assemblage_set_state_from_params
+
+
+def affinity_assemblage(affinities, covariance):
+    """Three isochemical native endmembers with two independent reactions."""
+    endmembers = []
+    for name, energy in zip(("reference", "first", "second"), [0.0, *affinities]):
+        mineral = burnman.Mineral(
+            dict(
+                name=name,
+                equation_of_state="bm3",
+                F_0=energy,
+                P_0=0.0,
+                V_0=1.0e-5,
+                K_0=1.0e11,
+                Kprime_0=4.0,
+                formula={"Mg": 1.0, "O": 1.0},
+                molar_mass=0.0403044,
+                n=2,
+            )
+        )
+        endmembers.append((mineral, "[Mg]O"))
+    phase = burnman.Solution(burnman.MechanicalSolution(endmembers), [1.0 / 3.0] * 3)
+    phase.compositional_covariances = np.zeros((3, 3))
+    assemblage = make_assemblage([phase], [1.0])
+    assemblage.set_state(0.0, 300.0)
+    reactions = np.array([[-1.0, 1.0, 0.0], [-1.0, 0.0, 1.0]])
+    data_covariance = np.zeros((3, 3))
+    data_covariance[1:, 1:] = covariance
+    data = {
+        "endmember_names": phase.endmember_names,
+        "covariance_matrix": data_covariance,
+    }
+    return assemblage, reactions, data
 
 
 def setup_assemblage(scale=1.0):
@@ -83,6 +118,139 @@ def setup_assemblage(scale=1.0):
 
 
 class test_tools(BurnManTest):
+
+    def test_endmember_covariances_with_repeated_raw_endmembers(self):
+        data = {
+            "endmember_names": [HP_2011_ds62.fo().name, HP_2011_ds62.fa().name],
+            "covariance_matrix": np.array([[10000.0, 2000.0], [2000.0, 40000.0]]),
+        }
+        expected = np.array(
+            [
+                [10000.0, 2000.0, 10000.0],
+                [2000.0, 40000.0, 2000.0],
+                [10000.0, 2000.0, 10000.0],
+            ]
+        )
+        for amounts in ([0.5, 0.5], [1.5, -0.5]):
+            with self.subTest(amounts=amounts):
+                made = burnman.CombinedMineral(
+                    [HP_2011_ds62.fo(), HP_2011_ds62.fo()], amounts
+                )
+                solution = burnman.Solution(
+                    burnman.IdealSolution(
+                        [(made, "[Mg]2SiO4"), (HP_2011_ds62.fa(), "[Fe]2SiO4")]
+                    ),
+                    [0.5, 0.5],
+                )
+                solution.compositional_covariances = np.zeros((2, 2))
+                assemblage = make_assemblage([solution, HP_2011_ds62.fo()], [0.5, 0.5])
+                assemblage.set_state(1.0e5, 1000.0)
+                # Identity exposes endmember covariance through the public API.
+                actual = assemblage_affinity_covariance_matrix(
+                    assemblage, np.eye(3), data
+                )
+                self.assertArraysAlmostEqual(actual.ravel(), expected.ravel())
+
+    def test_assemblage_affinity_misfit_preserves_small_variances(self):
+        for covariance, affinities, expected in (
+            (np.diag([1.0e20, 1.0]), [1.0e10, 1.0], 2.0),
+            (np.array([[4.0, 1.0], [1.0, 9.0]]), [7.0, -7.0], 21.0),
+        ):
+            with self.subTest(covariance=covariance):
+                assemblage, reactions, data = affinity_assemblage(
+                    affinities, covariance
+                )
+                self.assertArraysAlmostEqual(
+                    (reactions @ assemblage.stoichiometric_matrix).ravel(), np.zeros(4)
+                )
+                self.assertArraysAlmostEqual(
+                    (reactions @ assemblage.endmember_partial_gibbs).ravel(), affinities
+                )
+                actual = assemblage_affinity_covariance_matrix(
+                    assemblage, reactions, data
+                )
+                self.assertArraysAlmostEqual(actual.ravel(), covariance.ravel())
+                self.assertFloatEqual(
+                    assemblage_affinity_misfit(assemblage, reactions, data), expected
+                )
+
+    def test_assemblage_affinity_misfit_rejects_invalid_covariance(self):
+        assemblage, reactions, data = affinity_assemblage(
+            [0.0, 1.0], np.diag([1.0, 0.0])
+        )
+        self.assertEqual(
+            assemblage_affinity_misfit(assemblage, reactions, data), np.inf
+        )
+        # Native dataset validation rejects indefinite input before propagation.
+        data["covariance_matrix"][2, 2] = -1.0
+        with self.assertRaisesRegex(ValueError, "positive semidefinite"):
+            assemblage_affinity_misfit(assemblage, reactions, data)
+        for invalid in (
+            np.eye(2),
+            np.full((3, 3), np.nan),
+            np.full((3, 3), np.inf),
+            np.array([[1.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]),
+        ):
+            with self.subTest(covariance=invalid):
+                data["covariance_matrix"] = invalid
+                with self.assertRaises(ValueError):
+                    assemblage_affinity_misfit(assemblage, reactions, data)
+
+    def _assert_infeasible_coordinates_preserve_state(self, assemblage, trial):
+        phases = assemblage.phases[:-1]
+        compositions = [phase.molar_fractions.copy() for phase in phases]
+        state = (assemblage.pressure, assemblage.temperature)
+        biotite = phases[1]
+        composition = (
+            biotite.baseline_composition
+            + biotite.free_compositional_vectors.T @ trial[2:]
+        )
+        self.assertLess(np.min(biotite.endmember_occupancies.T @ composition), 0.0)
+        with self.assertRaisesRegex(ValueError, "site occupancies"):
+            assemblage_set_state_from_params(assemblage, trial)
+        for phase, expected in zip(phases, compositions):
+            self.assertArraysAlmostEqual(
+                phase.molar_fractions, expected, tol=0.0, tol_zero=0.0
+            )
+        self.assertEqual((assemblage.pressure, assemblage.temperature), state)
+
+    def test_estimate_conditions_rejects_infeasible_warmup(self):
+        assemblage = setup_assemblage(scale=0.0)
+        assemblage.set_state(0.4e9, 873.0)
+        biotite = assemblage.phases[1]
+        biotite.free_compositional_vectors = make_assemblage([biotite]).reaction_basis
+        biotite.baseline_composition = biotite.molar_fractions
+        self._assert_infeasible_coordinates_preserve_state(
+            assemblage, np.array([0.5e9, 500.0, 1.0])
+        )
+        result = estimate_conditions(
+            assemblage,
+            HP_2011_ds62.cov(),
+            guessed_conditions=[0.5e9, 500.0],
+            max_it=300,
+        )
+        self.assertTrue(result.success, result.message)
+        for phase in assemblage.phases[:-1]:
+            self.assertGreaterEqual(min(phase.site_occupancies), -1.0e-10)
+
+    def test_estimate_conditions_rejects_infeasible_optimum(self):
+        assemblage = setup_assemblage(scale=0.0)
+        biotite = assemblage.phases[1]
+        biotite.free_compositional_vectors = make_assemblage([biotite]).reaction_basis
+        result = estimate_conditions(
+            assemblage,
+            HP_2011_ds62.cov(),
+            guessed_conditions=[0.5e9, 500.0],
+            max_it=300,
+        )
+        self.assertTrue(result.success, result.message)
+        # Submit an unphysical candidate via the same validation used at completion.
+        trial = result.x.copy()
+        trial[2] = 1.0
+        self._assert_infeasible_coordinates_preserve_state(assemblage, trial)
+        assemblage_set_state_from_params(assemblage, result.x)
+        for phase in assemblage.phases[:-1]:
+            self.assertGreaterEqual(min(phase.site_occupancies), -1.0e-10)
 
     def test_eqm_T(self):
         fo = burnman.minerals.HP_2011_ds62.fo()

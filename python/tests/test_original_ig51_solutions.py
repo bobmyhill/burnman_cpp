@@ -6,8 +6,13 @@ Reference: tests/reference/burnman.json.
 Original numerical inputs, assertions and tolerances are retained.
 """
 
-from original_test_support import native_endmembers, is_native_factory, ideal_model_call
-import unittest
+from original_test_support import (
+    BurnManTest,
+    native_endmembers,
+    is_native_factory,
+    ideal_model_call,
+)
+from test_original_hp_solutions import assert_linear_correction, named_endmember
 import numpy as np
 from burnman_cpp import Solution
 from burnman_cpp import IdealSolution
@@ -16,7 +21,37 @@ from burnman_cpp.minerals import HPx_ds636, ig51W24, ig51G25
 from burnman_cpp.tools.eos import check_eos_consistency
 
 
-class ig51_solutions(unittest.TestCase):
+class ig51_solutions(BurnManTest):
+
+    def test_duplicated_endmember_labels(self):
+        for module in (ig51W24, ig51G25):
+            with self.subTest(dataset=module.__name__):
+                ol = named_endmember(module.ol_H18(), "cfm")
+                cpx = named_endmember(module.cpx_W24(), "cfm")
+                self.assertEqual(ol.formula, {"Mg": 1, "Fe": 1, "Si": 1, "O": 4})
+                self.assertEqual(cpx.formula, {"Mg": 1, "Fe": 1, "Si": 2, "O": 6})
+                assert_linear_correction(
+                    self,
+                    ol,
+                    [HPx_ds636.fa(), HPx_ds636.fo()],
+                    [0.5, 0.5],
+                    [0.0, 0.0, 0.0],
+                )
+                assert_linear_correction(
+                    self,
+                    cpx,
+                    [HPx_ds636.en(), HPx_ds636.fs()],
+                    [0.5, 0.5],
+                    [-1600.0, 2.0, 4.65e-7],
+                )
+        fluid = named_endmember(ig51G25.fl_G25(), "fofL")
+        melt = named_endmember(ig51G25.liq_G25w(), "fo2L")
+        assert_linear_correction(
+            self, fluid, [HPx_ds636.foL()], [2.0], [7560.0, 0.0, -1.25e-6]
+        )
+        assert_linear_correction(
+            self, melt, [HPx_ds636.foL()], [2.0], [7740.0, 0.0, -1.56e-6]
+        )
 
     def test_complete_solution_sets(self):
         expected = {
