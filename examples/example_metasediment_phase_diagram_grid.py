@@ -81,6 +81,8 @@ def main():
     print_solutions()
 
     # Part 1: Phase diagram creation.
+    # Creation/refinement also saves two limiting curves per reaction, each
+    # with one equilibrium per point, for later contours without new solves.
     run = bm.calculate_phase_diagram_grid(
         dataset=MODEL_SET,
         composition=METASEDIMENT_COMPOSITION,

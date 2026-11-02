@@ -204,9 +204,9 @@ def test_resolved_refinement_preserves_graph_ids_labels_and_saved_evidence(
     for key in ("nodes", "fields", "samples", "excluded_regions", "phase_names"):
         assert after[key] == saved[key]
     for old, new in zip(saved["boundaries"], after["boundaries"]):
-        assert {k: v for k, v in new.items() if k != "points"} == {
-            k: v for k, v in old.items() if k != "points"
-        }
+        assert {
+            k: v for k, v in new.items() if k not in ("points", "limiting_curves")
+        } == {k: v for k, v in old.items() if k not in ("points", "limiting_curves")}
         assert all(point in new["points"] for point in old["points"])
     if scope == "none":
         assert after == saved

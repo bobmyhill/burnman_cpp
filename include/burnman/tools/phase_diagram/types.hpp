@@ -192,6 +192,14 @@ struct BoundaryPoint {
 /// Relation between neighbouring fields, verified by the equilibrium response.
 enum class ReactionKind { unknown, phase_out, replacement };
 
+/// One field's limiting curve along a shared reaction condition. Each point
+/// is a single equilibrium with its own physical P,T and extensive S,V.
+/// Failed points retain success=false and must not be used as equilibrium data.
+struct BoundaryCurve {
+  std::vector<int> assemblage;
+  std::vector<State> points;
+};
+
 /// One traced reaction curve, stored as an ordered sequence of solved points.
 /// Consecutive points are joined by straight segments only for drawing.
 struct Boundary {
@@ -208,6 +216,10 @@ struct Boundary {
   // order, side_a is right and side_b left when following points front to back.
   std::vector<int> assemblage, side_a, side_b;
   std::vector<BoundaryPoint> points;
+  // Two separate curves, ordered like side_a/side_b. Their P-T projections
+  // can coincide while their S/V coordinates and phase amounts differ.
+  // Created with the diagram; older saved results can omit these records.
+  std::array<BoundaryCurve, 2> limiting_curves;
   // "start status; end status". Failed/unresolved ends have node ID -1.
   std::string termination;
 };

@@ -213,6 +213,35 @@ def _secondary_phase_labels(data, geometry, tolerance, close_domain):
     )
 
 
+def _limiting_curve(polygon, boundary, axes, ranges):
+    """Select a saved field-side curve, using orientation for equal names."""
+    curves = boundary.get("limiting_curves", [])
+    matches = [
+        i
+        for i, curve in enumerate(curves)
+        if curve["assemblage"] == list(polygon.phases)
+    ]
+    if len(matches) == 1:
+        return curves[matches[0]]
+    if len(matches) != 2:
+        return None
+    span = np.diff(ranges).ravel()
+    points = np.asarray([[p[a] for a in axes] for p in boundary["points"]])
+    for first, last in zip(points[:-1], points[1:]):
+        along = (last - first) / span
+        if np.linalg.norm(along) == 0.0:
+            continue
+        right = np.array([along[1], -along[0]]) / np.linalg.norm(along)
+        centre = (first + last) / 2.0
+        for step in (1e-9, 1e-8, 1e-7, 1e-6):
+            for side, sign in ((0, 1.0), (1, -1.0)):
+                if polygon.contains_rectangle(
+                    centre + sign * step * span * right, span * step * 0.01
+                ):
+                    return curves[side]
+    return None
+
+
 def _field_observations(
     polygon, candidate, count, copies, samples, fields, boundaries, axes, ranges
 ):
@@ -225,11 +254,17 @@ def _field_observations(
     if polygon.sample_index >= 0:
         sample_ids.add(polygon.sample_index)
     states = [(("sample", i), samples[i], None) for i in sorted(sample_ids)]
-    states += [
-        (("boundary", line_id, i), point, boundaries[line_id])
-        for line_id in polygon.boundary_ids
-        for i, point in enumerate(boundaries[line_id]["points"])
-    ]
+    for line_id in polygon.boundary_ids:
+        boundary = boundaries[line_id]
+        curve = _limiting_curve(polygon, boundary, axes, ranges)
+        points = curve["points"] if curve is not None else boundary["points"]
+        if boundary.get("limiting_curves") and curve is None:
+            continue
+        states += [
+            (("boundary", line_id, i), point, boundary)
+            for i, point in enumerate(points)
+            if curve is None or point.get("success", False)
+        ]
     half_size = np.diff(ranges).ravel() * 1.0e-12
     for key, state, boundary in states:
         position = np.array([state[axis] for axis in axes], dtype=float)

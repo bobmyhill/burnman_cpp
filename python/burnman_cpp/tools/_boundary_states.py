@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: Copyright (C) 2026 by the BurnMan Team.
-"""Field-side limiting amounts from saved boundary compositions and chemistry."""
+"""Field-side equilibria from saved curves, with a legacy mass-balance fallback."""
 
 from collections import Counter
 
@@ -10,14 +10,13 @@ import numpy as np
 def field_boundary_states(data, phases):
     """Return a sampler yielding (boundary key, position, limiting state).
 
-    A replacement boundary can save the finite amounts of the opposite field
-    (e.g. sillimanite rather than kyanite). Keep the field's saved composition
-    roots, then recover its unique nonnegative amounts by linear mass balance.
-    No compositions, P/T or equilibria are solved. Incomplete, nonunique or
-    incompatible limits are omitted so interpolation can use field samples.
+    Read explicit limiting curves directly. For older diagrams, keep the
+    field's saved composition roots and recover unique nonnegative amounts by
+    linear mass balance. No compositions, P/T or equilibria are solved.
+    Unverified limits are omitted so interpolation can use field samples.
     """
     from .phase_diagram import _section_axes
-    from .phase_diagram_labels import _field_observations
+    from .phase_diagram_labels import _field_observations, _limiting_curve
     from .. import _core
 
     copies = data.get("settings", {}).get("max_phase_instances", 3)
@@ -55,6 +54,16 @@ def field_boundary_states(data, phases):
             for candidate, count in counts.items()
         ]
         for line_id in polygon.boundary_ids:
+            boundary = boundaries[line_id]
+            if boundary.get("limiting_curves"):
+                curve = _limiting_curve(polygon, boundary, axes, ranges)
+                if curve is not None:
+                    for index, state in enumerate(curve["points"]):
+                        if state.get("success", False) and state.get("phases"):
+                            yield ("boundary", line_id, index), tuple(
+                                state[a] for a in axes
+                            ), state
+                continue
             for index, state in enumerate(boundaries[line_id]["points"]):
                 key = ("boundary", line_id, index)
                 if not roots or any(key not in group for group in roots):

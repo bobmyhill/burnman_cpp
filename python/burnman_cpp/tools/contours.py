@@ -141,8 +141,3 @@ def _phase_composition_constraint_for_diagram(
         )
 
     return factory
-
-
-_core.PhaseCompositionConstraint.for_diagram = staticmethod(
-    _phase_composition_constraint_for_diagram
-)

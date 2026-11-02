@@ -124,6 +124,27 @@ phase_states_dict(const std::vector<phase_diagrams::PhaseState> &states) {
   }
   return records;
 }
+py::dict equilibrium_state_dict(const phase_diagrams::State &state) {
+  py::dict record;
+#define SAVE(name) record[#name] = py::cast(state.name);
+  SAVE(pressure)
+  SAVE(temperature)
+  SAVE(entropy)
+  SAVE(volume)
+  SAVE(composition_coordinate)
+  SAVE(success)
+  SAVE(is_field_verification)
+  SAVE(outside_model_domain)
+  SAVE(message)
+  SAVE(excluded_phases)
+  SAVE(gibbs)
+  SAVE(mass_balance_error)
+  SAVE(minimum_affinity)
+  SAVE(equilibrium_error)
+#undef SAVE
+  record["phases"] = phase_states_dict(state.phases);
+  return record;
+}
 py::dict boundary_point_dict(const phase_diagrams::BoundaryPoint &point) {
   py::dict item;
 #define SAVE(name) item[#name] = py::cast(point.name);
@@ -166,7 +187,7 @@ phase_diagrams::ThermodynamicValidation saved_validation(const py::dict &data) {
 }
 py::dict result_dict(const phase_diagrams::Result &result) {
   py::dict data;
-  data["schema_version"] = 4;
+  data["schema_version"] = 5;
   data["diagram_type"] = diagram_name(result.section.type);
   data["composition_start"] = py::cast(result.composition_start);
   data["composition_end"] = py::cast(result.section.composition_end);
@@ -246,29 +267,24 @@ py::dict result_dict(const phase_diagrams::Result &result) {
       points.append(boundary_point_dict(point));
     }
     record["points"] = points;
+    if (!line.limiting_curves[0].points.empty() ||
+        !line.limiting_curves[1].points.empty()) {
+      py::list curves;
+      for (const auto &curve : line.limiting_curves) {
+        py::dict saved;
+        saved["assemblage"] = py::cast(curve.assemblage);
+        py::list curve_points;
+        for (const auto &point : curve.points)
+          curve_points.append(equilibrium_state_dict(point));
+        saved["points"] = curve_points;
+        curves.append(saved);
+      }
+      record["limiting_curves"] = curves;
+    }
     boundaries.append(record);
   }
-  for (auto &state : result.samples) {
-    py::dict record;
-#define SAVE(name) record[#name] = py::cast(state.name);
-    SAVE(pressure)
-    SAVE(temperature)
-    SAVE(entropy)
-    SAVE(volume)
-    SAVE(composition_coordinate)
-    SAVE(success)
-    SAVE(is_field_verification)
-    SAVE(outside_model_domain)
-    SAVE(message)
-    SAVE(excluded_phases)
-    SAVE(gibbs)
-    SAVE(mass_balance_error)
-    SAVE(minimum_affinity)
-    SAVE(equilibrium_error)
-#undef SAVE
-    record["phases"] = phase_states_dict(state.phases);
-    samples.append(record);
-  }
+  for (auto &state : result.samples)
+    samples.append(equilibrium_state_dict(state));
   data["fields"] = fields;
   data["nodes"] = nodes;
   data["boundaries"] = boundaries;
@@ -363,6 +379,31 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
     }
     return out;
   };
+  auto saved_state = [&](const py::dict &value) {
+    State state;
+    state.success = value["success"].cast<bool>();
+    state.pressure = value["pressure"].cast<double>();
+    state.temperature = value["temperature"].cast<double>();
+    state.composition_coordinate = composition_coordinate(value);
+    state.entropy = extensive(value, "entropy", Coordinate::S);
+    state.volume = extensive(value, "volume", Coordinate::V);
+    if (value.contains("is_field_verification"))
+      state.is_field_verification = value["is_field_verification"].cast<bool>();
+    if (value.contains("outside_model_domain"))
+      state.outside_model_domain = value["outside_model_domain"].cast<bool>();
+    if (value.contains("excluded_phases"))
+      state.excluded_phases =
+          value["excluded_phases"].cast<std::vector<std::string>>();
+    state.phases = phases(value["phases"]);
+    if (full) {
+      state.message = value["message"].cast<std::string>();
+      state.gibbs = value["gibbs"].cast<double>();
+      state.mass_balance_error = value["mass_balance_error"].cast<double>();
+      state.minimum_affinity = value["minimum_affinity"].cast<double>();
+      state.equilibrium_error = value["equilibrium_error"].cast<double>();
+    }
+    return state;
+  };
   if (data.contains("nodes"))
     for (auto item : data["nodes"]) {
       auto value = py::reinterpret_borrow<py::dict>(item);
@@ -447,6 +488,19 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
       }
       line.points.push_back(p);
     }
+    if (full && value.contains("limiting_curves")) {
+      auto curves = value["limiting_curves"].cast<py::list>();
+      if (curves.size() != 2)
+        throw py::value_error("A reaction boundary needs two limiting curves.");
+      for (std::size_t side = 0; side < 2; ++side) {
+        auto curve = curves[side].cast<py::dict>();
+        line.limiting_curves[side].assemblage =
+            curve["assemblage"].cast<std::vector<int>>();
+        for (auto point : curve["points"])
+          line.limiting_curves[side].points.push_back(
+              saved_state(py::reinterpret_borrow<py::dict>(point)));
+      }
+    }
     result.boundaries.push_back(std::move(line));
   }
   if (data.contains("fields"))
@@ -461,31 +515,8 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
     }
   if (data.contains("samples"))
     for (auto item : data["samples"]) {
-      auto value = py::reinterpret_borrow<py::dict>(item);
-      State state;
-      state.success = value["success"].cast<bool>();
-      state.pressure = value["pressure"].cast<double>();
-      if (value.contains("is_field_verification"))
-        state.is_field_verification =
-            value["is_field_verification"].cast<bool>();
-      if (value.contains("outside_model_domain"))
-        state.outside_model_domain = value["outside_model_domain"].cast<bool>();
-      state.temperature = value["temperature"].cast<double>();
-      state.composition_coordinate = composition_coordinate(value);
-      state.entropy = extensive(value, "entropy", Coordinate::S);
-      state.volume = extensive(value, "volume", Coordinate::V);
-      if (value.contains("excluded_phases"))
-        state.excluded_phases =
-            value["excluded_phases"].cast<std::vector<std::string>>();
-      state.phases = phases(value["phases"]);
-      if (full) {
-        state.message = value["message"].cast<std::string>();
-        state.gibbs = value["gibbs"].cast<double>();
-        state.mass_balance_error = value["mass_balance_error"].cast<double>();
-        state.minimum_affinity = value["minimum_affinity"].cast<double>();
-        state.equilibrium_error = value["equilibrium_error"].cast<double>();
-      }
-      result.samples.push_back(std::move(state));
+      result.samples.push_back(
+          saved_state(py::reinterpret_borrow<py::dict>(item)));
     }
   if (full) {
     if (data.contains("equilibrium_solves"))
@@ -730,6 +761,11 @@ void bind_phase_diagram(py::module_ &m) {
                   PROPERTY(residual)
 #undef PROPERTY
                       ;
+  py::class_<BoundaryCurve>(m, "PhaseBoundaryCurve",
+                            "One field-side limiting curve, with one "
+                            "equilibrium and its own P,T,S,V per point.")
+      .def_readonly("assemblage", &BoundaryCurve::assemblage)
+      .def_readonly("points", &BoundaryCurve::points);
   py::class_<Boundary>(
       m, "PhaseBoundary",
       "Solved reaction curve. The boundary assemblage retains "
@@ -737,12 +773,14 @@ void bind_phase_diagram(py::module_ &m) {
       "neighbours in calculation-axis order.")
 #define PROPERTY(name) .def_readonly(#name, &Boundary::name)
       PROPERTY(id) PROPERTY(zero_phase) PROPERTY(start_node) PROPERTY(end_node)
-          PROPERTY(assemblage) PROPERTY(side_a) PROPERTY(side_b) PROPERTY(
-              is_solution_replacement) PROPERTY(points) PROPERTY(termination)
+          PROPERTY(assemblage) PROPERTY(side_a) PROPERTY(side_b)
+              PROPERTY(is_solution_replacement) PROPERTY(points)
+                  PROPERTY(termination) PROPERTY(limiting_curves)
 #undef PROPERTY
-              .def_property_readonly("reaction_kind", [](const Boundary &line) {
-                return reaction_name(line.reaction_kind);
-              });
+                      .def_property_readonly(
+                          "reaction_kind", [](const Boundary &line) {
+                            return reaction_name(line.reaction_kind);
+                          });
   py::class_<Node>(m, "PhaseDiagramNode")
 #define PROPERTY(name) .def_readonly(#name, &Node::name)
       PROPERTY(id) PROPERTY(gibbs_variance) PROPERTY(pt_nullity) PROPERTY(kind)

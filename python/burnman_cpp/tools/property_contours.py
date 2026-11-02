@@ -370,7 +370,7 @@ def phase_diagram_property_grid(
 def _property_boundary_values(data, phases, quantity):
     """Reuse saved boundary equilibria with the grid's property settings."""
     from .phase_diagram import _section_axes
-    from .phase_diagram_labels import _field_observations
+    from .phase_diagram_labels import _field_observations, _limiting_curve
     from ._boundary_states import field_boundary_states
 
     name, _, encoded = quantity.removeprefix("property: ").partition("; options=")
@@ -422,7 +422,14 @@ def _property_boundary_values(data, phases, quantity):
                 )
             }
         for line_id in polygon.boundary_ids:
-            for index, state in enumerate(boundaries[line_id]["points"]):
+            boundary = boundaries[line_id]
+            curve = _limiting_curve(polygon, boundary, axes, ranges)
+            if boundary.get("limiting_curves") and curve is None:
+                continue
+            states = curve["points"] if curve is not None else boundary["points"]
+            for index, state in enumerate(states):
+                if curve is not None and not state.get("success", False):
+                    continue
                 if not state.get("phases"):
                     continue
                 if limiting is not None:
