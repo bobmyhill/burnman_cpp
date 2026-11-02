@@ -18,7 +18,9 @@ Use oxide moles, including atomic excess O, as in Table S3-1. Solvus branches
 are generated internally; two feldspars/spinels remain distinct phases.
 """
 
-from green2025 import main
+from driver_green2025 import main
+
+SEEDS = 7
 
 OXIDES = dict(
     SiO2=54.4,
@@ -51,4 +53,6 @@ if __name__ == "__main__":
         (0, 20),
         REFERENCE_POINTS,
         (10, 1283),  # Liquidus read from the published raster, approximately ±5 C.
+        seeds=SEEDS,
+        check_only=False,  # True checks only the published interior points.
     )

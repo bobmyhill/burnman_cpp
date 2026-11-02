@@ -474,7 +474,9 @@ def test_contours_reject_unstable_solution_ordering_roots():
 def test_metasediment_example_uses_volume_and_ferrous_garnet_constraints(monkeypatch):
     examples = Path(__file__).resolve().parents[2] / "examples"
     monkeypatch.syspath_prepend(str(examples))
-    example = runpy.run_path(str(examples / "example_metasediment_contours.py"))
+    example = runpy.run_path(
+        str(examples / "example_metasediment_phase_diagram_step2_contours.py")
+    )
     diagram = json.loads(
         (Path(__file__).parent / "data/metasediment_contour_field.json").read_text()
     )

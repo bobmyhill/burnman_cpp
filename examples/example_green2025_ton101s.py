@@ -19,7 +19,9 @@ than an imposed water chemical potential. Use the full G25 fluid with PS94
 H2O and dissolved silicates, not an independently added pure-water phase.
 """
 
-from green2025 import main
+from driver_green2025 import main
+
+SEEDS = 7
 
 OXIDES = dict(
     SiO2=39.6103,
@@ -51,4 +53,6 @@ if __name__ == "__main__":
         (1, 10),
         REFERENCE_POINTS,
         (5, 1001),  # Liquidus read from the published raster, approximately ±5 C.
+        seeds=SEEDS,
+        check_only=False,  # True checks only the published interior points.
     )

@@ -397,7 +397,8 @@ def test_problem_regions_follow_all_diagram_axes(diagram_type):
 
 def test_general_example_accepts_python_file_and_existing_patch(tmp_path, monkeypatch):
     example = (
-        Path(__file__).resolve().parents[2] / "examples/example_patch_phase_diagram.py"
+        Path(__file__).resolve().parents[2]
+        / "examples/example_metasediment_phase_diagram_step2_patch.py"
     )
     module = runpy.run_path(str(example))
     models = tmp_path / "custom_models.py"
@@ -408,38 +409,28 @@ def test_general_example_accepts_python_file_and_existing_patch(tmp_path, monkey
         diagram([(0.5, 0.25), (0.5, 0.75)], 0.25, 0.75), tmp_path / "patch.json"
     )
     output = tmp_path / "output"
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            str(example),
-            "patch",
-            str(base),
-            str(patch),
-            "--output-dir",
-            str(output),
-            "--no-plots",
-        ],
+    module["main"].__globals__.update(
+        SOURCE=base,
+        MODELS=None,
+        PATCH_FILES=(patch,),
+        OUTPUT_DIR=output,
+        PLOT=False,
     )
+    monkeypatch.setattr(sys, "argv", [str(example), "--unrelated-argument"])
     module["main"]()
     assert bm.load_phase_diagram(output / "final/phase_diagram.json")["resolved"]
     assert "Joined 2" in (output / "merge_report.txt").read_text()
 
 
 @pytest.mark.parametrize(
-    "mode,named",
-    [
-        ("make-for-fields", True),
-        ("make-for-problems", False),
-        ("make-and-patch", True),
-        ("make-and-patch", False),
-    ],
+    "merge,named", [(False, True), (False, False), (True, True), (True, False)]
 )
 def test_example_calculation_modes_save_patches_and_merge_only_when_requested(
-    mode, named, tmp_path, monkeypatch
+    merge, named, tmp_path, monkeypatch
 ):
     example = (
-        Path(__file__).resolve().parents[2] / "examples/example_patch_phase_diagram.py"
+        Path(__file__).resolve().parents[2]
+        / "examples/example_metasediment_phase_diagram_step2_patch.py"
     )
     module = runpy.run_path(str(example))
     opts = settings()
@@ -456,23 +447,16 @@ def test_example_calculation_modes_save_patches_and_merge_only_when_requested(
     models.write_text(
         "from test_phase_diagram import crossing_phases as candidate_phases\n"
     )
-    output = tmp_path / mode
-    argv = [
-        str(example),
-        mode,
-        str(source),
-        "--models",
-        str(models),
-        "--seeds",
-        "4",
-        "5",
-        "--output-dir",
-        str(output),
-        "--no-plots",
-    ]
-    if named:
-        argv += ["--fields", "1"]
-    monkeypatch.setattr(sys, "argv", argv)
+    output = tmp_path / "output"
+    module["main"].__globals__.update(
+        SOURCE=source,
+        MODELS=models,
+        SEEDS=(4, 5),
+        OUTPUT_DIR=output,
+        PLOT=False,
+        FIELDS=(1,) if named else None,
+        MERGE=merge,
+    )
     module["main"]()
     saved_patches = list(output.glob("field_*_patch/phase_diagram.json"))
     expected = bm.phase_diagram_field_regions(base, [1] if named else None)
@@ -482,6 +466,6 @@ def test_example_calculation_modes_save_patches_and_merge_only_when_requested(
         assert patch["settings"]["temperature_seeds"] == 4
         assert patch["settings"]["pressure_seeds"] == 5
         assert patch["settings"]["step"] == opts.step
-    assert (output / "final/phase_diagram.json").exists() == (mode == "make-and-patch")
-    assert (output / "merge_report.txt").exists() == (mode == "make-and-patch")
+    assert (output / "final/phase_diagram.json").exists() == merge
+    assert (output / "merge_report.txt").exists() == merge
     assert bm.load_phase_diagram(source) == base

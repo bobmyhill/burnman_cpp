@@ -24,7 +24,7 @@ display volume as density and entropy in kB per atom by default.
 TV and SV are the canonical names of the V-T and V-S section types.
 
 Run: python examples/example_forsterite_thermodynamic_sections.py
-Use --volume-unit m3 --entropy-unit J/K to display total volume and entropy.
+Edit VOLUME_UNIT and ENTROPY_UNIT below to display total volume and entropy.
 """
 
 import json
@@ -33,10 +33,14 @@ from pathlib import Path
 import burnman_cpp as bm
 from burnman_cpp.minerals import SLB_2011
 from burnman_cpp.tools.phase_diagram_helpers import (
-    example_parser,
     save_figure,
     write_phase_diagram,
 )
+
+OUTPUT_DIR = Path(__file__).resolve().with_name("forsterite_sections_output")
+SEEDS = 9
+VOLUME_UNIT = "kg/m3"  # Or "m3" or "cm3" for volume rather than density.
+ENTROPY_UNIT = "kB/atom"  # Or "J/K" or "kJ/K".
 
 BULK = bm.Composition({"Mg2SiO4": 1.0}, "molar")
 BULK_MASS = sum(BULK.mass_composition.values())
@@ -95,7 +99,7 @@ def calculate(quick=False, verbose=False):
     settings = bm.PhaseDiagramSettings()
     settings.pressure_seeds = settings.temperature_seeds = settings.entropy_seeds = (
         settings.volume_seeds
-    ) = (5 if quick else 9)
+    ) = (5 if quick else SEEDS)
     settings.max_phase_instances = 1
     settings.verbose = verbose
     results = {}
@@ -191,37 +195,23 @@ def plot(
 
 
 def main():
-    parser = example_parser(
-        __doc__,
-        Path(__file__).resolve().parent / "forsterite_sections_output",
-        label_fontsize=9.0,
-    )
-    parser.add_argument(
-        "--volume-unit", choices=["kg/m3", "m3", "cm3"], default="kg/m3"
-    )
-    parser.add_argument(
-        "--entropy-unit", choices=["kB/atom", "J/K", "kJ/K"], default="kB/atom"
-    )
-    args = parser.parse_args()
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    results = calculate(args.quick, args.verbose)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    results = calculate(verbose=True)
     for diagram, result in results.items():
-        write_phase_diagram(result, args.output_dir / f"forsterite_{diagram.lower()}")
-    contours = calculate_contours(results, args.verbose)
-    (args.output_dir / "forsterite_contours.json").write_text(
+        write_phase_diagram(result, OUTPUT_DIR / f"forsterite_{diagram.lower()}")
+    contours = calculate_contours(results, verbose=True)
+    (OUTPUT_DIR / "forsterite_contours.json").write_text(
         json.dumps(contours, indent=2, allow_nan=False) + "\n"
     )
-    if not args.no_plots:
-        fig, _ = plot(
-            results,
-            args.output_dir,
-            args.label_fontsize,
-            contours=contours,
-            volume_unit=args.volume_unit,
-            entropy_unit=args.entropy_unit,
-        )
-        save_figure(fig, args.output_dir / "forsterite_sections.png", formats=("pdf",))
-    print(f"Results saved to {args.output_dir}")
+    fig, _ = plot(
+        results,
+        OUTPUT_DIR,
+        contours=contours,
+        volume_unit=VOLUME_UNIT,
+        entropy_unit=ENTROPY_UNIT,
+    )
+    save_figure(fig, OUTPUT_DIR / "forsterite_sections.png", formats=("pdf",))
+    print(f"Results saved to {OUTPUT_DIR}")
 
 
 if __name__ == "__main__":

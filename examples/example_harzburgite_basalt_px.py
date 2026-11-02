@@ -30,11 +30,14 @@ from pathlib import Path
 
 import burnman_cpp as bm
 from burnman_cpp.tools.phase_diagram_helpers import (
-    example_parser,
     load_example,
     plot_phase_diagram_example,
-    run_phase_diagram_example,
+    write_phase_diagram,
 )
+
+OUTPUT_DIR = Path(__file__).resolve().with_name("harzburgite_basalt_px_output")
+SEEDS = 7
+
 
 pyrolite = load_example(Path(__file__).with_name("example_pyrolite_phase_diagram.py"))
 PAPER_URL = pyrolite.PAPER_URL
@@ -117,19 +120,12 @@ def plot(result, path, label_fontsize=8.0):
 
 
 def main():
-    parser = example_parser(
-        __doc__,
-        Path(__file__).resolve().parent / "harzburgite_basalt_px_output",
-        seeds=7,
-        label_fontsize=8.0,
-        replot=True,
-    )
-    return run_phase_diagram_example(
-        parser,
-        lambda args: calculate(args.seeds, args.quick, args.verbose),
-        stem="harzburgite_basalt_px",
+    return write_phase_diagram(
+        calculate(seeds=SEEDS, verbose=True),
+        OUTPUT_DIR / "harzburgite_basalt_px",
         save_json=save_json,
         plot=plot,
+        label_fontsize=8.0,
     )
 
 

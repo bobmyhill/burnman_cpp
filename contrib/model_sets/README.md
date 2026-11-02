@@ -78,7 +78,7 @@ The [basalt example](../../examples/example_basalt_phase_diagram.py) and
 [shaly metasediment example](../../examples/example_metasediment_phase_diagram.py)
 use these sets with their existing closed, 2 wt% H₂O bulk compositions over
 300–900 °C and 0–20 kbar (calculation starts at 1 bar). The
-[metasediment contour example](../../examples/example_metasediment_contours.py)
+[metasediment contour example](../../examples/example_metasediment_phase_diagram_step2_contours.py)
 uses the same metapelite factory. **Recalculate diagrams saved with the earlier
 mixed model selection** before refining them or computing new contours: their
 melt basis and candidate inventory have changed.

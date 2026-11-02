@@ -15,22 +15,25 @@ starting guesses for the entropy-constrained solves; it is not a diagram axis.
 The original pyrolite composition, models and EOS-domain policy are retained.
 Only solid phases are included; unavailable states remain in the diagnostics.
 
-Run: python examples/example_pyrolite_sp_phase_diagram.py --verbose
-Use --quick for four seeds per coordinate, or --plot-json to replot a saved
-diagram without calculating equilibria. JSON retains total entropy in J/K;
-the plot displays entropy in kB per atom by default.
+Run without arguments; edit SEEDS and ENTROPY_UNIT below. JSON retains
+total entropy in J/K; the plot displays entropy in kB per atom by default.
 """
 
+from functools import partial
 from math import isfinite
 from pathlib import Path
 
 import burnman_cpp as bm
 from burnman_cpp.tools.phase_diagram_helpers import (
-    example_parser,
     load_example,
     plot_phase_diagram_example,
-    run_phase_diagram_example,
+    write_phase_diagram,
 )
+
+OUTPUT_DIR = Path(__file__).resolve().with_name("pyrolite_sp_phase_diagram_output")
+SEEDS = 41
+ENTROPY_UNIT = "kB/atom"  # Or "J/K" or "kJ/K".
+
 
 pyrolite = load_example(Path(__file__).with_name("example_pyrolite_phase_diagram.py"))
 PRESSURE_RANGE = (0.0, 40.0e9)
@@ -45,8 +48,7 @@ def candidate_phases():
 
 def settings(seeds=41, quick=False, verbose=False):
     opts = pyrolite.settings(seeds, quick, verbose)
-    opts.entropy_seeds = 41
-    opts.pressure_seeds = 41
+    opts.entropy_seeds = opts.pressure_seeds
     return opts
 
 
@@ -129,23 +131,10 @@ def plot(result, path, label_fontsize=7.0, *, entropy_unit="kB/atom"):
 
 
 def main():
-    parser = example_parser(
-        __doc__, "pyrolite_sp_phase_diagram_output", seeds=41, replot=True
-    )
-    parser.add_argument(
-        "--entropy-unit", choices=["kB/atom", "J/K", "kJ/K"], default="kB/atom"
-    )
-    args = parser.parse_args()
-    if args.seeds < 2:
-        parser.error("--seeds must be at least 2.")
-    return run_phase_diagram_example(
-        parser,
-        lambda args: calculate(args.seeds, args.quick, args.verbose),
-        stem="pyrolite_sp_phase_diagram",
-        plot=lambda result, path, fontsize: plot(
-            result, path, fontsize, entropy_unit=args.entropy_unit
-        ),
-        args=args,
+    return write_phase_diagram(
+        calculate(seeds=SEEDS, verbose=True),
+        OUTPUT_DIR / "pyrolite_sp_phase_diagram",
+        plot=partial(plot, entropy_unit=ENTROPY_UNIT),
     )
 
 

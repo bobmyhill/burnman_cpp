@@ -20,7 +20,7 @@ The P-X example supplies the shared composition, phases, settings and outputs.
 All thermodynamics and phase-boundary continuation run in C++.
 
 Run: python examples/example_olivine_tx.py
-Use --quick for fewer seeds, or --no-plots to save only the resumable JSON.
+Edit the shared P-X example's settings and run without arguments.
 """
 
 from functools import partial

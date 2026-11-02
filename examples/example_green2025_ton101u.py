@@ -18,7 +18,9 @@ The figure footer gives oxide mole amounts. Water (2.8005 mol% H2O) and
 oxygen are closed inventories; the G25 fluid can appear where stable.
 """
 
-from green2025 import main
+from driver_green2025 import main
+
+SEEDS = 7
 
 OXIDES = dict(
     SiO2=63.0113,
@@ -50,4 +52,6 @@ if __name__ == "__main__":
         (1, 10),
         REFERENCE_POINTS,
         (5, 1225),  # Liquidus read from the published raster, approximately ±5 C.
+        seeds=SEEDS,
+        check_only=False,  # True checks only the published interior points.
     )

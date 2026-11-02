@@ -1,7 +1,7 @@
 The six `example_green2025_*.py` scripts reproduce Figures S3-1–S3-6 of
 [Green et al. (2025), corrigendum, Supplement 3](https://doi.org/10.1093/petrology/egae079).
-They share `green2025.py`, which calls the standard native `phase_diagram`,
-`refine_phase_diagram` and `plot_phase_diagram` routines.
+They share `driver_green2025.py`, which calls the standard native `phase_diagram`
+and `plot_phase_diagram` routines.
 
 | Figure | Example | Rock | Temperature (°C) | Pressure (kbar) |
 | --- | --- | --- | --- | --- |
@@ -14,15 +14,16 @@ They share `green2025.py`, which calls the standard native `phase_diagram`,
 
 ```sh
 python examples/example_green2025_klb1.py
-python examples/example_green2025_ton101s.py --label-fontsize 8
+python examples/example_green2025_ton101s.py
 ```
 
 Each writes a JSON calculation, PNG/SVG figure, Markdown assemblage key and
 JSON comparison report into its own `examples/green2025_*_output/`
-directory. `--check-only` checks published interior assemblages without tracing
-a diagram; `--quick` uses coarse discovery; `--seeds 9` increases discovery.
-`--plot-json FILE` replots a saved calculation and `--refine-json FILE`
-continues its phase lines from successful equilibrium states.
+directory. Run without arguments: edit `SEEDS` in the selected script to change
+discovery, or set `check_only=True` in its `main()` call to check published
+interior assemblages without tracing a diagram. Use
+`example_metasediment_phase_diagram_step2_refine.py` to refine a saved calculation, setting its
+`SOURCE` and `MODELS` to the corresponding Green example.
 
 The compositions use the oxide **mole amounts printed in the figure footers**,
 which carry more digits than Table S3-1. They are normalised together, including

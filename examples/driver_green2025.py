@@ -11,7 +11,7 @@
 #
 # ------------------------------------------------------
 
-"""Shared runner for Supplement 3 of Green et al. (2025), egae079.
+"""Shared driver for Supplement 3 of Green et al. (2025), egae079.
 
 Use the separate example_green2025_*.py scripts. Thermodynamics, equilibrium,
 boundary tracing and polygon construction use the standard C++ routines.
@@ -25,9 +25,7 @@ import time
 import burnman_cpp as bm
 from burnman_cpp.minerals import HPx_ds636, model_sets
 from burnman_cpp.tools.phase_diagram_helpers import (
-    example_parser,
-    refine_saved,
-    run_phase_diagram_example,
+    write_phase_diagram,
     save_figure,
 )
 
@@ -191,105 +189,71 @@ def main(
     pressure_range,
     reference_points,
     liquidus,
+    *,
+    seeds=7,
+    check_only=False,
 ):
-    parser = example_parser(
-        f"Green et al. (2025), Figure S3-{figure}: {title}",
-        Path(__file__).parent / f"green2025_{name}_output",
-        seeds=7,
-        replot=True,
-        refine=True,
-    )
-    parser.add_argument(
-        "--check-only",
-        action="store_true",
-        help="Only compare interior assemblages with the PDF.",
-    )
-    args = parser.parse_args()
-    # These are oxide moles (including atomic O), not oxide weight percentages.
-    # Normalising the amount improves numerical scaling without changing the bulk.
+    output_dir = Path(__file__).resolve().parent / f"green2025_{name}_output"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    # Oxide moles, including atomic O; normalize to improve numerical scaling.
     composition = bm.Composition(
         {oxide: amount / sum(oxides.values()) for oxide, amount in oxides.items()},
         unit_type="molar",
     )
     settings = bm.PhaseDiagramSettings()
-    settings.pressure_seeds = settings.temperature_seeds = (
-        3 if args.quick else args.seeds
+    settings.pressure_seeds = settings.temperature_seeds = seeds
+    settings.step = 0.015
+    settings.max_recovery_passes = 2
+    settings.verbose = True
+    if not check_only:
+        started = time.monotonic()
+        result = bm.phase_diagram(
+            composition.atomic_composition,
+            candidate_phases(composition),
+            (max(1.0e5, pressure_range[0] * 1.0e8), pressure_range[1] * 1.0e8),
+            tuple(t + 273.15 for t in temperature_range),
+            settings,
+        )
+        data = result.to_dict() | dict(
+            source=SOURCE,
+            reference_figure=f"S3-{figure}",
+            oxide_molar_amounts=oxides,
+            model_set=model_sets.igneous("G25").to_dict(),
+            calculation_seconds=time.monotonic() - started,
+        )
+        write_phase_diagram(data, output_dir / name)
+        plot(
+            data,
+            output_dir / f"{name}.png",
+            temperature_range,
+            pressure_range,
+            title,
+            7.0,
+        )
+
+    rows = compare(composition, reference_points, settings)
+    report = dict(source=SOURCE, figure=f"S3-{figure}", interior_assemblages=rows)
+    if not check_only:
+        report.update(
+            liquidus=compare_liquidus(data, *liquidus),
+            resolved=data["resolved"],
+            diagnostics=data["diagnostics"],
+        )
+        geometry = bm.phase_diagram_field_polygons(data)
+        report["geometry"] = dict(
+            fields=len(geometry.polygons),
+            open_fields=sum(p.has_open_boundary for p in geometry.polygons),
+            unidentified_fields=sum(not p.phases for p in geometry.polygons),
+            covered_area_fraction=sum(p.area for p in geometry.polygons),
+            diagnostics=list(geometry.diagnostics),
+        )
+        print(f"Liquidus comparison: {report['liquidus']}", flush=True)
+    (output_dir / f"{name}_comparison.json").write_text(
+        json.dumps(report, indent=2, allow_nan=False) + "\n"
     )
-    settings.step = 0.035 if args.quick else 0.015
-    settings.max_recovery_passes = 0 if args.quick else 2
-    settings.verbose = args.verbose
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    started = time.monotonic()
-    if not args.check_only:
-
-        def calculate_section(source=None, verbose=False):
-            phases = candidate_phases(composition)
-            result = (
-                refine_saved(
-                    source,
-                    phases,
-                    composition=composition.atomic_composition,
-                    settings=settings,
-                    verbose=verbose,
-                )
-                if source is not None
-                else bm.phase_diagram(
-                    composition.atomic_composition,
-                    phases,
-                    (max(1.0e5, pressure_range[0] * 1.0e8), pressure_range[1] * 1.0e8),
-                    tuple(t + 273.15 for t in temperature_range),
-                    settings,
-                )
-            )
-            data = result.to_dict()
-            data.update(
-                source=SOURCE,
-                reference_figure=f"S3-{figure}",
-                oxide_molar_amounts=oxides,
-                model_set=model_sets.igneous("G25").to_dict(),
-                calculation_seconds=time.monotonic() - started,
-            )
-            return data
-
-        data = run_phase_diagram_example(
-            parser,
-            lambda options: calculate_section(),
-            args=args,
-            stem=name,
-            refine=calculate_section,
-            plot=lambda result, target, fontsize: plot(
-                result,
-                target,
-                temperature_range,
-                pressure_range,
-                title,
-                fontsize,
-            ),
-        )
-    if not args.plot_json:
-        rows = compare(composition, reference_points, settings)
-        report = dict(source=SOURCE, figure=f"S3-{figure}", interior_assemblages=rows)
-        if not args.check_only:
-            report["liquidus"] = compare_liquidus(data, *liquidus)
-            report["resolved"] = data["resolved"]
-            report["diagnostics"] = data["diagnostics"]
-            geometry = bm.phase_diagram_field_polygons(data)
-            report["geometry"] = dict(
-                fields=len(geometry.polygons),
-                open_fields=sum(p.has_open_boundary for p in geometry.polygons),
-                unidentified_fields=sum(not p.phases for p in geometry.polygons),
-                covered_area_fraction=sum(p.area for p in geometry.polygons),
-                diagnostics=list(geometry.diagnostics),
-            )
-            print(f"Liquidus comparison: {report['liquidus']}", flush=True)
-        (args.output_dir / f"{name}_comparison.json").write_text(
-            json.dumps(report, indent=2, allow_nan=False)
-        )
-        print(
-            f"PDF interior assemblages: {sum(row['match'] for row in rows)}/{len(rows)} match.",
-            flush=True,
-        )
-        if not all(row["match"] for row in rows):
-            raise RuntimeError(
-                "Assemblages differ from the PDF; see the comparison JSON."
-            )
+    print(
+        f"PDF interior assemblages: {sum(row['match'] for row in rows)}/{len(rows)} match.",
+        flush=True,
+    )
+    if not all(row["match"] for row in rows):
+        raise RuntimeError("Assemblages differ from the PDF; see the comparison JSON.")
