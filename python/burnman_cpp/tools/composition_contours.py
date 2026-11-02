@@ -394,12 +394,13 @@ def phase_composition_grid(
 
 
 def phase_composition_contours(grid, levels, *, diagram, phases=None):
-    """Interpolate contour lines from a scalar composition grid; never solve.
+    """Interpolate field-clipped contours from a saved scalar grid; never solve.
 
-    grid is phase_composition_grid()'s output or its saved JSON path. Return
+    grid is phase_composition_grid()'s or phase_diagram_property_grid()'s output,
+    or its saved JSON path. Also exported as phase_diagram_grid_contours(). Return
     JSON-ready {value, contours} records, usable with plot_phase_diagram_contours().
     Supply the matching completed diagram for exact field edges and holes.
-    If phases is supplied, also evaluate the expression on pre-existing
+    If phases is supplied, also evaluate the expression/property on pre-existing
     boundary equilibria. Missing boundary vertices use a local affine estimate
     from that field's observations. No new boundary or equilibrium solves run.
     A separate interpolant is built in each field and clipped to its polygon;
@@ -487,6 +488,10 @@ def phase_composition_contours(grid, levels, *, diagram, phases=None):
 
 def _boundary_expression(data, phases, quantity):
     """Evaluate saved limiting compositions on the appropriate field side."""
+    if quantity.startswith("property: "):
+        from .property_contours import _property_boundary_values
+
+        return _property_boundary_values(data, phases, quantity)
     from .phase_diagram import _section_axes
     from .phase_diagram_labels import (
         label_phase_diagram_solutions,
@@ -607,7 +612,7 @@ def _secondary_branch(diagram, label):
     from scipy.optimize import linear_sum_assignment
     from scipy.spatial import cKDTree
     from scipy.spatial.distance import cdist
-    from .phase_diagram import _phase_diagram_data, _section_axes
+    from .phase_diagram import _phase_diagram_data, _section_axes, _value
     from .phase_diagram_labels import (
         label_phase_diagram_solutions,
         _field_observations,
@@ -674,8 +679,12 @@ def _secondary_branch(diagram, label):
                 "Stored phase counts disagree with the secondary-labelled field."
             )
         rows, cols = linear_sum_assignment(
-            cdist(reference, [p.composition for p in phases])
+            cdist(reference, [_value(p, "composition") for p in phases])
         )
         return [phases[cols[np.flatnonzero(rows == slot)[0]]]]
 
     return candidate, select, _diagram_context(data)
+
+
+# The same geometry and clipping apply to all scalar property grids.
+phase_diagram_grid_contours = phase_composition_contours

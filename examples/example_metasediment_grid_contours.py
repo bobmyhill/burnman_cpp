@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: Copyright (C) 2026 by the BurnMan Team.
-"""Composition contours interpolated from the saved metasediment grid.
+"""
+Composition and property contours interpolated from a saved thermodynamic grid.
 
 Run example_metasediment_phase_diagram_grid.py first. Edit CONTOUR_SETS below
-to choose phases, expressions and levels. This example accepts no command-line
-arguments and performs no equilibrium calculations.
+to choose phases, expressions, scalar attribute properties and levels.
+This example performs no equilibrium calculations.
 """
 
 from pathlib import Path
@@ -25,11 +26,11 @@ VOLUME_FRACTION_EXCLUDE_PHASES = ("H2O", "melt")  # Use () to include every phas
 CONTOUR_SETS = [
     dict(
         phase="g",
-        expression="Mgx_A / (Mgx_A + Fex_A)",
-        levels=(0.05, 0.10, 0.15, 0.20, 0.25, 0.30),
+        expression="Mgx_A / (Mgx_A + Fex_A + Cax_A)",
+        levels=(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9),
         color="crimson",
         line_style="solid",
-        label="g: Mg/(Mg+Fe²⁺)",
+        label="g: Mg/(Mg+Fe²⁺+Ca), X site",
     ),
     dict(
         phase="fsp_1",
@@ -63,10 +64,18 @@ CONTOUR_SETS = [
         label="bi: volume fraction"
         + (" (standard state)" if STANDARD_STATE_VOLUME_FRACTIONS else "")
         + (
-            "; excluding " + ", ".join(VOLUME_FRACTION_EXCLUDE_PHASES)
+            "; excluding " + "+ ".join(VOLUME_FRACTION_EXCLUDE_PHASES)
             if VOLUME_FRACTION_EXCLUDE_PHASES
             else ""
         ),
+    ),
+    dict(
+        property="density",  # Whole-assemblage attribute at the saved P–T.
+        levels=(2500, 2600, 2700, 2800),
+        label_format=".0f",
+        color="purple",
+        line_style="dashdot",
+        label="Bulk density (kg/m³)",
     ),
 ]
 
@@ -82,17 +91,31 @@ def main():
         label_key_path=OUTPUT_DIR / "phase_diagram_labels.md",
     )
     for parameters in CONTOUR_SETS:
-        grid = bm.phase_composition_grid(
-            equilibria,
-            phases,
-            parameters["phase"],
-            parameters["expression"],
-            diagram=diagram,
-            exclude_phases=parameters.get("exclude_phases", ()),
-        )
-        directory = OUTPUT_DIR / parameters["phase"]
-        bm.save_property_grid(grid, directory / "composition.json.gz")
-        contours = bm.phase_composition_contours(
+        if "property" in parameters:
+            grid = bm.phase_diagram_property_grid(
+                equilibria,
+                phases,
+                parameters["property"],
+                phase=parameters.get("phase"),
+                diagram=diagram,
+            )
+            name = "_".join(
+                p for p in (parameters.get("phase"), parameters["property"]) if p
+            )
+            filename = "property.json.gz"
+        else:
+            grid = bm.phase_composition_grid(
+                equilibria,
+                phases,
+                parameters["phase"],
+                parameters["expression"],
+                diagram=diagram,
+                exclude_phases=parameters.get("exclude_phases", ()),
+            )
+            name, filename = parameters["phase"], "composition.json.gz"
+        directory = OUTPUT_DIR / name
+        bm.save_property_grid(grid, directory / filename)
+        contours = bm.phase_diagram_grid_contours(
             grid, parameters["levels"], diagram=diagram, phases=phases
         )
         (directory / "contours.json").write_text(
@@ -108,7 +131,7 @@ def main():
                 value=record["value"],
                 label_format=parameters.get("label_format", ".2f"),
             )
-    axes.set_title("Metasediment compositional contours")
+    axes.set_title("Metasediment composition and density contours")
     axes.legend(
         handles=[
             Line2D(
@@ -117,12 +140,14 @@ def main():
             for p in CONTOUR_SETS
         ],
         loc="upper center",
-        bbox_to_anchor=(0.5, 1.10),
+        bbox_to_anchor=(0.5, -0.08),
         ncol=3,
         fontsize=7,
     )
-    save_figure(figure, OUTPUT_DIR / "contours.png", formats=("svg",))
-    print(f"Saved composition grid and interpolated contours: {OUTPUT_DIR}")
+    save_figure(
+        figure, OUTPUT_DIR / "contours.png", formats=("svg",), bbox_inches="tight"
+    )
+    print(f"Saved scalar grids and interpolated contours: {OUTPUT_DIR}")
     print("New equilibrium solves: 0")
 
 
