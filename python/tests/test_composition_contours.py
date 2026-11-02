@@ -1184,6 +1184,10 @@ def test_bulk_filters_persist_and_replay_preexisting_boundary_states(
     assert options == {k: list(v) for k, v in filters.items()}
     sample_boundary = _boundary_expression(diagram, phases, quantity)
     for polygon in bm.phase_diagram_field_polygons(diagram).polygons:
+        if 3 not in polygon.phases:
+            # The synthetic boundary gives "other" a finite amount. Its bulk
+            # cannot generally be represented by the oxide-only side.
+            continue
         points, boundary_values = sample_boundary(polygon)
         assert len(points) == 5
         reference = phases[0].copy()
@@ -1198,6 +1202,196 @@ def test_bulk_filters_persist_and_replay_preexisting_boundary_states(
     )
     assert records[0]["contours"]["lines"]
     assert records[0]["contours"]["equilibrium_solves"] == 0
+
+
+def replacement_diagram(phases, left, right):
+    """A saved replacement with finite amounts recorded only on its right side."""
+    source = stored_grid(
+        phases, phase_states=lambda p, t: deepcopy(left if p <= 1.5e9 else right)
+    )
+    data = source.context.to_dict()
+    ids = [[p["id"] for p in side] for side in (left, right)]
+    data.update(
+        samples=[
+            dict(pressure=p, temperature=1000.0, success=True, phases=deepcopy(side))
+            for p, side in ((1.25e9, left), (1.75e9, right))
+        ],
+        fields=[
+            dict(id=i, phases=group, sample_indices=[i]) for i, group in enumerate(ids)
+        ],
+        boundaries=[
+            dict(
+                id=0,
+                zero_phase=ids[0][0],
+                reaction_kind="replacement",
+                assemblage=sorted(set().union(*ids)),
+                side_a=ids[1],
+                side_b=ids[0],
+                start_node=-1,
+                end_node=-1,
+                points=[
+                    dict(
+                        pressure=1.5e9,
+                        temperature=float(t),
+                        volume=7.0,
+                        phases=[dict(p, amount=0.0) for p in left] + deepcopy(right),
+                    )
+                    for t in source.y
+                ],
+            )
+        ],
+    )
+    polygons = sorted(
+        bm.phase_diagram_field_polygons(data).polygons,
+        key=lambda p: p.label_position[0],
+    )
+    grid = source.to_dict()
+    grid["field_numbers"] = [
+        [polygons[int(p > 1.5e9)].field_number for p in source.x] for _ in source.y
+    ]
+    return bm.PhaseDiagramPropertyGrid.from_dict(grid), data, polygons
+
+
+@pytest.fixture
+def polymorph_boundary():
+    dense = oxide_params()
+    dense["name"] = "dense"
+    light = dict(dense, name="light", V_0=dense["V_0"] * 1.5)
+    phases = [bm.Mineral(dense), bm.Mineral(light)]
+    left = [dict(id=0, candidate_index=0, name="dense", amount=1.0, composition=[1.0])]
+    right = [dict(id=3, candidate_index=1, name="light", amount=1.0, composition=[1.0])]
+    return phases, *replacement_diagram(phases, left, right)
+
+
+def test_replacement_boundary_density_uses_the_correct_polymorph(polymorph_boundary):
+    from burnman_cpp.tools.composition_contours import _boundary_expression
+
+    phases, source, diagram, polygons = polymorph_boundary
+    original = deepcopy(diagram)
+    grid = bm.phase_diagram_property_grid(source, phases, "density / 1000")
+    sample = _boundary_expression(diagram, phases, next(iter(grid.values)))
+    for material, polygon in zip(phases, polygons):
+        points, densities = sample(polygon)
+        assert len(points) == len(source.y)
+        reference = material.copy()
+        for (p, t), density in zip(points, densities):
+            reference.set_state(p, t)
+            assert density == pytest.approx(reference.density / 1000, rel=1e-12)
+    assert diagram == original
+
+
+@pytest.mark.parametrize("expression", ["volume_fraction", "standard_volume_fraction"])
+def test_replacement_volume_fractions_use_field_side_amounts(
+    polymorph_boundary, expression
+):
+    from burnman_cpp.tools.composition_contours import _boundary_expression
+
+    phases, source, diagram, polygons = polymorph_boundary
+    for material, polygon in zip(phases, polygons):
+        grid = bm.phase_composition_grid(source, phases, material.name, expression)
+        points, fractions = _boundary_expression(
+            diagram, phases, next(iter(grid.values))
+        )(polygon)
+        assert len(points) == len(source.y)
+        np.testing.assert_allclose(fractions, 1.0, rtol=1e-12)
+
+
+def test_replacement_contour_reaches_the_boundary_without_a_false_return_branch(
+    polymorph_boundary,
+):
+    phases, source, diagram, polygons = polymorph_boundary
+    reference = phases[0].copy()
+    reference.set_state(1.5e9, 1000.0)
+    level = reference.density
+    grid = bm.phase_diagram_property_grid(source, phases, "density")
+    records = bm.phase_diagram_grid_contours(
+        grid, [level], diagram=diagram, phases=phases
+    )
+    lines = records[0]["contours"]["lines"]
+    assert len(lines) == 1 and lines[0]["field_number"] == polygons[0].field_number
+    endpoints = [lines[0]["points"][i] for i in (0, -1)]
+    boundary = next(p for p in endpoints if p["pressure"] == pytest.approx(1.5e9))
+    assert boundary["temperature"] == pytest.approx(1000.0, abs=1e-6)
+    assert all(p["pressure"] <= 1.5e9 + 1e-6 for p in lines[0]["points"])
+
+
+def test_compound_replacement_conserves_chemistry_when_total_moles_change():
+    from burnman_cpp.tools._boundary_states import field_boundary_states
+
+    compound = dict(
+        oxide_params(),
+        name="compound",
+        formula=dict(Mg=1.0, Fe=1.0, O=2.0),
+        molar_mass=0.1121488,
+        n=4,
+    )
+    phases = [
+        bm.Mineral(oxide_params()),
+        bm.Mineral(oxide_params("Fe")),
+        bm.Mineral(compound),
+    ]
+    left = [
+        dict(id=3 * i, candidate_index=i, name=p.name, amount=2.0, composition=[1.0])
+        for i, p in enumerate(phases[:2])
+    ]
+    right = [
+        dict(id=6, candidate_index=2, name="compound", amount=2.0, composition=[1.0])
+    ]
+    _, diagram, polygons = replacement_diagram(phases, left, right)
+    states = list(field_boundary_states(diagram, phases)(polygons[0]))
+    assert len(states) == 5
+    for _, _, state in states:
+        np.testing.assert_allclose(
+            [p["amount"] for p in state["phases"]], [2.0, 2.0], rtol=1e-12
+        )
+        assert state["volume"] == 0.0  # The other side's total volume is invalid.
+
+
+@pytest.mark.parametrize("nonunique", [False, True])
+def test_undefined_replacement_amounts_are_omitted(nonunique):
+    from burnman_cpp.tools._boundary_states import field_boundary_states
+
+    phases = [bm.Mineral(dict(oxide_params(), name="left"))]
+    if nonunique:
+        phases.append(bm.Mineral(dict(oxide_params(), name="duplicate")))
+    phases.append(
+        bm.Mineral(dict(oxide_params("Mg" if nonunique else "Fe"), name="right"))
+    )
+    left = [
+        dict(id=3 * i, candidate_index=i, name=p.name, amount=1.0, composition=[1.0])
+        for i, p in enumerate(phases[:-1])
+    ]
+    right = [
+        dict(
+            id=3 * (len(phases) - 1),
+            candidate_index=len(phases) - 1,
+            name="right",
+            amount=1.0,
+            composition=[1.0],
+        )
+    ]
+    _, diagram, polygons = replacement_diagram(phases, left, right)
+    sample = field_boundary_states(diagram, phases)
+    assert list(sample(polygons[0])) == []
+    assert len(list(sample(polygons[1]))) == 5
+
+
+def test_latent_entropy_boundary_needs_its_own_compatible_limiting_state(
+    polymorph_boundary,
+):
+    from burnman_cpp.tools._boundary_states import field_boundary_states
+
+    phases, _, diagram, _ = polymorph_boundary
+    diagram.update(diagram_type="PS", entropy_range=[800.0, 1200.0])
+    for state in diagram["samples"] + diagram["boundaries"][0]["points"]:
+        state["entropy"] = state["temperature"]
+    polygons = sorted(
+        bm.phase_diagram_field_polygons(diagram).polygons,
+        key=lambda p: p.label_position[0],
+    )
+    sample = field_boundary_states(diagram, phases)
+    assert list(sample(polygons[0])) == []
+    assert len(list(sample(polygons[1]))) == 5
 
 
 @pytest.mark.parametrize(
