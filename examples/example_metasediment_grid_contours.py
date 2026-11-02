@@ -70,12 +70,24 @@ CONTOUR_SETS = [
         ),
     ),
     dict(
-        property="density",  # Whole-assemblage attribute at the saved P–T.
-        levels=(2500, 2600, 2700, 2800),
+        property="density",  # Retained solid assemblage at the saved P–T.
+        include_phases=None,  # E.g. ("g", "bi") selects only garnet and biotite.
+        exclude_phases=("H2O", "melt"),
+        levels=(2800, 2900, 3000, 3100),
         label_format=".0f",
         color="purple",
         line_style="dashdot",
-        label="Bulk density (kg/m³)",
+        label="Solid density (kg/m³)",
+    ),
+    dict(
+        name="melt_density",
+        property="density",
+        include_phases=("melt",),  # Melt only; the H2O fluid is not included.
+        levels=(2100, 2150, 2200, 2250, 2300),
+        label_format=".0f",
+        color="teal",
+        line_style="dashdot",
+        label="Melt density (kg/m³)",
     ),
 ]
 
@@ -97,9 +109,11 @@ def main():
                 phases,
                 parameters["property"],
                 phase=parameters.get("phase"),
+                include_phases=parameters.get("include_phases"),
+                exclude_phases=parameters.get("exclude_phases", ()),
                 diagram=diagram,
             )
-            name = "_".join(
+            name = parameters.get("name") or "_".join(
                 p for p in (parameters.get("phase"), parameters["property"]) if p
             )
             filename = "property.json.gz"

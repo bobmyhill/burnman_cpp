@@ -14,12 +14,37 @@ from .phase_diagram import _value
 from .properties import _saved_property_grid_batches
 
 
+def _phase_selection(phases, include_phases, exclude_phases):
+    """Resolve candidate-name filters and retain their normalized options."""
+    known = {p.name for p in phases}
+    selected, options = set(range(len(phases))), {}
+    for option, names in (
+        ("include_phases", include_phases),
+        ("exclude_phases", exclude_phases),
+    ):
+        if names is None:
+            continue
+        names = (names,) if isinstance(names, str) else tuple(names)
+        if any(not isinstance(name, str) or name not in known for name in names):
+            raise ValueError(f"{option} must use the original candidate model names.")
+        indices = {i for i, p in enumerate(phases) if p.name in names}
+        if option == "include_phases":
+            selected &= indices
+        else:
+            selected -= indices
+        if names or option == "include_phases":
+            options[option] = names
+    return selected, options
+
+
 def _property_evaluator(
     phases,
     attribute,
     *,
     phase=None,
     instance=None,
+    include_phases=None,
+    exclude_phases=(),
     diagram=None,
     relaxed=False,
     averaging_scheme="VRH",
@@ -40,6 +65,11 @@ def _property_evaluator(
         raise ValueError("instance must be a positive integer, starting at 1.")
     if phase is None and instance is not None:
         raise ValueError("An instance requires a phase name.")
+    selected, filters = _phase_selection(phases, include_phases, exclude_phases)
+    if phase is not None and filters:
+        raise ValueError(
+            "include_phases and exclude_phases apply only to bulk properties; omit phase=."
+        )
     candidate, branch, branch_context = None, None, None
     if phase is not None:
         if not isinstance(phase, str):
@@ -136,9 +166,16 @@ def _property_evaluator(
                 None if compositions is None else compositions[index],
             )
         else:
-            active = [i for i, p in enumerate(states) if _value(p, "amount") > 0.0]
+            active = [
+                i
+                for i, p in enumerate(states)
+                if _value(p, "candidate_index") in selected
+                and _value(p, "amount") > 0.0
+            ]
             if not active:
-                raise ValueError("The saved assemblage has no positive phase amounts.")
+                raise ValueError(
+                    "No positive phase amounts remain after phase selection."
+                )
             materials = [
                 material(
                     states[i],
@@ -173,6 +210,8 @@ def phase_diagram_property_grid(
     *,
     phase=None,
     instance=None,
+    include_phases=None,
+    exclude_phases=(),
     diagram=None,
     relaxed=False,
     averaging_scheme=_core.AveragingType.VRH,
@@ -185,6 +224,13 @@ def phase_diagram_property_grid(
     or p_wave_velocity. phase optionally selects one candidate or a secondary
     label; coexisting copies require instance= or a label plus diagram=.
 
+    Bulk properties can use include_phases (default None: all candidates) and
+    exclude_phases (default empty). Names select all copies of each candidate;
+    exclusions are applied after inclusion. Remaining saved mole amounts are
+    renormalized, preserving their relative proportions and compositions.
+    Empty selections at a node are masked with a diagnostic. Filters cannot
+    be combined with the single-phase selector phase=.
+
     Ordinary attribute getters keep saved amounts/compositions fixed. Optional
     relaxed=True uses native relaxed responses for names accepted by
     thermodynamic_property_names(), on the whole assemblage. Active bases and
@@ -195,8 +241,8 @@ def phase_diagram_property_grid(
     Return a scalar PhaseDiagramPropertyGrid with equilibrium_solves=0. Save
     using save_property_grid(), then contour with phase_diagram_grid_contours().
     Property/phase/response choices are retained in its quantity key for replay
-    of pre-existing boundary states. Volume-fraction reference/exclusion options
-    do not affect property grids; density includes the full saved assemblage.
+    of pre-existing boundary states. Properties use the saved physical P,T;
+    volume-fraction reference options do not affect property grids.
     """
     phases = list(phases)
     if not isinstance(averaging_scheme, _core.AveragingType):
@@ -209,7 +255,7 @@ def phase_diagram_property_grid(
     equilibrium_success, covered = np.zeros(shape, bool), np.zeros(shape, bool)
     context, evaluate = None, None
     diagnostics, equilibrium_diagnostics = [], []
-    options = {}
+    _, options = _phase_selection(phases, include_phases, exclude_phases)
     if phase is not None:
         options["phase"] = phase
     if instance is not None:
@@ -235,6 +281,8 @@ def phase_diagram_property_grid(
                 property_name,
                 phase=phase,
                 instance=instance,
+                include_phases=options.get("include_phases"),
+                exclude_phases=options.get("exclude_phases", ()),
                 diagram=diagram,
                 relaxed=relaxed,
                 averaging_scheme=averaging_scheme.name,
