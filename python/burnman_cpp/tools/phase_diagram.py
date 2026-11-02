@@ -930,6 +930,7 @@ def plot_phase_diagram(
     swap_axes=False,
     composition_label="X",
     label_assemblages=True,
+    secondary_labels=False,
     phase_aliases=None,
     label_fontsize=7.0,
     label_key_path="phase_diagram_labels.md",
@@ -995,9 +996,15 @@ def plot_phase_diagram(
 
     Label each identified closed field with its assemblage. ``phase_aliases``
     maps model names to abbreviations (e.g. ``{'g': 'gt'}``); repeated solution
-    instances appear as ``2hb``. C++ seeks an interior label point with good
-    clearance from the outer ring and holes. Every assemblage and numeric label
-    uses ``label_fontsize`` (points).
+    instances appear as ``2hb``. Set ``secondary_labels=True`` to distinguish
+    composition branches as ``hb_1 hb_2`` and carry their labels into adjacent
+    fields with only one instance. Labels follow saved composition continuity,
+    without fixed compositional cutoffs or new equilibrium calculations. Saved
+    annotations from ``label_phase_diagram_solutions`` are reused when current;
+    otherwise they are computed on demand. They are also available from
+    ``axes.phase_diagram_secondary_labels``. C++ seeks an interior label point
+    with good clearance from the outer ring and holes. Every assemblage and
+    numeric label uses ``label_fontsize`` (points).
     Labels that cannot fit, including their background, become unique field
     numbers. These one-based ``polygon.field_number`` values also identify
     fields in diagnostics and contours. Numbers that also cannot fit use
@@ -1018,6 +1025,9 @@ def plot_phase_diagram(
 
     if not np.isfinite(label_fontsize) or label_fontsize <= 0.0:
         raise ValueError("label_fontsize must be positive and finite.")
+    if not isinstance(secondary_labels, (bool, np.bool_)):
+        raise TypeError("secondary_labels must be a boolean.")
+    result = _phase_diagram_data(result)
     display_options = dict(
         pressure_unit=pressure_unit,
         temperature_unit=temperature_unit,
@@ -1034,6 +1044,19 @@ def plot_phase_diagram(
     fig = ax.figure
     ax.phase_diagram_geometry = geometry
     ax._phase_diagram_display_options = display_options
+    ax.phase_diagram_secondary_labels = None
+    secondary_fields = {}
+    if secondary_labels:
+        from .phase_diagram_labels import _secondary_phase_labels
+
+        annotations = _secondary_phase_labels(result, geometry, tolerance, close_domain)
+        ax.phase_diagram_secondary_labels = annotations
+        secondary_fields = {
+            field["field_number"]: {
+                phase["phase_id"]: phase["label"] for phase in field["phases"]
+            }
+            for field in annotations["fields"]
+        }
 
     def point_coordinates(point):
         return coordinates([[_value(point, names[axis]) for axis in diagram]])[0]
@@ -1129,13 +1152,14 @@ def plot_phase_diagram(
 
     aliases = dict(phase_aliases or {})
 
-    def assemblage_text(phases):
+    def assemblage_text(phases, field_number):
         names = []
         for phase in phases:
             if phase < 0 or phase >= len(phase_names):
                 return ""
             name = phase_names[phase].split(" #")[0]
-            names.append(aliases.get(name, name))
+            secondary = secondary_fields.get(field_number, {}).get(phase, name)
+            names.append(aliases.get(name, name) + secondary[len(name) :])
         ordered = dict.fromkeys(names)
         return " ".join(
             (str(names.count(name)) if names.count(name) > 1 else "") + name
@@ -1254,6 +1278,11 @@ def plot_phase_diagram(
         ylabel=labels[diagram[order[1]]],
     )
     ax.phase_diagram_label_key = {}
+    ax.phase_diagram_field_labels = {
+        polygon.field_number: assemblage_text(polygon.phases, polygon.field_number)
+        for polygon in geometry.polygons
+        if polygon.phases
+    }
     if label_assemblages:
         # Text metrics depend on the final axes limits, colorbar and layout.
         # Thermodynamic and polygon containment calculations remain native.
@@ -1290,7 +1319,7 @@ def plot_phase_diagram(
             number = polygon.field_number
             if polygon.n_phases <= 0 or not polygon.phases:
                 continue
-            name = assemblage_text(polygon.phases)
+            name = ax.phase_diagram_field_labels[number]
             if not name:
                 continue
             location = coordinates([polygon.label_position])[0]
