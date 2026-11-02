@@ -115,6 +115,8 @@ Optional Python dependencies are installed through extras:
 - **pytest 7 or newer** (`test`): runs the Python test suite.
 - **Matplotlib 3.6 or newer** (`examples`): plots examples, phase diagrams and
   diagnostic figures; it is also needed by the plotting tests.
+- **Shapely 2.0 or newer** (`examples`): clips interpolated composition contours
+  to phase-field boundaries and holes; it is also included in the test extra.
 - **Python BurnMan 2.1 or newer** (`reference`): enables adapters and comparisons
   with the original implementation. The reference tests below use a specific
   Git commit for reproducibility.
