@@ -95,6 +95,47 @@ TEST_CASE("Midpoint equilibrium tries both bracket ends before phase discovery",
              Catch::Matchers::WithinAbs(right_state.entropy, 1.e-7));
 }
 
+TEST_CASE("Original diagrams record two single-state limiting curves",
+          "[phase_diagram][limiting_curves]") {
+  namespace ps = phase_diagrams;
+  auto first = minerals::HGP_2018_ds633::per();
+  auto second = std::make_shared<Mineral>(make_combined_mineral(
+      {*first}, Eigen::ArrayXd::Ones(1), {10000., 10., -1.e-6}, "second"));
+  ps::Settings settings;
+  settings.max_phase_instances = 1;
+  settings.pressure_seeds = settings.temperature_seeds = 3;
+  auto result = ps::phase_diagram({{"Mg", 1.}, {"O", 1.}}, {first, second},
+                                  {.5e9, 1.5e9}, {850., 950.}, settings);
+  REQUIRE(result.resolved);
+  REQUIRE(result.boundaries.size() == 1);
+  const auto &line = result.boundaries.front();
+  REQUIRE(line.limiting_curves[0].assemblage == line.side_a);
+  REQUIRE(line.limiting_curves[1].assemblage == line.side_b);
+  for (const auto &curve : line.limiting_curves) {
+    REQUIRE(curve.points.size() == line.points.size());
+    for (const auto &point : curve.points) {
+      INFO(point.message);
+      REQUIRE(point.success);
+      REQUIRE(point.phases.size() == 1);
+      CHECK_THAT(point.phases[0].amount,
+                 Catch::Matchers::WithinAbs(1., 1.e-10));
+    }
+  }
+  for (std::size_t i = 0; i < line.points.size(); ++i) {
+    const auto &a = line.limiting_curves[0].points[i];
+    const auto &b = line.limiting_curves[1].points[i];
+    CHECK_THAT(a.pressure, Catch::Matchers::WithinAbs(b.pressure, 1.e-6));
+    CHECK_THAT(a.temperature, Catch::Matchers::WithinAbs(b.temperature, 1.e-9));
+    CHECK_THAT(std::abs(a.entropy - b.entropy),
+               Catch::Matchers::WithinAbs(10., 1.e-8));
+    CHECK_THAT(std::abs(a.volume - b.volume),
+               Catch::Matchers::WithinAbs(1.e-6, 1.e-14));
+  }
+  ps::detail::Engine engine({{"Mg", 1.}, {"O", 1.}}, {first, second}, settings);
+  ps::detail::record_limiting_curves(result, engine);
+  CHECK(engine.equilibrium_solves == 0);
+}
+
 TEST_CASE("P-T warm seeds reject a weak solution saddle before phase discovery",
           "[phase_diagram]") {
   namespace ps = phase_diagrams;

@@ -150,7 +150,9 @@ Eigen::VectorXd continuation_tangent(const Engine &, const EquilibriumSolve &,
 /// calculate which side gives a positive phase amount. For a compound P-T
 /// reaction, the sign of dG = dV*dP - dS*dT orders its limiting assemblages.
 /// An X section can return just the full-assemblage side when the other needs
-/// a separate probe. Optional limiting_states provide contour starting states.
+/// a separate probe. Optional limiting_states return compound P-T limits;
+/// collect_all_limiting_states also collects ordinary and supported non-P-T
+/// limits.
 /// reaction_kind also records a finite full-assemblage field when its side
 /// orientation remains unresolved. Its two-dimensional projection is tested
 /// after releasing the imposed zero amount. Latent limiting states are used
@@ -160,7 +162,13 @@ boundary_sides(Engine &, Assemblage &, const std::vector<int> &, int,
                const EquilibriumSolve &, const Eigen::Vector2d &range,
                const Eigen::Vector2d &normal,
                std::array<State, 2> *limiting_states = nullptr,
-               ReactionKind *reaction_kind = nullptr);
+               ReactionKind *reaction_kind = nullptr,
+               bool collect_all_limiting_states = false);
+
+/// Record one single-state curve for each neighbouring field during original
+/// diagram creation/refinement. Reuse the reaction/latent-coordinate response;
+/// contour extraction never calls this calculation.
+void record_limiting_curves(Result &, Engine &);
 
 /// Moving correction plane through target in the selected diagram coordinates.
 /// weights fix its normal, giving one location condition while permitting

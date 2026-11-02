@@ -14,6 +14,7 @@
 #include "burnman/tools/phase_diagram/calculation.hpp"
 #include "burnman/tools/phase_diagram/boundary_repair.hpp"
 #include "burnman/tools/phase_diagram/consistency.hpp"
+#include "burnman/tools/phase_diagram/continuation.hpp"
 #include "burnman/tools/phase_diagram/domain.hpp"
 #include "burnman/tools/phase_diagram/polygons.hpp"
 #include "burnman/tools/phase_diagram/properties.hpp"
@@ -43,6 +44,7 @@ Result Tracer::calculate(const Result *previous,
     }
     // Preserve accepted connections, labels, original points, nodes, samples
     // and exclusions; point insertion needs no recovery or recertification.
+    record_limiting_curves(result, engine);
     result.equilibrium_solves += engine.equilibrium_solves;
     result.minimization_calls += engine.minimization_calls;
     audit_thermodynamic_samples(result);
@@ -322,6 +324,7 @@ Result Tracer::certify_result() {
   if (result.fields.size() > 1 && result.boundaries.empty())
     result.diagnostics.push_back(
         "Field changes detected but no boundaries converged.");
+  record_limiting_curves(result, engine);
   result.equilibrium_solves += engine.equilibrium_solves;
   result.minimization_calls += engine.minimization_calls;
   result.resolved = result.diagnostics.empty();

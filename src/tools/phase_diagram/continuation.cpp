@@ -44,6 +44,21 @@ Eigen::Vector2d equilibrium_coordinate_tolerance(DiagramType type,
   return tolerance;
 }
 namespace {
+State limiting_state(Engine &engine, const Assemblage &a,
+                     const std::vector<int> &ids) {
+  State state;
+  engine.record_coordinates(state, a);
+  state.phases = engine.snapshot(a, ids);
+  state.gibbs = a.get_n_moles() * a.get_molar_gibbs();
+  state.mass_balance_error = engine.mass_error(a);
+  state.equilibrium_error = reaction_residual(a);
+  state.success =
+      state.mass_balance_error <= engine.settings.mass_balance_tolerance &&
+      state.equilibrium_error <= engine.settings.affinity_tolerance * .1;
+  state.message = "Limiting equilibrium on a reaction curve";
+  return state;
+}
+
 // Differentiate a field branch with respect to a normal displacement in the
 // rescaled diagram. The other equations retain reaction and mass balance.
 Eigen::VectorXd field_response(const Engine &engine, const Assemblage &a,
@@ -272,7 +287,8 @@ int phase_entry_side(Engine &engine, Assemblage &a, const std::vector<int> &ids,
 std::array<std::vector<int>, 2>
 latent_boundary_sides(Engine &engine, const Assemblage &a,
                       const std::vector<int> &ids, const Eigen::Vector2d &range,
-                      const Eigen::Vector2d &normal) {
+                      const Eigen::Vector2d &normal,
+                      std::array<State, 2> *limiting_states) {
   std::array<std::vector<int>, 2> sides;
   std::array<bool, 2> conflict{};
   const auto states = engine.snapshot(a, ids);
@@ -339,15 +355,21 @@ latent_boundary_sides(Engine &engine, const Assemblage &a,
         const std::size_t slot = sign > 0 ? 1 : 0;
         if (!sides[slot].empty() && sides[slot] != branch)
           conflict[slot] = true;
-        else
+        else {
           sides[slot] = branch;
+          if (limiting_states)
+            (*limiting_states)[slot] = work.state;
+        }
       }
     } catch (const std::exception &) {
     }
   }
   for (std::size_t slot = 0; slot < sides.size(); ++slot)
-    if (conflict[slot])
+    if (conflict[slot]) {
       sides[slot].clear();
+      if (limiting_states)
+        (*limiting_states)[slot] = State{};
+    }
   return sides;
 }
 
@@ -358,7 +380,7 @@ boundary_sides(Engine &engine, Assemblage &a, const std::vector<int> &ids,
                int zero, const EquilibriumSolve &s,
                const Eigen::Vector2d &range, const Eigen::Vector2d &normal,
                std::array<State, 2> *limiting_states,
-               ReactionKind *reaction_kind) {
+               ReactionKind *reaction_kind, bool collect_all_limiting_states) {
   auto kind = [&](ReactionKind value) {
     if (reaction_kind)
       *reaction_kind = value;
@@ -377,6 +399,14 @@ boundary_sides(Engine &engine, Assemblage &a, const std::vector<int> &ids,
   const bool ordinary = absent.size() + 1 == ids.size();
   if (sign) {
     kind(ordinary ? ReactionKind::phase_out : ReactionKind::replacement);
+    if (limiting_states && collect_all_limiting_states) {
+      (*limiting_states)[sign > 0 ? 1 : 0] = limiting_state(engine, a, ids);
+      auto other = engine.make_at(
+          absent, engine.snapshot(a, ids), engine.coordinates(a),
+          Eigen::Vector2d(a.get_pressure(), a.get_temperature()));
+      (*limiting_states)[sign > 0 ? 0 : 1] =
+          limiting_state(engine, *other, absent);
+    }
     return {engine.canonical_ids(sign > 0 ? absent : ids),
             engine.canonical_ids(sign > 0 ? ids : absent)};
   }
@@ -393,10 +423,15 @@ boundary_sides(Engine &engine, Assemblage &a, const std::vector<int> &ids,
     // Preserve the full branch's orientation even when the opposite field
     // needs another phase. Local probes must not skip this narrow branch.
     std::array<std::vector<int>, 2> partial;
-    if (full_side)
+    if (full_side) {
       partial[full_side > 0 ? 1 : 0] = engine.canonical_ids(ids);
-    else if (!has_composition_axis(engine.section.type) && field_rank < 2)
-      partial = latent_boundary_sides(engine, a, ids, range, normal);
+      if (limiting_states && collect_all_limiting_states)
+        (*limiting_states)[full_side > 0 ? 1 : 0] =
+            limiting_state(engine, a, ids);
+    } else if (!has_composition_axis(engine.section.type) && field_rank < 2)
+      partial = latent_boundary_sides(
+          engine, a, ids, range, normal,
+          collect_all_limiting_states ? limiting_states : nullptr);
     if (field_rank < 2 && !partial[0].empty() && !partial[1].empty())
       kind(ReactionKind::replacement);
     return partial;
@@ -437,7 +472,7 @@ boundary_sides(Engine &engine, Assemblage &a, const std::vector<int> &ids,
     return {};
   if (limiting_states) {
     // Both limits are equilibria at the same P,T. Retain their compositions
-    // and amounts as contour warm starts without inventing off-line samples.
+    // and amounts as limiting states without inventing off-line samples.
     for (int end : {0, 1}) {
       auto warm = states;
       if (end)
@@ -468,6 +503,132 @@ boundary_sides(Engine &engine, Assemblage &a, const std::vector<int> &ids,
   kind(ReactionKind::replacement);
   return {engine.canonical_ids(slope > 0. ? after : absent),
           engine.canonical_ids(slope > 0. ? absent : after)};
+}
+
+void record_limiting_curves(Result &result, Engine &engine) {
+  const auto ranges = result.coordinate_ranges();
+  const Eigen::Vector2d span(ranges[0][1] - ranges[0][0],
+                             ranges[1][1] - ranges[1][0]);
+  const auto accuracy =
+      equilibrium_coordinate_tolerance(result.section.type, span);
+  const auto saved_point = [&](const BoundaryCurve &curve,
+                               const BoundaryPoint &point) -> const State * {
+    const auto location = diagram_coordinates(point, result.section.type);
+    for (const auto &saved : curve.points)
+      if (((diagram_coordinates(saved, result.section.type) - location)
+               .cwiseAbs()
+               .array() <= accuracy.array())
+              .all())
+        return &saved;
+    return nullptr;
+  };
+  for (auto &line : result.boundaries) {
+    if (line.points.size() < 2 || line.side_a.empty() || line.side_b.empty())
+      continue;
+    const std::array<std::vector<int>, 2> neighbours{line.side_a, line.side_b};
+    bool cached = true;
+    for (std::size_t side = 0; side < 2; ++side) {
+      const auto &curve = line.limiting_curves[side];
+      cached = cached && curve.assemblage == neighbours[side] &&
+               !curve.points.empty();
+      if (cached)
+        for (const auto &point : line.points)
+          if (!saved_point(curve, point)) {
+            cached = false;
+            break;
+          }
+    }
+    if (cached)
+      continue;
+    const auto previous = std::move(line.limiting_curves);
+    for (std::size_t side = 0; side < 2; ++side) {
+      line.limiting_curves[side].assemblage = neighbours[side];
+      line.limiting_curves[side].points.clear();
+    }
+    for (std::size_t i = 0; i < line.points.size(); ++i) {
+      const auto &point = line.points[i];
+      std::array<State, 2> limits;
+      for (auto &state : limits) {
+        state.pressure = point.pressure;
+        state.temperature = point.temperature;
+        state.entropy = point.entropy;
+        state.volume = point.volume;
+        state.composition_coordinate = point.composition_coordinate;
+        state.message = "No verified limiting state at this reaction point";
+      }
+      for (std::size_t side = 0; side < 2; ++side)
+        if (previous[side].assemblage == neighbours[side])
+          if (const auto *saved = saved_point(previous[side], point);
+              saved && saved->success)
+            limits[side] = *saved;
+      if (limits[0].success && limits[1].success) {
+        for (std::size_t side = 0; side < 2; ++side)
+          line.limiting_curves[side].points.push_back(std::move(limits[side]));
+        continue;
+      }
+      try {
+        auto a =
+            engine.make_at(line.assemblage, point.phases,
+                           diagram_coordinates(point, result.section.type),
+                           Eigen::Vector2d(point.pressure, point.temperature));
+        const auto location = diagram_coordinates(point, result.section.type);
+        auto coincident = [&](std::size_t index) {
+          return (diagram_coordinates(line.points[index], result.section.type) -
+                  location)
+                     .cwiseQuotient(span)
+                     .norm() <= 1.e-12;
+        };
+        std::size_t first = i, last = i;
+        while (first && coincident(first))
+          --first;
+        while (last + 1 < line.points.size() && coincident(last))
+          ++last;
+        Eigen::Vector2d along =
+            (diagram_coordinates(line.points[last], result.section.type) -
+             diagram_coordinates(line.points[first], result.section.type))
+                .cwiseQuotient(span);
+        if (along.norm() == 0.)
+          throw std::runtime_error("A limiting curve needs a nonzero tangent.");
+        along.normalize();
+        const auto zero = std::find(line.assemblage.begin(),
+                                    line.assemblage.end(), line.zero_phase);
+        if (zero == line.assemblage.end())
+          throw std::runtime_error("Missing reaction zero phase.");
+        const auto prm = engine.parameters(*a);
+        ConstraintGroup constraints;
+        constraints.push_back(std::make_unique<PhaseFractionConstraint>(
+            zero - line.assemblage.begin(), 0., prm));
+        constraints.push_back(continuation_plane(
+            engine, *a, prm.n_parameters, engine.coordinates(*a), along));
+        if (!engine.free_vectors.empty())
+          constraints.push_back(engine.coordinate_constraint(
+              *engine.section.fixed_coordinate, engine.section.fixed_value,
+              prm.n_parameters, 0., true));
+        EquilibriumSolve solved;
+        solved.x =
+            get_parameter_vector(*a, engine.free_vectors.empty() ? 0 : 1);
+        solved.J =
+            J(solved.x, *a, constraints, prm.reduced_free_composition_vectors);
+        std::array<State, 2> candidate;
+        const auto sides = boundary_sides(
+            engine, *a, line.assemblage, line.zero_phase, solved, span,
+            Eigen::Vector2d(-along[1], along[0]), &candidate, nullptr, true);
+        for (std::size_t side = 0; side < 2; ++side) {
+          const auto slot = sides[side] == neighbours[side] ? side : 1 - side;
+          if (sides[slot] == neighbours[side] && candidate[slot].success) {
+            limits[side] = candidate[slot];
+            limits[side].minimum_affinity = point.minimum_affinity;
+          }
+        }
+      } catch (const std::exception &error) {
+        for (auto &state : limits)
+          if (!state.success)
+            state.message = error.what();
+      }
+      for (std::size_t side = 0; side < 2; ++side)
+        line.limiting_curves[side].points.push_back(std::move(limits[side]));
+    }
+  }
 }
 
 std::unique_ptr<EqualityConstraint>

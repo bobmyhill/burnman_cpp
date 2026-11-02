@@ -102,6 +102,18 @@ from ._core import (
 
 __version__ = _core.__version__
 
+
+def _phase_composition_constraint_for_diagram(*args, **kwargs):
+    """Create a field-aware composition constraint without eager plotting imports."""
+    from .tools.contours import _phase_composition_constraint_for_diagram as factory
+
+    return factory(*args, **kwargs)
+
+
+PhaseCompositionConstraint.for_diagram = staticmethod(
+    _phase_composition_constraint_for_diagram
+)
+
 _EOS_NAMES = {
     "auto": EOSType.Auto,
     "vinet": EOSType.Vinet,
@@ -418,6 +430,7 @@ from ._core import (
     PhaseDiagramResult,
     EquilibriumState,
     PhaseBoundary,
+    PhaseBoundaryCurve,
     BoundaryPoint,
     PhaseDiagramNode,
     PhaseField,
@@ -474,6 +487,7 @@ __all__ += [
     "PhaseDiagramResult",
     "EquilibriumState",
     "PhaseBoundary",
+    "PhaseBoundaryCurve",
     "BoundaryPoint",
     "PhaseDiagramNode",
     "PhaseField",
