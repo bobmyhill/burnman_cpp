@@ -39,6 +39,7 @@ PRESSURE_RANGE = (5.0e8, 1.0e9)  # Pa: 5-10 kbar.
 TEMPERATURE_RANGE = (773.15, 1173.15)  # K: 500-900 °C.
 GRID_RESOLUTION = (101, 101)
 SECONDARY_LABELS = True  # Run the optional third step on the completed diagram.
+MODEL_SET = model_sets.metapelite()
 
 # Masses in a 100 g wet rock, including exactly 2 g H2O.
 METASEDIMENT_OXIDES = dict(
@@ -59,10 +60,29 @@ METASEDIMENT_COMPOSITION = bm.Composition(
 )
 
 
+def print_solutions():
+    """List dataset solution names and generic formulae with labelled sites."""
+    print("Solutions (dataset site-species notation):", flush=True)
+    for phase in MODEL_SET.phases:
+        if not isinstance(phase, bm.Solution):
+            continue
+        model = phase.solution_model
+        names = iter(model.site_names)
+        formula = model.empty_formula
+        for site in model.sites:
+            species = ",".join(next(names) for _ in site)
+            formula = formula.replace("[]", f"[{species}]", 1)
+        name = phase.name
+        print(f"mp50NCKFMASHTO.{name} ({phase.name}): {formula}", flush=True)
+
+
 def main():
+    # Part 0: Print solution names and generic formulae for the dataset.
+    print_solutions()
+
     # Part 1: Phase diagram creation.
     run = bm.calculate_phase_diagram_grid(
-        dataset=model_sets.metapelite(),
+        dataset=MODEL_SET,
         composition=METASEDIMENT_COMPOSITION,
         diagram="PT",
         lower_corner={"P": PRESSURE_RANGE[0], "T": TEMPERATURE_RANGE[0]},
