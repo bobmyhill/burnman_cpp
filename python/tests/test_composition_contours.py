@@ -575,6 +575,18 @@ def test_persistence_and_chunked_equilibria(sample, tmp_path):
         values(bm.phase_composition_grid(tmp_path, phases, "oxide", "Mg_A")),
         values(expected),
     )
+    property_grid = bm.phase_diagram_property_grid(path, phases, "density")
+    np.testing.assert_array_equal(
+        values(bm.phase_diagram_property_grid(tmp_path, phases, "density")),
+        values(property_grid),
+    )
+    scalar = bm.save_property_grid(property_grid, tmp_path / "density.json.gz")
+    assert bm.phase_diagram_grid_contours(
+        scalar,
+        [float(np.median(values(property_grid)))],
+        diagram=source.context,
+        phases=phases,
+    )[0]["contours"]["lines"]
 
 
 def test_contours_interpolate_known_values_and_do_not_cross_fields_or_holes(sample):
@@ -776,6 +788,201 @@ def test_secondary_labels_follow_compositions_when_grid_copy_ids_swap():
             ),
         )
         assert result.equilibrium_solves == 0
+        property_grid = bm.phase_diagram_property_grid(
+            data, phases, "density", phase=label, diagram=diagram
+        )
+        expected_density = np.full((len(y), len(x)), np.nan)
+        reference = phases[0].copy()
+        for j, t in enumerate(y):
+            composition = 0.05 + 0.15 * root + 0.6 * t
+            reference.set_composition([composition, 1.0 - composition])
+            for i in range(len(x))[columns]:
+                reference.set_state(x[i], t)
+                expected_density[j, i] = reference.density
+        np.testing.assert_allclose(values(property_grid), expected_density)
+        from burnman_cpp.tools.composition_contours import _boundary_expression
+
+        sample_boundary = _boundary_expression(
+            diagram, phases, next(iter(property_grid.values))
+        )
+        for polygon in polygons:
+            points, boundary_values = sample_boundary(polygon)
+            if polygon is polygons[2 if root == 0 else 0]:
+                assert not np.isfinite(boundary_values).any()
+                continue
+            for (p, t), value in zip(points, boundary_values):
+                composition = 0.05 + 0.15 * root + 0.6 * t
+                reference.set_composition([composition, 1.0 - composition])
+                reference.set_state(p, t)
+                assert value == pytest.approx(reference.density)
+
+
+@pytest.mark.parametrize(
+    "attribute", ["density", "molar_entropy", "n_phases", "n_moles"]
+)
+def test_attribute_grids_match_direct_assemblage_getters(volume_sample, attribute):
+    source, phases, _ = volume_sample
+    snapshot = source.to_dict()
+    phases[0].set_state(3e9, 1500.0)
+    phases[0].set_composition([0.4, 0.6])
+    expected = np.empty(source.success.shape)
+    for j, row in enumerate(snapshot["solutions"]):
+        for i, state in enumerate(row):
+            materials = []
+            amounts = np.array([p["amount"] for p in state["phases"]])
+            for p in state["phases"]:
+                material = phases[p["candidate_index"]].copy()
+                if isinstance(material, bm.Solution):
+                    material.set_composition(p["composition"])
+                materials.append(material)
+            assemblage = bm.Assemblage(materials, amounts / amounts.sum())
+            assemblage.n_moles = float(amounts.sum())
+            assemblage.set_state(state["pressure"], state["temperature"])
+            expected[j, i] = getattr(assemblage, attribute)
+    result = bm.phase_diagram_property_grid(source, phases, attribute)
+    np.testing.assert_allclose(values(result), expected, rtol=1e-12)
+    assert result.equilibrium_solves == 0 and not result.has_solutions
+    assert source.to_dict() == snapshot
+    np.testing.assert_array_equal(phases[0].molar_fractions, [0.4, 0.6])
+    assert (phases[0].pressure, phases[0].temperature) == (3e9, 1500.0)
+
+
+def test_phase_attributes_select_copies_and_mask_absent_or_failed_nodes(sample):
+    source, phases = sample
+    data = source.to_dict()
+    for row in data["solutions"]:
+        for state in row:
+            state["phases"].append(
+                dict(
+                    id=1,
+                    candidate_index=0,
+                    name="oxide #2",
+                    amount=0.5,
+                    composition=[0.8, 0.2],
+                )
+            )
+            state["phase_bases"].append(np.eye(2).tolist())
+            state["phase_compositions"].append([0.8, 0.2])
+    with pytest.raises(TypeError, match="coexisting copies"):
+        bm.phase_diagram_property_grid(data, phases, "density", phase="oxide")
+    for options in [dict(phase="oxide #2"), dict(phase="oxide", instance=2)]:
+        result = bm.phase_diagram_property_grid(data, phases, "density", **options)
+        reference = phases[0].copy()
+        reference.set_composition([0.8, 0.2])
+        for j, t in enumerate(source.y):
+            for i, p in enumerate(source.x):
+                reference.set_state(p, t)
+                assert values(result)[j, i] == pytest.approx(reference.density)
+    data["success"][0][0] = data["equilibrium_success"][0][0] = False
+    data["solutions"][0][0] = None
+    data["solutions"][1][1]["phases"].pop()
+    data["solutions"][1][1]["phase_bases"].pop()
+    data["solutions"][1][1]["phase_compositions"].pop()
+    result = bm.phase_diagram_property_grid(data, phases, "density", phase="oxide #2")
+    assert np.isnan(values(result)[0, 0]) and np.isnan(values(result)[1, 1])
+    assert not result.equilibrium_success[0, 0] and result.equilibrium_success[1, 1]
+
+
+def test_property_boundary_values_replay_saved_states_and_zero_amount_phases(
+    volume_sample,
+):
+    from burnman_cpp.tools.composition_contours import _boundary_expression
+
+    source, phases, _ = volume_sample
+    diagram = split_diagram(source, solved_boundary=True)
+    polygon = next(
+        p for p in bm.phase_diagram_field_polygons(diagram).polygons if 3 in p.phases
+    )
+    for phase in (None, "other"):
+        grid = bm.phase_diagram_property_grid(source, phases, "density", phase=phase)
+        points, boundary_values = _boundary_expression(
+            diagram, phases, next(iter(grid.values))
+        )(polygon)
+        for (p, t), value in zip(points, boundary_values):
+            if phase is None:
+                x = 0.2 + 0.8 * (t - 800.0) / 400.0
+                reference = phases[0].copy()
+                reference.set_composition([x, 1.0 - x])
+            else:
+                reference = phases[1].copy()
+            reference.set_state(p, t)
+            assert value == pytest.approx(reference.density)
+        assert len(points) == 5
+    # A temperature attribute has straight contours ending at the shared field edge.
+    data = source.to_dict()
+    polygons = sorted(
+        bm.phase_diagram_field_polygons(diagram).polygons,
+        key=lambda p: p.label_position[0],
+    )
+    data["field_numbers"] = [
+        [polygons[int(p > 1.5e9)].field_number for p in source.x] for _ in source.y
+    ]
+    grid = bm.phase_diagram_property_grid(data, phases, "temperature")
+    records = bm.phase_diagram_grid_contours(
+        grid, [950.0], diagram=diagram, phases=phases
+    )
+    assert len(records[0]["contours"]["lines"]) == 2
+    for line in records[0]["contours"]["lines"]:
+        assert line["preexisting_boundary_samples"] == 5
+        assert any(p["pressure"] == pytest.approx(1.5e9) for p in line["points"])
+        assert all(p["temperature"] == pytest.approx(950.0) for p in line["points"])
+
+
+def test_attribute_grid_restores_reduced_bases_for_relaxed_properties(sample):
+    source, phases = sample
+    data = source.to_dict()
+    for row in data["solutions"]:
+        for state in row:
+            state["phases"][0]["composition"] = [0.0, 1.0]
+            state["phase_bases"] = [[[0.0, 1.0]]]
+            state["phase_compositions"] = [[1.0]]
+    result = bm.phase_diagram_property_grid(
+        data, phases, "molar_heat_capacity_p", relaxed=True
+    )
+    reference = bm.Mineral(oxide_params("Fe"))
+    for j, t in enumerate(source.y):
+        for i, p in enumerate(source.x):
+            reference.set_state(p, t)
+            assert values(result)[j, i] == pytest.approx(
+                reference.molar_heat_capacity_p
+            )
+    assert result.success.all(), result.diagnostics
+
+
+def test_nonfinite_attributes_are_masked_with_diagnostics(sample, monkeypatch):
+    source, phases = sample
+    monkeypatch.setattr(bm.Assemblage, "density", property(lambda self: np.nan))
+    result = bm.phase_diagram_property_grid(source, phases, "density")
+    assert result.equilibrium_success.all() and not result.success.any()
+    assert np.isnan(values(result)).all() and not result.resolved
+    assert any("nonfinite" in d for d in result.diagnostics)
+
+
+@pytest.mark.parametrize(
+    "attribute,options,error",
+    [
+        ("__dict__", {}, ValueError),
+        ("set_state", {}, ValueError),
+        ("density.real", {}, ValueError),
+        ("unknown", {}, ValueError),
+        ("formula", {}, TypeError),
+        ("molar_fractions", {}, TypeError),
+        ("density", dict(instance=1), ValueError),
+        ("density", dict(phase="oxide", instance=4), ValueError),
+        ("density", dict(phase="oxide", instance=True), ValueError),
+        ("density", dict(phase="oxide #2", instance=1), ValueError),
+        ("density", dict(phase="unknown"), ValueError),
+        ("density", dict(relaxed="yes"), TypeError),
+        ("density", dict(averaging_scheme="VRH"), TypeError),
+        ("n_phases", dict(relaxed=True), ValueError),
+    ],
+)
+def test_attribute_grid_rejects_invalid_or_nonscalar_properties(
+    sample, attribute, options, error
+):
+    source, phases = sample
+    with pytest.raises(error):
+        bm.phase_diagram_property_grid(source, phases, attribute, **options)
 
 
 def test_missing_retained_states_and_wrong_candidates_are_rejected(sample):

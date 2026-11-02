@@ -24,7 +24,12 @@ _EXPORTS = {
         "plot_mode_box",
     ),
     "contours": ("phase_diagram_contour_levels",),
-    "composition_contours": ("phase_composition_grid", "phase_composition_contours"),
+    "composition_contours": (
+        "phase_composition_grid",
+        "phase_composition_contours",
+        "phase_diagram_grid_contours",
+    ),
+    "property_contours": ("phase_diagram_property_grid",),
     "phase_diagram_labels": ("label_phase_diagram_solutions",),
     "properties": (
         "phase_diagram_grid",
