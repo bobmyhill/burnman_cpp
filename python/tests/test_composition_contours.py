@@ -820,7 +820,19 @@ def test_secondary_labels_follow_compositions_when_grid_copy_ids_swap():
 @pytest.mark.parametrize(
     "attribute", ["density", "molar_entropy", "n_phases", "n_moles"]
 )
-def test_attribute_grids_match_direct_assemblage_getters(volume_sample, attribute):
+@pytest.mark.parametrize(
+    "filters",
+    [
+        {},
+        dict(exclude_phases="other"),
+        dict(include_phases=("oxide",)),
+        dict(include_phases="other"),
+        dict(include_phases=("oxide", "other"), exclude_phases=("other",)),
+    ],
+)
+def test_attribute_grids_match_direct_assemblage_getters(
+    volume_sample, attribute, filters
+):
     source, phases, _ = volume_sample
     snapshot = source.to_dict()
     phases[0].set_state(3e9, 1500.0)
@@ -829,8 +841,14 @@ def test_attribute_grids_match_direct_assemblage_getters(volume_sample, attribut
     for j, row in enumerate(snapshot["solutions"]):
         for i, state in enumerate(row):
             materials = []
-            amounts = np.array([p["amount"] for p in state["phases"]])
-            for p in state["phases"]:
+            selected = [
+                p
+                for p in state["phases"]
+                if p["name"] in filters.get("include_phases", ("oxide", "other"))
+                and p["name"] not in filters.get("exclude_phases", ())
+            ]
+            amounts = np.array([p["amount"] for p in selected])
+            for p in selected:
                 material = phases[p["candidate_index"]].copy()
                 if isinstance(material, bm.Solution):
                     material.set_composition(p["composition"])
@@ -839,7 +857,7 @@ def test_attribute_grids_match_direct_assemblage_getters(volume_sample, attribut
             assemblage.n_moles = float(amounts.sum())
             assemblage.set_state(state["pressure"], state["temperature"])
             expected[j, i] = getattr(assemblage, attribute)
-    result = bm.phase_diagram_property_grid(source, phases, attribute)
+    result = bm.phase_diagram_property_grid(source, phases, attribute, **filters)
     np.testing.assert_allclose(values(result), expected, rtol=1e-12)
     assert result.equilibrium_solves == 0 and not result.has_solutions
     assert source.to_dict() == snapshot
@@ -865,6 +883,15 @@ def test_phase_attributes_select_copies_and_mask_absent_or_failed_nodes(sample):
             state["phase_compositions"].append([0.8, 0.2])
     with pytest.raises(TypeError, match="coexisting copies"):
         bm.phase_diagram_property_grid(data, phases, "density", phase="oxide")
+    # A bulk selection retains all copies, without single-phase ambiguity.
+    selected = bm.phase_diagram_property_grid(
+        data, phases, "n_phases", include_phases="oxide"
+    )
+    np.testing.assert_array_equal(values(selected), 2.0)
+    selected = bm.phase_diagram_property_grid(
+        data, phases, "n_moles", include_phases="oxide"
+    )
+    np.testing.assert_array_equal(values(selected), 1.5)
     for options in [dict(phase="oxide #2"), dict(phase="oxide", instance=2)]:
         result = bm.phase_diagram_property_grid(data, phases, "density", **options)
         reference = phases[0].copy()
@@ -958,6 +985,139 @@ def test_nonfinite_attributes_are_masked_with_diagnostics(sample, monkeypatch):
     assert any("nonfinite" in d for d in result.diagnostics)
 
 
+def test_melt_density_selection_excludes_the_separate_fluid(volume_sample):
+    source, phases, _ = volume_sample
+    phases[0].set_name("melt")
+    phases[1].set_name("H2O")
+    data = source.to_dict()
+    data["context"]["phase_names"] = [
+        p.name + (f" #{i+1}" if i else "") for p in phases for i in range(3)
+    ]
+    for row in data["solutions"]:
+        for state in row:
+            for p in state["phases"]:
+                p["name"] = phases[p["candidate_index"]].name
+    melt = bm.phase_diagram_property_grid(
+        data, phases, "density", include_phases=("melt",)
+    )
+    phase_density = bm.phase_diagram_property_grid(
+        data, phases, "density", phase="melt"
+    )
+    bulk = bm.phase_diagram_property_grid(data, phases, "density")
+    np.testing.assert_allclose(values(melt), values(phase_density), rtol=1e-12)
+    assert np.min(np.abs(values(melt) - values(bulk))) > 100.0
+
+
+def test_relaxed_response_uses_only_the_retained_assemblage(volume_sample):
+    source, phases, _ = volume_sample
+    result = bm.phase_diagram_property_grid(
+        source, phases, "molar_heat_capacity_p", exclude_phases=("other",), relaxed=True
+    )
+    reference = phases[0].copy()
+    for j, row in enumerate(source.to_dict()["solutions"]):
+        for i, state in enumerate(row):
+            reference.set_composition(state["phases"][0]["composition"])
+            reference.set_state(state["pressure"], state["temperature"])
+            assert values(result)[j, i] == pytest.approx(
+                reference.molar_heat_capacity_p
+            )
+    assert result.success.all(), result.diagnostics
+
+
+@pytest.mark.parametrize(
+    "filters",
+    [
+        dict(include_phases=("MgO",)),  # Known candidate absent from every saved node.
+        dict(include_phases=()),
+        dict(exclude_phases=("oxide", "MgO")),
+        dict(include_phases=("oxide",), exclude_phases=("oxide",)),
+    ],
+)
+def test_empty_bulk_selections_are_masked_without_discarding_equilibria(
+    sample, filters
+):
+    source, phases = sample
+    result = bm.phase_diagram_property_grid(source, phases, "density", **filters)
+    assert result.equilibrium_success.all() and not result.success.any()
+    assert np.isnan(values(result)).all() and not result.resolved
+    assert any("No positive phase amounts remain" in d for d in result.diagnostics)
+    assert result.equilibrium_solves == 0
+
+
+@pytest.mark.parametrize(
+    "filters", [dict(exclude_phases="H2O"), dict(include_phases="oxide")]
+)
+def test_bulk_filters_skip_excluded_eos_evaluation(sample, filters):
+    _, phases = sample
+    phases = [phases[0], bm.minerals.model_sets.metapelite().phases[21]]
+
+    def states(p, t):
+        return [
+            dict(
+                id=0,
+                candidate_index=0,
+                name="oxide",
+                amount=1.0,
+                composition=[0.5, 0.5],
+            ),
+            dict(id=3, candidate_index=1, name="H2O", amount=0.2, composition=[1.0]),
+        ]
+
+    source = stored_grid(phases, y=[298.15, 300.0], phase_states=states)
+    full = bm.phase_diagram_property_grid(source, phases, "density")
+    assert not full.success.any()
+    assert any("PitzerSterner domain" in d for d in full.diagnostics)
+    dry = bm.phase_diagram_property_grid(source, phases, "density", **filters)
+    assert dry.success.all(), dry.diagnostics
+    reference = phases[0].copy()
+    for j, t in enumerate(source.y):
+        for i, p in enumerate(source.x):
+            reference.set_state(p, t)
+            assert values(dry)[j, i] == pytest.approx(reference.density)
+
+
+@pytest.mark.parametrize(
+    "filters",
+    [
+        dict(exclude_phases=("other",)),
+        dict(include_phases=("oxide",)),
+        dict(include_phases=("oxide", "other"), exclude_phases=("other",)),
+    ],
+)
+def test_bulk_filters_persist_and_replay_preexisting_boundary_states(
+    volume_sample, tmp_path, filters
+):
+    from burnman_cpp.tools.composition_contours import _boundary_expression
+
+    source, phases, _ = volume_sample
+    diagram = split_diagram(source, solved_boundary=True)
+    # Both candidates have positive amounts, so filtering changes boundary density.
+    for point in diagram["boundaries"][0]["points"]:
+        point["phases"][1]["amount"] = 2.0
+    grid = bm.phase_diagram_property_grid(source, phases, "density", **filters)
+    saved = bm.save_property_grid(grid, tmp_path / "filtered.json.gz")
+    loaded = bm.load_property_grid(saved)
+    quantity = next(iter(loaded.values))
+    options = json.loads(quantity.split("; options=", 1)[1])
+    assert options == {k: list(v) for k, v in filters.items()}
+    sample_boundary = _boundary_expression(diagram, phases, quantity)
+    for polygon in bm.phase_diagram_field_polygons(diagram).polygons:
+        points, boundary_values = sample_boundary(polygon)
+        assert len(points) == 5
+        reference = phases[0].copy()
+        for (p, t), value in zip(points, boundary_values):
+            x = 0.2 + 0.8 * (t - 800.0) / 400.0
+            reference.set_composition([x, 1.0 - x])
+            reference.set_state(p, t)
+            assert value == pytest.approx(reference.density)
+    # The public contour entry point can replay these persisted settings too.
+    records = bm.phase_diagram_grid_contours(
+        saved, [float(np.median(values(grid)))], diagram=diagram, phases=phases
+    )
+    assert records[0]["contours"]["lines"]
+    assert records[0]["contours"]["equilibrium_solves"] == 0
+
+
 @pytest.mark.parametrize(
     "attribute,options,error",
     [
@@ -975,6 +1135,12 @@ def test_nonfinite_attributes_are_masked_with_diagnostics(sample, monkeypatch):
         ("density", dict(relaxed="yes"), TypeError),
         ("density", dict(averaging_scheme="VRH"), TypeError),
         ("n_phases", dict(relaxed=True), ValueError),
+        ("density", dict(include_phases=("unknown",)), ValueError),
+        ("density", dict(exclude_phases=("unknown",)), ValueError),
+        ("density", dict(include_phases=(None,)), ValueError),
+        ("density", dict(include_phases=("oxide #2",)), ValueError),
+        ("density", dict(phase="oxide", include_phases=("oxide",)), ValueError),
+        ("density", dict(phase="oxide", exclude_phases=("MgO",)), ValueError),
     ],
 )
 def test_attribute_grid_rejects_invalid_or_nonscalar_properties(
