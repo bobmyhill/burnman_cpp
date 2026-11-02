@@ -11,11 +11,12 @@
 # and contributions can be found in the LICENSE document.
 #
 # ------------------------------------------------------
-"""Plot relaxed/unrelaxed alpha, beta_T and molar Cp from saved P-S equilibria.
+"""Step 2: plot relaxed/unrelaxed alpha, beta_T and Cp from saved P-S equilibria.
 
-Supply a phase-diagram JSON and --grid-solutions pointing to a grid_solutions
-directory, its manifest.json, or an older grid_solutions.json.gz file. Restore
-the original candidate models with --models (SLB2024 pyrolite by default).
+Run example_phase_diagram_grid.py with its pyrolite entry first. Edit the
+paths below and run this script without arguments. GRID_SOLUTIONS accepts a
+grid_solutions directory, its manifest.json, or a retained grid JSON file.
+
 Only response properties are evaluated: no equilibrium solves or retries run.
 An expansivity.npz archive alone does not contain the retained equilibria
 needed to calculate compressibility and heat capacity.
@@ -30,11 +31,9 @@ zero. Colour clipping never changes the saved numerical values.
 
 Write a six-panel PNG/PDF, SI-unit arrays in properties.npz and arrays/*.npy,
 labelled isotherms, and diagnostics. Chunked inputs keep equilibrium memory
-bounded; --plot-resolution limits rendering only, preserving the saved grid.
-Use --verbose for progress after each saved batch.
+bounded; PLOT_RESOLUTION limits rendering only, preserving the saved grid.
 """
 
-import argparse
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -42,7 +41,16 @@ from types import SimpleNamespace
 import numpy as np
 
 import burnman_cpp as bm
-from burnman_cpp.tools.phase_diagram_helpers import load_example
+from burnman_cpp.tools.phase_diagram_helpers import load_example, save_figure
+
+EXAMPLES = Path(__file__).resolve().parent
+SOURCE_DIR = EXAMPLES / "pyrolite_sp_phase_diagram_grid_output"
+DIAGRAM = SOURCE_DIR / "refined.json"
+GRID_SOLUTIONS = SOURCE_DIR / "grid_solutions"
+MODELS = EXAMPLES / "example_pyrolite_phase_diagram.py"
+OUTPUT_DIR = EXAMPLES / "pyrolite_sp_properties_output"
+PLOT_RESOLUTION = 1001
+ISOTHERMS = (1000.0, 1500.0, 2000.0)  # K; use () to omit isotherms.
 
 PROPERTIES = (
     ("thermal_expansivity", r"$\alpha$ ($10^{-5}$ K$^{-1}$)", 1e5),
@@ -243,44 +251,21 @@ def plot(diagram, x, y, arrays, *, isotherms=(), max_plot_resolution=1001):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--diagram-json", type=Path, required=True)
-    parser.add_argument("--grid-solutions", type=Path, required=True)
-    parser.add_argument(
-        "--models",
-        default=str(Path(__file__).with_name("example_pyrolite_phase_diagram.py")),
-    )
-    parser.add_argument(
-        "--output-dir", type=Path, default=Path("pyrolite_sp_properties_output")
-    )
-    parser.add_argument("--plot-resolution", type=int, default=1001)
-    parser.add_argument(
-        "--isotherms",
-        type=float,
-        nargs="*",
-        default=(1000.0, 1500.0, 2000.0),
-        metavar="T_K",
-        help="Kelvin levels; omit values to disable isotherms.",
-    )
-    parser.add_argument("--verbose", action="store_true")
-    args = parser.parse_args()
-    if args.plot_resolution < 2:
-        parser.error("--plot-resolution must be >= 2")
-    diagram = bm.load_phase_diagram(args.diagram_json)
+    diagram = bm.load_phase_diagram(DIAGRAM)
     if diagram.get("diagram_type") != "PS":
-        parser.error("--diagram-json must contain a pressure-entropy (PS) diagram")
+        raise ValueError("DIAGRAM must contain a pressure-entropy (PS) diagram.")
     x, y, arrays = evaluate_saved(
-        args.grid_solutions,
-        load_example(args.models).candidate_phases(),
-        args.output_dir,
-        verbose=args.verbose,
+        GRID_SOLUTIONS,
+        load_example(MODELS).candidate_phases(),
+        OUTPUT_DIR,
+        verbose=True,
     )
-    (args.output_dir / "diagnostics.json").write_text(
+    (OUTPUT_DIR / "diagnostics.json").write_text(
         json.dumps(
             dict(
-                source_json=str(args.diagram_json.resolve()),
-                grid_solutions=str(args.grid_solutions.resolve()),
-                models=args.models,
+                source_json=str(DIAGRAM.resolve()),
+                grid_solutions=str(GRID_SOLUTIONS.resolve()),
+                models=str(MODELS),
                 equilibrium_solves=0,
                 shape=[len(y), len(x)],
                 finite_points={
@@ -303,19 +288,18 @@ def main():
         has_solutions=True,
         values={"temperature": arrays["temperature"]},
     )
-    isotherms = calculate_isotherms(temperatures, args.isotherms)
-    (args.output_dir / "isotherms.json").write_text(json.dumps(isotherms) + "\n")
+    isotherms = calculate_isotherms(temperatures, ISOTHERMS)
+    (OUTPUT_DIR / "isotherms.json").write_text(json.dumps(isotherms) + "\n")
     fig, _ = plot(
         diagram,
         x,
         y,
         arrays,
         isotherms=isotherms,
-        max_plot_resolution=args.plot_resolution,
+        max_plot_resolution=PLOT_RESOLUTION,
     )
-    for suffix in ("png", "pdf"):
-        fig.savefig(args.output_dir / f"pyrolite_sp_properties.{suffix}", dpi=200)
-    print(f"Figure and arrays: {args.output_dir.resolve()}", flush=True)
+    save_figure(fig, OUTPUT_DIR / "pyrolite_sp_properties.png", formats=("pdf",))
+    print(f"Figure and arrays: {OUTPUT_DIR.resolve()}", flush=True)
 
 
 if __name__ == "__main__":

@@ -37,8 +37,9 @@ domain is conservatively masked rather than assigned a phase assemblage.
 Both magnetic and Debye contributions have finite zero-temperature limits.
 Accepted states are verified against the full solution composition polytopes.
 
-Increase --seeds to check narrow/disconnected fields. --refine-json resumes
-unfinished lines from the last accepted native phase compositions and amounts.
+Edit SEEDS and the domain below, then run without arguments.
+To refine a saved diagram, use example_metasediment_phase_diagram_step2_refine.py
+with SOURCE and MODELS set to this example's outputs and candidates.
 """
 
 from math import isclose
@@ -47,11 +48,14 @@ from pathlib import Path
 import burnman_cpp as bm
 from burnman_cpp.minerals import SLB_2024
 from burnman_cpp.tools.phase_diagram_helpers import (
-    example_parser,
     plot_phase_diagram_example,
     refine_saved,
-    run_phase_diagram_example,
+    write_phase_diagram,
 )
+
+OUTPUT_DIR = Path(__file__).resolve().with_name("pyrolite_phase_diagram_output")
+SEEDS = 9
+
 
 PAPER_URL = "https://academic.oup.com/gji/article/237/3/1699/7640845"
 INITIAL_FERRIC_FRACTION = 0.03
@@ -288,20 +292,11 @@ def plot(
 
 
 def main():
-    parser = example_parser(
-        __doc__,
-        "pyrolite_phase_diagram_output",
-        seeds=9,
-        replot=True,
-        refine=True,
-    )
-    return run_phase_diagram_example(
-        parser,
-        lambda args: calculate(args.seeds, args.quick, args.verbose),
-        stem="pyrolite_phase_diagram",
+    return write_phase_diagram(
+        calculate(seeds=SEEDS, verbose=True),
+        OUTPUT_DIR / "pyrolite_phase_diagram",
         save_json=save_json,
         plot=plot,
-        refine=refine,
     )
 
 

@@ -23,10 +23,13 @@ from functools import partial
 from pathlib import Path
 
 from burnman_cpp.tools.phase_diagram_helpers import (
-    example_parser,
     load_example,
-    run_phase_diagram_example,
+    write_phase_diagram,
 )
+
+OUTPUT_DIR = Path(__file__).resolve().with_name("pyrolite_phase_diagram_zoom_output")
+SEEDS = 9
+
 
 pyrolite = load_example(Path(__file__).with_name("example_pyrolite_phase_diagram.py"))
 PAPER_URL = pyrolite.PAPER_URL
@@ -36,7 +39,6 @@ PYROLITE_OXIDES = pyrolite.PYROLITE_OXIDES
 PHASE_GLOSSARY = pyrolite.PHASE_GLOSSARY
 pyrolite_composition = pyrolite.pyrolite_composition
 candidate_phases = pyrolite.candidate_phases
-refine = pyrolite.refine
 
 P_Pa_low = 3.932e9
 P_Pa_high = 3.935e9
@@ -56,20 +58,11 @@ def calculate(seeds=9, quick=False, verbose=False):
 
 
 def main():
-    parser = example_parser(
-        __doc__,
-        "pyrolite_phase_diagram_zoom_output",
-        seeds=9,
-        replot=True,
-        refine=True,
-    )
-    return run_phase_diagram_example(
-        parser,
-        lambda args: calculate(args.seeds, args.quick, args.verbose),
-        stem="pyrolite_phase_diagram",
+    return write_phase_diagram(
+        calculate(seeds=SEEDS, verbose=True),
+        OUTPUT_DIR / "pyrolite_phase_diagram",
         save_json=save_json,
         plot=plot,
-        refine=refine,
     )
 
 

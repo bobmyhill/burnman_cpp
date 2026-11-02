@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: Copyright (C) 2026 by the BurnMan Team.
 """
-Composition and property contours interpolated from a saved thermodynamic grid.
+Step 2: interpolate composition and property contours from a saved grid.
 
 Run example_metasediment_phase_diagram_grid.py first. Edit CONTOUR_SETS below
 to choose phases, expressions, scalar attribute properties and levels.

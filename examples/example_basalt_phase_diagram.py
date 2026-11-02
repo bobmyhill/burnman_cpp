@@ -24,18 +24,23 @@ and PS94 H2O with the Holland-Powell thermal reference. The model set is
 available as burnman_cpp.minerals.model_sets.metabasite().
 The closed bulk contains exactly 2 wt% H2O; no water/oxygen buffers are used.
 A 1 bar lower calculation limit avoids the fluid singularity at P=0; the
-figure uses the requested 0–20 kbar axis. Increase --seeds to check discovery
-of narrow or disconnected fields. Failed calculations remain explicit.
+figure uses the requested 0–20 kbar axis. Increase SEEDS to check discovery
+of narrow or disconnected fields. Edit the settings below and run without arguments.
 """
+
+from pathlib import Path
 
 import burnman_cpp as bm
 from burnman_cpp.minerals import model_sets
 from burnman_cpp.tools.phase_diagram_helpers import (
-    example_parser,
     plot_phase_diagram_example,
     refine_saved,
-    run_phase_diagram_example,
+    write_phase_diagram,
 )
+
+OUTPUT_DIR = Path(__file__).resolve().with_name("basalt_phase_diagram_output")
+SEEDS = 7
+
 
 MODEL_SET = model_sets.metabasite()
 
@@ -131,21 +136,11 @@ def plot(
 
 
 def main():
-    parser = example_parser(
-        __doc__,
-        "basalt_phase_diagram_output",
-        seeds=7,
-        replot=True,
-        refine=True,
-        resolution=False,
-    )
-    return run_phase_diagram_example(
-        parser,
-        lambda args: calculate(args.seeds, args.quick, args.verbose),
-        stem="basalt_phase_diagram",
+    return write_phase_diagram(
+        calculate(seeds=SEEDS, verbose=True),
+        OUTPUT_DIR / "basalt_phase_diagram",
         save_json=save_json,
         plot=plot,
-        refine=refine,
     )
 
 

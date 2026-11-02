@@ -18,7 +18,9 @@ Oxide moles are transcribed from the figure footer. Atomic O is the excess
 oxygen above FeO, so Fe3+/total Fe = 2 O / FeO in this closed system.
 """
 
-from green2025 import main
+from driver_green2025 import main
+
+SEEDS = 7
 
 OXIDES = dict(
     SiO2=50.4025,
@@ -51,4 +53,6 @@ if __name__ == "__main__":
         (0, 12),
         REFERENCE_POINTS,
         (6, 1279),  # Liquidus read from the published raster, approximately ±5 C.
+        seeds=SEEDS,
+        check_only=False,  # True checks only the published interior points.
     )

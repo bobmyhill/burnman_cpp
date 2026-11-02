@@ -1154,7 +1154,7 @@ def test_sp_isotherms_keep_gaps_and_all_strip_cells():
     example = runpy.run_path(
         str(
             Path(__file__).resolve().parents[2]
-            / "examples/example_plot_pyrolite_sp_relaxed_properties.py"
+            / "examples/example_phase_diagram_grid_step2_properties.py"
         )
     )
     x, y = np.arange(7.0), np.arange(9.0)
@@ -1290,7 +1290,7 @@ def test_saved_sp_response_panels_need_no_equilibrium_solves(
     example = runpy.run_path(
         str(
             Path(__file__).resolve().parents[2]
-            / "examples/example_plot_pyrolite_sp_relaxed_properties.py"
+            / "examples/example_phase_diagram_grid_step2_properties.py"
         )
     )
     names = [name for name, _, _ in example["PROPERTIES"]]

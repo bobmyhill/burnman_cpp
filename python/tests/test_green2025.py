@@ -41,7 +41,7 @@ def test_liquidus_comparison_distinguishes_missing_and_out_of_window_references(
     monkeypatch, pressure, temperature, lines, status, match
 ):
     monkeypatch.syspath_prepend(str(Path(__file__).parents[2] / "examples"))
-    helper = importlib.import_module("green2025")
+    helper = importlib.import_module("driver_green2025")
     data = dict(
         pressure_range=[1.0e9, 2.0e9],
         temperature_range=[1000.0, 2000.0],
@@ -75,7 +75,7 @@ def benchmark(request):
     with pytest.MonkeyPatch.context() as patch:
         patch.syspath_prepend(str(Path(__file__).parents[2] / "examples"))
         example = importlib.import_module(f"example_green2025_{request.param}")
-        runner = importlib.import_module("green2025")
+        runner = importlib.import_module("driver_green2025")
     composition = bm.Composition(example.OXIDES, unit_type="molar")
     return example, composition, runner.candidate_phases(composition)
 

@@ -21,7 +21,7 @@ These are stoichiometric solids; iron allotropes, nonstoichiometric FeO and
 liquids are outside this example's candidate set.
 
 Run: python examples/example_iron_hematite_tx.py
-Use --quick for fewer seeds, or --no-plots to save only the resumable JSON.
+Edit the settings below and run without arguments.
 """
 
 from pathlib import Path
@@ -29,10 +29,14 @@ from pathlib import Path
 import burnman_cpp as bm
 from burnman_cpp.minerals import HGP_2018_ds633
 from burnman_cpp.tools.phase_diagram_helpers import (
-    example_parser,
     plot_phase_diagram_example,
-    run_phase_diagram_example,
+    write_phase_diagram,
 )
+
+OUTPUT_DIR = Path(__file__).resolve().with_name("Fe-O_tx_output")
+SEEDS = 9
+COMPOSITION_SEEDS = 17
+
 
 IRON = bm.Composition({"Fe": 1.0}, "molar")
 HEMATITE = bm.Composition({"Fe2O3": 1.0}, "molar")
@@ -53,8 +57,8 @@ def candidate_phases():
 def calculate(quick=False, verbose=False):
     domain = dict(temperature_range=(300.0, 1500.0), pressure=1.0e5)
     settings = bm.PhaseDiagramSettings()
-    settings.pressure_seeds = settings.temperature_seeds = 5 if quick else 9
-    settings.composition_seeds = 5 if quick else 17
+    settings.pressure_seeds = settings.temperature_seeds = 5 if quick else SEEDS
+    settings.composition_seeds = 5 if quick else COMPOSITION_SEEDS
     settings.max_phase_instances = 1
     settings.verbose = verbose
     return bm.phase_diagram(
@@ -82,16 +86,11 @@ def plot(result, path, label_fontsize=9.0):
 
 
 def main():
-    parser = example_parser(
-        "Iron-Hematite T-X diagram at 1 bar.",
-        Path(__file__).resolve().parent / "Fe-O_tx_output",
-        label_fontsize=9.0,
-    )
-    return run_phase_diagram_example(
-        parser,
-        lambda args: calculate(args.quick, args.verbose),
-        stem="Fe-O_tx",
+    return write_phase_diagram(
+        calculate(verbose=True),
+        OUTPUT_DIR / "Fe-O_tx",
         plot=plot,
+        label_fontsize=9.0,
     )
 
 

@@ -19,19 +19,21 @@ X is the molar fayalite fraction Fe/(Mg+Fe). All stability searches and phase-
 boundary continuation run in C++; plotting uses the standard phase diagram API.
 
 Run: python examples/example_olivine_px.py
-Use --quick for fewer seeds, or --no-plots to save only the resumable JSON.
+Edit the settings below and run without arguments.
 """
 
-from functools import partial
 from pathlib import Path
 
 import burnman_cpp as bm
 from burnman_cpp.minerals import SLB_2011
 from burnman_cpp.tools.phase_diagram_helpers import (
-    example_parser,
     plot_phase_diagram_example,
-    run_phase_diagram_example,
+    write_phase_diagram,
 )
+
+OUTPUT_ROOT = Path(__file__).resolve().parent
+SEEDS = 9
+COMPOSITION_SEEDS = 17
 
 FORSTERITE = bm.Composition({"Mg2SiO4": 1.0}, "molar")
 FAYALITE = bm.Composition({"Fe2SiO4": 1.0}, "molar")
@@ -57,9 +59,9 @@ def calculate(quick=False, verbose=False, *, diagram="PX"):
     if diagram not in domains:
         raise ValueError("The olivine example supports PX, TX or VX diagrams.")
     settings = bm.PhaseDiagramSettings()
-    settings.pressure_seeds = settings.temperature_seeds = 5 if quick else 9
+    settings.pressure_seeds = settings.temperature_seeds = 5 if quick else SEEDS
     settings.volume_seeds = settings.pressure_seeds
-    settings.composition_seeds = 5 if quick else 17
+    settings.composition_seeds = 5 if quick else COMPOSITION_SEEDS
     settings.max_phase_instances = 1
     settings.verbose = verbose
     return bm.phase_diagram(
@@ -95,18 +97,11 @@ def plot(result, path, label_fontsize=9.0, *, diagram="PX"):
 
 def main(diagram="PX"):
     stem = f"olivine_{diagram.lower()}"
-    condition = "14 GPa" if diagram == "TX" else "1673 K"
-    parser = example_parser(
-        f"Olivine-polymorph {diagram[0]}-X diagram at {condition}.",
-        Path(__file__).resolve().parent / f"{stem}_output",
-        label_fontsize=9.0,
-    )
-    return run_phase_diagram_example(
-        parser,
-        lambda args: calculate(args.quick, args.verbose, diagram=diagram),
-        stem=stem,
-        plot=partial(plot, diagram=diagram),
-    )
+    result = calculate(verbose=True, diagram=diagram)
+    output = OUTPUT_ROOT / f"{stem}_output"
+    write_phase_diagram(result, output / stem)
+    plot(result, output / f"{stem}.png", diagram=diagram)
+    return result
 
 
 if __name__ == "__main__":

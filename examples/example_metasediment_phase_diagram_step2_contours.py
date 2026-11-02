@@ -12,25 +12,33 @@
 #
 # ------------------------------------------------------
 
-"""Density and garnet Mg/(Mg + Fe2+) contours on a saved metasediment diagram.
+"""Step 2: trace density and garnet composition contours on a saved diagram.
 
-First run example_metasediment_phase_diagram.py, then:
-
-    python examples/example_metasediment_contours.py path/to/metasediment_phase_diagram.json
+Run example_metasediment_phase_diagram.py first. Edit the paths and contour
+levels below, then run this script without arguments.
 
 The saved phase lines, closed fields and equilibrium states are reused.
 Native VolumeConstraint sets total volume to bulk mass / density.
 Native PhaseCompositionConstraint selects garnet's Mg and ferrous-Fe sites;
 its ferric-Fe site is excluded. Seeding, correction and continuation use C++.
-Contour JSON can subsequently be plotted with --plot-json, without solving.
+These native constraint contours perform new solves. For contours from stored
+equilibria only, use example_metasediment_phase_diagram_grid_step2_contours.py instead.
 """
 
-import argparse
 import json
 from pathlib import Path
 
 import burnman_cpp as bm
 from burnman_cpp.tools.phase_diagram_helpers import load_example, save_figure
+
+EXAMPLES = Path(__file__).resolve().parent
+SOURCE = EXAMPLES / "metasediment_phase_diagram_output/metasediment_phase_diagram.json"
+OUTPUT_DIR = EXAMPLES / "metasediment_contours_output"
+DENSITY_LEVELS = (2600.0, 2800.0, 3000.0, 3200.0)  # kg/m³.
+GARNET_LEVELS = (0.05, 0.1, 0.15, 0.2, 0.3)  # Mg/(Mg+Fe2+).
+SEED_GRID = 5
+STEP = 0.02
+SAVED_CONTOURS = None  # Set to a contour JSON path to replot without solving.
 
 metasediment = load_example(
     Path(__file__).with_name("example_metasediment_phase_diagram.py")
@@ -104,39 +112,17 @@ def plot(diagram, contours, output_dir, label_fontsize=7.0):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("phase_diagram_json", type=Path)
-    parser.add_argument(
-        "--density", type=float, nargs="+", default=[2600.0, 2800.0, 3000.0, 3200.0]
-    )
-    parser.add_argument(
-        "--garnet", type=float, nargs="+", default=[0.05, 0.1, 0.15, 0.2, 0.3]
-    )
-    parser.add_argument("--seed-grid", type=int, default=5)
-    parser.add_argument("--step", type=float, default=0.02)
-    parser.add_argument("--label-fontsize", type=float, default=7.0)
-    parser.add_argument(
-        "--plot-json", type=Path, help="Plot previously saved contours without solving."
-    )
-    parser.add_argument(
-        "--output-dir", type=Path, default=Path("metasediment_contours_output")
-    )
-    args = parser.parse_args()
-    if any(v <= 0.0 for v in args.density):
-        parser.error("Density levels must be positive.")
-    if any(v <= 0.0 or v >= 1.0 for v in args.garnet):
-        parser.error("Garnet Mg/(Mg+Fe2+) levels must be between zero and one.")
-    diagram = bm.load_phase_diagram(args.phase_diagram_json)
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+    diagram = bm.load_phase_diagram(SOURCE)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     contours = (
-        json.loads(args.plot_json.read_text())
-        if args.plot_json
-        else calculate(diagram, args.density, args.garnet, args.seed_grid, args.step)
+        json.loads(Path(SAVED_CONTOURS).read_text())
+        if SAVED_CONTOURS is not None
+        else calculate(diagram, DENSITY_LEVELS, GARNET_LEVELS, SEED_GRID, STEP)
     )
-    (args.output_dir / "metasediment_contours.json").write_text(
-        json.dumps(contours, indent=2, allow_nan=False)
+    (OUTPUT_DIR / "metasediment_contours.json").write_text(
+        json.dumps(contours, indent=2, allow_nan=False) + "\n"
     )
-    plot(diagram, contours, args.output_dir, args.label_fontsize)
+    plot(diagram, contours, OUTPUT_DIR)
 
 
 if __name__ == "__main__":

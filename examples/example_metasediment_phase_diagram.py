@@ -32,20 +32,23 @@ endmembers); 2ms likewise denotes two compositions. Do not add k4tr as a
 second candidate: it duplicates pl4tr's thermodynamic model.
 
 Calculations start at 1 bar to avoid the fluid singularity at zero pressure;
-figures display 0–20 kbar. Increase --seeds to check narrow/disconnected fields.
---refine-json resumes unfinished lines from accepted native equilibrium states.
-With --refine-json, --resolution NX NY also subdivides phase lines using verified
-equilibria; finer chords can resolve fields narrower than the saved line spacing.
+figures display 0–20 kbar. Edit SEEDS below and run without arguments.
+Use example_metasediment_phase_diagram_step2_refine.py to refine saved phase lines.
 """
+
+from pathlib import Path
 
 import burnman_cpp as bm
 from burnman_cpp.minerals import model_sets
 from burnman_cpp.tools.phase_diagram_helpers import (
-    example_parser,
     plot_phase_diagram_example,
     refine_saved,
-    run_phase_diagram_example,
+    write_phase_diagram,
 )
+
+OUTPUT_DIR = Path(__file__).resolve().with_name("metasediment_phase_diagram_output")
+SEEDS = 7
+
 
 MODEL_SET = model_sets.metapelite()
 
@@ -142,21 +145,11 @@ def plot(
 
 
 def main():
-    parser = example_parser(
-        __doc__,
-        "metasediment_phase_diagram_output",
-        seeds=7,
-        replot=True,
-        refine=True,
-        resolution=True,
-    )
-    return run_phase_diagram_example(
-        parser,
-        lambda args: calculate(args.seeds, args.quick, args.verbose),
-        stem="metasediment_phase_diagram",
+    return write_phase_diagram(
+        calculate(seeds=SEEDS, verbose=True),
+        OUTPUT_DIR / "metasediment_phase_diagram",
         save_json=save_json,
         plot=plot,
-        refine=refine,
     )
 
 
