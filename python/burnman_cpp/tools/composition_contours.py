@@ -45,14 +45,14 @@ def _check_context(saved, diagram):
         )
 
 
-def _expression(text, symbols):
+def _arithmetic_expression(text, available, *, kind="composition"):
     """Interpret arithmetic only; never execute user text as Python code."""
     if not isinstance(text, str) or not text.strip():
         raise ValueError("expression must be a nonempty arithmetic expression.")
     try:
         tree = ast.parse(text.strip(), mode="eval")
     except SyntaxError as error:
-        raise ValueError(f"Invalid composition expression: {error.msg}") from error
+        raise ValueError(f"Invalid {kind} expression: {error.msg}") from error
     operations = {
         ast.Add: operator.add,
         ast.Sub: operator.sub,
@@ -80,10 +80,10 @@ def _expression(text, symbols):
         ):
             raise ValueError("Expression constants must be finite numbers.")
     names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
-    available = symbols.keys() | _VOLUME_SYMBOLS
+    available = set(available)
     if names - available:
         raise ValueError(
-            f"Unknown composition symbols: {', '.join(sorted(names - available))}. "
+            f"Unknown {kind} symbols: {', '.join(sorted(names - available))}. "
             f"Available: {', '.join(sorted(available))}"
         )
 
@@ -98,10 +98,17 @@ def _expression(text, symbols):
             evaluate(node.left, values), evaluate(node.right, values)
         )
 
+    return lambda values: evaluate(tree.body, values), names
+
+
+def _expression(text, symbols):
+    """Bind the shared arithmetic interpreter to composition coefficients."""
+    evaluate, names = _arithmetic_expression(text, symbols.keys() | _VOLUME_SYMBOLS)
+
     def apply(coefficients, extra=None):
         values = {name: coefficients @ symbols[name] for name in names & symbols.keys()}
         values.update(extra or {})
-        return evaluate(tree.body, values)
+        return evaluate(values)
 
     return apply, names
 
