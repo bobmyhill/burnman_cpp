@@ -371,6 +371,7 @@ def _property_boundary_values(data, phases, quantity):
     """Reuse saved boundary equilibria with the grid's property settings."""
     from .phase_diagram import _section_axes
     from .phase_diagram_labels import _field_observations
+    from ._boundary_states import field_boundary_states
 
     name, _, encoded = quantity.removeprefix("property: ").partition("; options=")
     options = json.loads(encoded) if encoded else {}
@@ -386,9 +387,21 @@ def _property_boundary_values(data, phases, quantity):
     ranges = np.asarray([data[a + "_range"] for a in axes])
     fields = {f["id"]: f for f in data.get("fields", [])}
     boundaries = {b["id"]: b for b in data.get("boundaries", [])}
+    bulk_states = field_boundary_states(data, phases) if candidate is None else None
 
     def sample(polygon):
         points, values = [], []
+        if bulk_states is not None:
+            for _, position, state in bulk_states(polygon):
+                try:
+                    value = evaluate(
+                        state, field=polygon.field_number, position=position
+                    )
+                except (ValueError, RuntimeError):
+                    value = np.nan
+                points.append(position)
+                values.append(value)
+            return np.asarray(points).reshape(-1, 2), np.asarray(values)
         limiting = None
         if candidate is not None:
             count = sum(i // copies == candidate for i in polygon.phases)

@@ -500,6 +500,7 @@ def _boundary_expression(data, phases, quantity):
 
         return _property_boundary_values(data, phases, quantity)
     from .phase_diagram import _section_axes
+    from ._boundary_states import field_boundary_states
     from .phase_diagram_labels import (
         label_phase_diagram_solutions,
         _field_observations,
@@ -538,6 +539,7 @@ def _boundary_expression(data, phases, quantity):
     ranges = np.asarray([data[a + "_range"] for a in axes])
     fields = {f["id"]: f for f in data.get("fields", [])}
     boundaries = {b["id"]: b for b in data.get("boundaries", [])}
+    boundary_states = field_boundary_states(data, phases) if volume_symbols else None
 
     def sample(polygon):
         ids = [i for i in polygon.phases if i // copies == candidate]
@@ -563,6 +565,11 @@ def _boundary_expression(data, phases, quantity):
         if not records:
             return empty
         tracks = _track_compositions(records) if labels is not None else None
+        limiting = (
+            {key: state for key, _, state in boundary_states(polygon)}
+            if boundary_states is not None
+            else {}
+        )
         slot = None
         if labels is not None:
             slot = next(
@@ -574,6 +581,8 @@ def _boundary_expression(data, phases, quantity):
         extra = {name: [] for name in volume_symbols}
         for index, (key, position, states) in enumerate(records):
             if key[0] != "boundary":
+                continue
+            if volume_symbols and key not in limiting:
                 continue
             selected = (
                 states[tracks[index].index(slot)]
@@ -588,7 +597,7 @@ def _boundary_expression(data, phases, quantity):
                     if volume_only and not separator and labels is None
                     else {selected[0]}
                 )
-                state = boundaries[key[1]]["points"][key[2]]
+                state = limiting[key]
                 for name in volume_symbols:
                     try:
                         value = volume(
