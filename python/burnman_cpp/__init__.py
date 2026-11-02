@@ -479,6 +479,7 @@ __all__ += [
     "PhaseFieldPolygon",
     "PhaseDiagramPolygons",
     "plot_phase_diagram",
+    "label_phase_diagram_solutions",
 ]
 
 
@@ -504,6 +505,7 @@ _LAZY_TOOLS = {
     "save_phase_diagram",
     "load_phase_diagram",
     "plot_phase_diagram",
+    "label_phase_diagram_solutions",
     "plot_phase_diagram_contours",
     "refine_phase_diagram",
     "phase_diagram_contour_levels",

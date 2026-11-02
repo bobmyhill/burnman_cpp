@@ -24,6 +24,7 @@ _EXPORTS = {
         "plot_mode_box",
     ),
     "contours": ("phase_diagram_contour_levels",),
+    "phase_diagram_labels": ("label_phase_diagram_solutions",),
     "properties": (
         "phase_diagram_grid",
         "phase_diagram_grid_chunks",
