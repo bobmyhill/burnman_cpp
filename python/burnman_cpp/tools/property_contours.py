@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: Copyright (C) 2026 by the BurnMan Team.
-"""Replay scalar material attributes on saved equilibria and boundary states."""
+"""Evaluate scalar property expressions on saved equilibria and boundaries."""
 
 from collections.abc import Mapping
 import json
@@ -9,7 +9,11 @@ from numbers import Integral, Real
 import numpy as np
 
 from .. import _core
-from .composition_contours import _check_context, _secondary_branch
+from .composition_contours import (
+    _arithmetic_expression,
+    _check_context,
+    _secondary_branch,
+)
 from .phase_diagram import _value
 from .properties import _saved_property_grid_batches
 
@@ -39,7 +43,7 @@ def _phase_selection(phases, include_phases, exclude_phases):
 
 def _property_evaluator(
     phases,
-    attribute,
+    expression,
     *,
     phase=None,
     instance=None,
@@ -51,12 +55,6 @@ def _property_evaluator(
     copies=3,
 ):
     """Restore private material snapshots; attribute access never equilibrates."""
-    if (
-        not isinstance(attribute, str)
-        or not attribute.isidentifier()
-        or attribute.startswith("_")
-    ):
-        raise ValueError("property_name must be a public scalar attribute name.")
     if not isinstance(relaxed, (bool, np.bool_)):
         raise TypeError("relaxed must be a boolean.")
     if instance is not None and (
@@ -95,16 +93,22 @@ def _property_evaluator(
             "The secondary-labelled diagram uses different candidate models."
         )
     target = type(phases[candidate]) if candidate is not None else _core.Assemblage
-    if not hasattr(target, attribute) or callable(getattr(target, attribute)):
-        raise ValueError(
-            f"{attribute!r} is not an attribute property of {target.__name__}."
-        )
+    arithmetic, attributes = _arithmetic_expression(
+        expression,
+        {
+            name
+            for name in dir(target)
+            if not name.startswith("_") and not callable(getattr(target, name))
+        },
+        kind="property",
+    )
     if relaxed and (
-        phase is not None or attribute not in _core.thermodynamic_property_names()
+        phase is not None or not attributes <= set(_core.thermodynamic_property_names())
     ):
         raise ValueError(
             "relaxed=True requires a supported whole-assemblage thermodynamic property."
         )
+    attributes = sorted(attributes)
     scheme = getattr(_core.AveragingType, averaging_scheme, None)
     if not isinstance(scheme, _core.AveragingType):
         raise ValueError(f"Unknown averaging scheme {averaging_scheme!r}.")
@@ -189,15 +193,23 @@ def _property_evaluator(
             target.n_moles = float(amounts.sum())
             target.set_averaging_scheme(scheme)
         target.set_state(_value(state, "pressure"), _value(state, "temperature"))
-        value = (
-            _core.assemblage_properties(target, [attribute], relaxed=True)[attribute]
-            if relaxed
-            else getattr(target, attribute)
+        values = (
+            _core.assemblage_properties(target, attributes, relaxed=True)
+            if relaxed and attributes
+            else {name: getattr(target, name) for name in attributes}
         )
-        if isinstance(value, (bool, np.bool_)) or not isinstance(value, Real):
-            raise TypeError(f"{attribute!r} must be a scalar numeric attribute.")
+        for name, value in values.items():
+            if isinstance(value, (bool, np.bool_)) or not isinstance(value, Real):
+                raise TypeError(f"{name!r} must be a scalar numeric attribute.")
+            if not np.isfinite(value):
+                raise ValueError(f"{name!r} is nonfinite at this state.")
+            values[name] = np.float64(value)
+        with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+            value = arithmetic(values)
         if not np.isfinite(value):
-            raise ValueError(f"{attribute!r} is nonfinite at this state.")
+            raise ValueError(
+                "The property expression is undefined or nonfinite at this state."
+            )
         return float(value)
 
     return evaluate, branch_context, candidate
@@ -216,13 +228,17 @@ def phase_diagram_property_grid(
     relaxed=False,
     averaging_scheme=_core.AveragingType.VRH,
 ):
-    """Evaluate any scalar numeric attribute at the retained equilibrium states.
+    """Evaluate scalar property arithmetic at the retained equilibrium states.
 
     source accepts the same retained grid/file/dictionary/chunk inputs as
     phase_composition_grid(). Supply the original candidates in order. By
-    default read an Assemblage attribute, e.g. density (kg/m³), molar_entropy
-    or p_wave_velocity. phase optionally selects one candidate or a secondary
-    label; coexisting copies require instance= or a label plus diagram=.
+    default read Assemblage attributes. property_name accepts a name such as
+    density (kg/m³), or an expression such as density/1000 or
+    p_wave_velocity/shear_wave_velocity. Numbers, parentheses, unary signs and
+    +, -, *, / are supported; calls, indexing and attribute access are rejected.
+    Each referenced public attribute must be scalar and numeric. phase selects
+    one candidate or a secondary label; coexisting copies require instance= or
+    a label plus diagram=.
 
     Bulk properties can use include_phases (default None: all candidates) and
     exclude_phases (default empty). Names select all copies of each candidate;
@@ -233,10 +249,12 @@ def phase_diagram_property_grid(
 
     Ordinary attribute getters keep saved amounts/compositions fixed. Optional
     relaxed=True uses native relaxed responses for names accepted by
-    thermodynamic_property_names(), on the whole assemblage. Active bases and
+    thermodynamic_property_names(), on the retained assemblage. All names in
+    an expression share its phase filters and response settings. Active bases and
     original coefficients are restored; no equilibria are solved. Candidate
     objects and source states remain unchanged. Failed or absent values are
-    masked; nonnumeric attributes and methods are rejected.
+    masked; nonnumeric attributes and methods are rejected. Undefined arithmetic
+    (including division by zero) is masked with a diagnostic.
 
     Return a scalar PhaseDiagramPropertyGrid with equilibrium_solves=0. Save
     using save_property_grid(), then contour with phase_diagram_grid_contours().
