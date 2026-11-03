@@ -14622,7 +14622,7 @@ Mineral endmember_597() {
   m.params.formula =
       types::FormulaMap{{"Fe", 1.0}, {"Na", 1.0}, {"O", 6.0}, {"Si", 2.0}};
   m.params.grueneisen_0 = 0.77467;
-  m.params.molar_mass = 0.231;
+  m.params.molar_mass = 0.23100220000000002;
   m.params.napfu = 10.0;
   m.params.name = "Acmite";
   m.params.q_0 = 0.60142;
@@ -14650,7 +14650,7 @@ Mineral endmember_598() {
   m.params.formula =
       types::FormulaMap{{"Al", 2.0}, {"Fe", 3.0}, {"O", 12.0}, {"Si", 3.0}};
   m.params.grueneisen_0 = 1.06493;
-  m.params.molar_mass = 0.49776;
+  m.params.molar_mass = 0.4977473;
   m.params.napfu = 20.0;
   m.params.name = "Almandine";
   m.params.q_0 = 1.42169;
@@ -14677,7 +14677,7 @@ Mineral endmember_599() {
   m.params.eta_s_0 = 2.27978;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"O", 3.0}};
   m.params.grueneisen_0 = 1.54466;
-  m.params.molar_mass = 0.101961;
+  m.params.molar_mass = 0.1019612;
   m.params.napfu = 5.0;
   m.params.name = "Al-Perovskite";
   m.params.q_0 = 0.83352;
@@ -14703,7 +14703,7 @@ Mineral endmember_600() {
   m.params.formula =
       types::FormulaMap{{"Al", 2.0}, {"Ca", 1.0}, {"O", 8.0}, {"Si", 2.0}};
   m.params.grueneisen_0 = 0.38512;
-  m.params.molar_mass = 0.278211;
+  m.params.molar_mass = 0.2782072;
   m.params.napfu = 13.0;
   m.params.name = "Anorthite";
   m.params.q_0 = 1.0;
@@ -14728,7 +14728,7 @@ Mineral endmember_601() {
   m.params.eta_s_0 = 0.77305;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"Na", 2.0}, {"O", 4.0}};
   m.params.grueneisen_0 = 1.45033;
-  m.params.molar_mass = 0.16394023;
+  m.params.molar_mass = 0.1639402;
   m.params.napfu = 8.0;
   m.params.name = "alpha-NaO2_phase";
   m.params.q_0 = 1.5487;
@@ -14754,7 +14754,7 @@ Mineral endmember_602() {
   m.params.formula =
       types::FormulaMap{{"Ca", 3.0}, {"Fe", 2.0}, {"O", 12.0}, {"Si", 3.0}};
   m.params.grueneisen_0 = 1.04336;
-  m.params.molar_mass = 0.50817;
+  m.params.molar_mass = 0.5081733;
   m.params.napfu = 20.0;
   m.params.name = "Grossular";
   m.params.q_0 = 1.42169;
@@ -14781,7 +14781,7 @@ Mineral endmember_603() {
   m.params.eta_s_0 = 4.56617;
   m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.55723;
-  m.params.molar_mass = 0.060085;
+  m.params.molar_mass = 0.0600843;
   m.params.napfu = 3.0;
   m.params.name = "alpha-PbO_2-SiO_2";
   m.params.q_0 = 2.21141;
@@ -14806,7 +14806,7 @@ Mineral endmember_604() {
   m.params.eta_s_0 = 2.70624;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"O", 3.0}};
   m.params.grueneisen_0 = 1.86524;
-  m.params.molar_mass = 0.101961;
+  m.params.molar_mass = 0.1019612;
   m.params.napfu = 5.0;
   m.params.name = "Al-Post-Perovskite";
   m.params.q_0 = 1.76454;
@@ -14831,7 +14831,7 @@ Mineral endmember_605() {
   m.params.eta_s_0 = 1.35422;
   m.params.formula = types::FormulaMap{{"Ca", 1.0}, {"O", 3.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.88997;
-  m.params.molar_mass = 0.116164;
+  m.params.molar_mass = 0.1161617;
   m.params.napfu = 5.0;
   m.params.name = "Ca-Perovskite";
   m.params.q_0 = 0.89608;
@@ -14857,7 +14857,7 @@ Mineral endmember_606() {
   m.params.formula =
       types::FormulaMap{{"Al", 2.0}, {"Ca", 1.0}, {"O", 6.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 0.82288;
-  m.params.molar_mass = 0.218123;
+  m.params.molar_mass = 0.2181229;
   m.params.napfu = 10.0;
   m.params.name = "Lime_Tschermak'";
   m.params.q_0 = 0.60142;
@@ -14907,7 +14907,7 @@ Mineral endmember_608() {
   m.params.eta_s_0 = 2.84761;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"O", 3.0}};
   m.params.grueneisen_0 = 1.3081;
-  m.params.molar_mass = 0.101961;
+  m.params.molar_mass = 0.1019612;
   m.params.napfu = 5.0;
   m.params.name = "Corundum";
   m.params.q_0 = 1.71245;
@@ -14932,7 +14932,7 @@ Mineral endmember_609() {
   m.params.eta_s_0 = 2.75631;
   m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 0.29043;
-  m.params.molar_mass = 0.060085;
+  m.params.molar_mass = 0.0600843;
   m.params.napfu = 3.0;
   m.params.name = "Coesite";
   m.params.q_0 = 1.0;
@@ -14957,7 +14957,7 @@ Mineral endmember_610() {
   m.params.eta_s_0 = 3.16235;
   m.params.formula = types::FormulaMap{{"Cr", 2.0}, {"O", 3.0}};
   m.params.grueneisen_0 = 1.64015;
-  m.params.molar_mass = 0.15199;
+  m.params.molar_mass = 0.15199040000000003;
   m.params.napfu = 5.0;
   m.params.name = "Cr-Post-Perovskite";
   m.params.q_0 = 1.76454;
@@ -14984,7 +14984,7 @@ Mineral endmember_611() {
   m.params.eta_s_0 = 1.93943;
   m.params.formula = types::FormulaMap{{"Cr", 2.0}, {"Mg", 1.0}, {"O", 4.0}};
   m.params.grueneisen_0 = 1.56656;
-  m.params.molar_mass = 0.19229;
+  m.params.molar_mass = 0.19229480000000002;
   m.params.napfu = 7.0;
   m.params.name = "Cr_Ca-Ferrite";
   m.params.q_0 = 1.0;
@@ -15011,7 +15011,7 @@ Mineral endmember_612() {
   m.params.eta_s_0 = 2.83537;
   m.params.formula = types::FormulaMap{{"Cr", 2.0}, {"O", 3.0}};
   m.params.grueneisen_0 = 1.54466;
-  m.params.molar_mass = 0.15199;
+  m.params.molar_mass = 0.15199040000000003;
   m.params.napfu = 5.0;
   m.params.name = "Cr-Perovskite";
   m.params.q_0 = 0.83352;
@@ -15089,7 +15089,7 @@ Mineral endmember_615() {
   m.params.eta_s_0 = 2.55521;
   m.params.formula = types::FormulaMap{{"Cr", 2.0}, {"O", 3.0}};
   m.params.grueneisen_0 = 1.15191;
-  m.params.molar_mass = 0.15199;
+  m.params.molar_mass = 0.15199040000000003;
   m.params.napfu = 5.0;
   m.params.name = "Eskolaite";
   m.params.q_0 = 2.22481;
@@ -15116,7 +15116,7 @@ Mineral endmember_616() {
   m.params.eta_s_0 = 1.65937;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 4.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.08388;
-  m.params.molar_mass = 0.203777;
+  m.params.molar_mass = 0.20377309999999998;
   m.params.napfu = 7.0;
   m.params.name = "Fayalite";
   m.params.q_0 = 2.88055;
@@ -15143,7 +15143,7 @@ Mineral endmember_617() {
   m.params.eta_s_0 = 2.8548;
   m.params.formula = types::FormulaMap{{"Al", 1.0}, {"Fe", 1.0}, {"O", 3.0}};
   m.params.grueneisen_0 = 1.54466;
-  m.params.molar_mass = 0.1308249;
+  m.params.molar_mass = 0.13082470000000002;
   m.params.napfu = 5.0;
   m.params.name = "FeAlO3-Perovskite_HS";
   m.params.q_0 = 0.83352;
@@ -15172,7 +15172,7 @@ Mineral endmember_618() {
   m.params.formula = types::FormulaMap{{"Fe", 1.0}};
   m.params.gel = 1.4796;
   m.params.grueneisen_0 = 1.66729;
-  m.params.molar_mass = 0.05584515;
+  m.params.molar_mass = 0.055845;
   m.params.napfu = 1.0;
   m.params.name = "alpha_(bcc)_Iron";
   m.params.q_0 = 0.90658;
@@ -15201,7 +15201,7 @@ Mineral endmember_619() {
   m.params.eta_s_0 = 1.14272;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 6.0}, {"Si", 2.0}};
   m.params.grueneisen_0 = 1.12478;
-  m.params.molar_mass = 0.2638614;
+  m.params.molar_mass = 0.2638574;
   m.params.napfu = 10.0;
   m.params.name = "HP-Clinoferrosilite";
   m.params.q_0 = 0.20409;
@@ -15228,7 +15228,7 @@ Mineral endmember_620() {
   m.params.eta_s_0 = 2.46745;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"Fe", 1.0}, {"O", 4.0}};
   m.params.grueneisen_0 = 1.56656;
-  m.params.molar_mass = 0.173806;
+  m.params.molar_mass = 0.1738056;
   m.params.napfu = 7.0;
   m.params.name = "Fe-Ca-Ferrite";
   m.params.q_0 = 1.0;
@@ -15257,7 +15257,7 @@ Mineral endmember_621() {
   m.params.formula = types::FormulaMap{{"Fe", 1.0}};
   m.params.gel = 1.6927;
   m.params.grueneisen_0 = 2.13092;
-  m.params.molar_mass = 0.05584515;
+  m.params.molar_mass = 0.055845;
   m.params.napfu = 1.0;
   m.params.name = "epsilon_(hcp)_Iron";
   m.params.q_0 = 1.02253;
@@ -15284,7 +15284,7 @@ Mineral endmember_622() {
   m.params.formula = types::FormulaMap{{"Fe", 1.0}};
   m.params.gel = 1.4796;
   m.params.grueneisen_0 = 1.84924;
-  m.params.molar_mass = 0.05584515;
+  m.params.molar_mass = 0.055845;
   m.params.napfu = 1.0;
   m.params.name = "gamma_(fcc)_Iron";
   m.params.q_0 = 1.02176;
@@ -15309,7 +15309,7 @@ Mineral endmember_623() {
   m.params.eta_s_0 = 3.6318;
   m.params.formula = types::FormulaMap{{"Fe", 1.0}, {"O", 3.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.19328;
-  m.params.molar_mass = 0.131931;
+  m.params.molar_mass = 0.1319287;
   m.params.napfu = 5.0;
   m.params.name = "Fe-Akimotoite";
   m.params.q_0 = 2.22481;
@@ -15336,7 +15336,7 @@ Mineral endmember_624() {
   m.params.eta_s_0 = 2.08541;
   m.params.formula = types::FormulaMap{{"Fe", 1.0}, {"O", 3.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.54466;
-  m.params.molar_mass = 0.131931;
+  m.params.molar_mass = 0.1319287;
   m.params.napfu = 5.0;
   m.params.name = "Fe-Perovskite";
   m.params.q_0 = 0.83352;
@@ -15363,7 +15363,7 @@ Mineral endmember_625() {
   m.params.eta_s_0 = 1.76941;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 4.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.26156;
-  m.params.molar_mass = 0.203777;
+  m.params.molar_mass = 0.20377309999999998;
   m.params.napfu = 7.0;
   m.params.name = "Fe-Ringwoodite";
   m.params.q_0 = 2.39214;
@@ -15390,7 +15390,7 @@ Mineral endmember_626() {
   m.params.eta_s_0 = 0.94487;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 4.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.20498;
-  m.params.molar_mass = 0.203777;
+  m.params.molar_mass = 0.20377309999999998;
   m.params.napfu = 7.0;
   m.params.name = "Fe-Wadsleyite";
   m.params.q_0 = 2.20831;
@@ -15418,7 +15418,7 @@ Mineral endmember_627() {
   m.params.formula = types::FormulaMap{
       {"Al", 5.0}, {"Fe", 2.0}, {"Na", 1.0}, {"O", 12.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.43147;
-  m.params.molar_mass = 0.48966601;
+  m.params.molar_mass = 0.4896656;
   m.params.napfu = 21.0;
   m.params.name = "Fe-NAL_Phase";
   m.params.q_0 = 1.0;
@@ -15445,7 +15445,7 @@ Mineral endmember_628() {
   m.params.eta_s_0 = 2.29968;
   m.params.formula = types::FormulaMap{{"Mg", 2.0}, {"O", 4.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 0.9928;
-  m.params.molar_mass = 0.140695;
+  m.params.molar_mass = 0.14069310000000002;
   m.params.napfu = 7.0;
   m.params.name = "Forsterite";
   m.params.q_0 = 2.10671;
@@ -15470,7 +15470,7 @@ Mineral endmember_629() {
   m.params.eta_s_0 = 1.8495;
   m.params.formula = types::FormulaMap{{"Fe", 1.0}, {"O", 3.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.64015;
-  m.params.molar_mass = 0.131931;
+  m.params.molar_mass = 0.1319287;
   m.params.napfu = 5.0;
   m.params.name = "Fe-PostPerovskite";
   m.params.q_0 = 1.76454;
@@ -15497,7 +15497,7 @@ Mineral endmember_630() {
   m.params.eta_s_0 = 1.08228;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 6.0}, {"Si", 2.0}};
   m.params.grueneisen_0 = 0.7144;
-  m.params.molar_mass = 0.2638614;
+  m.params.molar_mass = 0.2638574;
   m.params.napfu = 10.0;
   m.params.name = "Ferrosilite";
   m.params.q_0 = 3.43847;
@@ -15525,7 +15525,7 @@ Mineral endmember_631() {
   m.params.formula =
       types::FormulaMap{{"Al", 2.0}, {"Ca", 3.0}, {"O", 12.0}, {"Si", 3.0}};
   m.params.grueneisen_0 = 1.05402;
-  m.params.molar_mass = 0.450449;
+  m.params.molar_mass = 0.4504463;
   m.params.napfu = 20.0;
   m.params.name = "Grossular";
   m.params.q_0 = 1.88886;
@@ -15550,7 +15550,7 @@ Mineral endmember_632() {
   m.params.eta_s_0 = 2.46339;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"Fe", 1.0}, {"O", 4.0}};
   m.params.grueneisen_0 = 1.18794;
-  m.params.molar_mass = 0.17381;
+  m.params.molar_mass = 0.1738056;
   m.params.napfu = 7.0;
   m.params.name = "Hercynite";
   m.params.q_0 = 3.97087;
@@ -15578,7 +15578,7 @@ Mineral endmember_633() {
   m.params.formula =
       types::FormulaMap{{"Ca", 1.0}, {"Fe", 1.0}, {"O", 6.0}, {"Si", 2.0}};
   m.params.grueneisen_0 = 0.96665;
-  m.params.molar_mass = 0.2480924;
+  m.params.molar_mass = 0.24809040000000002;
   m.params.napfu = 10.0;
   m.params.name = "Hedenbergite";
   m.params.q_0 = 0.60142;
@@ -15605,7 +15605,7 @@ Mineral endmember_634() {
   m.params.eta_s_0 = 0.5241;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 3.0}};
   m.params.grueneisen_0 = 1.58944;
-  m.params.molar_mass = 0.15968852;
+  m.params.molar_mass = 0.1596882;
   m.params.napfu = 5.0;
   m.params.name = "Hematite";
   m.params.q_0 = 2.22481;
@@ -15632,7 +15632,7 @@ Mineral endmember_635() {
   m.params.eta_s_0 = 1.88876;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 3.0}};
   m.params.grueneisen_0 = 1.54466;
-  m.params.molar_mass = 0.15968852;
+  m.params.molar_mass = 0.1596882;
   m.params.napfu = 5.0;
   m.params.name = "Fe2O3-Perovskite_HS";
   m.params.q_0 = 0.83352;
@@ -15659,7 +15659,7 @@ Mineral endmember_636() {
   m.params.eta_s_0 = 3.54218;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 3.0}};
   m.params.grueneisen_0 = 1.54466;
-  m.params.molar_mass = 0.15968852;
+  m.params.molar_mass = 0.1596882;
   m.params.napfu = 5.0;
   m.params.name = "Fe2O3-Perovskite_LS";
   m.params.q_0 = 0.83352;
@@ -15686,7 +15686,7 @@ Mineral endmember_637() {
   m.params.eta_s_0 = 1.37608;
   m.params.formula = types::FormulaMap{{"Fe", 3.0}, {"O", 4.0}};
   m.params.grueneisen_0 = 1.56656;
-  m.params.molar_mass = 0.23153307;
+  m.params.molar_mass = 0.23153259999999998;
   m.params.napfu = 7.0;
   m.params.name = "High-Pressure_Magnetit";
   m.params.q_0 = 0.41872;
@@ -15715,7 +15715,7 @@ Mineral endmember_638() {
   m.params.eta_s_0 = 2.56327;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 3.0}};
   m.params.grueneisen_0 = 1.64015;
-  m.params.molar_mass = 0.15968852;
+  m.params.molar_mass = 0.1596882;
   m.params.napfu = 5.0;
   m.params.name = "HS_Fe2O3-Post-Perovski";
   m.params.q_0 = 1.76454;
@@ -15769,7 +15769,7 @@ Mineral endmember_640() {
   m.params.formula =
       types::FormulaMap{{"Cr", 2.0}, {"Mg", 3.0}, {"O", 12.0}, {"Si", 3.0}};
   m.params.grueneisen_0 = 1.24672;
-  m.params.molar_mass = 0.45316;
+  m.params.molar_mass = 0.4531565;
   m.params.napfu = 20.0;
   m.params.name = "Knorringite";
   m.params.q_0 = 1.42169;
@@ -15796,7 +15796,7 @@ Mineral endmember_641() {
   m.params.eta_s_0 = 2.89863;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"O", 5.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 0.92549;
-  m.params.molar_mass = 0.1620456;
+  m.params.molar_mass = 0.1620455;
   m.params.napfu = 8.0;
   m.params.name = "Kyanite";
   m.params.q_0 = 1.0;
@@ -15821,7 +15821,7 @@ Mineral endmember_642() {
   m.params.eta_s_0 = 3.79074;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 3.0}};
   m.params.grueneisen_0 = 1.64029;
-  m.params.molar_mass = 0.15968852;
+  m.params.molar_mass = 0.1596882;
   m.params.napfu = 5.0;
   m.params.name = "LS_Fe2O3-Post-Perovski";
   m.params.q_0 = 1.76443;
@@ -15848,7 +15848,7 @@ Mineral endmember_643() {
   m.params.eta_s_0 = 1.12258;
   m.params.formula = types::FormulaMap{{"Fe", 3.0}, {"O", 4.0}};
   m.params.grueneisen_0 = 1.35821;
-  m.params.molar_mass = 0.23153307;
+  m.params.molar_mass = 0.23153259999999998;
   m.params.napfu = 7.0;
   m.params.name = "Magnetite";
   m.params.q_0 = 0.41872;
@@ -15902,7 +15902,7 @@ Mineral endmember_645() {
   m.params.eta_s_0 = 1.30292;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"Mg", 1.0}, {"O", 4.0}};
   m.params.grueneisen_0 = 1.56656;
-  m.params.molar_mass = 0.142266;
+  m.params.molar_mass = 0.1422656;
   m.params.napfu = 7.0;
   m.params.name = "Mg-Ca-Ferrite";
   m.params.q_0 = 1.0;
@@ -15927,7 +15927,7 @@ Mineral endmember_646() {
   m.params.eta_s_0 = 3.3993;
   m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 3.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.19328;
-  m.params.molar_mass = 0.100389;
+  m.params.molar_mass = 0.1003887;
   m.params.napfu = 5.0;
   m.params.name = "Mg-Akimotoite";
   m.params.q_0 = 2.22481;
@@ -15952,7 +15952,7 @@ Mineral endmember_647() {
   m.params.eta_s_0 = 1.01779;
   m.params.formula = types::FormulaMap{{"Mg", 4.0}, {"O", 12.0}, {"Si", 4.0}};
   m.params.grueneisen_0 = 0.97681;
-  m.params.molar_mass = 0.40156;
+  m.params.molar_mass = 0.4015548;
   m.params.napfu = 20.0;
   m.params.name = "Mg-Majorite";
   m.params.q_0 = 1.53581;
@@ -15977,7 +15977,7 @@ Mineral endmember_648() {
   m.params.eta_s_0 = 1.65233;
   m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 3.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.54466;
-  m.params.molar_mass = 0.100389;
+  m.params.molar_mass = 0.1003887;
   m.params.napfu = 5.0;
   m.params.name = "Mg-Perovskite";
   m.params.q_0 = 0.83352;
@@ -16002,7 +16002,7 @@ Mineral endmember_649() {
   m.params.eta_s_0 = 2.30588;
   m.params.formula = types::FormulaMap{{"Mg", 2.0}, {"O", 4.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.10843;
-  m.params.molar_mass = 0.140693;
+  m.params.molar_mass = 0.14069310000000002;
   m.params.napfu = 7.0;
   m.params.name = "Mg-Ringwoodite";
   m.params.q_0 = 2.39214;
@@ -16028,7 +16028,7 @@ Mineral endmember_650() {
   m.params.formula =
       types::FormulaMap{{"Al", 2.0}, {"Mg", 1.0}, {"O", 6.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 0.78477;
-  m.params.molar_mass = 0.20235;
+  m.params.molar_mass = 0.2023499;
   m.params.napfu = 10.0;
   m.params.name = "Mg-Tschermak's";
   m.params.q_0 = 3.43847;
@@ -16053,7 +16053,7 @@ Mineral endmember_651() {
   m.params.eta_s_0 = 2.56411;
   m.params.formula = types::FormulaMap{{"Mg", 2.0}, {"O", 4.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.20498;
-  m.params.molar_mass = 0.140695;
+  m.params.molar_mass = 0.14069310000000002;
   m.params.napfu = 7.0;
   m.params.name = "Mg-Wadsleyite";
   m.params.q_0 = 2.20831;
@@ -16079,7 +16079,7 @@ Mineral endmember_652() {
   m.params.formula = types::FormulaMap{
       {"Al", 5.0}, {"Mg", 2.0}, {"Na", 1.0}, {"O", 12.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.43147;
-  m.params.molar_mass = 0.42658581;
+  m.params.molar_mass = 0.4265856;
   m.params.napfu = 21.0;
   m.params.name = "Mg-NAL_Phase";
   m.params.q_0 = 1.0;
@@ -16104,7 +16104,7 @@ Mineral endmember_653() {
   m.params.eta_s_0 = 1.43815;
   m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 3.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.64015;
-  m.params.molar_mass = 0.100389;
+  m.params.molar_mass = 0.1003887;
   m.params.napfu = 5.0;
   m.params.name = "Mg-PostPerovskite";
   m.params.q_0 = 1.76454;
@@ -16130,7 +16130,7 @@ Mineral endmember_654() {
   m.params.formula =
       types::FormulaMap{{"Al", 1.0}, {"Na", 1.0}, {"O", 4.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.56656;
-  m.params.molar_mass = 0.142054;
+  m.params.molar_mass = 0.1420544;
   m.params.napfu = 7.0;
   m.params.name = "Na-Ca-Ferrite";
   m.params.q_0 = 1.0;
@@ -16156,7 +16156,7 @@ Mineral endmember_655() {
   m.params.formula =
       types::FormulaMap{{"Mg", 1.0}, {"Na", 2.0}, {"O", 12.0}, {"Si", 5.0}};
   m.params.grueneisen_0 = 1.25087;
-  m.params.molar_mass = 0.40270437;
+  m.params.molar_mass = 0.40270490000000003;
   m.params.napfu = 20.0;
   m.params.name = "Na-Majorite";
   m.params.q_0 = 0.10909;
@@ -16182,7 +16182,7 @@ Mineral endmember_656() {
   m.params.formula =
       types::FormulaMap{{"Al", 1.0}, {"Na", 1.0}, {"O", 4.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 0.6969;
-  m.params.molar_mass = 0.14205431;
+  m.params.molar_mass = 0.1420544;
   m.params.napfu = 7.0;
   m.params.name = "Nepheline";
   m.params.q_0 = 1.0;
@@ -16210,7 +16210,7 @@ Mineral endmember_657() {
   m.params.formula =
       types::FormulaMap{{"Al", 3.0}, {"Na", 3.0}, {"O", 12.0}, {"Si", 3.0}};
   m.params.grueneisen_0 = 1.43147;
-  m.params.molar_mass = 0.42616294;
+  m.params.molar_mass = 0.4261632;
   m.params.napfu = 21.0;
   m.params.name = "Na-NAL_Phase";
   m.params.q_0 = 1.0;
@@ -16261,7 +16261,7 @@ Mineral endmember_659() {
   m.params.eta_s_0 = 2.56123;
   m.params.formula = types::FormulaMap{{"Mg", 4.0}, {"O", 4.0}};
   m.params.grueneisen_0 = 1.45033;
-  m.params.molar_mass = 0.16121782;
+  m.params.molar_mass = 0.16121760000000002;
   m.params.napfu = 8.0;
   m.params.name = "Periclase";
   m.params.q_0 = 1.5487;
@@ -16286,7 +16286,7 @@ Mineral endmember_660() {
   m.params.eta_s_0 = 3.07014;
   m.params.formula = types::FormulaMap{{"Cr", 2.0}, {"Mg", 1.0}, {"O", 4.0}};
   m.params.grueneisen_0 = 0.99168;
-  m.params.molar_mass = 0.19229;
+  m.params.molar_mass = 0.19229480000000002;
   m.params.napfu = 7.0;
   m.params.name = "Pircochromite";
   m.params.q_0 = 3.97087;
@@ -16313,7 +16313,7 @@ Mineral endmember_661() {
   m.params.eta_s_0 = 0.76187;
   m.params.formula = types::FormulaMap{{"Ca", 1.0}, {"O", 3.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 0.95232;
-  m.params.molar_mass = 0.116164;
+  m.params.molar_mass = 0.1161617;
   m.params.napfu = 5.0;
   m.params.name = "Pseudo-Wollastonite";
   m.params.q_0 = 1.0;
@@ -16339,7 +16339,7 @@ Mineral endmember_662() {
   m.params.formula =
       types::FormulaMap{{"Al", 2.0}, {"Mg", 3.0}, {"O", 12.0}, {"Si", 3.0}};
   m.params.grueneisen_0 = 1.01422;
-  m.params.molar_mass = 0.40313;
+  m.params.molar_mass = 0.4031273;
   m.params.napfu = 20.0;
   m.params.name = "Pyrope";
   m.params.q_0 = 1.42169;
@@ -16364,7 +16364,7 @@ Mineral endmember_663() {
   m.params.eta_s_0 = 2.40464;
   m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = -0.03957;
-  m.params.molar_mass = 0.060085;
+  m.params.molar_mass = 0.0600843;
   m.params.napfu = 3.0;
   m.params.name = "Quartz";
   m.params.q_0 = 1.0;
@@ -16391,7 +16391,7 @@ Mineral endmember_664() {
   m.params.eta_s_0 = 2.4035;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"Mg", 1.0}, {"O", 4.0}};
   m.params.grueneisen_0 = 0.97405;
-  m.params.molar_mass = 0.142278;
+  m.params.molar_mass = 0.1422656;
   m.params.napfu = 7.0;
   m.params.name = "Spinel";
   m.params.q_0 = 3.97087;
@@ -16416,7 +16416,7 @@ Mineral endmember_665() {
   m.params.eta_s_0 = 5.39736;
   m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.55723;
-  m.params.molar_mass = 0.060085;
+  m.params.molar_mass = 0.0600843;
   m.params.napfu = 3.0;
   m.params.name = "Stishovite";
   m.params.q_0 = 2.21141;
@@ -16441,7 +16441,7 @@ Mineral endmember_666() {
   m.params.eta_s_0 = 1.2711;
   m.params.formula = types::FormulaMap{{"Ca", 1.0}, {"O", 3.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.05734;
-  m.params.molar_mass = 0.116164;
+  m.params.molar_mass = 0.1161617;
   m.params.napfu = 5.0;
   m.params.name = "Wollastonite";
   m.params.q_0 = 1.0;
@@ -16466,7 +16466,7 @@ Mineral endmember_667() {
   m.params.eta_s_0 = 0.0596;
   m.params.formula = types::FormulaMap{{"Fe", 4.0}, {"O", 4.0}};
   m.params.grueneisen_0 = 1.45033;
-  m.params.molar_mass = 0.28737822;
+  m.params.molar_mass = 0.2873776;
   m.params.napfu = 8.0;
   m.params.name = "W\\\"ustite";
   m.params.q_0 = 1.5487;
@@ -16493,7 +16493,7 @@ Mineral endmember_668() {
   m.params.eta_s_0 = -0.14773;
   m.params.formula = types::FormulaMap{{"Fe", 4.0}, {"O", 4.0}};
   m.params.grueneisen_0 = 1.45033;
-  m.params.molar_mass = 0.28737822;
+  m.params.molar_mass = 0.2873776;
   m.params.napfu = 8.0;
   m.params.name = "W\\\"ustite_Low_Spin";
   m.params.q_0 = 1.5487;
@@ -25287,7 +25287,7 @@ Mineral endmember_1093() {
   m.params.eta_s_0 = 5.0;
   m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.34;
-  m.params.molar_mass = 0.0601;
+  m.params.molar_mass = 0.0600843;
   m.params.napfu = 3.0;
   m.params.q_0 = 2.4;
   m.set_method(types::EOSType::Auto);
@@ -25310,7 +25310,7 @@ Mineral endmember_1094() {
   m.params.eta_s_0 = 2.8;
   m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 1.0}};
   m.params.grueneisen_0 = 1.5;
-  m.params.molar_mass = 0.0403;
+  m.params.molar_mass = 0.040304400000000004;
   m.params.napfu = 2.0;
   m.params.q_0 = 1.5;
   m.set_method(types::EOSType::Auto);
@@ -25333,7 +25333,7 @@ Mineral endmember_1095() {
   m.params.eta_s_0 = 0.8;
   m.params.formula = types::FormulaMap{{"Fe", 1.0}, {"O", 1.0}};
   m.params.grueneisen_0 = 1.28;
-  m.params.molar_mass = 0.0718;
+  m.params.molar_mass = 0.0718444;
   m.params.napfu = 2.0;
   m.params.q_0 = 1.5;
   m.set_method(types::EOSType::Auto);
@@ -25356,7 +25356,7 @@ Mineral endmember_1096() {
   m.params.eta_s_0 = 2.6;
   m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 3.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.48;
-  m.params.molar_mass = 0.1;
+  m.params.molar_mass = 0.1003887;
   m.params.napfu = 5.0;
   m.params.q_0 = 1.4;
   m.set_method(types::EOSType::Auto);
@@ -25379,7 +25379,7 @@ Mineral endmember_1097() {
   m.params.eta_s_0 = 2.1;
   m.params.formula = types::FormulaMap{{"Fe", 1.0}, {"O", 3.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.48;
-  m.params.molar_mass = 0.1319;
+  m.params.molar_mass = 0.1319287;
   m.params.napfu = 5.0;
   m.params.q_0 = 1.4;
   m.set_method(types::EOSType::Auto);
@@ -25565,7 +25565,7 @@ Mineral endmember_1104() {
   m.params.formula =
       types::FormulaMap{{"Al", 2.0}, {"Fe", 3.0}, {"O", 12.0}, {"Si", 3.0}};
   m.params.grueneisen_0 = 1.06493;
-  m.params.molar_mass = 0.49776;
+  m.params.molar_mass = 0.4977473;
   m.params.napfu = 20.0;
   m.params.name = "Almandine";
   m.params.q_0 = 1.42169;
@@ -25592,7 +25592,7 @@ Mineral endmember_1105() {
   m.params.eta_s_0 = 2.2751;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"O", 3.0}};
   m.params.grueneisen_0 = 1.54222;
-  m.params.molar_mass = 0.101961;
+  m.params.molar_mass = 0.1019612;
   m.params.napfu = 5.0;
   m.params.name = "Al-Perovskite";
   m.params.q_0 = 0.84088;
@@ -25618,7 +25618,7 @@ Mineral endmember_1106() {
   m.params.formula =
       types::FormulaMap{{"Al", 2.0}, {"Ca", 1.0}, {"O", 8.0}, {"Si", 2.0}};
   m.params.grueneisen_0 = 0.38497;
-  m.params.molar_mass = 0.278211;
+  m.params.molar_mass = 0.2782072;
   m.params.napfu = 13.0;
   m.params.name = "Anorthite";
   m.params.q_0 = 1.0;
@@ -25643,7 +25643,7 @@ Mineral endmember_1107() {
   m.params.eta_s_0 = 0.78047;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"Na", 2.0}, {"O", 4.0}};
   m.params.grueneisen_0 = 1.45033;
-  m.params.molar_mass = 0.16394023;
+  m.params.molar_mass = 0.1639402;
   m.params.napfu = 8.0;
   m.params.name = "alpha-NaO2_phase";
   m.params.q_0 = 1.5487;
@@ -25668,7 +25668,7 @@ Mineral endmember_1108() {
   m.params.eta_s_0 = 4.55828;
   m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.55674;
-  m.params.molar_mass = 0.060085;
+  m.params.molar_mass = 0.0600843;
   m.params.napfu = 3.0;
   m.params.name = "alpha-PbO_2-SiO_2";
   m.params.q_0 = 2.2096;
@@ -25693,7 +25693,7 @@ Mineral endmember_1109() {
   m.params.eta_s_0 = 2.52605;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"O", 3.0}};
   m.params.grueneisen_0 = 1.88758;
-  m.params.molar_mass = 0.101961;
+  m.params.molar_mass = 0.1019612;
   m.params.napfu = 5.0;
   m.params.name = "Al-Post-Perovskite";
   m.params.q_0 = 2.04631;
@@ -25718,7 +25718,7 @@ Mineral endmember_1110() {
   m.params.eta_s_0 = 1.23493;
   m.params.formula = types::FormulaMap{{"Ca", 1.0}, {"O", 3.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.88943;
-  m.params.molar_mass = 0.116164;
+  m.params.molar_mass = 0.1161617;
   m.params.napfu = 5.0;
   m.params.name = "Ca-Perovskite";
   m.params.q_0 = 0.89662;
@@ -25744,7 +25744,7 @@ Mineral endmember_1111() {
   m.params.formula =
       types::FormulaMap{{"Al", 2.0}, {"Ca", 1.0}, {"O", 6.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 0.82288;
-  m.params.molar_mass = 0.218123;
+  m.params.molar_mass = 0.2181229;
   m.params.napfu = 10.0;
   m.params.name = "Lime_Tschermak'";
   m.params.q_0 = 0.60142;
@@ -25794,7 +25794,7 @@ Mineral endmember_1113() {
   m.params.eta_s_0 = 2.63052;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"O", 3.0}};
   m.params.grueneisen_0 = 1.3081;
-  m.params.molar_mass = 0.101961;
+  m.params.molar_mass = 0.1019612;
   m.params.napfu = 5.0;
   m.params.name = "Corundum";
   m.params.q_0 = 1.71245;
@@ -25819,7 +25819,7 @@ Mineral endmember_1114() {
   m.params.eta_s_0 = 2.75988;
   m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 0.29064;
-  m.params.molar_mass = 0.060085;
+  m.params.molar_mass = 0.0600843;
   m.params.napfu = 3.0;
   m.params.name = "Coesite";
   m.params.q_0 = 1.0;
@@ -25844,7 +25844,7 @@ Mineral endmember_1115() {
   m.params.eta_s_0 = 1.17003;
   m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 0.01515;
-  m.params.molar_mass = 0.060085;
+  m.params.molar_mass = 0.0600843;
   m.params.napfu = 3.0;
   m.params.name = "Cristobalite";
   m.params.q_0 = 1.0;
@@ -25920,7 +25920,7 @@ Mineral endmember_1118() {
   m.params.eta_s_0 = 1.65937;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 4.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.08388;
-  m.params.molar_mass = 0.203777;
+  m.params.molar_mass = 0.20377309999999998;
   m.params.napfu = 7.0;
   m.params.name = "Fayalite";
   m.params.q_0 = 2.88055;
@@ -25947,7 +25947,7 @@ Mineral endmember_1119() {
   m.params.eta_s_0 = 2.55505;
   m.params.formula = types::FormulaMap{{"Al", 1.0}, {"Fe", 1.0}, {"O", 3.0}};
   m.params.grueneisen_0 = 1.54222;
-  m.params.molar_mass = 0.1308249;
+  m.params.molar_mass = 0.13082470000000002;
   m.params.napfu = 5.0;
   m.params.name = "FeAlO3-Perovskite_HS";
   m.params.q_0 = 0.84088;
@@ -25974,7 +25974,7 @@ Mineral endmember_1120() {
   m.params.eta_s_0 = 0.98031;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 6.0}, {"Si", 2.0}};
   m.params.grueneisen_0 = 1.12442;
-  m.params.molar_mass = 0.2638614;
+  m.params.molar_mass = 0.2638574;
   m.params.napfu = 10.0;
   m.params.name = "HP-Clinoferrosilite";
   m.params.q_0 = 0.20362;
@@ -26001,7 +26001,7 @@ Mineral endmember_1121() {
   m.params.eta_s_0 = 2.34163;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"Fe", 1.0}, {"O", 4.0}};
   m.params.grueneisen_0 = 1.56672;
-  m.params.molar_mass = 0.173806;
+  m.params.molar_mass = 0.1738056;
   m.params.napfu = 7.0;
   m.params.name = "Fe-Ca-Ferrite";
   m.params.q_0 = 1.0;
@@ -26028,7 +26028,7 @@ Mineral endmember_1122() {
   m.params.eta_s_0 = 3.43813;
   m.params.formula = types::FormulaMap{{"Fe", 1.0}, {"O", 3.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.19458;
-  m.params.molar_mass = 0.131931;
+  m.params.molar_mass = 0.1319287;
   m.params.napfu = 5.0;
   m.params.name = "Fe-Akimotoite";
   m.params.q_0 = 2.2246;
@@ -26055,7 +26055,7 @@ Mineral endmember_1123() {
   m.params.eta_s_0 = 2.0941;
   m.params.formula = types::FormulaMap{{"Fe", 1.0}, {"O", 3.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.54222;
-  m.params.molar_mass = 0.131931;
+  m.params.molar_mass = 0.1319287;
   m.params.napfu = 5.0;
   m.params.name = "Fe-Perovskite";
   m.params.q_0 = 0.84088;
@@ -26082,7 +26082,7 @@ Mineral endmember_1124() {
   m.params.eta_s_0 = 1.77066;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 4.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.26584;
-  m.params.molar_mass = 0.203777;
+  m.params.molar_mass = 0.20377309999999998;
   m.params.napfu = 7.0;
   m.params.name = "Fe-Ringwoodite";
   m.params.q_0 = 2.39042;
@@ -26109,7 +26109,7 @@ Mineral endmember_1125() {
   m.params.eta_s_0 = 0.95246;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 4.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.20388;
-  m.params.molar_mass = 0.203777;
+  m.params.molar_mass = 0.20377309999999998;
   m.params.napfu = 7.0;
   m.params.name = "Fe-Wadsleyite";
   m.params.q_0 = 2.21007;
@@ -26136,7 +26136,7 @@ Mineral endmember_1126() {
   m.params.eta_s_0 = 1.99344;
   m.params.formula = types::FormulaMap{{"Fe", 1.0}, {"O", 3.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.54222;
-  m.params.molar_mass = 0.131931;
+  m.params.molar_mass = 0.1319287;
   m.params.napfu = 5.0;
   m.params.name = "Fe-Perovskite_Low_Spin";
   m.params.q_0 = 0.84088;
@@ -26162,7 +26162,7 @@ Mineral endmember_1127() {
   m.params.formula = types::FormulaMap{
       {"Al", 5.0}, {"Fe", 2.0}, {"Na", 1.0}, {"O", 12.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.42971;
-  m.params.molar_mass = 0.48966601;
+  m.params.molar_mass = 0.4896656;
   m.params.napfu = 21.0;
   m.params.name = "Fe-NAL_Phase";
   m.params.q_0 = 1.0;
@@ -26189,7 +26189,7 @@ Mineral endmember_1128() {
   m.params.eta_s_0 = 2.29968;
   m.params.formula = types::FormulaMap{{"Mg", 2.0}, {"O", 4.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 0.9928;
-  m.params.molar_mass = 0.140695;
+  m.params.molar_mass = 0.14069310000000002;
   m.params.napfu = 7.0;
   m.params.name = "Forsterite";
   m.params.q_0 = 2.10671;
@@ -26214,7 +26214,7 @@ Mineral endmember_1129() {
   m.params.eta_s_0 = 1.72601;
   m.params.formula = types::FormulaMap{{"Fe", 1.0}, {"O", 3.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.76958;
-  m.params.molar_mass = 0.131931;
+  m.params.molar_mass = 0.1319287;
   m.params.napfu = 5.0;
   m.params.name = "Fe-PostPerovskite";
   m.params.q_0 = 2.04631;
@@ -26241,7 +26241,7 @@ Mineral endmember_1130() {
   m.params.eta_s_0 = 1.08309;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 6.0}, {"Si", 2.0}};
   m.params.grueneisen_0 = 0.71519;
-  m.params.molar_mass = 0.2638614;
+  m.params.molar_mass = 0.2638574;
   m.params.napfu = 10.0;
   m.params.name = "Ferrosilite";
   m.params.q_0 = 3.43847;
@@ -26269,7 +26269,7 @@ Mineral endmember_1131() {
   m.params.formula =
       types::FormulaMap{{"Al", 2.0}, {"Ca", 3.0}, {"O", 12.0}, {"Si", 3.0}};
   m.params.grueneisen_0 = 1.05402;
-  m.params.molar_mass = 0.450449;
+  m.params.molar_mass = 0.4504463;
   m.params.napfu = 20.0;
   m.params.name = "Grossular";
   m.params.q_0 = 1.88886;
@@ -26294,7 +26294,7 @@ Mineral endmember_1132() {
   m.params.eta_s_0 = 2.49369;
   m.params.formula = types::FormulaMap{{"Al", 8.0}, {"Fe", 4.0}, {"O", 16.0}};
   m.params.grueneisen_0 = 1.19332;
-  m.params.molar_mass = 0.69524;
+  m.params.molar_mass = 0.6952224;
   m.params.napfu = 28.0;
   m.params.name = "Hercynite";
   m.params.q_0 = 4.05077;
@@ -26322,7 +26322,7 @@ Mineral endmember_1133() {
   m.params.formula =
       types::FormulaMap{{"Ca", 1.0}, {"Fe", 1.0}, {"O", 6.0}, {"Si", 2.0}};
   m.params.grueneisen_0 = 0.96665;
-  m.params.molar_mass = 0.2480924;
+  m.params.molar_mass = 0.24809040000000002;
   m.params.napfu = 10.0;
   m.params.name = "Hedenbergite";
   m.params.q_0 = 0.60142;
@@ -26349,7 +26349,7 @@ Mineral endmember_1134() {
   m.params.eta_s_0 = 0.52408;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 3.0}};
   m.params.grueneisen_0 = 1.58945;
-  m.params.molar_mass = 0.15968852;
+  m.params.molar_mass = 0.1596882;
   m.params.napfu = 5.0;
   m.params.name = "Hematite";
   m.params.q_0 = 2.2246;
@@ -26376,7 +26376,7 @@ Mineral endmember_1135() {
   m.params.eta_s_0 = 0.66524;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 3.0}};
   m.params.grueneisen_0 = 1.54222;
-  m.params.molar_mass = 0.15968852;
+  m.params.molar_mass = 0.1596882;
   m.params.napfu = 5.0;
   m.params.name = "Fe2O3-Perovskite_HS";
   m.params.q_0 = 0.84088;
@@ -26403,7 +26403,7 @@ Mineral endmember_1136() {
   m.params.eta_s_0 = 3.0318;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 3.0}};
   m.params.grueneisen_0 = 1.54222;
-  m.params.molar_mass = 0.15968852;
+  m.params.molar_mass = 0.1596882;
   m.params.napfu = 5.0;
   m.params.name = "Fe2O3-Perovskite_LS";
   m.params.q_0 = 0.84088;
@@ -26430,7 +26430,7 @@ Mineral endmember_1137() {
   m.params.eta_s_0 = 0.90477;
   m.params.formula = types::FormulaMap{{"Fe", 3.0}, {"O", 4.0}};
   m.params.grueneisen_0 = 1.56672;
-  m.params.molar_mass = 0.23153307;
+  m.params.molar_mass = 0.23153259999999998;
   m.params.napfu = 7.0;
   m.params.name = "High-Pressure_Magnetit";
   m.params.q_0 = 1.0;
@@ -26457,7 +26457,7 @@ Mineral endmember_1138() {
   m.params.eta_s_0 = 2.00124;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 3.0}};
   m.params.grueneisen_0 = 1.76958;
-  m.params.molar_mass = 0.15968852;
+  m.params.molar_mass = 0.1596882;
   m.params.napfu = 5.0;
   m.params.name = "HS_Fe2O3-Post-Perovski";
   m.params.q_0 = 2.04631;
@@ -26510,7 +26510,7 @@ Mineral endmember_1140() {
   m.params.eta_s_0 = 2.90375;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"O", 5.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 0.92549;
-  m.params.molar_mass = 0.1620456;
+  m.params.molar_mass = 0.1620455;
   m.params.napfu = 8.0;
   m.params.name = "Kyanite";
   m.params.q_0 = 1.0;
@@ -26535,7 +26535,7 @@ Mineral endmember_1141() {
   m.params.eta_s_0 = 3.23888;
   m.params.formula = types::FormulaMap{{"Fe", 2.0}, {"O", 3.0}};
   m.params.grueneisen_0 = 1.76958;
-  m.params.molar_mass = 0.15968852;
+  m.params.molar_mass = 0.1596882;
   m.params.napfu = 5.0;
   m.params.name = "LS_Fe2O3-Post-Perovski";
   m.params.q_0 = 2.04631;
@@ -26562,7 +26562,7 @@ Mineral endmember_1142() {
   m.params.eta_s_0 = 2.43429;
   m.params.formula = types::FormulaMap{{"Fe", 3.0}, {"O", 4.0}};
   m.params.grueneisen_0 = 1.32115;
-  m.params.molar_mass = 0.23153307;
+  m.params.molar_mass = 0.23153259999999998;
   m.params.napfu = 7.0;
   m.params.name = "Magnetite";
   m.params.q_0 = 1.5487;
@@ -26614,7 +26614,7 @@ Mineral endmember_1144() {
   m.params.eta_s_0 = 1.30302;
   m.params.formula = types::FormulaMap{{"Al", 2.0}, {"Mg", 1.0}, {"O", 4.0}};
   m.params.grueneisen_0 = 1.56672;
-  m.params.molar_mass = 0.142266;
+  m.params.molar_mass = 0.1422656;
   m.params.napfu = 7.0;
   m.params.name = "Mg-Ca-Ferrite";
   m.params.q_0 = 1.0;
@@ -26639,7 +26639,7 @@ Mineral endmember_1145() {
   m.params.eta_s_0 = 3.40174;
   m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 3.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.19458;
-  m.params.molar_mass = 0.100389;
+  m.params.molar_mass = 0.1003887;
   m.params.napfu = 5.0;
   m.params.name = "Mg-Akimotoite";
   m.params.q_0 = 2.2246;
@@ -26664,7 +26664,7 @@ Mineral endmember_1146() {
   m.params.eta_s_0 = 1.01779;
   m.params.formula = types::FormulaMap{{"Mg", 4.0}, {"O", 12.0}, {"Si", 4.0}};
   m.params.grueneisen_0 = 0.97681;
-  m.params.molar_mass = 0.40156;
+  m.params.molar_mass = 0.4015548;
   m.params.napfu = 20.0;
   m.params.name = "Mg-Majorite";
   m.params.q_0 = 1.53581;
@@ -26689,7 +26689,7 @@ Mineral endmember_1147() {
   m.params.eta_s_0 = 1.65573;
   m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 3.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.54222;
-  m.params.molar_mass = 0.100389;
+  m.params.molar_mass = 0.1003887;
   m.params.napfu = 5.0;
   m.params.name = "Mg-Perovskite";
   m.params.q_0 = 0.84088;
@@ -26714,7 +26714,7 @@ Mineral endmember_1148() {
   m.params.eta_s_0 = 2.30288;
   m.params.formula = types::FormulaMap{{"Mg", 2.0}, {"O", 4.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.1072;
-  m.params.molar_mass = 0.140693;
+  m.params.molar_mass = 0.14069310000000002;
   m.params.napfu = 7.0;
   m.params.name = "Mg-Ringwoodite";
   m.params.q_0 = 2.39042;
@@ -26740,7 +26740,7 @@ Mineral endmember_1149() {
   m.params.formula =
       types::FormulaMap{{"Al", 2.0}, {"Mg", 1.0}, {"O", 6.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 0.78477;
-  m.params.molar_mass = 0.20235;
+  m.params.molar_mass = 0.2023499;
   m.params.napfu = 10.0;
   m.params.name = "Mg-Tschermak's";
   m.params.q_0 = 3.43847;
@@ -26765,7 +26765,7 @@ Mineral endmember_1150() {
   m.params.eta_s_0 = 2.56133;
   m.params.formula = types::FormulaMap{{"Mg", 2.0}, {"O", 4.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.20388;
-  m.params.molar_mass = 0.140695;
+  m.params.molar_mass = 0.14069310000000002;
   m.params.napfu = 7.0;
   m.params.name = "Mg-Wadsleyite";
   m.params.q_0 = 2.21007;
@@ -26791,7 +26791,7 @@ Mineral endmember_1151() {
   m.params.formula = types::FormulaMap{
       {"Al", 5.0}, {"Mg", 2.0}, {"Na", 1.0}, {"O", 12.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.42971;
-  m.params.molar_mass = 0.42658581;
+  m.params.molar_mass = 0.4265856;
   m.params.napfu = 21.0;
   m.params.name = "Mg-NAL_Phase";
   m.params.q_0 = 1.0;
@@ -26816,7 +26816,7 @@ Mineral endmember_1152() {
   m.params.eta_s_0 = 1.2881;
   m.params.formula = types::FormulaMap{{"Mg", 1.0}, {"O", 3.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.76958;
-  m.params.molar_mass = 0.100389;
+  m.params.molar_mass = 0.1003887;
   m.params.napfu = 5.0;
   m.params.name = "Mg-PostPerovskite";
   m.params.q_0 = 2.04631;
@@ -26842,7 +26842,7 @@ Mineral endmember_1153() {
   m.params.formula =
       types::FormulaMap{{"Al", 1.0}, {"Na", 1.0}, {"O", 4.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.56672;
-  m.params.molar_mass = 0.142054;
+  m.params.molar_mass = 0.1420544;
   m.params.napfu = 7.0;
   m.params.name = "Na-Ca-Ferrite";
   m.params.q_0 = 1.0;
@@ -26868,7 +26868,7 @@ Mineral endmember_1154() {
   m.params.formula =
       types::FormulaMap{{"Mg", 1.0}, {"Na", 2.0}, {"O", 12.0}, {"Si", 5.0}};
   m.params.grueneisen_0 = 1.25078;
-  m.params.molar_mass = 0.40270437;
+  m.params.molar_mass = 0.40270490000000003;
   m.params.napfu = 20.0;
   m.params.name = "Na-Majorite";
   m.params.q_0 = 0.10916;
@@ -26894,7 +26894,7 @@ Mineral endmember_1155() {
   m.params.formula =
       types::FormulaMap{{"Al", 1.0}, {"Na", 1.0}, {"O", 4.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 0.6969;
-  m.params.molar_mass = 0.14205431;
+  m.params.molar_mass = 0.1420544;
   m.params.napfu = 7.0;
   m.params.name = "Nepheline";
   m.params.q_0 = 1.0;
@@ -26922,7 +26922,7 @@ Mineral endmember_1156() {
   m.params.formula =
       types::FormulaMap{{"Al", 3.0}, {"Na", 3.0}, {"O", 12.0}, {"Si", 3.0}};
   m.params.grueneisen_0 = 1.42971;
-  m.params.molar_mass = 0.42616294;
+  m.params.molar_mass = 0.4261632;
   m.params.napfu = 21.0;
   m.params.name = "Na-NAL_Phase";
   m.params.q_0 = 1.0;
@@ -26973,7 +26973,7 @@ Mineral endmember_1158() {
   m.params.eta_s_0 = 2.56123;
   m.params.formula = types::FormulaMap{{"Mg", 4.0}, {"O", 4.0}};
   m.params.grueneisen_0 = 1.45033;
-  m.params.molar_mass = 0.16121782;
+  m.params.molar_mass = 0.16121760000000002;
   m.params.napfu = 8.0;
   m.params.name = "Periclase";
   m.params.q_0 = 1.5487;
@@ -26999,7 +26999,7 @@ Mineral endmember_1159() {
   m.params.formula =
       types::FormulaMap{{"Al", 2.0}, {"Mg", 3.0}, {"O", 12.0}, {"Si", 3.0}};
   m.params.grueneisen_0 = 1.01422;
-  m.params.molar_mass = 0.40313;
+  m.params.molar_mass = 0.4031273;
   m.params.napfu = 20.0;
   m.params.name = "Pyrope";
   m.params.q_0 = 1.42169;
@@ -27024,7 +27024,7 @@ Mineral endmember_1160() {
   m.params.eta_s_0 = 2.40509;
   m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = -0.03958;
-  m.params.molar_mass = 0.060085;
+  m.params.molar_mass = 0.0600843;
   m.params.napfu = 3.0;
   m.params.name = "Quartz";
   m.params.q_0 = 1.0;
@@ -27051,7 +27051,7 @@ Mineral endmember_1161() {
   m.params.eta_s_0 = 2.44263;
   m.params.formula = types::FormulaMap{{"Al", 8.0}, {"Mg", 4.0}, {"O", 16.0}};
   m.params.grueneisen_0 = 0.97518;
-  m.params.molar_mass = 0.569068;
+  m.params.molar_mass = 0.5690624;
   m.params.napfu = 28.0;
   m.params.name = "Spinel";
   m.params.q_0 = 4.05077;
@@ -27076,7 +27076,7 @@ Mineral endmember_1162() {
   m.params.eta_s_0 = 4.40394;
   m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
   m.params.grueneisen_0 = 1.55674;
-  m.params.molar_mass = 0.060085;
+  m.params.molar_mass = 0.0600843;
   m.params.napfu = 3.0;
   m.params.name = "Stishovite";
   m.params.q_0 = 2.2096;
@@ -27103,7 +27103,7 @@ Mineral endmember_1163() {
   m.params.eta_s_0 = 0.06776;
   m.params.formula = types::FormulaMap{{"Fe", 4.0}, {"O", 4.0}};
   m.params.grueneisen_0 = 1.45033;
-  m.params.molar_mass = 0.28737822;
+  m.params.molar_mass = 0.2873776;
   m.params.napfu = 8.0;
   m.params.name = "W\\\"ustite";
   m.params.q_0 = 1.5487;
@@ -27130,7 +27130,7 @@ Mineral endmember_1164() {
   m.params.eta_s_0 = -0.13801;
   m.params.formula = types::FormulaMap{{"Fe", 4.0}, {"O", 4.0}};
   m.params.grueneisen_0 = 1.45033;
-  m.params.molar_mass = 0.28737822;
+  m.params.molar_mass = 0.2873776;
   m.params.napfu = 8.0;
   m.params.name = "W\\\"ustite_Low_Spin";
   m.params.q_0 = 1.5487;
