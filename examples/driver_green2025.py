@@ -11,10 +11,11 @@
 #
 # ------------------------------------------------------
 
-"""Shared driver for Supplement 3 of Green et al. (2025), egae079.
+"""
+Shared driver to recreate the figures in
+Supplement 3 of Green et al. (2025), https://doi.org/10.1093/petrology/egae079.
 
-Use the separate example_green2025_*.py scripts. Thermodynamics, equilibrium,
-boundary tracing and polygon construction use the standard C++ routines.
+Use the separate example_green2025_*.py scripts to make the plots.
 """
 
 from collections import Counter
@@ -23,7 +24,7 @@ from pathlib import Path
 import time
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import HPx_ds636, model_sets
+from burnman_cpp.minerals import model_sets
 from burnman_cpp.tools.phase_diagram_helpers import (
     write_phase_diagram,
     save_figure,
@@ -34,10 +35,11 @@ SOURCE = "https://doi.org/10.1093/petrology/egae079"
 
 def candidate_phases(composition):
     models = model_sets.igneous("G25")
-    # Match MAGEMin's igneous phase exclusions when H2O is absent, including
-    # the formal dry corners of biotite, cordierite and aqueous fluid.
+    # Exclude nominally hydrous phases when H2O is absent, including
+    # the dry endmembers of biotite, cordierite and aqueous fluid,
+    # which are presumably metastable anyway. Also exclude cor.
     hydrous = {"fluid", "hb", "bi", "ms", "ep", "cd"}
-    phases = [
+    return [
         phase
         for phase in models.phases
         if phase.name != "cor"
@@ -45,18 +47,11 @@ def candidate_phases(composition):
             phase.name not in hydrous or composition.atomic_composition.get("H", 0) > 0
         )
     ]
-    # The reference igneous catalogue includes stishovite, not corundum.
-    stishovite = HPx_ds636.stv()
-    stishovite.set_name("stv")
-    return phases + [stishovite]
 
 
 def compare(composition, reference_points, settings):
-    """Check assemblages at points read well inside the published fields.
-
-    The PDF distinguishes pl/afs, augite/pigeonite and spl/mgt/cm/usp by
-    composition. These are instances of fsp, cpx and sp respectively here.
-    Repeated names preserve coexistence across a solvus.
+    """
+    Check assemblages at points inside the fields reported in the PDF.
     """
     rows = []
     phases = candidate_phases(composition)
@@ -91,7 +86,7 @@ def compare(composition, reference_points, settings):
 
 
 def compare_liquidus(data, pressure_kbar, reference_temperature):
-    """Intersect saved phase lines with the PDF's liquidus comparison isobar."""
+    """Check saved phase lines against the PDF."""
     report = dict(
         pressure_kbar=pressure_kbar,
         reference_temperature_C=reference_temperature,

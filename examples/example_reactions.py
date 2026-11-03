@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileCopyrightText: Copyright (C) 2012-2026 by the BurnMan Team.
+# SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
 #
 # This file is part of BurnMan.
 #
@@ -11,6 +11,8 @@
 #
 # ------------------------------------------------------
 
+# Original example attribution:
+# Copyright (C) 2012-2026 by the BurnMan Team.
 
 """
 example_reactions
