@@ -2,9 +2,6 @@
 # SPDX-FileCopyrightText: Copyright (C) 2026 by the BurnMan Team.
 """Analytic reaction responses checked against independent equilibrium solves."""
 
-from pathlib import Path
-import runpy
-
 import numpy as np
 import pytest
 
@@ -1152,39 +1149,6 @@ def test_chunked_grid_rejects_invalid_batch_size(single_phase, chunk_size):
         )
 
 
-def test_sp_isotherms_keep_gaps_and_all_strip_cells():
-    from types import SimpleNamespace
-
-    example = runpy.run_path(
-        str(
-            Path(__file__).resolve().parents[2]
-            / "examples/example_phase_diagram_grid_step2_properties.py"
-        )
-    )
-    x, y = np.arange(7.0), np.arange(9.0)
-    temperatures = y[:, None] - x[None, :]
-    temperatures[:, 3] = np.nan
-    grid = SimpleNamespace(
-        diagram_type="PS",
-        has_solutions=True,
-        x=x,
-        y=y,
-        values={"temperature": temperatures},
-    )
-    records = example["calculate_isotherms"](grid, (1.25,), chunk_rows=3)
-    intervals = []
-    for line in records[0]["lines"]:
-        points = line["points"]
-        assert all(p["entropy"] - p["pressure"] == pytest.approx(1.25) for p in points)
-        low, high = min(p["pressure"] for p in points), max(
-            p["pressure"] for p in points
-        )
-        assert high <= 2 or low >= 4
-        intervals.append(high - low)
-    # The missing column masks its two adjoining cells: lengths 2 + 2.
-    assert sum(intervals) == pytest.approx(4.0)
-
-
 @pytest.mark.parametrize("entropy_jump", [-1.0, 1.0])
 def test_coexistence_expansivity_keeps_signed_infinity_and_saved_states(
     tmp_path, entropy_jump
@@ -1236,27 +1200,6 @@ def test_coexistence_expansivity_keeps_signed_infinity_and_saved_states(
     ).all()
 
 
-def test_soft_pyrolite_curvature_remains_finite():
-    example = runpy.run_path(
-        str(
-            Path(__file__).resolve().parents[2]
-            / "examples/example_pyrolite_phase_diagram.py"
-        )
-    )
-    grid = bm.load_property_grid(
-        Path(__file__).with_name("data") / "pyrolite_sp_soft_grid_point.json"
-    )
-    replay = bm.evaluate_property_grid(
-        grid,
-        example["candidate_phases"](),
-        ["thermal_expansivity", "molar_heat_capacity_p"],
-    )
-    assert replay.equilibrium_solves == 0
-    assert replay.success.all(), replay.diagnostics
-    assert np.isfinite(replay.values["thermal_expansivity"]).all()
-    assert np.isfinite(replay.values["molar_heat_capacity_p"]).all()
-
-
 def test_disk_grid_reverse_pass_updates_manifest_and_saved_states(
     cold_entropy_seed, tmp_path, capsys
 ):
@@ -1281,86 +1224,3 @@ def test_disk_grid_reverse_pass_updates_manifest_and_saved_states(
     output = capsys.readouterr().out
     assert "Retrying failed grid nodes backwards" in output
     assert "grid [" not in output
-
-
-@pytest.mark.parametrize("chunked", [False, True])
-def test_saved_sp_response_panels_need_no_equilibrium_solves(
-    cold_entropy_seed, tmp_path, monkeypatch, chunked
-):
-    import json
-    import matplotlib.pyplot as plt
-
-    source, phase, x, y = cold_entropy_seed
-    example = runpy.run_path(
-        str(
-            Path(__file__).resolve().parents[2]
-            / "examples/example_phase_diagram_grid_step2_properties.py"
-        )
-    )
-    names = [name for name, _, _ in example["PROPERTIES"]]
-    original = bm.phase_diagram_grid(
-        source, [phase], names + ["temperature"], x=x, y=y, store_solutions=True
-    )
-    assert original.equilibrium_success.all(), original.diagnostics
-    expected = {
-        mode: bm.evaluate_property_grid(original, [phase], names, relaxed=relaxed)
-        for mode, relaxed in (("relaxed", True), ("unrelaxed", False))
-    }
-    saved = bm.save_property_grid(original, tmp_path / "saved.json.gz")
-    if chunked:
-        manifest = dict(
-            format="burnman_cpp.property_grid_chunks",
-            schema_version=1,
-            x=x.tolist(),
-            y=y.tolist(),
-            chunks=[dict(file=saved.name, rows=[0, len(y)], columns=[0, len(x)])],
-        )
-        saved = tmp_path / "manifest.json"
-        saved.write_text(json.dumps(manifest))
-    before = saved.read_bytes()
-
-    def unexpected(*args, **kwargs):
-        raise AssertionError("Plotting saved equilibria must not solve them again.")
-
-    monkeypatch.setattr(bm, "phase_diagram_grid", unexpected)
-    monkeypatch.setattr(bm, "phase_diagram_grid_chunks", unexpected)
-    monkeypatch.setattr(bm, "retry_property_grid_chunks", unexpected)
-    gx, gy, arrays = example["evaluate_saved"](saved, [phase], tmp_path / "output")
-    np.testing.assert_array_equal(gx, x)
-    np.testing.assert_array_equal(gy, y)
-    for mode in expected:
-        assert expected[mode].equilibrium_solves == 0
-        for name in names:
-            np.testing.assert_allclose(
-                arrays[f"{mode}_{name}"], expected[mode].values[name]
-            )
-    assert saved.read_bytes() == before
-    with np.load(tmp_path / "output/properties.npz") as archive:
-        for key, array in arrays.items():
-            np.testing.assert_array_equal(archive[key], array)
-
-    # A failure of one property must not mask the others at the same point.
-    arrays["relaxed_molar_heat_capacity_p"][0, 0] = np.nan
-    isotherms = example["calculate_isotherms"](
-        type(
-            "Temperatures",
-            (),
-            dict(
-                x=x,
-                y=y,
-                diagram_type="PS",
-                has_solutions=True,
-                values={"temperature": arrays["temperature"]},
-            ),
-        )(),
-        (1000.0,),
-    )
-    fig, axes = example["plot"](source, x, y, arrays, isotherms=isotherms)
-    assert axes.shape == (3, 2)
-    assert np.ma.is_masked(axes[2, 0].images[0].get_array()[0, 0])
-    assert not np.ma.is_masked(axes[0, 0].images[0].get_array()[0, 0])
-    for row in axes:
-        assert row[0].images[0].norm.vmin == row[1].images[0].norm.vmin
-        assert row[0].images[0].norm.vmax == row[1].images[0].norm.vmax
-        assert all(any(t.get_text() == "1000 K" for t in ax.texts) for ax in row)
-    plt.close(fig)

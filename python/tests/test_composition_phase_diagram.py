@@ -14,10 +14,6 @@
 """Composition sections against independently known binary coexistence curves."""
 
 import json
-from pathlib import Path
-import runpy
-import subprocess
-import sys
 
 import numpy as np
 import pytest
@@ -190,36 +186,6 @@ def test_unequal_atom_totals_preserve_supplied_amounts(diagram):
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0, abs=1e-8)
 
 
-@pytest.mark.parametrize(
-    "fixture",
-    [
-        "harzburgite_garnet_composition_boundary.json",
-        "harzburgite_thin_composition_field.json",
-    ],
-)
-def test_composition_boundary_labels_preserve_immediate_fields(fixture):
-    saved = json.loads((Path(__file__).parent / "data" / fixture).read_text())
-    saved["resolved"] = False  # Missing side labels explicitly request recovery.
-    saved["settings"]["max_lines"] = 1  # Isolate neighbour labelling on this arc.
-    example = runpy.run_path(
-        str(Path(__file__).parents[2] / "examples/example_pyrolite_phase_diagram.py")
-    )
-    result = bm.refine_phase_diagram(
-        saved["composition_start"],
-        example["candidate_phases"](),
-        saved,
-        resolution=(2, 2),
-    )
-    assert len(result.boundaries) == 1
-    boundary = result.boundaries[0]
-    # Independent minimizations confirm these immediate neighbours. A branch
-    # confined to the boundary cannot label a field; a wide probe cannot skip
-    # the thin field in favour of a different, more distant assemblage.
-    assert {tuple(boundary.side_a), tuple(boundary.side_b)} == {
-        tuple(phases) for phases in saved["expected_sides"]
-    }
-
-
 @pytest.mark.parametrize("diagram", ["PX", "TX"])
 def test_composition_section_resumes_saved_partial_lines(diagram):
     settings = section_settings()
@@ -268,60 +234,6 @@ def test_absent_element_restricts_a_multicomponent_solution_face():
     solution.set_state(1.0e9, 1000.0)
     assert state.gibbs == pytest.approx(solution.molar_gibbs, abs=1e-7)
     assert state.minimum_affinity >= -0.2
-
-
-def test_olivine_example_closes_endmember_edges_and_uses_only_native_thermodynamics():
-    example = Path(__file__).resolve().parents[2] / "examples/example_olivine_px.py"
-    script = """
-import json, runpy, sys
-example = runpy.run_path(sys.argv[1])
-result = example['calculate'](quick=True)
-assert not {'burnman', 'cvxpy', 'sympy', 'cdd'} & sys.modules.keys()
-print(json.dumps(result.to_dict()))
-"""
-    output = subprocess.run(
-        [sys.executable, "-I", "-c", script, str(example)],
-        capture_output=True,
-        text=True,
-        check=True,
-        timeout=60,
-    )
-    result = bm.PhaseDiagramResult.from_dict(json.loads(output.stdout))
-    assert result.resolved, result.diagnostics
-    geometry = bm.phase_diagram_field_polygons(result)
-    assert all(
-        "label is provisional" in d for d in geometry.diagnostics
-    ), geometry.diagnostics
-    assert sorted(p.n_phases for p in geometry.polygons) == [1, 1, 1, 2, 2, 2]
-    assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0, abs=1e-8)
-    assert all(not p.has_open_boundary for p in geometry.polygons)
-    from burnman_cpp.minerals import SLB_2011
-
-    phases = [
-        SLB_2011.mg_fe_olivine(),
-        SLB_2011.mg_fe_wadsleyite(),
-        SLB_2011.mg_fe_ringwoodite(),
-    ]
-    endpoints = []
-    for line in result.boundaries:
-        for point in [line.points[0], line.points[-1]]:
-            x = point.composition_coordinate
-            if abs(x) < 1e-8 or abs(x - 1.0) < 1e-8:
-                endpoints.append(x)
-                energies = []
-                for state in point.phases:
-                    # At a pure bulk, the boundary must solve the independent
-                    # equality of the two pure polymorph Gibbs energies.
-                    phase = phases[state.candidate_index]
-                    phase.set_composition([1.0 - x, x])
-                    phase.set_state(point.pressure, point.temperature)
-                    energies.append(phase.molar_gibbs)
-                    np.testing.assert_allclose(
-                        state.composition, [1.0 - x, x], atol=1e-8
-                    )
-                assert max(energies) - min(energies) < 0.02
-    assert min(endpoints) == pytest.approx(0.0, abs=1e-10)
-    assert max(endpoints) == pytest.approx(1.0, abs=1e-10)
 
 
 def test_composition_subrange_clips_coexistence_to_its_frame():

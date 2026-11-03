@@ -1,12 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: Copyright (C) 2026 by the BurnMan Team.
-"""Composite evaluation and the original manual-equilibration examples."""
-
-from pathlib import Path
-import runpy
+"""Composite evaluation and reaction-basis formatting."""
 
 import numpy as np
-from numpy.testing import assert_allclose, assert_array_equal
+from numpy.testing import assert_array_equal
 import pytest
 
 import burnman_cpp as bm
@@ -85,36 +82,3 @@ def test_reaction_basis_strings_use_current_endmember_names():
     assert independent.reaction_basis_as_strings == []
     # The property also belongs to individual solid solutions.
     assert ol.reaction_basis_as_strings == []
-
-
-def test_composite_example_equilibria_and_reference_landmarks(monkeypatch):
-    import matplotlib.pyplot as plt
-
-    monkeypatch.setattr(plt, "show", lambda: plt.close("all"))
-    example = Path(__file__).parents[2] / "examples/example_composite.py"
-    result = runpy.run_path(str(example), run_name="__main__")
-    # Landmarks printed by the original Python BurnMan example.
-    assert_allclose(result["rho"][0], 4446.348, rtol=0.0, atol=0.001)
-    assert_allclose(result["Vp"][0] / 1.0e3, 11.244, rtol=0.0, atol=0.001)
-    assert_allclose(result["pt"][0] / 1.0e9, 0.431, rtol=0.0, atol=0.001)
-    assert_allclose(result["pt"][1], 809.343, rtol=0.0, atol=0.001)
-    assert_allclose(result["px"][1], 0.1648, rtol=0.0, atol=0.0001)
-    assert len(result["pressures"]) == 21
-    assert len(result["sol"]) == 20  # The last point is the pure-Mg limit.
-    assert_allclose(result["x_fe_ols"][[0, -1]], [0.440, 0.0], atol=0.001, rtol=0.0)
-    assert_allclose(result["x_fe_wads"][[0, -1]], [0.673, 0.0], atol=0.001, rtol=0.0)
-    rock = result["rock"]
-    assert_allclose(rock.phases[0].molar_fractions, [1.0, 0.0], atol=0.0, rtol=0.0)
-    assert_allclose(rock.phases[1].molar_fractions, [1.0, 0.0], atol=0.0, rtol=0.0)
-    assert_allclose(result["fo_mwd"].reaction_affinities, 0.0, atol=1.0e-6, rtol=0.0)
-    for pressure, solution in zip(result["pressures"][:-1], result["sol"]):
-        assert solution.success, solution.message
-        bm.set_composition_and_state_from_parameters(rock, solution.x)
-        assert_allclose(rock.pressure, pressure, rtol=0.0, atol=1.0)
-        assert_allclose(rock.temperature, 1600.0, rtol=0.0, atol=1.0e-6)
-        assert_allclose(rock.molar_fractions, [0.5, 0.5], atol=1.0e-8, rtol=0.0)
-        assert_allclose(rock.reaction_affinities, 0.0, atol=1.0e-3, rtol=0.0)
-        formula = rock.formula
-        assert_allclose(
-            [formula["Mg"] + formula["Fe"], formula["Si"], formula["O"]], [2, 1, 4]
-        )

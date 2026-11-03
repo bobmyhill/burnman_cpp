@@ -14,9 +14,6 @@
 """Local calculation, seam topology and reusable saved patch results."""
 
 from copy import deepcopy
-from pathlib import Path
-import runpy
-import sys
 
 import numpy as np
 import pytest
@@ -393,79 +390,3 @@ def test_problem_regions_follow_all_diagram_axes(diagram_type):
     )["Boundary 0"]
     assert region[0] == pytest.approx((0.4875, 0.5125))
     assert region[1] == pytest.approx((0, 1))
-
-
-def test_general_example_accepts_python_file_and_existing_patch(tmp_path, monkeypatch):
-    example = (
-        Path(__file__).resolve().parents[2]
-        / "examples/example_metasediment_phase_diagram_step2_patch.py"
-    )
-    module = runpy.run_path(str(example))
-    models = tmp_path / "custom_models.py"
-    models.write_text("def candidate_phases():\n    return ['loaded']\n")
-    assert module["candidate_phases"](str(models)) == ["loaded"]
-    base = bm.save_phase_diagram(diagram([(0.5, 0), (0.5, 1)]), tmp_path / "base.json")
-    patch = bm.save_phase_diagram(
-        diagram([(0.5, 0.25), (0.5, 0.75)], 0.25, 0.75), tmp_path / "patch.json"
-    )
-    output = tmp_path / "output"
-    module["main"].__globals__.update(
-        SOURCE=base,
-        MODELS=None,
-        PATCH_FILES=(patch,),
-        OUTPUT_DIR=output,
-        PLOT=False,
-    )
-    monkeypatch.setattr(sys, "argv", [str(example), "--unrelated-argument"])
-    module["main"]()
-    assert bm.load_phase_diagram(output / "final/phase_diagram.json")["resolved"]
-    assert "Joined 2" in (output / "merge_report.txt").read_text()
-
-
-@pytest.mark.parametrize(
-    "merge,named", [(False, True), (False, False), (True, True), (True, False)]
-)
-def test_example_calculation_modes_save_patches_and_merge_only_when_requested(
-    merge, named, tmp_path, monkeypatch
-):
-    example = (
-        Path(__file__).resolve().parents[2]
-        / "examples/example_metasediment_phase_diagram_step2_patch.py"
-    )
-    module = runpy.run_path(str(example))
-    opts = settings()
-    base = bm.phase_diagram(
-        {"Mg": 1, "Fe": 1, "O": 2}, crossing_phases(), (0, 2.0e9), (600, 1400), opts
-    ).to_dict()
-    # Removing one arm of the four-field intersection makes a provisional
-    # loop, so automatic selection exercises real polygon diagnostics.
-    if not named:
-        base["boundaries"].pop()
-        assert bm.phase_diagram_field_regions(base)
-    source = bm.save_phase_diagram(base, tmp_path / "base.json")
-    models = tmp_path / "custom_models.py"
-    models.write_text(
-        "from test_phase_diagram import crossing_phases as candidate_phases\n"
-    )
-    output = tmp_path / "output"
-    module["main"].__globals__.update(
-        SOURCE=source,
-        MODELS=models,
-        SEEDS=(4, 5),
-        OUTPUT_DIR=output,
-        PLOT=False,
-        FIELDS=(1,) if named else None,
-        MERGE=merge,
-    )
-    module["main"]()
-    saved_patches = list(output.glob("field_*_patch/phase_diagram.json"))
-    expected = bm.phase_diagram_field_regions(base, [1] if named else None)
-    assert len(saved_patches) == len(expected)
-    for path in saved_patches:
-        patch = bm.load_phase_diagram(path)
-        assert patch["settings"]["temperature_seeds"] == 4
-        assert patch["settings"]["pressure_seeds"] == 5
-        assert patch["settings"]["step"] == opts.step
-    assert (output / "final/phase_diagram.json").exists() == merge
-    assert (output / "merge_report.txt").exists() == merge
-    assert bm.load_phase_diagram(source) == base

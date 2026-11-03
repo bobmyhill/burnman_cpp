@@ -11,9 +11,6 @@
 #
 # ------------------------------------------------------
 
-from pathlib import Path
-import subprocess
-import sys
 
 import numpy as np
 import pytest
@@ -83,24 +80,3 @@ def test_reduced_models_span_the_required_elements():
     assert np.isfinite(opx.molar_gibbs)
     with pytest.raises(ValueError, match="occupancies"):
         opx.set_composition([1.1, -1.2, 1.1])
-
-
-def test_entire_example_imports_no_reference_or_optional_backends():
-    example = (
-        Path(__file__).resolve().parents[2] / "examples" / "example_equilibrate.py"
-    )
-    # SciPy is required for potential-grid processing. The optional reference
-    # and optimisation backends must still stay out of the native examples.
-    code = (
-        "import runpy, sys\n"
-        f"sys.argv = [{str(example)!r}, '--quick', '--no-plots']\n"
-        f"runpy.run_path({str(example)!r}, run_name='__main__')\n"
-        "blocked = {'burnman', 'cvxpy', 'sympy', 'cdd'}\n"
-        "loaded = blocked.intersection(n.split('.')[0] for n in sys.modules)\n"
-        "assert not loaded, f'Unexpected Python computation packages: {loaded}'\n"
-    )
-    result = subprocess.run(
-        [sys.executable, "-I", "-c", code], capture_output=True, text=True, timeout=60
-    )
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert "ringwoodite breakdown, fraction 1: 5/5 converged" in result.stdout

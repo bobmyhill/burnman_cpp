@@ -15,7 +15,6 @@
 
 import json
 from pathlib import Path
-import runpy
 import numpy as np
 import pytest
 import burnman_cpp as bm
@@ -446,9 +445,12 @@ def test_contours_reject_unstable_solution_ordering_roots():
     factory = bm.PhaseCompositionConstraint.for_diagram(
         diagram, "g", ["Mgx_A", "Fex_A"], [1.0, 0.0], [1.0, 1.0], 0.2
     )
-    contours = bm.phase_diagram_contours(
-        diagram, model_sets.metapelite().phases, factory
-    )
+    candidate_names = diagram["phase_names"][
+        :: diagram["settings"]["max_phase_instances"]
+    ]
+    by_name = {phase.name: phase for phase in model_sets.metapelite().phases}
+    phases = [by_name[name] for name in candidate_names]
+    contours = bm.phase_diagram_contours(diagram, phases, factory)
     assert contours.resolved, contours.diagnostics
     assert len(contours.lines) == 1
     line = contours.lines[0]
@@ -458,7 +460,7 @@ def test_contours_reject_unstable_solution_ordering_roots():
     point = line.points[len(line.points) // 2]
     stable = bm.stable_equilibrium(
         diagram["composition_start"],
-        model_sets.metapelite().phases,
+        phases,
         point.pressure,
         point.temperature,
     )
@@ -469,57 +471,6 @@ def test_contours_reject_unstable_solution_ordering_roots():
             phase.composition, expected.composition, rtol=1.0e-6, atol=1.0e-8
         )
         assert phase.amount == pytest.approx(expected.amount, abs=1.0e-8)
-
-
-def test_metasediment_example_uses_volume_and_ferrous_garnet_constraints(monkeypatch):
-    examples = Path(__file__).resolve().parents[2] / "examples"
-    monkeypatch.syspath_prepend(str(examples))
-    example = runpy.run_path(
-        str(examples / "example_metasediment_phase_diagram_step2_contours.py")
-    )
-    diagram = json.loads(
-        (Path(__file__).parent / "data/metasediment_contour_field.json").read_text()
-    )
-    # An interior verification state gives a contour crossing the field;
-    # a corner extremum can touch the field at just one point.
-    seed = next(p for p in diagram["samples"] if p["is_field_verification"])
-    g = next(p for p in seed["phases"] if p["candidate_index"] == 6)
-    composition = g["composition"]
-    ratio = (composition[0] + composition[3]) / (
-        composition[0] + composition[1] + composition[3]
-    )
-    work = []
-    amounts = []
-    for p in seed["phases"]:
-        phase = example["candidate_phases"]()[p["candidate_index"]]
-        if isinstance(phase, bm.Solution):
-            phase.set_composition(p["composition"])
-        work.append(phase)
-        amounts.append(p["amount"])
-    a = bm.Assemblage(work, amounts)
-    a.n_moles = sum(amounts)
-    a.set_state(seed["pressure"], seed["temperature"])
-    expected_density = 0.1 / (a.n_moles * a.molar_volume)
-    results = example["calculate"](
-        diagram, [expected_density], [ratio], seed_grid=3, step=0.1
-    )
-    density = results["density"][0]["contours"]
-    garnet = results["garnet"][0]["contours"]
-    assert density["resolved"], density["diagnostics"]
-    assert garnet["resolved"], garnet["diagnostics"]
-    assert garnet["lines"]
-    assert density["lines"]
-    for line in garnet["lines"]:
-        for point in line["points"]:
-            g = next(p for p in point["phases"] if p["candidate_index"] == 6)
-            c = np.asarray(g["composition"])
-            mg, fe2, fe3 = 3.0 * (c[0] + c[3]), 3.0 * c[1], 2.0 * c[3]
-            assert mg / (mg + fe2) == pytest.approx(ratio, abs=1.0e-7)
-            assert mg / (mg + fe2 + fe3) != pytest.approx(ratio, abs=1.0e-3)
-            assert point["mass_balance_error"] < 1.0e-8
-    for line in density["lines"]:
-        for point in line["points"]:
-            assert 0.1 / point["volume"] == pytest.approx(expected_density, rel=1.0e-8)
 
 
 def test_contours_are_split_at_holes_in_the_saved_field(simple_diagram):

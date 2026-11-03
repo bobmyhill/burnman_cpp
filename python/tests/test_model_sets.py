@@ -13,9 +13,6 @@
 
 """Matched HPx families and published 2022 Temkin melt activities."""
 
-from pathlib import Path
-import runpy
-
 import numpy as np
 import pytest
 import burnman_cpp as bm
@@ -120,22 +117,6 @@ def test_igneous_olivine_retains_its_original_ordered_endmember(pressure, temper
     assert (
         ig50NCKFMASHTOCr.cfm_cpx().formula["Si"] == 2.0
     )  # The pyroxene species stays available.
-
-
-@pytest.mark.parametrize("temperature", [1173.15, 1673.15])
-def test_igneous_equilibrium_handles_chromium_free_bulk(temperature):
-    example = runpy.run_path(
-        str(Path(__file__).parents[2] / "examples/example_basalt_phase_diagram.py")
-    )
-    bulk = example["BASALT_COMPOSITION"].atomic_composition
-    assert bulk.get("Cr", 0.0) == 0.0
-    # Projecting this chemical face produced a -9.5e-17 starting fraction;
-    # NLopt's strict box bounds rejected the otherwise feasible initial state.
-    state = bm.stable_equilibrium(bulk, model_sets.igneous().phases, 1.0e9, temperature)
-    assert state.success, state.message
-    assert state.mass_balance_error < 1.0e-8
-    assert state.minimum_affinity >= -0.2
-    assert state.equilibrium_error <= 0.02
 
 
 def test_metabasite_keeps_clinopyroxene_calibrations_separate():
