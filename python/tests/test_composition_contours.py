@@ -326,7 +326,11 @@ def test_excluding_water_allows_frozen_standard_state_without_evaluating_its_eos
     sample,
 ):
     source, phases = sample
-    water = bm.minerals.model_sets.metapelite().phases[21]
+    water = next(
+        phase
+        for phase in bm.minerals.model_sets.metapelite().phases
+        if phase.name == "H2O"
+    )
     phases = [phases[0], water]
 
     def states(p, t):
@@ -1127,7 +1131,12 @@ def test_empty_bulk_selections_are_masked_without_discarding_equilibria(
 )
 def test_bulk_filters_skip_excluded_eos_evaluation(sample, filters):
     _, phases = sample
-    phases = [phases[0], bm.minerals.model_sets.metapelite().phases[21]]
+    water = next(
+        phase
+        for phase in bm.minerals.model_sets.metapelite().phases
+        if phase.name == "H2O"
+    )
+    phases = [phases[0], water]
 
     def states(p, t):
         return [
