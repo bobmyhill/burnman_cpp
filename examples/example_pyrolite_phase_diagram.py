@@ -48,18 +48,18 @@ TEMPERATURE_RANGE = (0.0, 2500.0)  # in K.
 # This corresponds to an Fe3+/sum(Fe) ratio of 2% on a metal-free basis.
 # The composition is normalized to 100 g (0.1 kg).
 PYROLITE_COMPOSITION = bm.Composition(
-        dict(
-            SiO2=45.00,
-            MgO=38.88,
-            FeO=8.05,
-            Fe2O3=0.18,
-            CaO=3.18,
-            Al2O3=4.00,
-            Na2O=0.13,
-            Cr2O3=0.57,
-        ),
-        unit_type="mass",
-    )
+    dict(
+        SiO2=45.00,
+        MgO=38.88,
+        FeO=8.05,
+        Fe2O3=0.18,
+        CaO=3.18,
+        Al2O3=4.00,
+        Na2O=0.13,
+        Cr2O3=0.57,
+    ),
+    unit_type="mass",
+)
 PYROLITE_COMPOSITION.renormalize("mass", "total", 0.1)
 
 # Masses in grams of a 100 g rock are also oxide weight percentages
