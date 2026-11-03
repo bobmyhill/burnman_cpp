@@ -667,6 +667,8 @@ phase_diagrams::PropertyGrid saved_property_grid(const py::dict &data) {
                                 "equilibrium or valid field number.");
         auto record = item.cast<py::dict>();
         GridSolution solution;
+        solution.max_phase_instances =
+            grid.context.settings.max_phase_instances;
         solution.n_moles = record["n_moles"].cast<double>();
         if (record.contains("gibbs"))
           solution.gibbs = record["gibbs"].cast<double>();
@@ -943,6 +945,9 @@ void bind_phase_diagram(py::module_ &m) {
       .def_readonly("phase_compositions", &GridSolution::phase_compositions)
       .def("to_dict", &grid_solution_dict);
   py::class_<PropertyGrid>(m, "PhaseDiagramPropertyGrid")
+      .def("bind_phases", &bind_reconstruction_phases, py::arg("phases"),
+           "Bind private original model copies for reconstruct_assemblage(). "
+           "Validate candidate order/names without changing saved equilibria.")
       .def_property_readonly(
           "diagram_type",
           [](const PropertyGrid &r) { return diagram_name(r.diagram_type); })
@@ -978,13 +983,49 @@ void bind_phase_diagram(py::module_ &m) {
             if (r.solutions.empty())
               throw py::value_error("Grid has no saved solutions; calculate "
                                     "with store_solutions=True.");
-            return r.solutions.at(
+            auto saved = r.solutions.at(
                 static_cast<std::size_t>(row * r.x.size() + col));
+            if (saved) {
+              saved->reconstruction_phases = r.reconstruction_phases;
+              saved->max_phase_instances =
+                  r.context.settings.max_phase_instances;
+            }
+            return saved;
           },
           py::arg("row"), py::arg("col"))
       .def("to_dict", &property_grid_dict)
       .def_static("from_dict", &saved_property_grid, py::arg("data"))
       .def_readonly("equilibrium_solves", &PropertyGrid::equilibrium_solves);
+  m.def(
+      "reconstruct_assemblage",
+      [](const GridSolution &saved, py::object phases,
+         types::AveragingType averaging_scheme) {
+        auto models = saved.reconstruction_phases;
+        if (!phases.is_none())
+          models = std::make_shared<std::vector<std::shared_ptr<Material>>>(
+              phases.cast<std::vector<std::shared_ptr<Material>>>());
+        if (!models)
+          throw py::value_error(
+              "No candidate models are bound to this saved solution. "
+              "Load the grid with phases=original_candidates or pass phases= "
+              "to reconstruct_assemblage().");
+        py::gil_scoped_release release;
+        auto assemblage =
+            reconstruct_assemblage(saved, *models, saved.max_phase_instances);
+        assemblage->set_averaging_scheme(averaging_scheme);
+        return assemblage;
+      },
+      py::arg("saved"), py::arg("phases") = py::none(), py::kw_only(),
+      py::arg("averaging_scheme") = types::AveragingType::VRH,
+      R"doc(Reconstruct an independent Assemblage from a retained GridSolution.
+
+Restore its saved P,T, mole amounts, compositions and exact active bases.
+No equilibrium solves or relaxation run. Each call returns private phase/model
+copies, including separate coexisting instances. Newly calculated grids bind
+their original models automatically. For loaded grids, supply phases= when
+calling load_property_grid(), or pass the original candidates here explicitly.
+averaging_scheme controls elastic averaging and defaults to VRH.
+)doc");
   py::class_<PropertyGridder>(m, "_PropertyGridder")
       .def(py::init([](py::object previous,
                        std::vector<std::shared_ptr<Material>> phases,

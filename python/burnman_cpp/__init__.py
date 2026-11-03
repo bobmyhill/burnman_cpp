@@ -442,6 +442,7 @@ from ._core import (
 )
 from ._core import (
     assemblage_properties,
+    reconstruct_assemblage,
     thermodynamic_property_names,
     PhaseDiagramPropertyGrid,
     GridSolution,
@@ -461,6 +462,7 @@ __all__ += [
     "evaluate_property_grid",
     "GridSolution",
     "assemblage_properties",
+    "reconstruct_assemblage",
     "thermodynamic_property_names",
     "PhaseDiagramPropertyGrid",
     "calculate_phase_diagram_patch",

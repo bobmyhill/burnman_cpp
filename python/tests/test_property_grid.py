@@ -1127,7 +1127,11 @@ def test_chunked_grid_matches_full_grid_and_replays_saved_states(
             )
         )
     )
-    for rows, cols, grid in bm.load_property_grid_chunks(tmp_path):
+    for rows, cols, grid in bm.load_property_grid_chunks(
+        tmp_path, phases=iter([phase])
+    ):
+        restored = bm.reconstruct_assemblage(grid.solution_at(0, 0))
+        assert restored.density == pytest.approx(grid.values["density"][0, 0])
         replay = bm.evaluate_property_grid(
             grid, [phase], "thermal_expansivity", relaxed=False
         )

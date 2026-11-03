@@ -179,18 +179,21 @@ def phase_diagram_grid_chunks(
             )
 
 
-def load_property_grid_chunks(path):
+def load_property_grid_chunks(path, *, phases=None):
     """Yield saved solution batches from a chunked-grid manifest or directory.
 
     Return ``(row_slice, column_slice, grid)`` one batch at a time. Each grid
     is usable with ``evaluate_property_grid`` for further properties without
     solving equilibria again. The manifest lists ordinary ``save_property_grid``
     JSON/JSON.gz files plus their half-open row/column bounds in the full grid.
-    Files contain no model definitions. This iterator never loads the full grid.
+    Files contain no model definitions. Supply phases= to bind original models
+    for reconstruct_assemblage(grid.solution_at(row, col)). This iterator never
+    loads the full grid.
     """
+    phases = None if phases is None else list(phases)
     source, _, records = _property_grid_chunks(path)
     for record in records:
-        yield _load_grid_chunk(source.parent, record)
+        yield _load_grid_chunk(source.parent, record, phases=phases)
 
 
 def retry_property_grid_chunks(result, phases, path):
@@ -276,9 +279,9 @@ def _property_grid_chunks(path, *, require_complete=False):
     return source, manifest, records
 
 
-def _load_grid_chunk(directory, record):
+def _load_grid_chunk(directory, record, *, phases=None):
     """Load one batch and check its coordinate shape against the journal."""
-    grid = load_property_grid(directory / record["file"])
+    grid = load_property_grid(directory / record["file"], phases=phases)
     j, jend = record["rows"]
     i, iend = record["columns"]
     if j < 0 or i < 0 or jend - j != len(grid.y) or iend - i != len(grid.x):
@@ -323,11 +326,13 @@ def save_property_grid(grid, path):
     return destination
 
 
-def load_property_grid(path):
+def load_property_grid(path, *, phases=None):
     """Load a plain/compressed JSON property grid, including retained solutions.
 
     No model objects are deserialized and no equilibrium solves are performed.
-    Supply the original candidate model definitions to evaluate more properties.
+    Supply phases=original_candidates to bind private model copies, allowing
+    reconstruct_assemblage(grid.solution_at(row, col)) without further arguments.
+    Model definitions are runtime context and are not added to the saved file.
     """
     import gzip
     import json
@@ -339,7 +344,10 @@ def load_property_grid(path):
         data = json.load(stream)
     if not isinstance(data, dict):
         raise ValueError("A saved property grid must be a JSON object.")
-    return _core.PhaseDiagramPropertyGrid.from_dict(data)
+    grid = _core.PhaseDiagramPropertyGrid.from_dict(data)
+    if phases is not None:
+        grid.bind_phases(phases)
+    return grid
 
 
 def evaluate_property_grid(
