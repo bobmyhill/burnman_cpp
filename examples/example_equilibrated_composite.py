@@ -11,12 +11,10 @@
 #
 # ------------------------------------------------------
 
-"""Calculate equilibrium olivine polymorphs and their seismic velocities.
-
-Compare relaxed velocities with unrelaxed velocities, which hold the
-equilibrium phase fractions and compositions fixed during elastic deformation.
-
-Run with ``python examples/example_equilibrated_composite.py``.
+"""
+Calculate equilibrium olivine polymorphs and their
+seismic velocities. Also compare relaxed velocities
+with unrelaxed velocities.
 """
 
 import matplotlib.pyplot as plt
@@ -26,7 +24,7 @@ from burnman_cpp import Composition, EquilibratedComposite
 from burnman_cpp.minerals import SLB_2011
 
 
-def main():
+if __name__ == "__main__":
     # Uncomment to print all available phase_names in this dataset.
     # print(*EquilibratedComposite.available_phase_names(SLB_2011), sep="\n")
 
@@ -35,7 +33,7 @@ def main():
         bulk,
         SLB_2011,
         phase_names=["mg_fe_olivine", "mg_fe_wadsleyite", "mg_fe_ringwoodite"],
-        name="Equilibrated mantle rock",
+        name="Equilibrated fo90 rock",
     )
     pressures = np.linspace(1e9, 25e9, 40)
     temperatures = np.full_like(pressures, 1600.0)
@@ -80,7 +78,3 @@ def main():
     axes[0].invert_yaxis()
     fig.tight_layout()
     plt.show()
-
-
-if __name__ == "__main__":
-    main()

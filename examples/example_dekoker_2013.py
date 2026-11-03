@@ -11,14 +11,15 @@
 #
 # ------------------------------------------------------
 
-"""MgO-SiO2 mixing and melting with the native DKS equations of state.
+"""
+MgO-SiO2 mixing and melting with the native equations of
+state from de Koker et al. (2013),
+doi:10.1016/j.epsl.2012.11.026.
 
-Run: python examples/example_dekoker_2013.py (requires NumPy, SciPy, Matplotlib).
-Fits two excess-Gibbs coefficients to seven intermediate liquids at each P/T,
-with lambda=1.43, fixed pure terms and unchanged catalogue parameters. All
-mixing quantities are per mole of MgO + SiO2. This illustrative least-squares
-model differs from the authors' unavailable continuous interaction functions.
-Source: de Koker et al. (2013), doi:10.1016/j.epsl.2012.11.026.
+This example fits two excess-Gibbs coefficients to
+seven intermediate liquids at each P/T, with lambda=1.43.
+It does not quite reproduce the published figures,
+but illustrates the implied method.
 """
 
 from functools import lru_cache
@@ -243,7 +244,7 @@ def phase_diagram(model):
     return fig
 
 
-def main():
+if __name__ == "__main__":
     model = LeastSquaresLiquid()
     OUTPUT_DIR.mkdir(exist_ok=True)
     for name, plot in (
@@ -257,7 +258,3 @@ def main():
     if SHOW_PLOTS:
         plt.show()
     plt.close("all")
-
-
-if __name__ == "__main__":
-    main()

@@ -12,16 +12,13 @@
 #
 # ------------------------------------------------------
 
-"""Green et al. (2025), Figure S3-2: Icelandic basalt RE46 (dry).
-
-Oxide moles are transcribed from the figure footer. Atomic O is the excess
-oxygen above FeO, so Fe3+/total Fe = 2 O / FeO in this closed system.
+"""
+Green et al. (2025), Figure S3-2: Icelandic basalt RE46 (dry).
 """
 
 from driver_green2025 import main
 
 SEEDS = 7
-
 OXIDES = dict(
     SiO2=50.4025,
     Al2O3=9.1027,

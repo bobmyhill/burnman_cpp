@@ -12,16 +12,13 @@
 #
 # ------------------------------------------------------
 
-"""Green et al. (2025), Figure S3-3: high-Al basalt AT-1 (dry).
-
-Use oxide moles, including atomic excess O, as in Table S3-1. Solvus branches
-are generated internally; two feldspars/spinels remain distinct phases.
+"""
+Green et al. (2025), Figure S3-3: high-Al basalt AT-1 (dry).
 """
 
 from driver_green2025 import main
 
 SEEDS = 7
-
 OXIDES = dict(
     SiO2=54.4,
     Al2O3=12.96,

@@ -11,61 +11,112 @@
 #
 # ------------------------------------------------------
 
-"""Fit garnet compositions and phase proportions from compositional observations.
+"""
 
-Fit molar abundances and ferric iron to the Jennings and Holland (2015) garnet
-model and to a composition-only Solution class object. Then fit phase mass
-fractions for the Bertka and Fei (1997) Mars mantle experiments. The phase
-fraction error bars assume unit observation covariance for the six oxide
-abundances, given in weight percent. All measurements are included here.
+example_fit_composition
+-----------------------
+
+This example shows how to fit compositional data to a solution model,
+how to partition a bulk composition between phases of known composition,
+and how to assess goodness of fit.
+
+*Uses:*
+
+* :class:`burnman_cpp.Composition`
+* :class:`burnman_cpp.Solution`
+* :func:`burnman_cpp.optimize.composition_fitting.fit_phase_proportions_to_bulk_composition`
+* :func:`burnman_cpp.optimize.composition_fitting.fit_composition_to_solution`
+
+
+*Demonstrates:*
+
+* Fitting compositional data to a solution model
+* Partitioning of a bulk composition between phases of known composition
+* Assessing goodness of fit.
+
 """
 
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.pyplot as plt
+import itertools
 
 from burnman_cpp import minerals
+from burnman_cpp.optimize.composition_fitting import fit_composition_to_solution
+from burnman_cpp.optimize.composition_fitting import DummyCompositionSolution
 from burnman_cpp.optimize.composition_fitting import (
-    DummyCompositionSolution,
-    fit_composition_to_solution,
     fit_phase_proportions_to_bulk_composition,
 )
 
+if __name__ == "__main__":
+    """
+    Example 1
+    ---------
+    Fitting single-phase EPMA data to a solution model
 
-def main():
-    # Example 1: fit single-phase compositional data to a garnet model.
+    The following example takes a set of variables
+    (either elements such as "Fe", site_species such as "Fef_B",
+    which would correspond to a species labelled Fef on the second site,
+    or user-defined variables which are arithmetic sums of
+    elements and/or site_species) and their values and covariances,
+    and fits these values to a set of molar fractions of a solution model.
+    """
+
+    # Here, we use the Jennings and Holland (2015) garnet,
+    # which has five endmembers: pyrope, almandine, grossular,
+    # andradite and knorringite
     gt = minerals.JH_2015.garnet()
+
     print(f"Endmembers: {gt.endmember_names}")
     print(f"Elements: {gt.elements}")
     print("Stoichiometric array:")
     print(gt.stoichiometric_matrix)
+    print()
 
+    # The variables we are trying to fit are Fe (total), Ca, Mg
+    # Cr, Al, Si and Fe3+, all given in mole amounts.
     fitted_species = ["Fe", "Ca", "Mg", "Cr", "Al", "Si", "Fe3+"]
-    species_amounts = np.array([1.1, 2.0, 0.0, 0.0, 1.9, 3.0, 0.1])
-    species_covariances = np.eye(7) * 0.01**2
-    rng = np.random.RandomState(100)
-    species_amounts = rng.multivariate_normal(species_amounts, species_covariances)
+    species_amounts = np.array([1.1, 2.0, 0.0, 0, 1.9, 3.0, 0.1])
+    species_covariances = np.eye(7) * 0.01 * 0.01
 
-    print("\nObserved composition:")
-    for species, amount, variance in zip(
-        fitted_species, species_amounts, species_covariances.diagonal()
-    ):
-        print(f"{species}: {amount:.3f} +/- {np.sqrt(variance):.3f}")
+    # Add some noise.
+    v_err = np.random.rand(7)
+    np.random.seed(100)
+    species_amounts = np.random.multivariate_normal(
+        species_amounts, species_covariances
+    )
 
-    # Ferric iron occupies the second site, where it is labelled Fef.
+    print("Observed composition:")
+    for i in range(len(fitted_species)):
+        print(
+            f"{fitted_species[i]}: {species_amounts[i]:.3f} +/- {np.sqrt(species_covariances[i,i]):.3f}"
+        )
+    print()
+
+    # Fe3+ isn't an element or a site-species of the solution model,
+    # so we need to provide the linear conversion from Fe3+ to
+    # elements and/or site species. In this case, Fe3+ resides only on
+    # the second site, and the JH_2015.gt model has labelled Fe3+ on that
+    # site as Fef. Therefore, the conversion is simply Fe3+ = Fef_B.
     species_conversions = {"Fe3+": {"Fef_B": 1.0}}
+
+    # The next line does the heavy lifting
     popt, pcov, res = fit_composition_to_solution(
         gt, fitted_species, species_amounts, species_covariances, species_conversions
     )
+    # We can set the composition of gt using the optimized parameters
     gt.set_composition(popt)
-    print("\nBest-fit molar fractions:")
-    for name, fraction, variance in zip(
-        gt.endmember_names, gt.molar_fractions, pcov.diagonal()
-    ):
-        print(f"{name}: {fraction:.3f} +/- {np.sqrt(variance):.3f}")
 
-    # The same compositional fit is possible without a thermodynamic model.
+    # Print the optimized parameters and principal uncertainties
+    print("Best-fit molar fractions:")
+    for i in range(len(popt)):
+        fraction = f"{gt.molar_fractions[i]:.3f}".replace("-0.000", "0.000")
+        print(f"{gt.endmember_names[i]}: {fraction} +/- {np.sqrt(pcov[i][i]):.3f}")
+
+    # If you don't have a full solution model prepared,
+    # you can instead use the helper class
+    # DummyCompositionSolution
     element_formulae = [
         "Mg3Al2Si3O12",
         "Fe3Al2Si3O12",
@@ -84,75 +135,104 @@ def main():
     popt1, pcov1, res1 = fit_composition_to_solution(
         gt, fitted_species, species_amounts, species_covariances, species_conversions
     )
-    np.testing.assert_allclose(popt1, popt, atol=1e-12)
-    np.testing.assert_allclose(pcov1, pcov, atol=1e-12)
-    np.testing.assert_allclose(res1, res, atol=1e-10)
-    gt.set_composition(popt1)
+
+    assert res == res1
+    gt.set_composition(popt)
+
     print("\nSite formula:")
     print(gt.site_formula(precision=2))
-    print(f"\nWeighted residual: {res:.3f}\n")
 
-    # Example 2: fit phase mass fractions to the Martian mantle bulk composition.
+    print(f"\nWeighted residual: {res:.3f}")
+    """
+    Example 2
+    ---------
+    Fitting multiphase EPMA data to a bulk composition
+
+    The following example takes a set of compositions (in wt %) of phases
+    determined by EPMA experiments from high pressure experiments
+    by Bertka and Fei (1997). It then calculates the mass fractions
+    of the phases which best-fit the bulk composition reported in that paper,
+    which corresponds to an estimate of the composition of Mars' mantle.
+    """
+
+    # Load and transpose input data
     filename = (
         Path(__file__).resolve().parent
         / "data/input_fitting/Bertka_Fei_1997_mars_mantle.dat"
     )
-    data = np.genfromtxt(filename, names=True, dtype=None, encoding="utf8")
+    with open(filename) as f:
+        column_names = f.readline().strip().split()[1:]
+    data = np.genfromtxt(filename, dtype=None, encoding="utf8")
+    data = list(map(list, itertools.zip_longest(*data, fillvalue=None)))
 
-    # The first six columns are compositions given in weight percent oxides.
-    compositions = np.array([data[name] for name in data.dtype.names[:6]])
+    # The first six columns are compositions given in weight % oxides
+    compositions = np.array(data[:6])
+
+    # The first row is the bulk composition
     bulk_composition = compositions[:, 0]
 
-    # Retain the order of experiments and phases in the measurements.
-    samples = list(dict.fromkeys(data["sample"]))
-    phases = list(dict.fromkeys(data["phase"]))
+    # Load all the data into a dictionary
+    data = {column_names[i]: np.array(data[i]) for i in range(len(column_names))}
+
+    # Make ordered lists of samples (i.e. experiment ID) and phases
+    samples = []
+    phases = []
+    for i in range(len(data["sample"])):
+        if data["sample"][i] not in samples:
+            samples.append(data["sample"][i])
+        if data["phase"][i] not in phases:
+            phases.append(data["phase"][i])
+
     samples.remove("bulk_composition")
     phases.remove("bulk")
-    sample_indices = [np.flatnonzero(data["sample"] == sample) for sample in samples]
+
+    # Get the indices of all the phases present in each sample
+    sample_indices = [
+        [i for i in range(len(data["sample"])) if data["sample"][i] == sample]
+        for sample in samples
+    ]
+
+    # Get the run pressures of each experiment
     pressures = np.array([data["pressure"][indices[0]] for indices in sample_indices])
 
-    weight_proportions = np.full((len(samples), len(phases)), np.nan)
-    weight_proportion_uncertainties = np.full_like(weight_proportions, np.nan)
-    print("Experiment  Pressure (GPa)  Sum of squared residuals (wt %)^2")
+    # Store phase totals and their uncertainties; absent phases remain NaN.
+    weight_proportions = np.zeros((len(samples), len(phases))) * np.nan
+    weight_proportion_uncertainties = np.zeros((len(samples), len(phases))) * np.nan
+
+    # Loop over the samples, fitting phase proportions
+    # to the provided bulk composition
     for i, sample in enumerate(samples):
+        # This line does the heavy lifting
         popt, pcov, res = fit_phase_proportions_to_bulk_composition(
             compositions[:, sample_indices[i]], bulk_composition
         )
-        print(f"{sample:10s}  {pressures[i]:14.2f}  {res:35.6f}")
 
+        # Combine analyses of each phase, including their covariance.
         sample_phases = data["phase"][sample_indices[i]]
         for j, phase in enumerate(phases):
             indices = np.flatnonzero(sample_phases == phase)
             if len(indices):
-                # Combine multiple analyses of a mineral, including covariance.
                 weight_proportions[i, j] = popt[indices].sum()
                 weight_proportion_uncertainties[i, j] = np.sqrt(
                     pcov[np.ix_(indices, indices)].sum()
                 )
 
-    figure, axis = plt.subplots()
+    # Plot the data
     for i, phase in enumerate(phases):
-        axis.errorbar(
+        ebar = plt.errorbar(
             pressures,
             weight_proportions[:, i],
             yerr=weight_proportion_uncertainties[:, i],
-            fmt="o",
-            label=phase,
+            fmt="none",
             zorder=2,
         )
+        plt.scatter(pressures, weight_proportions[:, i], label=phase, zorder=3)
 
-    axis.set(
-        title="Phase proportions in the Martian mantle (Bertka and Fei, 1997)",
-        xlim=(0.0, 40.0),
-        ylim=(0.0, 1.0),
-        xlabel="Pressure (GPa)",
-        ylabel="Phase mass fraction",
-    )
-    axis.legend()
-    figure.tight_layout()
+    plt.title("Phase proportions in the Martian Mantle (Bertka and Fei, 1997)")
+    plt.xlim(0.0, 40.0)
+    plt.ylim(0.0, 1.0)
+    plt.xlabel("Pressure (GPa)")
+    plt.ylabel("Phase fraction (wt %)")
+    plt.legend()
+    # plt.savefig('example_fit_composition_Figure_1.png')
     plt.show()
-    return figure
-
-
-if __name__ == "__main__":
-    main()

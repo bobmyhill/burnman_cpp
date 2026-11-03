@@ -44,23 +44,26 @@ GOLD_PARAMS = dict(
     F_0=0.0,
 )
 
-
 # Edit these settings directly before running the example.
-MAX_PRESSURE_GPA = 1000.0
+PRESSURE_RANGE_GPA = (0.0, 1000.0)
 OUTPUT_DIR = Path(__file__).with_name("spock_gold_output")
 
 
-def main():
+if __name__ == "__main__":
+    # Make and validate the gold SPOCK EOS
     eos = bm.make_eos("spock")
     params = bm.mineral_params(GOLD_PARAMS)
     eos.validate_parameters(params)
+
+    # Compute the P-V curve
     temperature = 298.15
-    pressures = np.linspace(params.P_0, MAX_PRESSURE_GPA * 1.0e9, 801)
+    pressures = np.linspace(PRESSURE_RANGE_GPA[0] * 1.0e9, PRESSURE_RANGE_GPA[1] * 1.0e9, 801)
     volumes = np.array([eos.compute_volume(p, temperature, params) for p in pressures])
     relative_volumes = volumes / params.V_0
     if not np.all(np.diff(volumes) < 0.0):
         raise RuntimeError("Gold volumes must decrease with increasing pressure.")
 
+    # Save the data and metadata to CSV and JSON files
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     np.savetxt(
         OUTPUT_DIR / "gold_spock_pv.csv",
@@ -82,12 +85,13 @@ def main():
         json.dumps(metadata, indent=2) + "\n"
     )
 
+    # Plot the P-V curve
     plt.rcParams.update(
         {"font.size": 11, "axes.spines.top": False, "axes.spines.right": False}
     )
     fig, ax = plt.subplots(figsize=(8.6, 6.4))
     fig.subplots_adjust(left=0.12, right=0.95, top=0.79, bottom=0.29)
-    fig.text(0.12, 0.94, "Gold · SPOCK equation of state", fontsize=20, weight="bold")
+    fig.text(0.12, 0.94, "Gold (SPOCK equation of state)", fontsize=20, weight="bold")
     fig.text(0.12, 0.89, "298.15 K reference isotherm", color="#555555", fontsize=12)
     gold = "#ae7c12"
     ax.plot(volumes * 1.0e6, pressures / 1.0e9, color=gold, linewidth=2.8)
@@ -96,7 +100,7 @@ def main():
         xlabel=r"Molar volume (cm$^3$ mol$^{-1}$)",
         ylabel="Pressure (GPa)",
         xlim=(volumes[-1] * 1.0e6 * 0.97, params.V_0 * 1.0e6 * 1.02),
-        ylim=(0.0, MAX_PRESSURE_GPA),
+        ylim=PRESSURE_RANGE_GPA,
     )
     ax.grid(alpha=0.18, linewidth=0.7)
     ax.set_axisbelow(True)
@@ -113,7 +117,7 @@ def main():
     ax.text(
         0.97,
         0.92,
-        "SPOCK · Myhill (2025)\nCalculated with BurnMan C++",
+        "SPOCK EoS (Myhill, 2025)\nCalculated with BurnMan C++",
         transform=ax.transAxes,
         ha="right",
         va="top",
@@ -142,8 +146,4 @@ def main():
     for extension in ("png", "svg", "pdf"):
         fig.savefig(OUTPUT_DIR / f"gold_spock_pv.{extension}", dpi=220)
     plt.close(fig)
-    print(f"Saved gold SPOCK P–V plot and data to {OUTPUT_DIR}")
-
-
-if __name__ == "__main__":
-    main()
+    print(f"Saved gold SPOCK P-V plot and data to {OUTPUT_DIR}")

@@ -12,15 +12,13 @@
 #
 # ------------------------------------------------------
 
-"""Green et al. (2025), Figure S3-4: synthetic pyroxenite MIX1G (dry).
-
-The bulk is in oxide moles, with a fixed inventory of excess atomic O.
+"""
+Green et al. (2025), Figure S3-4: synthetic pyroxenite MIX1G (dry).
 """
 
 from driver_green2025 import main
 
 SEEDS = 7
-
 OXIDES = dict(
     SiO2=45.25,
     Al2O3=8.89,

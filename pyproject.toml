@@ -40,6 +40,7 @@ sdist.include = [
   "/python/bindings/*.cpp", "/python/bindings/*.hpp",
   "/python/burnman_cpp/**/*.py", "/python/tests/*.py", "/examples/*.py",
   "/python/tests/data/Pearson_York.dat",
+  "/examples/data/input_compositions/*",
   "/examples/data/input_fitting/*",
   "/src/data/input_seismic/*", "/tools/export_seismic_data.py",
   "/src/data/input_geotherm/*", "/tools/export_geotherm_data.py",

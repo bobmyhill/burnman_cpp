@@ -14,560 +14,623 @@
 # Adapted from BurnMan's examples/example_equilibrate.py.
 # Copyright (C) 2012–2021 by the BurnMan team, GPL v2 or later.
 # This adaptation is distributed under GPL v3 or later.
-"""Reproduce the eight pure Python BurnMan equilibration examples in C++.
+"""
+example_equilibrate
+--------------------
 
-Install the wrapper and plotting dependencies with:
-    python -m pip install -e '.[examples]'
-    python examples/example_equilibrate.py
+This example demonstrates how BurnMan may be used to calculate the
+equilibrium state for an assemblage of a fixed bulk composition given
+two constraints. Each constraint is a native PressureConstraint,
+TemperatureConstraint, EntropyConstraint, VolumeConstraint, LinearXConstraint,
+PTEllipseConstraint, PhaseFractionConstraint or PhaseCompositionConstraint.
+A list of constraint objects samples a range of values; multiple lists
+produce a Cartesian grid of equilibrium states.
 
-Mineral construction, solution models, state properties and equilibrium
-solves run in C++. Python selects the scenarios and plots native results.
-The example does not import or require the pure Python BurnMan package.
-The default uses the original sampling and saves six figures. Use --show for
-interactive plots, --case to select a scenario, or --quick for a smaller grid.
+Phase-fraction and phase-composition constraints take the index of the phase
+in the assemblage and its equilibration parameters. A phase-composition
+constraint also specifies site names, numerator and denominator coefficients,
+and the desired ratio of site occupancies. For example, the constraint
+([Mg_A, Fe_A], [1., 0.], [1., 1.], 0.5) would correspond to equal amounts
+of Mg and Fe on the A site.
+
+The native solver returns an object containing sol_array and prm. Each
+solution contains the equilibrium parameter vector x; phase amounts and
+endmember proportions can be read from that vector using prm.parameter_names.
+
+This script provides a number of examples, which can be turned on and off
+with a series of boolean variables. In order of complexity:
+
+* run_aluminosilicates: Creates the classic aluminosilicate diagram involving
+  univariate reactions between andalusite, sillimanite and kyanite.
+* run_ordering: Calculates the state of order of Jennings and Holland (2015)
+  orthopyroxene in the simple en-fs binary at 1 bar.
+* run_gt_solvus: Demonstrates the shape of the pyrope-grossular solvus.
+* run_fper_ol: Calculates the equilibrium Mg-Fe partitioning between
+  ferropericlase and olivine.
+* run_fixed_ol_composition: Calculates the composition of wadsleyite in
+  equilibrium with olivine of a fixed composition at a fixed pressure.
+* run_upper_mantle: Calculates the equilibrium compositions and
+  phase proportions for an ol-opx-gt composite in an NCFMAS bulk composition.
+* run_lower_mantle: Calculates temperatures and assemblage properties
+  along an isentrope in the lower mantle. Includes calculations of the
+  post-perovskite-in and bridgmanite-out lines.
+* run_olivine_polymorphs: Produces a P-T pseudosection for a fo90 composition.
+
+*Uses:*
+
+* :ref:`ref-mineral-datasets`
+* :class:`burnman_cpp.Assemblage`
+* :func:`burnman_cpp.equilibrate`
 """
 
-import argparse
-from pathlib import Path
-
 import numpy as np
-import burnman_cpp as bm
-from burnman_cpp.minerals import HP_2011_ds62, JH_2015, SLB_2011
+import matplotlib.pyplot as plt
+
+import burnman_cpp
+from burnman_cpp import equilibrate
+from burnman_cpp.minerals import HP_2011_ds62, SLB_2011, JH_2015
+from burnman_cpp.tools.polytope import simplify_composite_with_composition
 
 
-def assemblage(phases, fractions=None):
-    if fractions is None:
-        fractions = np.full(len(phases), 1.0 / len(phases))
-    return bm.Assemblage(phases, fractions)
+def print_assemblage(assemblage):
+    print(f"P, T: {assemblage.pressure:.4g} Pa, {assemblage.temperature:.4g} K")
+    print("Phase and endmember fractions:")
+    for phase, fraction in zip(assemblage.phases, assemblage.molar_fractions):
+        print(f"  {phase.name}: {fraction:.4f}")
+        if isinstance(phase, burnman_cpp.Solution):
+            for name, value in zip(phase.endmember_names, phase.molar_fractions):
+                print(f"    {name}: {value:.4f}")
 
 
-def phase_fraction(a, composition, index, fraction):
-    prm = bm.get_equilibration_parameters(a, composition)
-    return bm.PhaseFractionConstraint(index, fraction, prm)
+run_aluminosilicates = True
+run_ordering = True
+run_gt_solvus = True
+run_fper_ol = True
+run_fixed_ol_composition = True
+run_upper_mantle = True
+run_lower_mantle = True
+run_olivine_polymorphs = True
 
+gt = SLB_2011.garnet()
+ol = SLB_2011.mg_fe_olivine()
+wad = SLB_2011.mg_fe_wadsleyite()
+rw = SLB_2011.mg_fe_ringwoodite()
+bdg = SLB_2011.mg_fe_bridgmanite()
+ppv = SLB_2011.post_perovskite()
+fper = SLB_2011.ferropericlase()
+opx = SLB_2011.orthopyroxene()
+stv = SLB_2011.stishovite()
+coe = SLB_2011.coesite()
+cpv = SLB_2011.ca_perovskite()
 
-def solve(composition, a, constraints, label, **kwargs):
-    # Pressure, temperature and mole fractions need different absolute step
-    # tolerances. A scalar 1e-3 Pa is below numerical precision at mantle P.
-    kwargs.setdefault("tol", np.r_[1.0, 1.0e-6, np.full(a.n_endmembers, 1.0e-9)])
-    result = bm.equilibrate(composition, a, constraints, **kwargs)
-    solutions = result.sol_array.ravel()
-    failures = [s for s in solutions if not s.success]
-    print(
-        f"  {label}: {len(solutions) - len(failures)}/{len(solutions)} converged",
-        flush=True,
+if __name__ == "__main__" and run_aluminosilicates:
+    """
+    Creates the classic aluminosilicate diagram involving
+    univariate reactions between andalusite, sillimanite and kyanite.
+    """
+    sillimanite = HP_2011_ds62.sill()
+    andalusite = HP_2011_ds62.andalusite()
+    kyanite = HP_2011_ds62.ky()
+
+    # First, find the pressure and temperature of the invariant point
+    composition = sillimanite.formula
+    assemblage = burnman_cpp.Assemblage(
+        [sillimanite, andalusite, kyanite], [1.0 / 3.0] * 3
     )
-    if failures:
-        print(f"    First failure: {failures[0].message}", flush=True)
-    if len(failures) == len(solutions):
-        raise RuntimeError(f"{label}: no equilibrium found ({failures[0].message})")
-    return result
+    prm = burnman_cpp.get_equilibration_parameters(assemblage, composition)
+    equality_constraints = [
+        burnman_cpp.PhaseFractionConstraint(2, 0.0, prm),
+        burnman_cpp.PhaseFractionConstraint(0, 0.0, prm),
+    ]
 
+    result = equilibrate(composition, assemblage, equality_constraints)
+    sol, prm = result.sol_array.item(), result.prm
+    P_inv, T_inv = sol.x[0:2]
+    print(f"invariant point found at {P_inv/1e9:.2f} GPa, {T_inv:.2f} K")
 
-def point(result):
-    s = result.sol_array.item()
-    if not s.success:
-        raise RuntimeError(s.message)
-    return s
+    # Now we can find the univariant lines which all converge on the
+    # invariant point. In this case, we assume we know which side of each line
+    # is stable (because the aluminosilicate diagram is so ubiquitous in
+    # metamorphic textbooks), but if we didn't know,
+    # we could also calculate which field is stable around the invariant point
+    # by checking to see which had the minimum Gibbs energy.
+    low_pressures = np.linspace(1.0e5, P_inv, 21)
+    high_pressures = np.linspace(P_inv, 1.0e9, 21)
 
-
-def values(result):
-    return np.array([s.x for s in result.sol_array.ravel() if s.success]).T
-
-
-def describe(a):
-    print(f"  {a.pressure / 1.e9:.4f} GPa, {a.temperature:.2f} K")
-    for p, f in zip(a.phases, a.molar_fractions):
-        suffix = (
-            f", endmembers {np.array2string(p.molar_fractions, precision=4)}"
-            if isinstance(p, bm.Solution)
-            else ""
-        )
-        print(f"    {p.name}: {f:.4f}{suffix}")
-
-
-class Example:
-    def __init__(self, quick=False, plots=True):
-        self.quick = quick
-        self.plots = plots
-        self.figures = {}
-
-    def grid(self, lo, hi, count):
-        return np.linspace(lo, hi, min(count, 5) if self.quick else count)
-
-    def figure(self, name, **kwargs):
-        if not self.plots:
-            return None
-        import matplotlib.pyplot as plt
-
-        fig = plt.figure(**kwargs)
-        self.figures[name] = fig
-        return fig
-
-    def aluminosilicates(self):
-        sill, andal, ky = (
-            HP_2011_ds62.sill(),
-            HP_2011_ds62.andalusite(),
-            HP_2011_ds62.ky(),
-        )
-        comp = sill.formula
-        a = assemblage([sill, andal, ky])
-        result = solve(
-            comp,
-            a,
-            [phase_fraction(a, comp, 2, 0.0), phase_fraction(a, comp, 0, 0.0)],
-            "invariant",
-        )
-        p_inv, t_inv = point(result).x[:2]
-        print(f"  Invariant point: {p_inv / 1.e9:.4f} GPa, {t_inv:.2f} K")
-        fig = self.figure("aluminosilicates")
-        ax = fig.subplots() if fig else None
-        for pair, pressures in [
-            ([andal, ky], self.grid(1.0e5, p_inv, 21)),
-            ([sill, andal], self.grid(1.0e5, p_inv, 21)),
-            ([sill, ky], self.grid(p_inv, 1.0e9, 21)),
-        ]:
-            a = assemblage(pair)
-            r = solve(
-                comp,
-                a,
-                [
-                    [bm.PressureConstraint(p) for p in pressures],
-                    phase_fraction(a, comp, 0, 0.0),
-                ],
-                f"{pair[0].name}/{pair[1].name}",
-            )
-            x = values(r)
-            if ax:
-                ax.plot(x[1], x[0] / 1.0e9)
-        if ax:
-            a = assemblage([sill, andal, ky])
-            for p, t in [[0.2e9, 800.0], [0.6e9, 650.0], [0.5e9, 1000.0]]:
-                a.set_state(p, t)
-                ax.text(
-                    t,
-                    p / 1.0e9,
-                    min(a.phases, key=lambda phase: phase.molar_gibbs).name,
-                )
-            ax.set(xlabel="Temperature (K)", ylabel="Pressure (GPa)")
-
-    def ordering(self):
-        comp = {"Mg": 1.0, "Fe": 1.0, "Si": 2.0, "O": 6.0}
-        a = bm.simplify_composite_with_composition(
-            assemblage([JH_2015.orthopyroxene()]), comp
-        )
-        opx = a.phases[0]
-        opx.set_composition([1.0 / 3.0] * 3)
-        a = assemblage([opx])
-        temperatures = self.grid(2000.0, 300.0, 41)
-        fig = self.figure("ordering")
-        ax = fig.subplots() if fig else None
-        for mg_number in np.linspace(10.0, 50.0, 5):
-            comp.update(Mg=mg_number / 50.0, Fe=2.0 - mg_number / 50.0)
-            r = solve(
-                comp,
-                a,
-                [
-                    bm.PressureConstraint(1.0e5),
-                    [bm.TemperatureConstraint(t) for t in temperatures],
-                ],
-                f"Mg# {mg_number:g}",
-            )
-            names = r.prm.parameter_names
-            candidates = [
-                (i, -1.0 if "Derived member" in name else 1.0)
-                for i, name in enumerate(names)
-                if "ordered ferroenstatite" in name or "Derived member" in name
-            ]
-            if len(candidates) != 1:
-                raise RuntimeError(f"Cannot identify the ordering endmember: {names}")
-            idx, sign = candidates[0]
-            x = values(r)
-            if ax:
-                ax.plot(x[1], sign * x[idx], label=f"Mg# = {mg_number:g}")
-        if ax:
-            ax.set(
-                xlabel="Temperature (K)", ylabel="Proportion of ordered orthopyroxene"
-            )
-            ax.legend()
-
-    def gt_solvus(self):
-        comp = {"Mg": 1.5, "Ca": 1.5, "Al": 2.0, "Si": 3.0, "O": 12.0}
-        reduced = bm.simplify_composite_with_composition(
-            assemblage([SLB_2011.garnet(), SLB_2011.garnet()]), comp
-        )
-        gt1, gt2 = reduced.phases
-        gt1.set_composition([0.05, 0.95])
-        gt2.set_composition([0.95, 0.05])
-        a = assemblage([gt1, gt2], [0.5, 0.5])
-        r = solve(
-            comp,
-            a,
-            [
-                bm.PressureConstraint(1.0e5),
-                [bm.TemperatureConstraint(t) for t in self.grid(300.0, 601.4, 301)],
-            ],
-            "pyrope–grossular solvus",
-        )
-        solutions = list(r.sol_array.flat)
-        recovered = 0
-        for i, s in enumerate(solutions):
-            if not s.success:
-                # The branches merge at the critical point, where the split
-                # between identical phases is undetermined. The continuation
-                # predictor can become singular; retry with distinct, nearby
-                # compositions rather than dropping the endpoint from the plot.
-                gt1.set_composition([0.48, 0.52])
-                gt2.set_composition([0.52, 0.48])
-                a.set_fractions([0.5, 0.5])
-                print(f"  Retrying solvus point {i} at T={s.x[1]:.8g} K.", flush=True)
-                retry = solve(
-                    comp,
-                    a,
-                    [bm.PressureConstraint(1.0e5), bm.TemperatureConstraint(s.x[1])],
-                    "solvus endpoint retry",
-                )
-                solutions[i] = point(retry)
-                recovered += 1
-        print(
-            f"  pyrope–grossular solvus final: {sum(s.success for s in solutions)}"
-            f"/{len(solutions)} converged; {recovered} recovered by retry.",
-            flush=True,
-        )
-        x = np.array([s.x for s in solutions if s.success]).T
-        fig = self.figure("gt_solvus")
-        if fig:
-            ax = fig.subplots()
-            ax.plot(1.0 - x[3], x[1])
-            ax.plot(1.0 - x[5], x[1])
-            ax.text(0.5, 400.0, "miscibility gap", ha="center")
-            ax.set(xlabel="Molar proportion of pyrope", ylabel="Temperature (K)")
-
-    def fper_ol(self):
-        ol, fper = SLB_2011.mg_fe_olivine(), SLB_2011.ferropericlase()
-        ol.set_composition([0.93, 0.07])
-        fper.set_composition([0.9, 0.1])
-        a = assemblage([ol, fper], [0.7, 0.3])
-        a.set_state(0.0, 1000.0)
-        comp = {"Mg": 1.0, "Fe": 0.5, "Si": 0.5, "O": 2.5}
-        r = solve(
-            comp,
-            a,
-            [
-                [bm.PressureConstraint(p) for p in np.linspace(0.0, 10.0e9, 3)],
-                [bm.TemperatureConstraint(t) for t in self.grid(1000.0, 1500.0, 11)],
-            ],
-            "olivine/ferropericlase partitioning",
-        )
-        fig = self.figure("fper_ol")
-        if fig:
-            ax = fig.subplots()
-            for row in r.sol_array:
-                x = np.array([s.x for s in row if s.success]).T
-                (line,) = ax.plot(x[1], x[3], label=f"p(fa), {x[0, 0]/1.e9:g} GPa")
-                ax.plot(
-                    x[1],
-                    x[5],
-                    color=line.get_color(),
-                    ls="--",
-                    label=f"p(wus), {x[0, 0]/1.e9:g} GPa",
-                )
-            ax.set(xlabel="Temperature (K)", ylabel="Proportion (mol fraction)")
-            ax.legend()
-
-    def fixed_ol_composition(self):
-        ol, wad = SLB_2011.mg_fe_olivine(), SLB_2011.mg_fe_wadsleyite()
-        ol.set_composition([0.5, 0.5])
-        wad.set_composition([0.6, 0.4])
-        a = assemblage([ol, wad], [0.7, 0.3])
-        a.set_state(10.0e9, 1200.0)
-        comp = {"Mg": 1.0, "Fe": 1.0, "Si": 1.0, "O": 4.0}
-        prm = bm.get_equilibration_parameters(a, comp)
-        constraint = bm.PhaseCompositionConstraint(
-            0, ["Mg_A", "Fe_A"], [0.0, 1.0], [1.0, 1.0], 0.45, a, prm
-        )
-        r = solve(
-            comp,
-            a,
-            [bm.PressureConstraint(10.0e9), constraint],
-            "fixed olivine composition",
-        )
-        bm.set_composition_and_state_from_parameters(a, point(r).x)
-        describe(a)
-
-    def upper_mantle(self):
-        ol, opx, gt = (
-            SLB_2011.mg_fe_olivine(),
-            SLB_2011.orthopyroxene(),
-            SLB_2011.garnet(),
-        )
-        ol.set_composition([0.93, 0.07])
-        opx.set_composition([0.8, 0.1, 0.05, 0.05])
-        gt.set_composition([0.8, 0.1, 0.05, 0.03, 0.02])
-        a = assemblage([ol, opx, gt], [0.7, 0.1, 0.2])
-        a.set_state(10.0e9, 1500.0)
-        comp = {
-            "Na": 0.02,
-            "Fe": 0.2,
-            "Mg": 2.0,
-            "Si": 1.9,
-            "Ca": 0.2,
-            "Al": 0.4,
-            "O": 6.81,
-        }
-        r = solve(
-            comp,
-            a,
-            [bm.PressureConstraint(10.0e9), bm.TemperatureConstraint(1500.0)],
-            "upper mantle",
-            max_iterations=20,
-        )
-        bm.set_composition_and_state_from_parameters(a, point(r).x)
-        describe(a)
-
-    def lower_mantle(self):
-        bdg, ppv, fper, cpv = (
-            SLB_2011.mg_fe_bridgmanite(),
-            SLB_2011.post_perovskite(),
-            SLB_2011.ferropericlase(),
-            SLB_2011.ca_perovskite(),
-        )
-        for p, name in zip([bdg, ppv, fper, cpv], ["bdg", "ppv", "fper", "cpv"]):
-            p.name = name
-        bdg.set_composition([0.86, 0.1, 0.04])
-        ppv.set_composition([0.86, 0.1, 0.04])
-        fper.set_composition([0.9, 0.1])
-        comp = {"Fe": 0.2, "Mg": 2.0, "Si": 1.9, "Ca": 0.2, "Al": 0.4, "O": 6.8}
-        a = assemblage([bdg, fper, cpv])
-        r = solve(
-            comp,
-            a,
-            [bm.PressureConstraint(25.0e9), bm.TemperatureConstraint(1600.0)],
-            "reference entropy",
-        )
-        bm.set_composition_and_state_from_parameters(a, point(r).x)
-        entropy = (
-            a.n_moles * a.molar_entropy
-        )  # Constraint fixes total entropy of the specified bulk.
-        a = assemblage([bdg, fper, ppv, cpv])
-        a.set_state(*point(r).x[:2])
-        r = solve(
-            comp,
-            a,
-            [bm.EntropyConstraint(entropy), phase_fraction(a, comp, 2, 0.0)],
-            "post-perovskite in",
-        )
-        p_in, t_in = point(r).x[:2]
-        bm.set_composition_and_state_from_parameters(a, point(r).x)
-        r = solve(
-            comp,
-            a,
-            [bm.EntropyConstraint(entropy), phase_fraction(a, comp, 0, 0.0)],
-            "bridgmanite out",
-        )
-        p_out, t_out = point(r).x[:2]
-        print(
-            f"  ppv in: {p_in/1.e9:.3f} GPa, {t_in:.2f} K; bdg out: {p_out/1.e9:.3f} GPa, {t_out:.2f} K"
-        )
-        fig = self.figure("lower_mantle", figsize=(16, 8))
-        axes = fig.subplots(2, 3).ravel() if fig else None
-        for j, (pressures, phases) in enumerate(
-            [
-                (self.grid(25.0e9, p_in, 21), [bdg, fper, cpv]),
-                (self.grid(p_in, p_out, 21), [bdg, fper, ppv, cpv]),
-                (self.grid(p_out, 140.0e9, 21), [ppv, fper, cpv]),
-            ]
-        ):
-            a = assemblage(phases)
-            r = solve(
-                comp,
-                a,
-                [
-                    [bm.PressureConstraint(p) for p in pressures],
-                    bm.EntropyConstraint(entropy),
-                ],
-                f"isentrope segment {j+1}",
-            )
-            if axes is None:
-                continue
-            x, names = values(r), r.prm.parameter_names
-            pressures = x[0] / 1.0e9
-            axes[0].plot(pressures, x[1], color="black")
-            for i, (p, color) in enumerate(
-                zip([bdg, fper, cpv, ppv], ["red", "green", "blue", "orange"])
-            ):
-                if f"x({p.name})" in names:
-                    axes[i + 1].plot(
-                        pressures, x[names.index(f"x({p.name})")], color=color
-                    )
-                axes[i + 1].set(
-                    xlim=(0, 140), ylim=(0, 2), ylabel=f"n moles of {p.name}"
-                )
-            per_idx = names.index("x(fper)")
-            for p, color in [(bdg, "red"), (ppv, "blue")]:
-                if f"x({p.name})" in names:
-                    idx = names.index(f"x({p.name})")
-                    kd = (
-                        x[idx + 1]
-                        * (1.0 - x[per_idx + 1])
-                        / ((1.0 - x[idx + 1] - x[idx + 2]) * x[per_idx + 1])
-                    )
-                    axes[5].plot(
-                        pressures,
-                        kd,
-                        color=color,
-                        label=f"{p.name} K$_D$" if j == 1 else None,
-                    )
-        if axes is not None:
-            for ax in axes:
-                ax.set_xlabel("Pressure (GPa)")
-            axes[0].set_ylabel("Temperature (K)")
-            axes[5].set(ylim=(0, 1), ylabel="[FeSiO$_3$/MgSiO$_3$]/[FeO/MgO]")
-            axes[5].legend()
-
-    def olivine_polymorphs(self):
-        ol, wad, rw = (
-            SLB_2011.mg_fe_olivine(),
-            SLB_2011.mg_fe_wadsleyite(),
-            SLB_2011.mg_fe_ringwoodite(),
-        )
-        for p, f in zip([ol, wad, rw], [[0.93, 0.07], [0.91, 0.09], [0.93, 0.07]]):
-            p.set_composition(f)
-        comp = {"Fe": 0.2, "Mg": 1.8, "Si": 1.0, "O": 4.0}
-        a = assemblage([ol, wad, rw], [1.0, 0.0, 0.0])
-        r = solve(
-            comp,
-            a,
-            [phase_fraction(a, comp, 0, 0.0), phase_fraction(a, comp, 2, 0.0)],
-            "ol–wad–rw invariant 1",
-        )
-        p_inv1, t_inv1 = point(r).x[:2]
-        a = assemblage([ol, wad, rw])
-        r = solve(
-            comp,
-            a,
-            [phase_fraction(a, comp, 1, 0.0), phase_fraction(a, comp, 2, 0.0)],
-            "ol–wad–rw invariant 2",
-        )
-        p_inv2, t_inv2 = point(r).x[:2]
-        print(
-            f"  Invariants: ({p_inv1/1.e9:.3f} GPa, {t_inv1:.2f} K), ({p_inv2/1.e9:.3f} GPa, {t_inv2:.2f} K)"
-        )
-        fig = self.figure("olivine_polymorphs")
-        ax = fig.subplots() if fig else None
-        t0, t1 = 573.15, 1773.15
-        curves = [
-            (t0, t_inv1, [ol, wad, rw], 0, 0.0),
-            (t0, t_inv2, [ol, wad, rw], 1, 0.0),
-            (t_inv2, t_inv1, [ol, wad, rw], 2, 0.0),
-            (t0, t_inv2, [ol, rw], 1, 0.0),
-            (t_inv2, t1, [ol, wad], 1, 0.0),
-            (t_inv1, t1, [ol, wad], 1, 1.0),
-            (t_inv1, t1, [wad, rw], 1, 0.0),
-            (t0, t1, [wad, rw], 1, 1.0),
+    for pair, pressures in [
+        ([andalusite, kyanite], low_pressures),
+        ([sillimanite, andalusite], low_pressures),
+        ([sillimanite, kyanite], high_pressures),
+    ]:
+        assemblage = burnman_cpp.Assemblage(pair, [0.5, 0.5])
+        prm = burnman_cpp.get_equilibration_parameters(assemblage, composition)
+        equality_constraints = [
+            [burnman_cpp.PressureConstraint(P) for P in pressures],
+            burnman_cpp.PhaseFractionConstraint(0, 0.0, prm),
         ]
-        for i, (lo, hi, phases, index, fraction) in enumerate(curves):
-            a = assemblage(phases, [0.0, 1.0] if i == 7 else None)
-            r = solve(
-                comp,
-                a,
-                [
-                    [bm.TemperatureConstraint(t) for t in self.grid(lo, hi, 8)],
-                    phase_fraction(a, comp, index, fraction),
-                ],
-                f"polymorph boundary {i+1}",
+        result = equilibrate(composition, assemblage, equality_constraints)
+        sols, prm = result.sol_array.ravel(), result.prm
+        Ps = np.array([sol.x[0] for sol in sols if sol.success])
+        Ts = np.array([sol.x[1] for sol in sols if sol.success])
+        plt.plot(Ts, Ps / 1.0e9)
+
+    # Now we plot each stable field. Here, we do explicitly check
+    # which polymorph is stable at each point.
+    assemblage = burnman_cpp.Assemblage(
+        [sillimanite, andalusite, kyanite], [1.0 / 3.0] * 3
+    )
+    for P, T in [[0.2e9, 800.0], [0.6e9, 650], [0.5e9, 1000]]:
+        assemblage.set_state(P, T)
+
+        stable_phase = kyanite
+        min_gibbs = kyanite.molar_gibbs
+
+        for phase in [sillimanite, andalusite]:
+            if phase.molar_gibbs < min_gibbs:
+                min_gibbs = phase.molar_gibbs
+                stable_phase = phase
+
+        plt.text(T, P / 1.0e9, stable_phase.name)
+
+    plt.xlabel("Temperature (K)")
+    plt.ylabel("Pressure (GPa)")
+
+    plt.show()
+
+if __name__ == "__main__" and run_ordering:
+    """
+    Calculates the state of order of Jennings and Holland (2015)
+    orthopyroxene in the simple en-fs binary at 1 bar.
+    """
+    assemblage = burnman_cpp.Assemblage([JH_2015.orthopyroxene()], [1.0])
+
+    composition = {
+        "Mg": 50 / 100.0 * 2.0,
+        "Fe": (1.0 - 50 / 100.0) * 2.0,
+        "Si": 2.0,
+        "O": 6.0,
+    }
+
+    # The JH2015 orthopyroxene has some components which do not
+    # exist in our simple bulk composition, so here we call a
+    # helper function to simplify any phases that cannot be represented
+    # by the bulk composition. This can either remove endmembers, or in some
+    # cases redefine the independent set of endmembers to create the simplest
+    # solutions possible.
+    assemblage = simplify_composite_with_composition(assemblage, composition)
+
+    assemblage.phases[0].set_composition([1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0])
+
+    temperatures = np.linspace(2000.0, 300.0, 41)
+
+    Mg_numbers = np.linspace(10.0, 50.0, 5)
+    equality_constraints = [
+        burnman_cpp.PressureConstraint(1.0e5),
+        [burnman_cpp.TemperatureConstraint(T) for T in temperatures],
+    ]
+
+    # Loop over Mg numbers
+    for Mg_number in Mg_numbers:
+        composition = {
+            "Mg": Mg_number / 100.0 * 2.0,
+            "Fe": (1.0 - Mg_number / 100.0) * 2.0,
+            "Si": 2.0,
+            "O": 6.0,
+        }
+        result = equilibrate(composition, assemblage, equality_constraints)
+        sols, prm = result.sol_array.ravel(), result.prm
+        # We know that we've made a simpler orthopyroxene solution.
+        # In this case, the endmembers are either the same, or
+        # the processing has created an anti-ordered endmember.
+        # We get the index of the ordered/anti-ordered endmember here.
+        try:
+            idx = prm.parameter_names.index(
+                "p(ordered ferroenstatite in orthopyroxene (CFMASCrO) (transformed))"
             )
-            if ax:
-                x = values(r)
-                ax.plot(x[1], x[0] / 1.0e9, color="black")
-        rw2, bdg, fper = (
-            SLB_2011.mg_fe_ringwoodite(),
-            SLB_2011.mg_fe_bridgmanite(),
-            SLB_2011.ferropericlase(),
+            p_fms = np.array([sol.x[idx] for sol in sols if sol.success])
+        except ValueError:
+            idx = prm.parameter_names.index(
+                "p(Derived member (occupancies: [Mg][Fe][Si]1/2) in orthopyroxene (CFMASCrO) (transformed))"
+            )
+            p_fms = np.array([-sol.x[idx] for sol in sols if sol.success])
+
+        Ts = np.array([sol.x[1] for sol in sols if sol.success])
+        plt.plot(Ts, p_fms, label=f"Mg# = {Mg_number}")
+    plt.xlabel("Temperature (K)")
+    plt.ylabel("Proportion of ordered orthopyroxene")
+    plt.legend(loc="best")
+    plt.show()
+
+if __name__ == "__main__" and run_gt_solvus:
+    """
+    Demonstrates the shape of the pyrope-grossular solvus.
+    """
+    composition = {"Mg": 1.5, "Ca": 1.5, "Al": 2.0, "Si": 3.0, "O": 12.0}
+
+    # The assemblage in this case is made of two distinct copies of the
+    # SLB_2011 garnet solution.
+    # In the bulk composition of interest, there are only
+    # two stable endmembers of the solution. Here, we simplify each phase
+    # so that it only contains those endmembers
+    a = burnman_cpp.Assemblage([SLB_2011.garnet()], [1.0])
+    a = simplify_composite_with_composition(a, composition)
+    py_gr = a.phases[0]
+
+    assemblage = burnman_cpp.Assemblage([py_gr, py_gr.copy()], [0.5, 0.5])
+
+    # We must set the compositions as distinct so that the equilibrium
+    # function approaches the minimum with two distinct compositions,
+    # rather than the metastable equilibrium where both phases have
+    # the same composition.
+    assemblage.phases[0].set_composition([0.05, 0.95])
+    assemblage.phases[1].set_composition([0.95, 0.05])
+
+    # Run the equilibration
+    pressure = 1.0e5
+    temperatures = np.linspace(300.0, 601.4, 301)
+    equality_constraints = [
+        burnman_cpp.PressureConstraint(pressure),
+        [burnman_cpp.TemperatureConstraint(T) for T in temperatures],
+    ]
+
+    result = equilibrate(composition, assemblage, equality_constraints)
+    sols, prm = result.sol_array.ravel(), result.prm
+
+    # Interrogate the stable assemblages for phase compositions.
+    # Binary solutions store their second endmember fraction in x.
+    x1s = np.array([sol.x[3] for sol in sols if sol.success])
+    x2s = np.array([sol.x[5] for sol in sols if sol.success])
+    Ts = np.array([sol.x[1] for sol in sols if sol.success])
+
+    plt.plot(x1s, Ts)
+    plt.plot(x2s, Ts)
+
+    plt.text(0.5, 400.0, "miscibility gap", horizontalalignment="center")
+    plt.xlabel("Molar proportion of pyrope")
+    plt.ylabel("Temperature (K)")
+    plt.show()
+
+if __name__ == "__main__" and run_fper_ol:
+    """
+    Calculates the equilibrium Mg-Fe partitioning between
+    ferropericlase and olivine.
+    """
+    temperatures = np.linspace(1000.0, 1500.0, 11)
+    pressures = np.linspace(0.0e9, 10.0e9, 3)
+
+    assemblage = burnman_cpp.Assemblage([ol, fper], [0.7, 0.3])
+
+    ol.set_composition([0.93, 0.07])
+    fper.set_composition([0.9, 0.1])
+
+    assemblage.set_state(pressures[0], temperatures[0])
+    equality_constraints = [
+        [burnman_cpp.PressureConstraint(P) for P in pressures],
+        [burnman_cpp.TemperatureConstraint(T) for T in temperatures],
+    ]
+
+    composition = {"Mg": 1.0, "Fe": 0.5, "Si": 0.5, "O": 2.5}
+
+    result = equilibrate(composition, assemblage, equality_constraints)
+    sol, prm = result.sol_array, result.prm
+
+    for sols in sol:
+        PGPa = sols[0].x[0] / 1.0e9
+        T = [s.x[1] for s in sols]
+        x_fa = [s.x[3] for s in sols]
+        x_wus = [s.x[5] for s in sols]
+        p = plt.plot(T, x_fa, label=f"p(fa), {PGPa} GPa")
+        plt.plot(
+            T, x_wus, c=p[0].get_color(), linestyle="--", label=f"p(wus), {PGPa} GPa"
         )
-        rw2.set_composition(rw.molar_fractions)
-        fper.set_composition([0.9, 0.1])
-        a = bm.simplify_composite_with_composition(assemblage([rw2, bdg, fper]), comp)
-        a.phases[1].set_composition([0.86, 0.14])
-        for fraction in [0.0, 1.0]:
-            r = solve(
-                comp,
-                a,
-                [
-                    [bm.TemperatureConstraint(t) for t in self.grid(t0, t1, 8)],
-                    phase_fraction(a, comp, 0, fraction),
-                ],
-                f"ringwoodite breakdown, fraction {fraction:g}",
+    plt.xlabel("Temperature (K)")
+    plt.ylabel("proportion (mol fraction)")
+    plt.legend()
+    plt.show()
+
+if __name__ == "__main__" and run_fixed_ol_composition:
+    """
+    Calculates the composition of wadsleyite in equilibrium with olivine
+    of a fixed composition at a fixed pressure.
+    """
+    assemblage = burnman_cpp.Assemblage([ol, wad], [0.7, 0.3])
+    ol.set_composition([0.5, 0.5])
+    wad.set_composition([0.6, 0.4])
+
+    assemblage.set_state(10.0e9, 1200.0)
+    composition = {"Mg": 1.0, "Fe": 1.0, "Si": 1.0, "O": 4.0}
+    prm = burnman_cpp.get_equilibration_parameters(assemblage, composition)
+    equality_constraints = [
+        burnman_cpp.PressureConstraint(10.0e9),
+        burnman_cpp.PhaseCompositionConstraint(
+            0, ["Mg_A", "Fe_A"], [0.0, 1.0], [1.0, 1.0], 0.45, assemblage, prm
+        ),
+    ]
+
+    result = equilibrate(composition, assemblage, equality_constraints)
+    sol, prm = result.sol_array.item(), result.prm
+
+    print_assemblage(assemblage)
+
+if __name__ == "__main__" and run_upper_mantle:
+    """
+    Calculates the equilibrium compositions and phase proportions for
+    an ol-opx-gt composite in an NCFMAS bulk composition.
+    """
+    pressure = 10.0e9
+    temperature = 1500.0
+
+    composition = {
+        "Na": 0.02,
+        "Fe": 0.2,
+        "Mg": 2.0,
+        "Si": 1.9,
+        "Ca": 0.2,
+        "Al": 0.4,
+        "O": 6.81,
+    }
+
+    assemblage = burnman_cpp.Assemblage([ol, opx, gt], [0.7, 0.1, 0.2])
+
+    ol.set_composition([0.93, 0.07])
+    opx.set_composition([0.8, 0.1, 0.05, 0.05])
+    gt.set_composition([0.8, 0.1, 0.05, 0.03, 0.02])
+
+    assemblage.set_state(pressure, temperature)
+    equality_constraints = [
+        burnman_cpp.PressureConstraint(10.0e9),
+        burnman_cpp.TemperatureConstraint(1500.0),
+    ]
+
+    result = equilibrate(
+        composition, assemblage, equality_constraints, max_iterations=20
+    )
+    sol, prm = result.sol_array.item(), result.prm
+    print_assemblage(assemblage)
+
+if __name__ == "__main__" and run_lower_mantle:
+    """
+    Calculates temperatures and assemblage properties along an isentrope
+    in the lower mantle. Includes calculations of the
+    post-perovskite-in and bridgmanite-out lines.
+    """
+    P0 = 25.0e9
+    T0 = 1600.0
+
+    bdg.name = "bdg"
+    ppv.name = "ppv"
+    fper.name = "fper"
+    cpv.name = "cpv"
+
+    bdg.set_composition([0.86, 0.1, 0.04])
+    ppv.set_composition([0.86, 0.1, 0.04])
+    fper.set_composition([0.9, 0.1])
+
+    composition = {"Fe": 0.2, "Mg": 2.0, "Si": 1.9, "Ca": 0.2, "Al": 0.4, "O": 6.8}
+    assemblage = burnman_cpp.Assemblage([bdg, fper, cpv], [1.0 / 3.0] * 3)
+
+    # We start by calculating the assemblage entropy at a reference
+    # pressure and temperature.
+    equality_constraints = [
+        burnman_cpp.PressureConstraint(P0),
+        burnman_cpp.TemperatureConstraint(T0),
+    ]
+    result = equilibrate(composition, assemblage, equality_constraints)
+    sol, prm = result.sol_array.item(), result.prm
+
+    S = assemblage.n_moles * assemblage.molar_entropy
+
+    # Now we calculate the assemblages and states at the post-perovskite-in and
+    # bridgmanite-out boundaries at the desired entropy.
+    assemblage = burnman_cpp.Assemblage([bdg, fper, ppv, cpv], [0.25] * 4)
+    assemblage.set_state(sol.x[0], sol.x[1])
+    prm = burnman_cpp.get_equilibration_parameters(assemblage, composition)
+    equality_constraints = [
+        burnman_cpp.EntropyConstraint(S),
+        burnman_cpp.PhaseFractionConstraint(2, 0.0, prm),
+    ]
+    result = equilibrate(composition, assemblage, equality_constraints)
+    sol, prm = result.sol_array.item(), result.prm
+    P_ppv_in = assemblage.pressure
+    T_ppv_in = assemblage.temperature
+
+    assemblage.set_state(sol.x[0], sol.x[1])
+    prm = burnman_cpp.get_equilibration_parameters(assemblage, composition)
+    equality_constraints = [
+        burnman_cpp.EntropyConstraint(S),
+        burnman_cpp.PhaseFractionConstraint(0, 0.0, prm),
+    ]
+    result = equilibrate(composition, assemblage, equality_constraints)
+    sol, prm = result.sol_array.item(), result.prm
+    P_bdg_in = assemblage.pressure
+    T_bdg_in = assemblage.temperature
+
+    # Now we calculate the properties of each assemblage
+    # along its stable pressure segments.
+    prp_list = []
+    prm_list = []
+    for pressures, phases in [
+        [np.linspace(25.0e9, P_ppv_in, 21), [bdg, fper, cpv]],
+        [np.linspace(P_ppv_in, P_bdg_in, 21), [bdg, fper, ppv, cpv]],
+        [np.linspace(P_bdg_in, 140.0e9, 21), [ppv, fper, cpv]],
+    ]:
+        assemblage = burnman_cpp.Assemblage(
+            phases, np.full(len(phases), 1.0 / len(phases))
+        )
+        equality_constraints = [
+            [burnman_cpp.PressureConstraint(P) for P in pressures],
+            burnman_cpp.EntropyConstraint(S),
+        ]
+        result = equilibrate(composition, assemblage, equality_constraints)
+        sols, prm = result.sol_array.ravel(), result.prm
+        prm_list.append(prm)
+        prp_list.append(np.array([sol.x for sol in sols if sol.success]).T)
+
+    # Finally, do some plotting
+    fig = plt.figure(figsize=(16, 8))
+    ax = [fig.add_subplot(2, 3, i) for i in range(1, 7)]
+    phases = [bdg, fper, cpv, ppv]
+    colors = ["red", "green", "blue", "orange", "purple"]
+    for j in range(3):
+        prm = prm_list[j]
+        p = prp_list[j]
+        pressures, temperatures = p[[0, 1], :]
+        ax[0].plot(pressures / 1.0e9, temperatures, color="black")
+        ax[0].set_xlabel("Pressure (GPa)")
+        ax[0].set_ylabel("Temperature (K)")
+        for i, phase in enumerate(phases):
+            try:
+                idx = prm.parameter_names.index(f"x({phase.name})")
+                x_phase = p[idx, :]
+                ax[i + 1].plot(pressures / 1.0e9, x_phase, color=colors[i])
+                ax[i + 1].set_ylim(0, 2)
+                ax[i + 1].set_xlim(0, 140)
+                ax[i + 1].set_xlabel("Pressure (GPa)")
+                ax[i + 1].set_ylabel(f"n moles of {phase.name}")
+            except ValueError:
+                pass
+
+        if (
+            f"x({phases[0].name})" in prm.parameter_names
+            and f"x({phases[1].name})" in prm.parameter_names
+        ):
+            pv_idx = prm.parameter_names.index(f"x({phases[0].name})")
+            per_idx = prm.parameter_names.index(f"x({phases[1].name})")
+            KD = (
+                p[pv_idx + 1, :]
+                * (1.0 - p[per_idx + 1, :])
+                / ((1.0 - p[pv_idx + 1, :] - p[pv_idx + 2, :]) * p[per_idx + 1, :])
             )
-            if ax:
-                x = values(r)
-                ax.plot(x[1], x[0] / 1.0e9, color="black")
-        if ax:
-            for t, p, name in [
-                (1750.0, 10.0, "olivine"),
-                (1750.0, 15.0, "wadsleyite"),
-                (1750.0, 20.0, "ringwoodite"),
-                (1750.0, 24.0, "bridgmanite + ferropericlase"),
-            ]:
-                ax.text(t, p, name, ha="right")
-            ax.set(xlabel="Temperature (K)", ylabel="Pressure (GPa)", ylim=(5, 25))
+            if j == 1:
+                ax[5].plot(pressures / 1.0e9, KD, color="red", label="bdg K$_D$")
+            else:
+                ax[5].plot(pressures / 1.0e9, KD, color="red")
 
+        if (
+            f"x({phases[1].name})" in prm.parameter_names
+            and f"x({phases[3].name})" in prm.parameter_names
+        ):
+            per_idx = prm.parameter_names.index(f"x({phases[1].name})")
+            ppv_idx = prm.parameter_names.index(f"x({phases[3].name})")
+            KD = (
+                p[ppv_idx + 1, :]
+                * (1.0 - p[per_idx + 1, :])
+                / ((1.0 - p[ppv_idx + 1, :] - p[ppv_idx + 2, :]) * p[per_idx + 1, :])
+            )
+            if j == 1:
+                ax[5].plot(pressures / 1.0e9, KD, color="blue", label="ppv K$_D$")
+            else:
+                ax[5].plot(pressures / 1.0e9, KD, color="blue")
 
-CASES = (
-    "aluminosilicates",
-    "ordering",
-    "gt_solvus",
-    "fper_ol",
-    "fixed_ol_composition",
-    "upper_mantle",
-    "lower_mantle",
-    "olivine_polymorphs",
-)
+    ax[5].set_ylim(0.0, 1.0)
+    ax[5].set_xlabel("Pressure (GPa)")
+    ax[5].set_ylabel("[FeSiO$_3$/MgSiO$_3$]/[FeO/MgO]")
+    ax[5].legend()
 
+    plt.show()
 
-def main():
-    parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    parser.add_argument("--case", choices=("all",) + CASES, default="all")
-    parser.add_argument(
-        "--quick",
-        action="store_true",
-        help="Use fewer samples, retaining all scenarios.",
-    )
-    parser.add_argument(
-        "--no-plots",
-        action="store_true",
-        help="Run calculations without loading matplotlib.",
-    )
-    parser.add_argument(
-        "--show", action="store_true", help="Display figures after saving them."
-    )
-    parser.add_argument(
-        "--output-dir", type=Path, default=Path("build/example_equilibrate")
-    )
-    args = parser.parse_args()
-    if not args.no_plots and not args.show:
-        import matplotlib
+if __name__ == "__main__" and run_olivine_polymorphs:
+    """
+    Produces a P-T pseudosection for a fo90 composition.
+    """
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
 
-        matplotlib.use("Agg")
-    example = Example(quick=args.quick, plots=not args.no_plots)
-    for name in CASES if args.case == "all" else (args.case,):
-        print(f"\n{name}", flush=True)
-        getattr(example, name)()
-    if example.figures:
-        args.output_dir.mkdir(parents=True, exist_ok=True)
-        for name, fig in example.figures.items():
-            fig.tight_layout()
-            path = args.output_dir / f"{name}.png"
-            fig.savefig(path, dpi=150)
-            print(f"Saved {path}")
-        import matplotlib.pyplot as plt
+    T0 = 573.15
+    T1 = 1773.15
 
-        if args.show:
-            plt.show()
-        plt.close("all")
+    ol.set_composition([0.93, 0.07])
+    wad.set_composition([0.91, 0.09])
+    rw.set_composition([0.93, 0.07])
+    bdg.set_composition([0.86, 0.1, 0.04])
+    fper.set_composition([0.9, 0.1])
 
+    plt.text(1750.0, 10.0, "olivine", horizontalalignment="right")
+    plt.text(1750.0, 15.0, "wadsleyite", horizontalalignment="right")
+    plt.text(1750.0, 20.0, "ringwoodite", horizontalalignment="right")
+    plt.text(1750.0, 24.0, "bridgmanite + ferropericlase", horizontalalignment="right")
 
-if __name__ == "__main__":
-    main()
+    composition = {"Fe": 0.2, "Mg": 1.8, "Si": 1.0, "O": 4.0}
+    assemblage = burnman_cpp.Assemblage([ol, wad, rw], [1.0, 0.0, 0.0])
+    prm = burnman_cpp.get_equilibration_parameters(assemblage, composition)
+    equality_constraints = [
+        burnman_cpp.PhaseFractionConstraint(0, 0.0, prm),
+        burnman_cpp.PhaseFractionConstraint(2, 0.0, prm),
+    ]
+
+    result = equilibrate(composition, assemblage, equality_constraints)
+    sol, prm = result.sol_array.item(), result.prm
+    Pinv1, Tinv1 = sol.x[0:2]
+
+    if not sol.success:
+        raise Exception("Couldn't find ol-wad-rw invariant")
+
+    assemblage = burnman_cpp.Assemblage([ol, wad, rw], [1.0 / 3.0] * 3)
+    prm = burnman_cpp.get_equilibration_parameters(assemblage, composition)
+    equality_constraints = [
+        burnman_cpp.PhaseFractionConstraint(1, 0.0, prm),
+        burnman_cpp.PhaseFractionConstraint(2, 0.0, prm),
+    ]
+    result = equilibrate(composition, assemblage, equality_constraints)
+    sol, prm = result.sol_array.item(), result.prm
+    Pinv2, Tinv2 = sol.x[0:2]
+
+    for d in [
+        [np.linspace(T0, Tinv1, 8), [ol, wad, rw], ol, 0.0],
+        [np.linspace(T0, Tinv2, 8), [ol, wad, rw], wad, 0.0],
+        [np.linspace(Tinv2, Tinv1, 8), [ol, wad, rw], rw, 0.0],
+        [np.linspace(T0, Tinv2, 8), [ol, rw], rw, 0.0],
+        [np.linspace(Tinv2, T1, 8), [ol, wad], wad, 0.0],
+        [np.linspace(Tinv1, T1, 8), [ol, wad], wad, 1.0],
+        [np.linspace(Tinv1, T1, 8), [wad, rw], rw, 0.0],
+    ]:
+        temperatures, phases, phase, fraction = d
+
+        assemblage = burnman_cpp.Assemblage(
+            phases, np.full(len(phases), 1.0 / len(phases))
+        )
+        prm = burnman_cpp.get_equilibration_parameters(assemblage, composition)
+        equality_constraints = [
+            [burnman_cpp.TemperatureConstraint(T) for T in temperatures],
+            burnman_cpp.PhaseFractionConstraint(phases.index(phase), fraction, prm),
+        ]
+        result = equilibrate(composition, assemblage, equality_constraints)
+        sols, prm = result.sol_array.ravel(), result.prm
+        Ps = np.array([sol.x[0] for sol in sols if sol.success])
+        Ts = np.array([sol.x[1] for sol in sols if sol.success])
+        ax.plot(Ts, Ps / 1.0e9, color="k")
+
+    assemblage.set_fractions([0.0, 1.0])
+    temperatures = np.linspace(T0, T1, 8)
+    prm = burnman_cpp.get_equilibration_parameters(assemblage, composition)
+    equality_constraints = [
+        [burnman_cpp.TemperatureConstraint(T) for T in temperatures],
+        burnman_cpp.PhaseFractionConstraint(1, 1.0, prm),
+    ]
+    result = equilibrate(composition, assemblage, equality_constraints)
+    sols, prm = result.sol_array.ravel(), result.prm
+    Ps = np.array([sol.x[0] for sol in sols if sol.success])
+    Ts = np.array([sol.x[1] for sol in sols if sol.success])
+    ax.plot(Ts, Ps / 1.0e9, color="k")
+
+    assemblage = burnman_cpp.Assemblage([rw, bdg, fper], [1.0 / 3.0] * 3)
+    assemblage = simplify_composite_with_composition(assemblage, composition)
+
+    assemblage.phases[1].set_composition([0.86, 0.14])
+
+    for phase_fraction in [0.0, 1.0]:
+        prm = burnman_cpp.get_equilibration_parameters(assemblage, composition)
+        equality_constraints = [
+            [burnman_cpp.TemperatureConstraint(T) for T in temperatures],
+            burnman_cpp.PhaseFractionConstraint(0, phase_fraction, prm),
+        ]
+        result = equilibrate(composition, assemblage, equality_constraints)
+        sols, prm = result.sol_array.ravel(), result.prm
+        Ps = np.array([sol.x[0] for sol in sols if sol.success])
+        Ts = np.array([sol.x[1] for sol in sols if sol.success])
+        ax.plot(Ts, Ps / 1.0e9, color="k")
+
+    ax.set_xlabel("Temperature (K)")
+    ax.set_ylabel("Pressure (GPa)")
+    ax.set_ylim(5.0, 25.0)
+    plt.show()

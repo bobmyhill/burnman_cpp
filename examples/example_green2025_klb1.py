@@ -12,16 +12,13 @@
 #
 # ------------------------------------------------------
 
-"""Green et al. (2025), Figure S3-1: Kilbourne Hole peridotite KLB-1.
-
-Bulk oxide moles are transcribed from the figure footer (more digits than
-Table S3-1). Atomic O specifies Fe3+/total Fe = 2 O / FeO; no redox buffer.
+"""
+Green et al. (2025), Figure S3-1: Kilbourne Hole peridotite KLB-1.
 """
 
 from driver_green2025 import main
 
 SEEDS = 7
-
 OXIDES = dict(
     SiO2=38.494,
     Al2O3=1.776,

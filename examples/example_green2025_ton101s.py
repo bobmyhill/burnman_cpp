@@ -12,17 +12,13 @@
 #
 # ------------------------------------------------------
 
-"""Green et al. (2025), Figure S3-6: water-saturated tonalite 101.
-
-This is a closed bulk with 38.8982 mol% H2O, as in the figure footer, rather
-than an imposed water chemical potential. Use the full G25 fluid with PS94
-H2O and dissolved silicates, not an independently added pure-water phase.
+"""
+Green et al. (2025), Figure S3-6: water-saturated tonalite 101.
 """
 
 from driver_green2025 import main
 
 SEEDS = 7
-
 OXIDES = dict(
     SiO2=39.6103,
     Al2O3=7.1902,

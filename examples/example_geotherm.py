@@ -11,10 +11,11 @@
 #
 # ------------------------------------------------------
 
-"""Compare Earth geotherms, periclase and pyrolite adiabats, and a Mars profile.
-
-Both adiabats use a potential temperature of 1620 K at 0 GPa.
-Run with ``python examples/example_geotherm.py`` (requires matplotlib).
+"""
+This example compares Earth geotherms,
+periclase and pyrolite adiabats
+(both of which use a potential temperature of 1620 K at 0 GPa),
+and an approximation to an areotherm.
 """
 
 import matplotlib.pyplot as plt
@@ -38,12 +39,11 @@ PYROLITE_COMPOSITION = Composition(
     "mass",
 )
 PYROLITE_COMPOSITION.renormalize("mass", "total", 0.1)
-
 POTENTIAL_TEMPERATURE = 1620.0
 REFERENCE_PRESSURE = 0.0
 
 
-def main():
+if __name__ == "__main__":
     earth_depths = np.linspace(270e3, 2800e3, 200)
     profiles = [
         geotherm.BrownShankland(),
@@ -108,7 +108,3 @@ def main():
         axis.invert_yaxis()
     fig.tight_layout()
     plt.show()
-
-
-if __name__ == "__main__":
-    main()
