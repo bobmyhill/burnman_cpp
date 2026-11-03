@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileCopyrightText: Copyright (C) 2026 by the BurnMan Team.
+# SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
 #
 # This file is part of BurnMan.
 #
@@ -11,6 +11,7 @@
 # and contributions can be found in the LICENSE document.
 #
 # ------------------------------------------------------
+
 """
 Create phase diagrams/equilibria, then process their potentials independently.
 

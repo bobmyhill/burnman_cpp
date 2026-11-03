@@ -1,5 +1,17 @@
-# This file is part of BurnMan - a thermoelastic and thermodynamic toolkit for
-# the Earth and Planetary Sciences
+# ------------------------------------------------------
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
+#
+# This file is part of BurnMan.
+#
+# Detailed license information governing the source code
+# and contributions can be found in the LICENSE document.
+#
+# ------------------------------------------------------
+
+# Original example attribution:
 # Copyright (C) 2012 - 2026 by the BurnMan team, released under the GNU
 # GPL v2 or later.
 

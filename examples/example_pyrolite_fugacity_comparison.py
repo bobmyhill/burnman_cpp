@@ -1,6 +1,17 @@
 #!/usr/bin/env python3
+# ------------------------------------------------------
+#
 # SPDX-License-Identifier: GPL-3.0-or-later
-# SPDX-FileCopyrightText: Copyright (C) 2026 by the BurnMan Team.
+#
+# SPDX-FileCopyrightText: Copyright (C) 2025-2026 by the BurnMan Team.
+#
+# This file is part of BurnMan.
+#
+# Detailed license information governing the source code
+# and contributions can be found in the LICENSE document.
+#
+# ------------------------------------------------------
+
 """
 Compare SLB2024 pyrolites with initial Fe3+/total Fe of 3% and 10%.
 
