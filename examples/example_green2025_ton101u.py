@@ -12,16 +12,13 @@
 #
 # ------------------------------------------------------
 
-"""Green et al. (2025), Figure S3-5: water-undersaturated tonalite 101.
-
-The figure footer gives oxide mole amounts. Water (2.8005 mol% H2O) and
-oxygen are closed inventories; the G25 fluid can appear where stable.
+"""
+Green et al. (2025), Figure S3-5: water-undersaturated tonalite 101.
 """
 
 from driver_green2025 import main
 
 SEEDS = 7
-
 OXIDES = dict(
     SiO2=63.0113,
     Al2O3=11.438,

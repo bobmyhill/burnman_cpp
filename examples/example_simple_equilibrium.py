@@ -11,17 +11,17 @@
 #
 # ------------------------------------------------------
 
-"""Construct a regular oxide solution and equilibrate its bulk composition.
-
-Run after installation: python examples/solution_equilibrium.py
-The endmember parameters follow the repository's ferropericlase fixture;
-property modifiers are omitted in this basic example.
+"""
+Construct a binary oxide solution,
+make a simple assemblage composed only of that solution,
+and equilibrate the assemlage at fixed bulk composition,
+pressure, and temperature.
 """
 
 import burnman_cpp as bm
 
 
-def main():
+if __name__ == "__main__":
     periclase = bm.Mineral(
         {
             "name": "Periclase",
@@ -80,7 +80,3 @@ def main():
     print("Activities:", oxide.activities)
     print("Density (kg/m³):", assemblage.density)
     print("Residual norm:", solve.F_norm)
-
-
-if __name__ == "__main__":
-    main()

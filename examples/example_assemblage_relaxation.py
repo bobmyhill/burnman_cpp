@@ -19,13 +19,6 @@
 example_assemblage_relaxation
 -----------------------------
 
-Adapted from Python BurnMan's example_assemblage_relaxation.py. All materials,
-equilibrium solves and relaxed derivatives use the native C++ implementation;
-the Python BurnMan package is not required.
-
-Run with ``python examples/example_assemblage_relaxation.py`` after installing
-``pip install -e '.[examples]'``.
-
 In this example, we demonstrate how to use the `RelaxedComposite` class
 to compute the properties of a mineral assemblage allowing for
 different levels of compositional and phase relaxation.
@@ -58,25 +51,13 @@ properties of mineral assemblages, which is important for:
 """
 
 import numpy as np
-import burnman_cpp as bm
+import burnman_cpp
 import matplotlib.pyplot as plt
 
 from burnman_cpp import equilibrate
 from burnman_cpp.minerals import SLB_2011
 from burnman_cpp import Assemblage, RelaxedComposite
 from burnman_cpp.tools.chemistry import reaction_matrix_as_strings
-
-
-def solve(composition, assemblage, constraints):
-    # Physical-unit equivalents of the Python example's default tolerances.
-    tolerances = np.r_[1.0, 1.0e-6, np.full(assemblage.n_endmembers, 1.0e-9)]
-    result = equilibrate(composition, assemblage, constraints, tol=tolerances)
-    solutions = result.sol_array.ravel()
-    for solution in solutions:
-        if not solution.success:
-            raise RuntimeError(solution.message)
-    return solutions, result.prm
-
 
 if __name__ == "__main__":
     # Initialize the minerals we will use in this example.
@@ -91,35 +72,36 @@ if __name__ == "__main__":
     # Find the wad-in and ol-in pressures at 1600 K
     T = 1600.0
     composition = assemblage.formula.copy()
-    prm = bm.get_equilibration_parameters(assemblage, composition)
+    prm = burnman_cpp.get_equilibration_parameters(assemblage, composition)
     equality_constraints = [
-        bm.TemperatureConstraint(T),
-        bm.PhaseFractionConstraint(1, 0.0, prm),
+        burnman_cpp.TemperatureConstraint(T),
+        burnman_cpp.PhaseFractionConstraint(1, 0.0, prm),
     ]
-    solve(composition, assemblage, equality_constraints)
+    equilibrate(composition, assemblage, equality_constraints)
     P_wad_in = assemblage.pressure
 
     equality_constraints = [
-        bm.TemperatureConstraint(T),
-        bm.PhaseFractionConstraint(0, 0.0, prm),
+        burnman_cpp.TemperatureConstraint(T),
+        burnman_cpp.PhaseFractionConstraint(0, 0.0, prm),
     ]
-    solve(composition, assemblage, equality_constraints)
+    equilibrate(composition, assemblage, equality_constraints)
     P_ol_in = assemblage.pressure
 
     # Now get the unrelaxed properties over the two phase region
     # at their equilibrated states
     pressures = np.linspace(P_wad_in + 1.0, P_ol_in - 1.0, 101)
     equality_constraints = [
-        [bm.PressureConstraint(p) for p in pressures],
-        bm.TemperatureConstraint(T),
+        [burnman_cpp.PressureConstraint(P) for P in pressures],
+        burnman_cpp.TemperatureConstraint(T),
     ]
 
-    sols, prm = solve(composition, assemblage, equality_constraints)
-    # Native equilibrium results store parameter vectors, so restore each state
-    # to read its frozen properties (Python BurnMan stores assemblage snapshots).
+    result = equilibrate(composition, assemblage, equality_constraints)
+    sols, prm = result.sol_array.ravel(), result.prm
+    # Native results contain parameter vectors, so restore each state to read
+    # its unrelaxed properties.
     unrelaxed = []
     for sol in sols:
-        bm.set_composition_and_state_from_parameters(assemblage, sol.x)
+        burnman_cpp.set_composition_and_state_from_parameters(assemblage, sol.x)
         unrelaxed.append(
             [
                 assemblage.isentropic_bulk_modulus_reuss,

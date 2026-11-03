@@ -12,19 +12,14 @@
 #
 # ------------------------------------------------------
 
-"""Mg2SiO4 phase fields and P, T, S, V contours in four coordinate systems.
+"""
+Mg2SiO4 phase diagrams and P, T, S, V contours
+in four coordinate systems: P-T, P-S, V-T, and V-S.
 
-Recreate the phase boundaries and contours in Bob Myhill's illustration:
+This example recreates the phase boundaries and contours
+in the blog post illustration:
 https://blogs.egu.eu/divisions/gd/2021/01/27/thermodynamics-and-geodynamics-the-perfect-couple/
-
-Use the SLB2011 periclase, bridgmanite, akimotoite and ringwoodite models.
-Each panel is calculated independently by the native phase diagram routine;
-native constraint contours reuse these completed sections. The shared plotters
-display volume as density and entropy in kB per atom by default.
-TV and SV are the canonical names of the V-T and V-S section types.
-
-Run: python examples/example_forsterite_thermodynamic_sections.py
-Edit VOLUME_UNIT and ENTROPY_UNIT below to display total volume and entropy.
+It uses the SLB2011 periclase, bridgmanite, akimotoite and ringwoodite models.
 """
 
 import json
@@ -72,7 +67,7 @@ def candidate_phases():
     return phases
 
 
-def calculate(quick=False, verbose=False):
+def calculate(verbose=False):
     pressure_range = (23.2e9, 23.9e9)
     temperature_range = (1400.0, 1700.0)
     entropy_range = tuple(s * ENTROPY_SCALE for s in (5.2, 5.8))
@@ -97,9 +92,10 @@ def calculate(quick=False, verbose=False):
         ),
     }
     settings = bm.PhaseDiagramSettings()
-    settings.pressure_seeds = settings.temperature_seeds = settings.entropy_seeds = (
-        settings.volume_seeds
-    ) = (5 if quick else SEEDS)
+    settings.pressure_seeds = SEEDS
+    settings.temperature_seeds = SEEDS
+    settings.entropy_seeds = SEEDS
+    settings.volume_seeds = SEEDS
     settings.max_phase_instances = 1
     settings.verbose = verbose
     results = {}
@@ -194,7 +190,7 @@ def plot(
     return fig, axes
 
 
-def main():
+if __name__ == "__main__":
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     results = calculate(verbose=True)
     for diagram, result in results.items():
@@ -212,7 +208,3 @@ def main():
     )
     save_figure(fig, OUTPUT_DIR / "forsterite_sections.png", formats=("pdf",))
     print(f"Results saved to {OUTPUT_DIR}")
-
-
-if __name__ == "__main__":
-    main()

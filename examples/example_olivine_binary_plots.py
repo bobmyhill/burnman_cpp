@@ -12,14 +12,19 @@
 #
 # ------------------------------------------------------
 
-"""Olivine-polymorph P-X diagram at 1673 K, from Mg2SiO4 to Fe2SiO4.
+"""
+Olivine-polymorph P-X, T-X and V-X diagrams,
+covering compositions from Mg2SiO4 to Fe2SiO4.
+X is the molar iron fraction Fe/(Mg+Fe).
 
-The candidate set comprises olivine, wadsleyite and ringwoodite from SLB_2011.
-X is the molar fayalite fraction Fe/(Mg+Fe). All stability searches and phase-
-boundary continuation run in C++; plotting uses the standard phase diagram API.
+The candidate set of phases comprises olivine,
+wadsleyite and ringwoodite from SLB_2011.
 
-Run: python examples/example_olivine_px.py
-Edit the settings below and run without arguments.
+The P-X diagram spans 0-20 GPa at 1673 K.
+The T-X diagram spans 1000-3000 K at 14 GPa.
+The V-X diagram spans 36-45 cm3 at 1673 K.
+
+Edit DIAGRAMS below to select which diagrams to calculate.
 """
 
 from pathlib import Path
@@ -32,8 +37,8 @@ from burnman_cpp.tools.phase_diagram_helpers import (
 )
 
 OUTPUT_ROOT = Path(__file__).resolve().parent
-SEEDS = 9
-COMPOSITION_SEEDS = 17
+DIAGRAMS = ("PX", "TX", "VX")
+SEEDS = 5
 
 FORSTERITE = bm.Composition({"Mg2SiO4": 1.0}, "molar")
 FAYALITE = bm.Composition({"Fe2SiO4": 1.0}, "molar")
@@ -59,9 +64,10 @@ def calculate(quick=False, verbose=False, *, diagram="PX"):
     if diagram not in domains:
         raise ValueError("The olivine example supports PX, TX or VX diagrams.")
     settings = bm.PhaseDiagramSettings()
-    settings.pressure_seeds = settings.temperature_seeds = 5 if quick else SEEDS
-    settings.volume_seeds = settings.pressure_seeds
-    settings.composition_seeds = 5 if quick else COMPOSITION_SEEDS
+    settings.pressure_seeds = SEEDS
+    settings.temperature_seeds = SEEDS
+    settings.volume_seeds = SEEDS
+    settings.composition_seeds = SEEDS
     settings.max_phase_instances = 1
     settings.verbose = verbose
     return bm.phase_diagram(
@@ -95,14 +101,10 @@ def plot(result, path, label_fontsize=9.0, *, diagram="PX"):
     )
 
 
-def main(diagram="PX"):
-    stem = f"olivine_{diagram.lower()}"
-    result = calculate(verbose=True, diagram=diagram)
-    output = OUTPUT_ROOT / f"{stem}_output"
-    write_phase_diagram(result, output / stem)
-    plot(result, output / f"{stem}.png", diagram=diagram)
-    return result
-
-
 if __name__ == "__main__":
-    main()
+    for diagram in DIAGRAMS:
+        stem = f"olivine_{diagram.lower()}"
+        result = calculate(verbose=True, diagram=diagram)
+        output = OUTPUT_ROOT / f"{stem}_output"
+        write_phase_diagram(result, output / stem)
+        plot(result, output / f"{stem}.png", diagram=diagram)
