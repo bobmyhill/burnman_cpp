@@ -1,4 +1,4 @@
-# Matched THERMOCALC model sets
+# Curated thermodynamic model sets
 
 These factories reproduce the published HPx metapelite and metabasite
 calibrations in C++, with their matching **Holland–Powell dataset 6.2** and
@@ -133,3 +133,32 @@ uses G25 because the authors withdrew the H18 melt. Upstream now supplies
 separate olivine and pyroxene endmember identifiers, so the exporter no longer
 repairs those collisions. The older `HGP_2018_ds633` melt still requires its documented
 `Alsi2` site-name correction to retain unit jadeite occupancy.
+
+## SLB2024 mantle solids
+
+```python
+from burnman_cpp.minerals import model_sets, load_dataset
+
+models = model_sets.slb2024()
+phases = models.phases
+glossary = models.phase_glossary  # e.g. glossary["ol"] == "Olivine"
+# The workflow and EquilibratedComposite also accept a ModelSet directly.
+phases, provenance = load_dataset(models)
+```
+
+`slb2024()` contains the 27 active phases in the authors'
+[HeFESTo 010123 phase catalogue](https://github.com/stixrude/HeFESTo_Parameters_010123/tree/ff99dd0cc6a183d0ae6ea402dad61e1d2093c918/phase):
+15 ordinary solid-solution models and 12 pure phases, including the three
+metallic-iron polymorphs. It uses native `SLB_2024` factories at full precision.
+Spin endmembers remain in their ordinary solutions for equilibrium; relaxed
+solution wrappers are not added as separate candidates. The unused `lppv`
+definition is omitted. The post-perovskite solution retains its published
+five endmembers, including high-spin ferric `hppv`.
+
+The `.phase_glossary` dictionary describes every abbreviation and is also
+included in `.to_dict()` metadata, so saved diagrams retain the descriptions.
+
+Metadata records parameter version `010123`, the pinned source catalogue,
+and [Stixrude and Lithgow-Bertelloni (2024)](https://doi.org/10.1093/gji/ggae126).
+Automatic selection from the raw `SLB_2024`
+module remains broader and includes unused `lppv`.

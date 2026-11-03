@@ -190,7 +190,8 @@ def main(
 ):
     output_dir = Path(__file__).resolve().parent / f"green2025_{name}_output"
     output_dir.mkdir(parents=True, exist_ok=True)
-    # Oxide moles, including atomic O; normalize to improve numerical scaling.
+    # Green et al. (2025) report compositions in oxide molar fractions,
+    # (including atomic O), but the phase diagram code expects atomic fractions.
     composition = bm.Composition(
         {oxide: amount / sum(oxides.values()) for oxide, amount in oxides.items()},
         unit_type="molar",

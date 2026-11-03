@@ -12,227 +12,76 @@
 #
 # ------------------------------------------------------
 
-"""Dry closed-system pyrolite, SLB2024, 0–25 GPa and 0–2500 K.
+"""
+Phase diagram generation for a dry, solid, closed-system pyrolite containing
+2% Fe³⁺/ΣFe on a metal-free basis, calculated from 0-25 GPa and 0-2500 K.
+It uses the Stixrude & Lithgow-Bertelloni (2024) thermodynamic dataset,
+with a composition taken from Table 1 of that paper.
 
-All thermodynamics, polytope construction, Gibbs minimisation, equilibrium
-solves and phase-line continuation run in C++; Python writes JSON and plots.
-The composition follows Table 1 of Stixrude & Lithgow-Bertelloni (2024),
-doi:10.1093/gji/ggae126 (Workman & Hart 2005 pyrolite). Total Fe is conserved
-while the starting molar Fe3+/sum(Fe) ratio is changed from 2% to exactly 3%.
-Oxygen is closed and unbuffered. All three native iron polymorphs are allowed,
-as are separate high/low spin endmembers within ferropericlase and bridgmanite.
-Their spin populations equilibrate in the same C++ solve as the compositions.
-
-SLB2024 contains solids, not silicate or iron liquids. This is a subsolidus
-model extrapolated across the requested window, not a melting phase diagram.
-At low P / high T some candidate EOS have no mechanically stable volume.
-Only diagnosed EOS-domain failures may be excluded, with the reasons recorded
-for every sample in JSON; numerical failures remain failures. The Mg-Tschermak
-thermal spinodal makes the full orthopyroxene model undefined at LP/HT; this
-example conservatively masks that domain even when other phases remain valid.
-A solid outside its EOS domain is never assigned an unstable volume root.
-Zero kelvin remains on the axes. The cf model's signed endmember combinations
-have negative heat capacity below their 5 K ordering transition; that model
-domain is conservatively masked rather than assigned a phase assemblage.
-Both magnetic and Debye contributions have finite zero-temperature limits.
-Accepted states are verified against the full solution composition polytopes.
-
-Edit SEEDS and the domain below, then run without arguments.
-To refine a saved diagram, use example_metasediment_phase_diagram_step2_refine.py
-with SOURCE and MODELS set to this example's outputs and candidates.
+Two regions of the phase diagram are conservatively masked:
+(1) the Mg-Tschermak thermal spinodal makes the full orthopyroxene model
+undefined at low pressure and high temperature, and
+(2) the calcium-ferrite-structured solution has negative heat capacity
+below its 5 K ordering transition.
 """
 
-from math import isclose
 from pathlib import Path
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import SLB_2024
+from burnman_cpp.minerals import model_sets
 from burnman_cpp.tools.phase_diagram_helpers import (
     plot_phase_diagram_example,
-    refine_saved,
     write_phase_diagram,
 )
 
 OUTPUT_DIR = Path(__file__).resolve().with_name("pyrolite_phase_diagram_output")
 SEEDS = 9
+PAPER_URL = "https://doi.org/10.1093/gji/ggae126"
+MODEL_SET = model_sets.slb2024()
+PHASE_GLOSSARY = MODEL_SET.phase_glossary
+PHASES = MODEL_SET.phases
 
+PRESSURE_RANGE = (0.0e9, 25.0e9)  # in Pa.
+TEMPERATURE_RANGE = (0.0, 2500.0)  # in K.
 
-PAPER_URL = "https://academic.oup.com/gji/article/237/3/1699/7640845"
-INITIAL_FERRIC_FRACTION = 0.03
-
-P_Pa = 25.0e9
-T_K = 2500.0
-
-
-def pyrolite_composition(ferric_fraction=INITIAL_FERRIC_FRACTION):
-    """Table 1 bulk with unchanged total Fe and a chosen molar ferric ratio.
-
-    The tabulated masses are relative gram amounts (their rounded sum is not
-    exactly 100). Normalize only after redistributing iron and adding oxygen.
-    Return a native Composition representing 100 g (0.1 kg) of rock. All
-    formula conversions and composition arithmetic run in C++.
-    """
-    if not 0.0 <= ferric_fraction <= 1.0:
-        raise ValueError("ferric_fraction must be between zero and one.")
-    iron = bm.Composition(dict(FeO=8.05e-3, Fe2O3=0.18e-3), unit_type="mass")
-    total_fe = iron.atomic_composition["Fe"]
-    composition = bm.Composition(
+# Get the pyrolite composition from Table 1 of Stixrude & Lithgow-Bertelloni (2024).
+# This corresponds to an Fe3+/sum(Fe) ratio of 2% on a metal-free basis.
+# The composition is normalized to 100 g (0.1 kg).
+PYROLITE_COMPOSITION = bm.Composition(
         dict(
-            SiO2=45.0e-3,
-            MgO=38.88e-3,
-            CaO=3.18e-3,
-            Al2O3=4.0e-3,
-            Na2O=0.13e-3,
-            Cr2O3=0.57e-3,
+            SiO2=45.00,
+            MgO=38.88,
+            FeO=8.05,
+            Fe2O3=0.18,
+            CaO=3.18,
+            Al2O3=4.00,
+            Na2O=0.13,
+            Cr2O3=0.57,
         ),
         unit_type="mass",
     )
-    # FeO contains one Fe atom; Fe2O3 contains two. The initial oxygen
-    # inventory follows the chosen ferric ratio and is closed during solving.
-    composition.add_components(
-        dict(
-            FeO=total_fe * (1.0 - ferric_fraction),
-            Fe2O3=total_fe * ferric_fraction / 2.0,
-        ),
-        unit_type="molar",
-    )
-    composition.renormalize("mass", "total", 0.1)
-    return composition
+PYROLITE_COMPOSITION.renormalize("mass", "total", 0.1)
 
-
-PYROLITE_COMPOSITION = pyrolite_composition()
-# Masses in grams of a 100 g rock are also oxide weight percentages for JSON.
+# Masses in grams of a 100 g rock are also oxide weight percentages
+# for JSON storage.
 PYROLITE_OXIDES = {
     oxide: kg * 1.0e3 for oxide, kg in PYROLITE_COMPOSITION.mass_composition.items()
 }
 
 
-PHASE_GLOSSARY = {
-    "ol": "Olivine",
-    "wa": "Wadsleyite",
-    "ri": "Ringwoodite",
-    "opx": "Orthopyroxene",
-    "cpx": "Clinopyroxene",
-    "hpcpx": "High-pressure C2/c pyroxene",
-    "gt": "Garnet / majorite",
-    "sp": "Spinel",
-    "pl": "Plagioclase",
-    "ak": "Akimotoite / corundum / hematite solution",
-    "fp": "Ferropericlase, including high- and low-spin iron",
-    "bg": "Bridgmanite, including high- and low-spin ferric iron",
-    "ppv": "Post-perovskite",
-    "cf": "Calcium-ferrite-structured solution",
-    "nal": "New aluminous phase",
-    "capv": "CaSiO3 perovskite",
-    "neph": "Nepheline",
-    "ky": "Kyanite",
-    "q": "Quartz",
-    "coe": "Coesite",
-    "st": "Stishovite",
-    "seif": "SiO2 with the alpha-PbO2 structure",
-    "wo": "Wollastonite",
-    "pwo": "Pseudowollastonite",
-    "Fe-bcc": "Alpha (bcc) metallic iron",
-    "Fe-fcc": "Gamma (fcc) metallic iron",
-    "Fe-hcp": "Epsilon (hcp) metallic iron",
-}
-
-
-def candidate_phases():
-    solutions = [
-        (SLB_2024.olivine, "ol"),
-        (SLB_2024.wadsleyite, "wa"),
-        (SLB_2024.ringwoodite, "ri"),
-        (SLB_2024.orthopyroxene, "opx"),
-        (SLB_2024.clinopyroxene, "cpx"),
-        (SLB_2024.c2c_pyroxene, "hpcpx"),
-        (SLB_2024.garnet, "gt"),
-        (SLB_2024.mg_fe_aluminous_spinel, "sp"),
-        (SLB_2024.plagioclase, "pl"),
-        (SLB_2024.ilmenite, "ak"),
-        (SLB_2024.ferropericlase, "fp"),
-        (SLB_2024.bridgmanite, "bg"),
-        (SLB_2024.post_perovskite, "ppv"),
-        (SLB_2024.calcium_ferrite_structured_phase, "cf"),
-        (SLB_2024.new_aluminous_phase, "nal"),
-    ]
-    pure = [
-        (SLB_2024.capv, "capv"),
-        (SLB_2024.neph, "neph"),
-        (SLB_2024.ky, "ky"),
-        (SLB_2024.qtz, "q"),
-        (SLB_2024.coes, "coe"),
-        (SLB_2024.st, "st"),
-        (SLB_2024.apbo, "seif"),
-        (SLB_2024.wo, "wo"),
-        (SLB_2024.pwo, "pwo"),
-        (SLB_2024.fea, "Fe-bcc"),
-        (SLB_2024.feg, "Fe-fcc"),
-        (SLB_2024.fee, "Fe-hcp"),
-    ]
-    phases = []
-    for factory, name in solutions + pure:
-        phase = factory()
-        phase.set_name(name)
-        phases.append(phase)
-    return phases
-
-
-def settings(seeds=9, quick=False, verbose=False):
+def settings(seeds=9, verbose=False):
     opts = bm.PhaseDiagramSettings()
-    opts.pressure_seeds = opts.temperature_seeds = 4 if quick else seeds
-    # Mg-Tschermak loses its stable volume at LP/HT while orthopyroxene
-    # is still an essential competitor. Mask that conservative model limit.
+    opts.pressure_seeds = opts.temperature_seeds = seeds
+    # Mask the diagram where the EoS of Mg-Tschermak breaks down.
     opts.required_eos_phases = ["opx"]
-    # Signed cf endmember combinations have negative Cp below the 5 K
-    # ordering transition. Retain the 0 K axis and hatch that model domain.
+    # Mask the diagram where endmembers of cf have negative heat capacities.
     opts.required_thermal_phases = ["cf"]
     opts.verbose = verbose
     return opts
 
 
-def calculate(
-    seeds=9,
-    quick=False,
-    verbose=False,
-    *,
-    pressure_range=(0.0, P_Pa),
-    temperature_range=(0.0, T_K),
-):
-    return bm.phase_diagram(
-        PYROLITE_COMPOSITION.atomic_composition,
-        candidate_phases(),
-        pressure_range,
-        temperature_range,
-        settings(seeds, quick, verbose),
-    )
-
-
-def refine(source, verbose=False):
-    data = bm.load_phase_diagram(source)
-    oxides = data.get("oxide_wt_percent")
-    if not isinstance(oxides, dict) or oxides.keys() != PYROLITE_OXIDES.keys():
-        raise ValueError("Saved diagram has a different bulk composition.")
-    # Normalize through Composition and allow serialization/arithmetic roundoff
-    # in older oxide metadata, while rejecting a materially different bulk.
-    saved_composition = bm.Composition(oxides, unit_type="mass", normalize=True)
-    saved_composition.renormalize("mass", "total", 0.1)
-    saved_mass = saved_composition.mass_composition
-    if any(
-        not isclose(saved_mass[oxide], mass, rel_tol=1.0e-12, abs_tol=1.0e-15)
-        for oxide, mass in PYROLITE_COMPOSITION.mass_composition.items()
-    ):
-        raise ValueError("Saved diagram has a different bulk composition.")
-    return refine_saved(
-        data,
-        candidate_phases(),
-        composition=PYROLITE_COMPOSITION.atomic_composition,
-        verbose=verbose,
-    )
-
-
 def save_json(
-    result, path, *, pressure_range=(0.0, P_Pa), temperature_range=(0.0, T_K)
+    result, path, *, pressure_range=PRESSURE_RANGE, temperature_range=TEMPERATURE_RANGE
 ):
     bm.save_phase_diagram(
         result,
@@ -242,7 +91,7 @@ def save_json(
             closed_system=True,
             dataset="SLB_2024",
             dataset_source=PAPER_URL,
-            initial_ferric_fraction=INITIAL_FERRIC_FRACTION,
+            model_set=MODEL_SET.to_dict(),
             solid_only=True,
             display_pressure_range_GPa=[p / 1.0e9 for p in pressure_range],
             display_temperature_range_K=list(temperature_range),
@@ -255,8 +104,8 @@ def plot(
     path,
     label_fontsize=7.0,
     *,
-    pressure_range=(0.0, P_Pa),
-    temperature_range=(0.0, T_K),
+    pressure_range=PRESSURE_RANGE,
+    temperature_range=TEMPERATURE_RANGE,
     figsize=(12, 10),
 ):
     key_path = Path(path).with_name(Path(path).stem + "_assemblages.md")
@@ -273,10 +122,10 @@ def plot(
             ylim=tuple(p / 1.0e9 for p in pressure_range),
             xlabel="Temperature (K)",
             ylabel="Pressure (GPa)",
-            title="Pyrolite, 3% Fe³⁺/ΣFe on a no metal-basis",
+            title="Pyrolite, 2% Fe³⁺/ΣFe on a no metal-basis",
         ),
         scope="SLB2024 solids; closed oxygen; high/low spin populations equilibrated; no liquids",
-        notes="Hatched area: outside the orthopyroxene EOS domain (Mg-Tschermak spinodal). Numbered fields: ",
+        notes="Hatched area: one or more phases have undefined equations of state. Numbered fields: ",
     )
     if key_path.exists():
         with key_path.open("a") as key:
@@ -291,14 +140,18 @@ def plot(
             )
 
 
-def main():
-    return write_phase_diagram(
-        calculate(seeds=SEEDS, verbose=True),
+if __name__ == "__main__":
+    phase_diagram = bm.phase_diagram(
+        PYROLITE_COMPOSITION.atomic_composition,
+        PHASES,
+        PRESSURE_RANGE,
+        TEMPERATURE_RANGE,
+        settings(SEEDS, verbose=True),
+    )
+
+    write_phase_diagram(
+        phase_diagram,
         OUTPUT_DIR / "pyrolite_phase_diagram",
         save_json=save_json,
         plot=plot,
     )
-
-
-if __name__ == "__main__":
-    main()

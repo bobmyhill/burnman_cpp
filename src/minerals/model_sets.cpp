@@ -18,6 +18,7 @@
 
 namespace burnman::minerals::model_sets {
 namespace {
+constexpr char hp_water[] = "PS94 H2O; Holland-Powell 2011 thermal reference";
 std::shared_ptr<Material> named(std::shared_ptr<Material> phase,
                                 const std::string &name) {
   phase->set_name(name);
@@ -62,7 +63,9 @@ ModelSet metapelite() {
            named(water_fluid(), "H2O"),
            named(mp50NCKFMASHTO::ma(), "ma"),
            named(HP_2011_ds62::sph(), "sph"),
-           named(HP_2011_ds62::cor(), "cor")}};
+           named(HP_2011_ds62::cor(), "cor")},
+          "",
+          hp_water};
 }
 
 ModelSet metabasite(const std::string &clinopyroxene) {
@@ -105,7 +108,9 @@ ModelSet metabasite(const std::string &clinopyroxene) {
            named(HP_2011_ds62::andalusite(), "and"),
            named(HP_2011_ds62::ky(), "ky"),
            named(HP_2011_ds62::sill(), "sill"),
-           named(HP_2011_ds62::cor(), "cor")}};
+           named(HP_2011_ds62::cor(), "cor")},
+          "",
+          hp_water};
 }
 
 ModelSet igneous(const std::string &calibration) {
@@ -132,13 +137,14 @@ ModelSet igneous(const std::string &calibration) {
        named(dry ? ig51W24::liq_W24d() : ig51G25::liq_G25w(), "melt"),
        named(HPx_ds636::q(), "q"), named(HPx_ds636::trd(), "trd"),
        named(HPx_ds636::crst(), "crst"), named(HPx_ds636::coe(), "coe"),
-       named(HPx_ds636::stv(), "stv"),
-       named(HPx_ds636::andalusite(), "and"), named(HPx_ds636::ky(), "ky"),
-       named(HPx_ds636::sill(), "sill"), named(HPx_ds636::ru(), "ru"),
-       named(HPx_ds636::sph(), "sph"), named(HPx_ds636::cor(), "cor")},
+       named(HPx_ds636::stv(), "stv"), named(HPx_ds636::andalusite(), "and"),
+       named(HPx_ds636::ky(), "ky"), named(HPx_ds636::sill(), "sill"),
+       named(HPx_ds636::ru(), "ru"), named(HPx_ds636::sph(), "sph"),
+       named(HPx_ds636::cor(), "cor")},
       dry ? "Anhydrous alkaline and subalkaline systems; no aqueous fluid."
           : "Hydrous and anhydrous subalkaline systems, including the "
-            "G25 silicate-bearing aqueous fluid with PS94 H2O."};
+            "G25 silicate-bearing aqueous fluid with PS94 H2O.",
+      dry ? "none (anhydrous W24)" : hp_water};
   if (dry) {
     models.phases.insert(
         models.phases.end(),
@@ -151,6 +157,79 @@ ModelSet igneous(const std::string &calibration) {
          named(ig51G25::bi_G25(), "bi"), named(ig51G25::mu_W14(), "ms"),
          named(ig51G25::ep_H11(), "ep"), named(ig51G25::cd_G25(), "cd")});
   }
+  return models;
+}
+
+ModelSet slb2024() {
+  namespace slb = SLB_2024;
+  ModelSet models{
+      "SLB2024 mantle solids",
+      "010123",
+      "SLB_2024",
+      "https://github.com/stixrude/HeFESTo_Parameters_010123/tree/"
+      "ff99dd0cc6a183d0ae6ea402dad61e1d2093c918/phase",
+      "https://doi.org/10.1093/gji/ggae126",
+      std::nullopt,
+      std::nullopt,
+      {named(slb::olivine(), "ol"),
+       named(slb::wadsleyite(), "wa"),
+       named(slb::ringwoodite(), "ri"),
+       named(slb::orthopyroxene(), "opx"),
+       named(slb::clinopyroxene(), "cpx"),
+       named(slb::c2c_pyroxene(), "hpcpx"),
+       named(slb::garnet(), "gt"),
+       named(slb::mg_fe_aluminous_spinel(), "sp"),
+       named(slb::plagioclase(), "pl"),
+       named(slb::ilmenite(), "ak"),
+       named(slb::ferropericlase(), "fp"),
+       named(slb::bridgmanite(), "bg"),
+       named(slb::post_perovskite(), "ppv"),
+       named(slb::calcium_ferrite_structured_phase(), "cf"),
+       named(slb::new_aluminous_phase(), "nal"),
+       named(slb::capv(), "capv"),
+       named(slb::neph(), "neph"),
+       named(slb::ky(), "ky"),
+       named(slb::qtz(), "q"),
+       named(slb::coes(), "coe"),
+       named(slb::st(), "st"),
+       named(slb::apbo(), "seif"),
+       named(slb::wo(), "wo"),
+       named(slb::pwo(), "pwo"),
+       named(slb::fea(), "Fe-bcc"),
+       named(slb::feg(), "Fe-fcc"),
+       named(slb::fee(), "Fe-hcp")},
+      "The 27 active HeFESTo phases; no melts or fluids. Ordinary solution "
+      "models retain their spin endmembers for equilibration. The unused "
+      "lppv definition is excluded. EOS domains depend on pressure, "
+      "temperature and composition."};
+  models.phase_glossary = {
+      {"ol", "Olivine"},
+      {"wa", "Wadsleyite"},
+      {"ri", "Ringwoodite"},
+      {"opx", "Orthopyroxene"},
+      {"cpx", "Clinopyroxene"},
+      {"hpcpx", "High-pressure C2/c pyroxene"},
+      {"gt", "Garnet / majorite"},
+      {"sp", "Spinel"},
+      {"pl", "Plagioclase"},
+      {"ak", "Akimotoite / corundum / hematite solution"},
+      {"fp", "Ferropericlase, including high- and low-spin iron"},
+      {"bg", "Bridgmanite, including high- and low-spin ferric iron"},
+      {"ppv", "Post-perovskite"},
+      {"cf", "Calcium-ferrite-structured solution"},
+      {"nal", "New aluminous phase"},
+      {"capv", "CaSiO3 perovskite"},
+      {"neph", "Nepheline"},
+      {"ky", "Kyanite"},
+      {"q", "Quartz"},
+      {"coe", "Coesite"},
+      {"st", "Stishovite"},
+      {"seif", "Seifertite"},
+      {"wo", "Wollastonite"},
+      {"pwo", "Pseudowollastonite"},
+      {"Fe-bcc", "Alpha (bcc) metallic iron"},
+      {"Fe-fcc", "Gamma (fcc) metallic iron"},
+      {"Fe-hcp", "Epsilon (hcp) metallic iron"}};
   return models;
 }
 } // namespace burnman::minerals::model_sets

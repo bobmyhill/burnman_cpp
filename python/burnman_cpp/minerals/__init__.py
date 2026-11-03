@@ -33,7 +33,8 @@ Materials created from the same dataset are independent of one another.
 HP_2011_ds62.cov(), HGP_2018_ds633.cov() and HPx_ds636.cov() provide
 endmember energy covariances.
 SLB_2024.phase_aliases maps original model names to preferred plot abbreviations.
-model_sets provides matched collections with calibration metadata.
+model_sets provides matched collections with calibration metadata, including
+the 27 active HeFESTo phases through model_sets.slb2024().
 load_dataset selects candidate models for equilibrium and phase discovery.
 """
 
@@ -154,6 +155,8 @@ def load_dataset(dataset, phase_names=None):
     Automatic selection collapses aliases, selects ordinary solution models
     and omits pure endmembers already represented within those solutions.
     Equilibrium solvers determine the spin populations of the ordinary models.
+    For the published active SLB2024 inventory, use model_sets.slb2024();
+    automatic selection from the raw module also retains unused lppv.
 
     phase_names optionally selects named materials in an explicit order,
     overriding automatic selection. It cannot override a ModelSet's models.

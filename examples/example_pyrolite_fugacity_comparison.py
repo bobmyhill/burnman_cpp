@@ -13,18 +13,16 @@
 # ------------------------------------------------------
 
 """
-Compare SLB2024 pyrolites with initial Fe3+/total Fe of 3% and 10%.
+Compare the fO2 of pyrolites with initial Fe3+/total Fe of 3% and 10%
+(on a metal-free basis). This script uses the dataset presented in
+Stixrude and Lithgow-Bertelloni (2024), https://doi.org/10.1093/gji/ggae126,
+which includes metallic iron but excludes melts or fluids.
 
-This script calculates both phase diagrams at 20-25 GPa and 1500-2000 C.
-The equilibria are saved on identical P-T grids.
-This script is run without arguments; the settings below can be modified if needed.
-Follow this script with example_pyrolite_fugacity_comparison_step2_contours.py.
-
-Only oxygen is added to the 3% bulk to make the 10% bulk: every cation amount
-is identical. The 3% composition represents 100 g; the 10% rock weighs slightly
-more.
-
-Dataset: SLB2024 solids, including metallic iron. Melting is not modelled.
+This script calculates the phase diagrams at 20-25 GPa and 1500-2000 C.
+The equilibria are saved on identical P-T grids. The
+second script (example_pyrolite_fugacity_comparison_step2_contours.py) reads
+the saved grids, calculates the oxygen fugacity difference, and plots contours
+of the difference and the offset from the FMQ reference.
 """
 
 from pathlib import Path
