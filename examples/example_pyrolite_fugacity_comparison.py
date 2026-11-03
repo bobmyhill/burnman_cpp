@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: Copyright (C) 2026 by the BurnMan Team.
-"""Compare SLB2024 pyrolites with initial Fe3+/total Fe of 3% and 10%.
+"""
+Compare SLB2024 pyrolites with initial Fe3+/total Fe of 3% and 10%.
 
-First calculate and save both phase diagrams at 20-25 GPa and 1500-2000 C.
-Then save their equilibria on identical P-T grids. Run without arguments;
-edit the settings below. Follow with
-example_pyrolite_fugacity_comparison_step2_contours.py.
+This script calculates both phase diagrams at 20-25 GPa and 1500-2000 C.
+The equilibria are saved on identical P-T grids.
+This script is run without arguments; the settings below can be modified if needed.
+Follow this script with example_pyrolite_fugacity_comparison_step2_contours.py.
 
 Only oxygen is added to the 3% bulk to make the 10% bulk: every cation amount
 is identical. The 3% composition represents 100 g; the 10% rock weighs slightly
-more. The fractions define the starting oxygen inventories, not redox buffers.
-Equilibrium includes SLB2024 solids and metallic iron; melting is not modelled.
+more.
+
+Dataset: SLB2024 solids, including metallic iron. Melting is not modelled.
 """
 
 from pathlib import Path
@@ -34,7 +36,9 @@ pyrolite = load_example(EXAMPLES / "example_pyrolite_phase_diagram.py")
 
 
 def compositions():
-    """Change only oxygen, retaining the reference pyrolite's cation amounts."""
+    """
+    Change only oxygen, retaining the reference pyrolite's cation amounts.
+    """
     reference = pyrolite.pyrolite_composition(0.03).atomic_composition
     return {
         name: reference
@@ -73,7 +77,7 @@ def main():
     if any(not run.diagram.resolved for run in runs.values()):
         raise RuntimeError("Resolve the saved diagram diagnostics before gridding.")
 
-    # Part 2: Retain equilibrium states; fugacity processing makes no new solves.
+    # Part 2: Retain equilibrium states; fugacity processing uses existing solves.
     for name, run in runs.items():
         grid = bm.phase_diagram_grid(
             run.diagram,

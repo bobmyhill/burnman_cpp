@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: Copyright (C) 2026 by the BurnMan Team.
-"""Step 2: contour pyrolite oxygen fugacity differences and offsets from FMQ.
+"""
+Step 2: contour pyrolite oxygen fugacity differences and offsets from FMQ.
 
-Run example_pyrolite_fugacity_comparison.py first. This script reads its two
-saved equilibrium grids and performs no equilibrium solves. Edit the settings
-below and run without arguments.
+Run example_pyrolite_fugacity_comparison.py first. This script reads
+and processes its two saved equilibrium grids.
 
-At common P,T, delta log10(fO2) = (mu_O2,10% - mu_O2,3%)/(R*T*ln(10)).
+At common P,T, delta log10(fO2) = (mu_{O2,10%} - mu_{O2,3%})/(R*T*ln(10)).
 Chemical potentials use the O2 formula {"O": 2}, so no additional factor of
 two or oxygen reference EOS is needed. A positive difference means the 10%
-bulk has higher fO2. Undefined oxygen potentials and failed equilibria mask
-their grid cells; contours use only cells valid in both compositions.
+bulk has higher fO2. Contours use only cells valid in both compositions.
 
 FMQ uses fixed SLB2024 fayalite, magnetite and quartz: mu(O2) = 2 G_mt +
 3 G_qtz - 3 G_fa. These are a metastable reference at 20-25 GPa, not the
-stable polymorphs or assemblage. NNO needs Ni/NiO models absent from SLB2024.
+stable polymorphs or assemblage.
 """
 
 from pathlib import Path
@@ -179,7 +178,7 @@ def main():
             label_key_path=OUTPUT_DIR / f"{name}_assemblages.md",
         )
         ax.set_title(title)
-    filled = plot_contours(axes[2], grids[0], difference, "Δlog₁₀ fO₂: 10% − 3%")
+    filled = plot_contours(axes[2], grids[0], difference, "Δlog₁₀ fO₂: 10% - 3%")
     figure.colorbar(filled, ax=axes[2], label="Δlog₁₀ fO₂")
     for ax in axes[1:]:
         ax.set_ylabel("")
@@ -194,11 +193,8 @@ def main():
         )
     axes[0].set_ylabel("Pressure (GPa)")
     figure.colorbar(filled, ax=list(axes), label="ΔFMQ = log₁₀(fO₂ / fO₂,FMQ)")
-    figure.suptitle("SLB2024 · fixed fayalite–magnetite–quartz reference")
+    figure.suptitle("SLB2024 · fixed fayalite-magnetite-quartz reference")
     save_figure(figure, OUTPUT_DIR / "fmq_offsets.png", formats=("svg",))
-    print(
-        f"Compared {valid.sum()}/{valid.size} saved equilibrium pairs; new equilibrium solves: 0"
-    )
     print(
         f"Δlog10(fO2), 10% minus 3%: {difference[valid].min():.6g} to {difference[valid].max():.6g}"
     )
