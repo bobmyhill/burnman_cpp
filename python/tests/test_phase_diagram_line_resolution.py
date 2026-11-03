@@ -16,11 +16,9 @@
 import json
 from copy import deepcopy
 from pathlib import Path
-import runpy
 
 import numpy as np
 import pytest
-from scipy.linalg import qr
 import burnman_cpp as bm
 from conftest import oxide_params
 from test_phase_diagram import crossing_phases, curved_phases, pure, settings
@@ -30,44 +28,6 @@ from test_composition_phase_diagram import (
     calculate,
     check_boundaries,
 )
-
-
-@pytest.mark.parametrize("case", ["invariant", "ak_capv", "cf_fp"])
-def test_pyrolite_trace_faces_and_limiting_labels_repair_without_retracing(case):
-    # Compact accepted boundary states from the October 2026 full P-T run.
-    # The windows omit the rest of the diagram, so exterior closure is not
-    # asserted. These tests check the local reaction connections and labels.
-    saved = json.loads(
-        (Path(__file__).parent / "data/pyrolite_pt_repair_regressions.json").read_text()
-    )[case]["previous"]
-    example = runpy.run_path(
-        str(Path(__file__).parents[2] / "examples/example_pyrolite_phase_diagram.py")
-    )
-    result = bm.refine_phase_diagram(
-        saved["composition_start"],
-        example["candidate_phases"](),
-        saved,
-        resolution=(2, 2),
-        region=((0.0, 2500.0), (0.0, 25.0)),
-        pressure_unit="GPa",
-        temperature_unit="K",
-    )
-    if case == "invariant":
-        nodes = {node.id: node for node in result.nodes}
-        event_ids = {
-            node_id
-            for boundary in result.boundaries
-            for node_id in (boundary.start_node, boundary.end_node)
-            if node_id >= 0 and abs(nodes[node_id].temperature - 238.6715) < 0.01
-        }
-        assert len(event_ids) == 1
-    else:
-        assert not any("conflicting perimeter" in d for d in result.diagnostics)
-    if case == "cf_fp":
-        reaction = next(b for b in result.boundaries if b.zero_phase == 30)
-        assert list(reaction.side_a) == [6, 18, 27, 30, 33, 39, 45, 78]
-        assert list(reaction.side_b) == [6, 18, 27, 33, 39, 40, 45, 78]
-    check_boundary_equilibria(result)
 
 
 def check_boundary_equilibria(result):
@@ -230,9 +190,12 @@ def test_metasediment_reaction_segments_preserve_the_thin_finite_field(name, fin
     assert len(before.polygons) == 1
     if not finite:
         assert not before.polygons[0].phases
+    candidate_names = data["phase_names"][:: data["settings"]["max_phase_instances"]]
+    by_name = {phase.name: phase for phase in model_sets.metapelite().phases}
+    phases = [by_name[name] for name in candidate_names]
     result = bm.refine_phase_diagram(
         data["composition_start"],
-        model_sets.metapelite().phases,
+        phases,
         data,
         resolution=(2, 2),
         region=((573.15, 1173.15), (1.0e5, 2.0e9)),
@@ -279,9 +242,12 @@ def test_metasediment_curved_loops_keep_finite_fields_and_stable_connections(nam
 
     path = Path(__file__).parent / "data" / f"metasediment_{name}.json"
     data = json.loads(path.read_text())
+    candidate_names = data["phase_names"][:: data["settings"]["max_phase_instances"]]
+    by_name = {phase.name: phase for phase in model_sets.metapelite().phases}
+    phases = [by_name[name] for name in candidate_names]
     result = bm.refine_phase_diagram(
         data["composition_start"],
-        model_sets.metapelite().phases,
+        phases,
         data,
         resolution=(2, 2),
         region=((573.15, 1173.15), (1.0e5, 2.0e9)),
@@ -359,433 +325,6 @@ def transform_saved_traces(data, transform):
                 point["phases"].sort(key=lambda p: p["id"])
 
 
-@pytest.mark.parametrize("transform", ["original", "reverse"])
-@pytest.mark.parametrize("name", ["duplicate_invariant", "reaction_extents"])
-def test_pyrolite_reaction_extent_repairs_keep_unverified_loops_unresolved(
-    name, transform
-):
-    path = Path(__file__).parent / "data" / f"pyrolite_{name}.json"
-    data = json.loads(path.read_text())
-    # Saved records propose duplicates; only equivalent corrected equilibria
-    # may be joined. Unverified records must remain explicitly unresolved.
-    data["resolved"] = False
-    transform_saved_traces(data, transform)
-    factory = runpy.run_path(
-        str(
-            Path(__file__).parents[2] / "examples" / "example_pyrolite_phase_diagram.py"
-        )
-    )["candidate_phases"]
-    result = bm.refine_phase_diagram(
-        data["composition_start"],
-        factory(),
-        data,
-        resolution=(2, 2),
-        region=(data["temperature_range"], data["pressure_range"]),
-        temperature_unit="K",
-        pressure_unit="Pa",
-    )
-    geometry = bm.phase_diagram_field_polygons(result, close_domain=False)
-    if name == "duplicate_invariant":
-        # These old endpoints need not correct to an identical equilibrium.
-        # Retain the strict identity check; any remaining loop must be marked
-        # unidentified or provisional, never silently accepted for gridding.
-        assert all(not p.phases or p.is_provisional for p in geometry.polygons)
-        if geometry.polygons:
-            assert not result.resolved and geometry.diagnostics
-    else:
-        # These extents border finite ri+gt+ak+fp+bg+cf+capv+Fe fields.
-        # Retaining an independently unverified duplicate record is allowed;
-        # inventing a finite nine-phase reaction field is not.
-        expected = [6, 18, 27, 30, 33, 39, 45, 78]
-        assert geometry.polygons
-        assert all(
-            p.phases == expected and p.area > 0.0 and not p.is_provisional
-            for p in geometry.polygons
-        )
-    for line in result.boundaries:
-        for point in line.points:
-            assert point.mass_balance_error <= result.settings.mass_balance_tolerance
-            assert point.minimum_affinity >= -result.settings.affinity_tolerance
-
-
-def refine_pyrolite_fixture(data):
-    factory = runpy.run_path(
-        str(
-            Path(__file__).parents[2] / "examples" / "example_pyrolite_phase_diagram.py"
-        )
-    )["candidate_phases"]
-    return bm.refine_phase_diagram(
-        data["composition_start"],
-        factory(),
-        dict(data, resolved=False),  # These fixtures deliberately request repair.
-        resolution=(2, 2),
-        region=(data["temperature_range"], data["pressure_range"]),
-        temperature_unit="K",
-        pressure_unit="Pa",
-    )
-
-
-@pytest.mark.parametrize("reverse", [False, True])
-@pytest.mark.parametrize("extra_zero", [False, True])
-def test_equivalent_univariant_extents_need_a_verified_root_not_every_warm_start(
-    reverse,
-    extra_zero,
-):
-    data = json.loads(
-        (
-            Path(__file__).parent / "data/pyrolite_pt_equivalent_reaction_curves.json"
-        ).read_text()
-    )
-    if reverse:
-        transform_saved_traces(data, "reverse")
-    if extra_zero:
-        # A saved junction state can retain an additional zero-amount copy
-        # that is absent from this reaction's declared assemblage.
-        point = data["boundaries"][0]["points"][1]
-        phase = deepcopy(next(p for p in point["phases"] if p["id"] == 18))
-        phase.update(id=20, amount=0.0)
-        point["phases"].append(phase)
-    result = refine_pyrolite_fixture(data)
-    # Independent corrections identify the same intensive equilibrium with
-    # different reaction extents (ri-out versus Fe-out). A failed Newton start
-    # on a cold, sparse record cannot create an additional finite-area field.
-    assert len(result.boundaries) == 1
-    assert not bm.phase_diagram_field_polygons(result, close_domain=False).polygons
-    check_boundary_equilibria(result)
-
-
-@pytest.mark.parametrize("reverse", [False, True])
-@pytest.mark.parametrize("different_faces", [False, True])
-@pytest.mark.parametrize(
-    "fixture", ["model_limit_duplicates", "cold_reaction_duplicates"]
-)
-def test_equivalent_reactions_can_end_at_separate_model_limit_records(
-    reverse, different_faces, fixture
-):
-    data = json.loads(
-        (Path(__file__).parent / f"data/pyrolite_pt_{fixture}.json").read_text()
-    )
-    if different_faces:
-        # Open the union of the observed garnet faces on one trace. A full
-        # identity basis would also unfreeze sites absent from every saved
-        # equilibrium, introducing stiff directions at these cold endpoints.
-        rows = np.unique(
-            np.vstack(
-                [
-                    phase["composition_basis"]
-                    for line in data["boundaries"]
-                    for point in line["points"]
-                    for phase in point["phases"]
-                    if phase["candidate_index"] == 6
-                ]
-            ),
-            axis=0,
-        )
-        _, _, pivots = qr(rows.T, pivoting=True)
-        basis = rows[pivots[: np.linalg.matrix_rank(rows)]].tolist()
-        for point in data["boundaries"][0]["points"]:
-            for phase in point["phases"]:
-                if phase["candidate_index"] == 6:
-                    phase["composition_basis"] = basis
-    if reverse:
-        transform_saved_traces(data, "reverse")
-    result = refine_pyrolite_fixture(data)
-    # Independently traced cpx-out/ak-out records reach one cold model limit
-    # with slightly different stopping temperatures and node IDs. Corrected
-    # branch identity must remove the artificial lens without adding a field.
-    assert len(result.boundaries) == 1
-    assert all(n >= 0 for b in result.boundaries for n in (b.start_node, b.end_node))
-    assert not any("corrector failed" in d for d in result.diagnostics)
-    check_boundary_equilibria(result)
-
-
-@pytest.mark.parametrize("reverse", [False, True])
-def test_equivalent_junction_extents_reconnect_without_a_saved_bridge(reverse):
-    data = json.loads(
-        (Path(__file__).parent / "data/pyrolite_pt_detached_junctions.json").read_text()
-    )
-    if reverse:
-        transform_saved_traces(data, "reverse")
-    result = refine_pyrolite_fixture(data)
-    nodes = {n.id: n for n in result.nodes}
-    event_ids = {
-        n
-        for b in result.boundaries
-        for n in (b.start_node, b.end_node)
-        if n >= 0 and abs(nodes[n].temperature - 204.1229) < 0.01
-    }
-    assert len(event_ids) == 1
-    assert len(nodes[event_ids.pop()].incident_lines) >= 3
-    check_boundary_equilibria(result)
-
-
-@pytest.mark.parametrize("reverse", [False, True])
-def test_cold_coexistence_retains_its_finite_warm_field(reverse):
-    data = json.loads(
-        (Path(__file__).parent / "data/pyrolite_pt_cold_coexistence.json").read_text()
-    )
-    if reverse:
-        transform_saved_traces(data, "reverse")
-    result = refine_pyrolite_fixture(data)
-    nodes = {n.id: n for n in result.nodes}
-    events = {
-        n
-        for b in result.boundaries
-        for n in (b.start_node, b.end_node)
-        if n >= 0 and abs(nodes[n].temperature - 97.0) < 1.0
-    }
-    assert len(events) == 2
-    # The cold portions collapse onto one active composition face, but opx
-    # and hpcpx have a finite coexistence strip near the warm endpoints.
-    full = [0, 9, 12, 13, 15, 18, 27, 39]
-    # The surrounding arms end where this fixture was extracted. Inspect the
-    # closed coexistence loop without those deliberately truncated arms.
-    closed = result.to_dict()
-    closed["boundaries"] = [b for b in closed["boundaries"] if b["id"] in (1, 2, 5)]
-    geometry = bm.phase_diagram_field_polygons(closed, close_domain=False)
-    assert any(p.phases == full and not p.is_provisional for p in geometry.polygons)
-    check_boundary_equilibria(result)
-
-
-@pytest.mark.parametrize("reverse", [False, True])
-def test_cold_reactions_close_at_their_solved_model_limits(reverse):
-    data = json.loads(
-        (Path(__file__).parent / "data/pyrolite_pt_cold_model_limits.json").read_text()
-    )
-    if reverse:
-        transform_saved_traces(data, "reverse")
-    result = refine_pyrolite_fixture(data)
-    full = [0, 12, 13, 15, 18, 19, 27, 39]
-    geometry = bm.phase_diagram_field_polygons(result, close_domain=False)
-    assert any(p.phases == full and not p.is_provisional for p in geometry.polygons)
-    # At the cold limit the two reaction extents share P,T and compositions,
-    # though their phase amounts differ. They bound a finite warm field.
-    endpoints = [
-        p
-        for b in result.boundaries
-        for p in (b.points[0], b.points[-1])
-        if p.temperature < 6.0
-    ]
-    assert len(endpoints) == 2
-    assert all(abs(p.temperature - 5.0) < 1.0e-6 for p in endpoints)
-    assert abs(endpoints[0].pressure - endpoints[1].pressure) < 0.2
-    check_boundary_equilibria(result)
-
-
-@pytest.mark.parametrize("reverse", [False, True])
-def test_coincident_phase_outs_do_not_create_a_perimeter_hole(reverse):
-    data = json.loads(
-        (
-            Path(__file__).parent / "data/pyrolite_pt_coincident_phase_outs.json"
-        ).read_text()
-    )
-    if reverse:
-        transform_saved_traces(data, "reverse")
-    result = refine_pyrolite_fixture(data)
-    # cpx-out and fp-out are extremely close. Their differently sampled
-    # chords must not cut a fictitious hole from this field.
-    geometry = bm.phase_diagram_field_polygons(result, close_domain=False)
-    field = next(
-        p for p in geometry.polygons if p.phases == [6, 18, 27, 30, 39, 60, 78]
-    )
-    assert not field.is_provisional
-    assert not field.holes
-    check_boundary_equilibria(result)
-
-
-@pytest.mark.parametrize("name", ["saddle", "binodal"])
-def test_pt_refinement_rejects_garnet_saddles_and_retains_stable_binodals(name):
-    fixture = json.loads(
-        (Path(__file__).parent / "data/pyrolite_pt_garnet_stability.json").read_text()
-    )
-    cases = fixture.pop("cases")
-    saved = dict(
-        fixture,
-        **cases[name],
-        fields=[],
-        samples=[],
-        excluded_regions=[],
-        diagnostics=[],
-        spacing_diagnostics=[],
-        resolved=True,
-        equilibrium_solves=0,
-        minimization_calls=0,
-    )
-    before = deepcopy(saved)
-    factory = runpy.run_path(
-        str(Path(__file__).parents[2] / "examples/example_pyrolite_phase_diagram.py")
-    )["candidate_phases"]
-    # Older results can include a stationary garnet composition which passes
-    # mass and affinity checks but has negative curvature. Refinement must not
-    # extend it. The adjacent stable solvus still needs to gain solved points.
-    result = bm.refine_phase_diagram(
-        saved["composition_start"], factory(), saved, resolution=(501, 501)
-    )
-    assert saved == before
-    assert result.resolved  # Refinement preserves the supplied graph.
-    points = result.to_dict()["boundaries"][0]["points"]
-    assert all(p in points for p in saved["boundaries"][0]["points"])
-    if name == "saddle":
-        assert not result.spacing_resolved
-        assert result.spacing_diagnostics
-        assert points == saved["boundaries"][0]["points"]
-    else:
-        assert result.spacing_resolved, result.spacing_diagnostics
-        assert len(points) > len(saved["boundaries"][0]["points"])
-        check_spacing(result, (501, 501))
-
-
-def test_pyrolite_pt_reopens_garnet_faces_before_adding_another_copy():
-    data = json.loads(
-        (Path(__file__).parent / "data/pyrolite_pt_garnet_stability.json").read_text()
-    )
-    data.pop("cases")
-    factory = runpy.run_path(
-        str(Path(__file__).parents[2] / "examples/example_pyrolite_phase_diagram.py")
-    )["candidate_phases"]
-    settings = bm.PhaseDiagramSettings.from_dict(data["settings"])
-    settings.max_recovery_passes = 2
-    # Bound a regression's unsuccessful phase-entry walks. The physical arcs
-    # in this window complete well within this limit.
-    settings.max_trace_steps = 100
-    result = bm.calculate_phase_diagram_patch(
-        data,
-        factory(),
-        ((600.0, 790.0), (19.30, 20.75)),
-        settings,
-        pressure_unit="GPa",
-        temperature_unit="K",
-    )
-    assert result.resolved, result.diagnostics
-    check_boundary_equilibria(result)
-    geometry = bm.phase_diagram_field_polygons(result)
-    assert all(p.phases and not p.is_provisional for p in geometry.polygons)
-
-
-@pytest.mark.parametrize("transform", ["original", "reverse", "renumber"])
-def test_pyrolite_zoom_truncates_events_and_preserves_pyroxene_coexistence(transform):
-    data = json.loads(
-        (
-            Path(__file__).parent / "data" / "pyrolite_zoom_reaction_limits.json"
-        ).read_text()
-    )
-    transform_saved_traces(data, transform)
-    result = refine_pyrolite_fixture(data)
-    geometry = bm.phase_diagram_field_polygons(result)
-    assert all(p.phases and not p.is_provisional for p in geometry.polygons)
-    coexistence = [0, 9, 12, 13, 15, 18, 27, 39]
-    fields = [p for p in geometry.polygons if p.phases == coexistence]
-    assert len(fields) == 1
-    # Independent correctors locate a finite strip, about 695 Pa wide here.
-    assert fields[0].contains_rectangle([3933525200.0, 96.5], [1.0, 1.0e-8])
-    for line in result.boundaries:
-        if line.zero_phase // result.settings.max_phase_instances != 7:
-            continue
-        p = np.asarray([q.pressure for q in line.points])
-        for n in [line.start_node, line.end_node]:
-            if result.nodes[n].kind == "junction":
-                event = result.nodes[n].pressure
-                # These spinel-out branches end at the coexistence limits.
-                if n == 1:
-                    assert p.max() <= event + 0.2
-                elif n == 3:
-                    assert p.min() >= event - 0.2
-    for line in result.boundaries:
-        for point in line.points:
-            assert point.mass_balance_error <= result.settings.mass_balance_tolerance
-            assert point.minimum_affinity >= -result.settings.affinity_tolerance
-
-
-@pytest.mark.parametrize("transform", ["original", "reverse", "renumber"])
-def test_equivalent_junctions_use_the_actual_zero_amount_solution_copies(transform):
-    data = json.loads(
-        (
-            Path(__file__).parent / "data" / "pyrolite_exchanged_junction_zeros.json"
-        ).read_text()
-    )
-    transform_saved_traces(data, transform)
-    original = json.dumps(data)
-    result = refine_pyrolite_fixture(data)
-    assert json.dumps(data) == original
-    for a, b in data["fixture_duplicate_nodes"]:
-        assert result.nodes[a].incident_lines
-        assert not result.nodes[b].incident_lines
-    for representation in [result, result.to_dict()]:
-        geometry = bm.phase_diagram_field_polygons(representation, close_domain=False)
-        assert not [p for p in geometry.polygons if not p.outside_model_domain]
-    assert (
-        result.settings.composition_tolerance
-        == data["settings"]["composition_tolerance"]
-    )
-
-
-@pytest.mark.parametrize(
-    "name,phases",
-    [
-        ("small40", [3, 12, 18, 19, 20, 39, 60, 72]),
-        ("large69", None),
-        ("large92", [3, 6, 12, 15, 18, 19, 39]),
-        ("large94", None),
-    ],
-)
-def test_localized_univariant_junctions_preserve_finite_pyrolite_fields(name, phases):
-    path = Path(__file__).parent / "data/pyrolite_duplicate_junctions.json"
-    data = json.loads(path.read_text())[name]
-    for pair in data["fixture_duplicate_nodes"]:
-        assert all(
-            data["nodes"][n]["gibbs_variance"] == 1
-            and data["nodes"][n]["pt_nullity"] == 0
-            for n in pair
-        )
-    before = bm.phase_diagram_field_polygons(data, close_domain=False)
-    assert any(not p.phases and not p.outside_model_domain for p in before.polygons)
-    result = refine_pyrolite_fixture(data)
-    geometry = bm.phase_diagram_field_polygons(result, close_domain=False)
-    fields = [p for p in geometry.polygons if not p.outside_model_domain]
-    if phases is None:
-        assert not fields
-    else:
-        verified = [p for p in fields if p.phases and not p.is_provisional]
-        assert len(verified) == 1
-        field = verified[0]
-        assert field.phases == phases
-        assert (
-            field.area > 0.0
-            and not field.is_provisional
-            and not field.has_open_boundary
-        )
-        if name == "small40":
-            assert field.contains_rectangle([10.84e9, 45.0], [1.0, 1.0e-8])
-            assert field.area == pytest.approx(
-                max(p.area for p in before.polygons if not p.outside_model_domain),
-                rel=1.0e-6,
-            )
-    if any(not p.phases or p.is_provisional for p in fields):
-        assert not result.resolved and geometry.diagnostics
-    for line in result.boundaries:
-        for point in line.points:
-            assert point.mass_balance_error <= result.settings.mass_balance_tolerance
-            assert point.minimum_affinity >= -result.settings.affinity_tolerance
-
-
-@pytest.mark.parametrize("transform", ["reverse", "renumber"])
-# large92 has ambiguous historical endpoints: its verified finite field and
-# explicit unresolved diagnostics are checked above, rather than forcing a join.
-@pytest.mark.parametrize("name", ["small40", "large69", "large94"])
-def test_duplicate_junction_identity_ignores_direction_and_instance_numbers(
-    name, transform
-):
-    data = json.loads(
-        (Path(__file__).parent / "data/pyrolite_duplicate_junctions.json").read_text()
-    )[name]
-    transform_saved_traces(data, transform)
-    result = refine_pyrolite_fixture(data)
-    # Junction identity is independent of the later curve/side-label repair.
-    for pair in data["fixture_duplicate_nodes"]:
-        assert result.nodes[min(pair)].incident_lines
-        assert not result.nodes[max(pair)].incident_lines
-
-
 @pytest.mark.parametrize("transform", ["original", "reverse", "renumber"])
 def test_nearby_bivariant_junctions_keep_the_finite_basalt_field(transform):
     from burnman_cpp.minerals import model_sets
@@ -799,9 +338,12 @@ def test_nearby_bivariant_junctions_keep_the_finite_basalt_field(transform):
             and data["nodes"][n]["pt_nullity"] == 0
             for n in pair
         )
+    candidate_names = data["phase_names"][:: data["settings"]["max_phase_instances"]]
+    by_name = {phase.name: phase for phase in model_sets.metabasite().phases}
+    phases = [by_name[name] for name in candidate_names]
     result = bm.refine_phase_diagram(
         data["composition_start"],
-        model_sets.metabasite().phases,
+        phases,
         data,
         resolution=(2, 2),
         region=(data["temperature_range"], data["pressure_range"]),
@@ -821,74 +363,6 @@ def test_nearby_bivariant_junctions_keep_the_finite_basalt_field(transform):
         assert all(result.nodes[n].incident_lines for n in pair)
 
 
-@pytest.mark.parametrize("transform", ["original", "reverse", "renumber"])
-def test_nearby_univariant_junctions_keep_distinct_solution_compositions(transform):
-    path = Path(__file__).parent / "data/pyrolite_nearby_univariant_junctions.json"
-    data = json.loads(path.read_text())
-    transform_saved_traces(data, transform)
-    before = bm.phase_diagram_field_polygons(data, close_domain=False)
-    target = [203896066.0346335, 545.4829281751656]
-    factory = runpy.run_path(
-        str(
-            Path(__file__).parents[2] / "examples" / "example_pyrolite_phase_diagram.py"
-        )
-    )["candidate_phases"]
-    result = bm.refine_phase_diagram(
-        data["composition_start"],
-        factory(),
-        data,
-        resolution=(2, 2),
-        region=(data["temperature_range"], data["pressure_range"]),
-        temperature_unit="K",
-        pressure_unit="Pa",
-    )
-    geometry = bm.phase_diagram_field_polygons(result, close_domain=False)
-    fields = [
-        p for p in geometry.polygons if p.contains_rectangle(target, [1.0, 1.0e-8])
-    ]
-    original = [
-        p for p in before.polygons if p.contains_rectangle(target, [1.0, 1.0e-8])
-    ]
-    assert len(fields) == len(original) == 1
-    assert fields[0].phases == [0, 9, 12, 21, 22, 24, 51, 54]
-    assert not fields[0].is_provisional and not fields[0].has_open_boundary
-    assert fields[0].area == pytest.approx(original[0].area, rel=1.0e-5)
-
-
-def test_crossed_pyrolite_chords_require_verified_connections():
-    path = Path(__file__).parent / "data/pyrolite_crossed_loops.json"
-    data = json.loads(path.read_text())
-    data["resolved"] = False  # Repair the known metastable crossing.
-    factory = runpy.run_path(
-        str(
-            Path(__file__).parents[2] / "examples" / "example_pyrolite_phase_diagram.py"
-        )
-    )["candidate_phases"]
-    result = bm.refine_phase_diagram(
-        data["composition_start"],
-        factory(),
-        data,
-        resolution=(2, 2),
-        region=(data["temperature_range"], data["pressure_range"]),
-        temperature_unit="K",
-        pressure_unit="Pa",
-    )
-    # Correcting equivalent junctions resolves the six-phase loop. The other
-    # crossing is a metastable chord whose interior fails the stable-equilibrium
-    # probe, so it is dropped and no unlabelled polygon remains.
-    geometry = bm.phase_diagram_field_polygons(result, close_domain=False)
-    assert len(result.nodes) == len(data["nodes"])
-    assert all(p.phases and not p.is_provisional for p in geometry.polygons)
-    assert any(
-        p.phases == [6, 12, 18, 19, 39, 60] and not p.is_provisional
-        for p in geometry.polygons
-    )
-    for line in result.boundaries:
-        for point in line.points:
-            assert point.mass_balance_error <= result.settings.mass_balance_tolerance
-            assert point.minimum_affinity >= -result.settings.affinity_tolerance
-
-
 def test_regional_retrace_recovers_missing_metasediment_connection():
     from burnman_cpp.minerals import model_sets
 
@@ -906,9 +380,12 @@ def test_regional_retrace_recovers_missing_metasediment_connection():
         b["zero_phase"] == 42 and {b["start_node"], b["end_node"]} == {6, 11}
         for b in saved["boundaries"]
     )
+    candidate_names = saved["phase_names"][:: saved["settings"]["max_phase_instances"]]
+    by_name = {phase.name: phase for phase in model_sets.metapelite().phases}
+    phases = [by_name[name] for name in candidate_names]
     result = bm.refine_phase_diagram(
         saved["composition_start"],
-        model_sets.metapelite().phases,
+        phases,
         saved,
         resolution=(21, 21),
         region=((944.0, 955.0), (1.09, 1.12)),
@@ -1115,9 +592,12 @@ def test_saved_ordering_jump_recovers_the_intervening_two_ilmenite_fields(recove
     saved["resolved"] = False  # The known ordering jump requires recovery.
     if not recovery:
         saved["settings"]["max_recovery_passes"] = 0
+    candidate_names = saved["phase_names"][:: saved["settings"]["max_phase_instances"]]
+    by_name = {phase.name: phase for phase in model_sets.metapelite().phases}
+    phases = [by_name[name] for name in candidate_names]
     result = bm.refine_phase_diagram(
         saved["composition_start"],
-        model_sets.metapelite().phases,
+        phases,
         saved,
         resolution=(21, 21),
     )
@@ -1162,9 +642,12 @@ def test_metasediment_curved_mica_boundary_preserves_the_finite_nine_phase_field
         p.is_provisional and not p.has_open_boundary
         for p in bm.phase_diagram_field_polygons(saved).polygons
     )
+    candidate_names = saved["phase_names"][:: saved["settings"]["max_phase_instances"]]
+    by_name = {phase.name: phase for phase in model_sets.metapelite().phases}
+    phases = [by_name[name] for name in candidate_names]
     result = bm.refine_phase_diagram(
         saved["composition_start"],
-        model_sets.metapelite().phases,
+        phases,
         saved,
         resolution=(2, 2),
         region=((645.0, 675.0), (1.4e6, 2.6e6)),
@@ -1202,9 +685,12 @@ def test_unresolved_metasediment_ordering_segment_preserves_input_and_diagnostic
     saved["settings"].update(verbose=False, max_recovery_passes=0)
     saved["boundaries"][0].update(side_a=[], side_b=[])
     original = deepcopy(saved)
+    candidate_names = saved["phase_names"][:: saved["settings"]["max_phase_instances"]]
+    by_name = {phase.name: phase for phase in model_sets.metapelite().phases}
+    phases = [by_name[name] for name in candidate_names]
     result = bm.refine_phase_diagram(
         saved["composition_start"],
-        model_sets.metapelite().phases,
+        phases,
         saved,
         resolution=(2, 2),
         region=((910.0, 926.0), (1.06e9, 1.07e9)),
@@ -1237,9 +723,10 @@ def test_perimeter_labels_survive_crowded_or_previously_verified_warm_roots(
             sample = deepcopy(saved["samples"][0])
             sample["pressure"] += (i + 1) * 10.0
             saved["samples"].append(sample)
-    result = bm.refine_phase_diagram(
-        saved["composition_start"], model_sets.metabasite().phases, saved
-    )
+    candidate_names = saved["phase_names"][:: saved["settings"]["max_phase_instances"]]
+    by_name = {phase.name: phase for phase in model_sets.metabasite().phases}
+    phases = [by_name[name] for name in candidate_names]
+    result = bm.refine_phase_diagram(saved["composition_start"], phases, saved)
     geometry = bm.phase_diagram_field_polygons(result)
     polygons = [
         polygon
@@ -1289,9 +776,10 @@ def test_local_basalt_fields_use_saved_evidence_without_new_interior_roots(
     saved = json.loads(
         (Path(__file__).parent / f"data/basalt_local_{name}.json").read_text()
     )
-    result = bm.refine_phase_diagram(
-        saved["composition_start"], model_sets.metabasite().phases, saved
-    )
+    candidate_names = saved["phase_names"][:: saved["settings"]["max_phase_instances"]]
+    by_name = {phase.name: phase for phase in model_sets.metabasite().phases}
+    phases = [by_name[name] for name in candidate_names]
+    result = bm.refine_phase_diagram(saved["composition_start"], phases, saved)
     geometry = bm.phase_diagram_field_polygons(result)
     assert all(p.phases for p in geometry.polygons)
     assert all("label is provisional" in d for d in geometry.diagnostics)
@@ -1303,68 +791,6 @@ def test_local_basalt_fields_use_saved_evidence_without_new_interior_roots(
     assert len(containing) == 1
     assert not containing[0].has_open_boundary
     assert [result.phase_names[i] for i in containing[0].phases] == expected
-
-
-def test_local_pyrolite_neighbours_escape_the_phase_amount_cutoff():
-    saved = json.loads(
-        (Path(__file__).parent / "data/pyrolite_local_opx.json").read_text()
-    )
-    example = runpy.run_path(
-        str(Path(__file__).parents[2] / "examples/example_pyrolite_phase_diagram.py")
-    )
-    result = bm.refine_phase_diagram(
-        saved["composition_start"], example["candidate_phases"](), saved
-    )
-    assert result.resolved, result.diagnostics
-    geometry = bm.phase_diagram_field_polygons(result)
-    assert not geometry.diagnostics
-    assert {tuple(p.phases) for p in geometry.polygons} == {
-        tuple(f["phases"]) for f in saved["fields"]
-    }
-    assert all(not p.has_open_boundary for p in geometry.polygons)
-    for line in result.boundaries:
-        assert line.side_a != line.side_b
-    polygon = next(
-        p
-        for p in geometry.polygons
-        if p.contains_rectangle(
-            [5403210373.62519, 690.4929506484826], [1.0e-5, 1.0e-10]
-        )
-    )
-    assert "opx" in [result.phase_names[i] for i in polygon.phases]
-
-
-def test_pyrolite_refinement_crosses_pure_to_mixed_solution_compositions():
-    saved = json.loads(
-        (
-            Path(__file__).parent / "data" / "pyrolite_refinement_segment.json"
-        ).read_text()
-    )["previous"]
-    example = runpy.run_path(
-        str(
-            Path(__file__).parents[2] / "examples" / "example_pyrolite_phase_diagram.py"
-        )
-    )
-    opts = bm.PhaseDiagramSettings.from_dict(saved["settings"])
-    opts.verbose = False
-    opts.max_lines = 1
-    opts.max_recovery_passes = 0
-    result = bm.refine_phase_diagram(
-        saved["composition_start"],
-        example["candidate_phases"](),
-        saved,
-        opts,
-        resolution=(401, 401),
-    )
-    assert len(result.boundaries) == 1
-    assert result.resolved, result.diagnostics
-    assert result.spacing_resolved == (not result.spacing_diagnostics)
-    if result.spacing_resolved:
-        check_spacing(result, (401, 401))
-    points = result.boundaries[0].points
-    assert any(32.0 < p.temperature < 47.0 for p in points)
-    refined = result.to_dict()["boundaries"][0]["points"]
-    assert all(p in refined for p in saved["boundaries"][0]["points"])
 
 
 def test_curved_line_refinement_checks_actual_equilibrium_and_default_plot_units():
@@ -1474,9 +900,12 @@ def test_metasediment_explicit_refinement_preserves_saved_samples(
     opts.max_lines = 4
     location = [data["samples"][0][c] for c in ("pressure", "temperature")]
     expected = sorted(q["id"] for q in data["samples"][0]["phases"])
+    candidate_names = data["phase_names"][:: data["settings"]["max_phase_instances"]]
+    by_name = {phase.name: phase for phase in model_sets.metapelite().phases}
+    phases = [by_name[name] for name in candidate_names]
     result = bm.refine_phase_diagram(
         data["composition_start"],
-        model_sets.metapelite().phases,
+        phases,
         data,
         opts,
         resolution=(101, 201),

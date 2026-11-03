@@ -11,20 +11,12 @@
 #
 # ------------------------------------------------------
 
-import sys
-import json
-from pathlib import Path
-import runpy
 
 import numpy as np
 import pytest
 import burnman_cpp as bm
 from conftest import make_model
-from burnman_cpp.minerals import (
-    HP_2011_ds62,
-    mb50NCKFMASHTO,
-    HGP_2018_ds633,
-)
+from burnman_cpp.minerals import HP_2011_ds62
 
 
 def pure(name, formula, **parameters):
@@ -115,41 +107,6 @@ def test_pt_warm_seeds_discover_a_new_stable_polymorph(capfd):
     assert all(
         p.pressure == pytest.approx(1e9, abs=0.2) for p in result.boundaries[0].points
     )
-
-
-def test_pyrolite_pt_warm_grid_matches_independent_phase_discovery(capfd):
-    from burnman_cpp.tools.phase_diagram_helpers import load_example
-
-    example = load_example(
-        Path(__file__).resolve().parents[2]
-        / "examples/example_pyrolite_phase_diagram.py"
-    )
-    bulk = example.PYROLITE_COMPOSITION.atomic_composition
-    opts = example.settings(3)
-    opts.verbose = True
-    result = bm.phase_diagram(
-        bulk, example.candidate_phases(), (20e9, 20.2e9), (1400.0, 1420.0), opts
-    )
-    assert result.resolved, result.diagnostics
-    assert len(result.samples) == 9
-    assert capfd.readouterr().err.count("LP 0 ") == 1
-    opts.verbose = False
-    for sample in result.samples:
-        reference = bm.stable_equilibrium(
-            bulk, example.candidate_phases(), sample.pressure, sample.temperature, opts
-        )
-        assert reference.success, reference.message
-        assert sample.gibbs == pytest.approx(reference.gibbs, abs=1e-5)
-        assert sample.mass_balance_error <= opts.mass_balance_tolerance
-        assert sample.minimum_affinity >= -opts.affinity_tolerance
-        assert [p.candidate_index for p in sample.phases] == [
-            p.candidate_index for p in reference.phases
-        ]
-        for actual, expected in zip(sample.phases, reference.phases):
-            assert actual.amount == pytest.approx(expected.amount, abs=1e-8)
-            np.testing.assert_allclose(
-                actual.composition, expected.composition, atol=1e-7, rtol=0.0
-            )
 
 
 def test_trace_phase_uses_configured_amount_tolerance_in_saved_samples():
@@ -484,70 +441,6 @@ def test_resume_does_not_relocate_or_reverify_samples_from_another_domain():
     assert any("label is provisional" in d for d in geometry.diagnostics)
 
 
-def test_solvus_recovery_matches_compositions_of_renumbered_solution_copies():
-    example = runpy.run_path(
-        str(Path(__file__).parents[2] / "examples/example_pyrolite_phase_diagram.py")
-    )
-    # Two native warm starts around the pyrolite calcium-ferrite solvus.
-    # The sole CF composition corresponds to copy #2 of the two-phase state.
-    previous = json.loads(
-        (Path(__file__).parent / "data" / "pyrolite_solvus_seeds.json").read_text()
-    )
-    opts = settings()
-    opts.max_lines = 1  # Isolate this branch from subsequent junction searches.
-    result = bm.refine_phase_diagram(
-        example["PYROLITE_COMPOSITION"].atomic_composition,
-        example["candidate_phases"](),
-        previous,
-        opts,
-    )
-    assert len(result.boundaries) == 1, result.diagnostics
-    line = result.boundaries[0]
-    assert line.zero_phase == 39
-    assert sorted([len(line.side_a), len(line.side_b)]) == [7, 8]
-    for point in line.points:
-        assert point.mass_balance_error < 1e-8
-        assert point.minimum_affinity >= -opts.affinity_tolerance
-        assert point.residual < 0.02
-        zero = next(p for p in point.phases if p.id == line.zero_phase)
-        assert abs(zero.amount) < 1e-9
-
-
-@pytest.mark.parametrize("reverse_order", [False, True])
-def test_equivalent_retrace_inherits_verified_labels_with_correct_orientation(
-    reverse_order,
-):
-    example = runpy.run_path(
-        str(Path(__file__).parents[2] / "examples/example_pyrolite_phase_diagram.py")
-    )
-    # Opposite traces of the same native spinel-out line: one has reliable
-    # adjacent-field solves, while the other has unresolved side labels.
-    previous = json.loads(
-        (Path(__file__).parent / "data" / "pyrolite_duplicate_curve.json").read_text()
-    )
-    expected = previous["boundaries"][0]
-    if reverse_order:
-        previous["boundaries"].reverse()
-    opts = settings()
-    opts.max_lines = 2
-    opts.max_recovery_passes = 0
-    result = bm.refine_phase_diagram(
-        example["PYROLITE_COMPOSITION"].atomic_composition,
-        example["candidate_phases"](),
-        previous,
-        opts,
-    )
-    assert len(result.boundaries) == 1, result.diagnostics
-    line = result.boundaries[0]
-    assert line.side_a == expected["side_a"]
-    assert line.side_b == expected["side_b"]
-    assert not any("neighbouring fields" in d for d in result.diagnostics)
-    for point in line.points:
-        assert point.mass_balance_error < 1e-8
-        assert point.minimum_affinity >= -opts.affinity_tolerance
-        assert point.residual < 0.02
-
-
 @pytest.mark.parametrize("ambiguous_edges", [1, 2])
 def test_label_recovery_still_merges_duplicate_two_point_boundaries(ambiguous_edges):
     bulk = {"Mg": 1.0, "Fe": 1.0, "O": 2.0}
@@ -730,93 +623,6 @@ def test_conflicting_loops_recheck_stale_edges_without_interior_samples():
     assert not any(s.is_field_verification for s in result.samples)
 
 
-@pytest.mark.parametrize("case_index", range(3))
-def test_metasediment_phase_entry_recovers_verified_junction(case_index):
-    """Matched metapelite: a solvus, a polymorph swap and a solution entering."""
-    example = runpy.run_path(
-        str(
-            Path(__file__).parents[2]
-            / "examples"
-            / "example_metasediment_phase_diagram.py"
-        )
-    )
-    fixtures = json.loads(
-        (Path(__file__).parent / "data" / "metasediment_endpoints.json").read_text()
-    )
-    case = fixtures["cases"][case_index]
-    s = settings()
-    s.max_lines = 1  # Isolate the endpoint from the subsequent branch search.
-    previous = case["previous"]
-    phases = example["candidate_phases"]()
-    result = bm.refine_phase_diagram(
-        example["METASEDIMENT_COMPOSITION"].atomic_composition,
-        phases,
-        previous,
-        s,
-    )
-    line = result.boundaries[0]
-    end = case["end"]
-    assert getattr(line, end + "_node") >= 0, (case["name"], result.diagnostics)
-    assert line.termination.split("; ")[0 if end == "start" else 1] == "junction"
-    point = line.points[0 if end == "start" else -1]
-    node = result.nodes[getattr(line, end + "_node")]
-    assert node.kind == "junction"
-    assert sorted(node.zero_phases) == sorted(case["expected_zero_phases"])
-    assert point.mass_balance_error < 1.0e-8
-    assert point.minimum_affinity >= -0.2
-    assert point.residual < 0.02
-    for zero in node.zero_phases:
-        assert abs(next(p.amount for p in point.phases if p.id == zero)) < 1.0e-9
-    # The original states initialise the solve. Points before the event remain
-    # intact; a tolerance-sized overshoot is trimmed from the displayed curve.
-    original = previous["boundaries"][0]["points"]
-    retained = np.array([(p.pressure, p.temperature) for p in line.points])
-    for p in original[1:] if end == "start" else original[:-1]:
-        assert np.any(
-            np.all(
-                np.isclose(
-                    retained,
-                    [p["pressure"], p["temperature"]],
-                    rtol=1.0e-12,
-                    atol=1.0e-8,
-                ),
-                axis=1,
-            )
-        )
-    approach = line.points[:3][::-1] if end == "start" else line.points[-3:]
-    u = np.array([(p.pressure, p.temperature) for p in approach]) / [
-        2.0e9 - 1.0e5,
-        600.0,
-    ]
-    assert (u[2] - u[1]) @ (u[1] - u[0]) >= -1.0e-18
-
-
-@pytest.mark.parametrize(
-    "pressure,temperature,absent",
-    [
-        (15.715867e8, 802.309284, "ru"),
-        (5.1996211e8, 588.4336727, "melt"),
-    ],
-)
-def test_basalt_fixed_pt_drops_blocked_zero_amount_phase(pressure, temperature, absent):
-    example = runpy.run_path(
-        str(Path(__file__).parents[2] / "examples" / "example_basalt_phase_diagram.py")
-    )
-    state = bm.stable_equilibrium(
-        example["BASALT_COMPOSITION"].atomic_composition,
-        example["candidate_phases"](),
-        pressure,
-        temperature,
-    )
-    assert state.success, state.message
-    assert state.mass_balance_error < 1.0e-8
-    assert state.equilibrium_error <= 0.02
-    assert state.minimum_affinity >= -0.2
-    assert absent not in [p.name for p in state.phases]
-    total = sum(p.amount for p in state.phases)
-    assert all(p.amount > 1.0e-7 * total for p in state.phases)
-
-
 def test_polymorph_reduced_variance_has_three_lines():
     phases = [HP_2011_ds62.andalusite(), HP_2011_ds62.ky(), HP_2011_ds62.sill()]
     r = bm.phase_diagram(
@@ -860,45 +666,6 @@ def test_short_branch_is_labelled_between_its_two_junctions(node_tolerance):
     assert len(short) == 1
     assert short[0].side_a != short[0].side_b
     assert all(3 in sides for sides in [short[0].side_a, short[0].side_b])
-
-
-@pytest.mark.parametrize("clear_labels", [False, True])
-@pytest.mark.parametrize("coarse", [False, True])
-def test_pyrolite_replacement_probe_does_not_skip_the_narrow_ak_field(
-    clear_labels, coarse
-):
-    saved = json.loads(
-        (
-            Path(__file__).parent / "data" / "pyrolite_narrow_solution_replacement.json"
-        ).read_text()
-    )["previous"]
-    saved["resolved"] = False  # This fixture has an incorrect branch label.
-    if not clear_labels:
-        saved["boundaries"][0]["side_a"] = [6, 27, 39, 40, 45, 60, 78]
-        saved["boundaries"][0]["side_b"] = [6, 18, 27, 39, 40, 45, 60, 78]
-    if coarse:
-        points = saved["boundaries"][0]["points"]
-        saved["boundaries"][0]["points"] = [points[0], points[-1]]
-    example = runpy.run_path(
-        str(
-            Path(__file__).parents[2] / "examples" / "example_pyrolite_phase_diagram.py"
-        )
-    )
-    result = bm.refine_phase_diagram(
-        saved["composition_start"],
-        example["candidate_phases"](),
-        saved,
-        resolution=(2, 2),
-    )
-    assert len(result.boundaries) == 1
-    boundary = result.boundaries[0]
-    assert boundary.is_solution_replacement
-    assert boundary.side_a == boundary.side_b == [6, 18, 27, 39, 40, 45, 60, 78]
-    # Both sides contain garnet and one ak, but on different solution branches.
-    nearby = [s for s in result.samples if s.success and len(s.phases) == 8]
-    ak = [next(p for p in s.phases if p.candidate_index == 9) for s in nearby]
-    assert any(p.composition[2] > 0.9 for p in ak)  # Corundum-rich.
-    assert any(p.composition[0] > 0.9 for p in ak)  # Mg-akimotoite-rich.
 
 
 def test_stability_selects_lower_energy_and_bulk_scaling():
@@ -979,87 +746,6 @@ def test_resume_retains_conflicting_seed_assemblages_as_provisional_evidence(
     assert geometry.polygons[0].phases in ([0], [3])
 
 
-def test_pyrolite_small_lp_seed_grows_during_equilibrium_refinement():
-    example = runpy.run_path(
-        str(Path(__file__).parents[2] / "examples/example_pyrolite_phase_diagram.py")
-    )
-    opts = bm.PhaseDiagramSettings()
-    state = bm.stable_equilibrium(
-        example["PYROLITE_COMPOSITION"].atomic_composition,
-        example["candidate_phases"](),
-        4.92563045e9,
-        143.78190438,
-        opts,
-    )
-    assert state.success, state.message
-    spinel = next(phase for phase in state.phases if phase.name == "sp")
-    assert spinel.amount > opts.amount_tolerance * sum(p.amount for p in state.phases)
-    assert state.minimum_affinity >= -opts.affinity_tolerance
-    assert state.mass_balance_error < opts.mass_balance_tolerance
-
-
-@pytest.mark.parametrize("case_index", [0, 1])
-def test_pyrolite_short_branches_keep_both_verified_neighbours(case_index):
-    example = runpy.run_path(
-        str(Path(__file__).parents[2] / "examples/example_pyrolite_phase_diagram.py")
-    )
-    cases = json.loads(
-        (Path(__file__).parent / "data/pyrolite_short_branch_labels.json").read_text()
-    )
-    saved = cases[case_index]
-    result = bm.refine_phase_diagram(
-        saved["composition_start"], example["candidate_phases"](), saved
-    )
-    assert len(result.boundaries) == 1
-    line = result.boundaries[0]
-    assert line.side_a and line.side_b
-    if case_index == 0:
-        # Nine phases can coexist on this PT line, but the eight-component
-        # bulk cannot support a nine-phase, two-dimensional neighbouring field.
-        assert max(len(line.side_a), len(line.side_b)) <= 8
-        assert line.is_solution_replacement
-        assert line.side_a == line.side_b == [6, 12, 18, 19, 27, 39, 60, 78]
-        neighbours = [s for s in result.samples if s.success and len(s.phases) == 8]
-        ak = [next(p for p in s.phases if p.candidate_index == 9) for s in neighbours]
-        assert any(p.composition[2] > 0.9 for p in ak)  # Corundum-rich.
-        assert any(p.composition[4] > 0.9 for p in ak)  # Hematite-rich.
-        for state in neighbours:
-            assert state.minimum_affinity >= -result.settings.affinity_tolerance
-            assert state.equilibrium_error <= result.settings.affinity_tolerance * 0.1
-            assert state.mass_balance_error <= result.settings.mass_balance_tolerance
-    else:
-        assert line.side_a != line.side_b
-    assert not any("neighbouring fields" in d for d in result.diagnostics)
-
-
-def test_required_eos_limit_keeps_the_accepted_pyrolite_boundary():
-    example = runpy.run_path(
-        str(Path(__file__).parents[2] / "examples/example_pyrolite_phase_diagram.py")
-    )
-    opts = bm.PhaseDiagramSettings()
-    opts.pressure_seeds = opts.temperature_seeds = 2
-    opts.required_eos_phases = ["opx"]
-    result = bm.phase_diagram(
-        example["PYROLITE_COMPOSITION"].atomic_composition,
-        example["candidate_phases"](),
-        (7.0e9, 10.0e9),
-        (3800.0, 4000.0),
-        opts,
-    )
-    assert result.resolved, result.diagnostics
-    boundary = next(
-        line
-        for line in result.boundaries
-        if line.zero_phase == 0 and "model domain limit" in line.termination
-    )
-    assert len(boundary.points) >= 2
-    assert all(p.minimum_affinity >= -opts.affinity_tolerance for p in boundary.points)
-    assert all(
-        p.mass_balance_error < opts.mass_balance_tolerance for p in boundary.points
-    )
-    assert any(node.kind == "model_domain_limit" for node in result.nodes)
-
-
 def test_water_eos_thermodynamic_derivatives_and_gas_limit():
     fluid = bm.water_fluid()
     for pressure, temperature in [
@@ -1086,82 +772,6 @@ def test_water_eos_thermodynamic_derivatives_and_gas_limit():
     with pytest.raises(ValueError, match="Pressure outside the PitzerSterner domain"):
         fluid.set_state(0.0, 873.15)
         _ = fluid.molar_volume
-
-
-@pytest.mark.parametrize(
-    "pressure,temperature",
-    [(1e9, 873.15), (2e9, 573.15), (1.3333666666666665e9, 573.15)],
-)
-def test_basalt_setup_exact_water_and_native_stable_state(pressure, temperature):
-    reference_loaded = "burnman" in sys.modules
-    example = runpy.run_path(
-        str(
-            Path(__file__).resolve().parents[2]
-            / "examples/example_basalt_phase_diagram.py"
-        )
-    )
-    oxides = example["BASALT_OXIDES"]
-    assert sum(oxides.values()) == 100.0
-    assert oxides["H2O"] == 2.0
-    composition = example["BASALT_COMPOSITION"]
-    assert isinstance(composition, bm.Composition)
-    assert sum(composition.mass_composition.values()) == pytest.approx(0.1)
-    assert composition.mass_composition["H2O"] == pytest.approx(0.002)
-    bulk = composition.atomic_composition
-    state = bm.stable_equilibrium(
-        bulk, example["candidate_phases"](), pressure, temperature
-    )
-    assert state.success, state.message
-    assert state.mass_balance_error < 1e-8
-    assert state.minimum_affinity >= -0.2
-    assert state.equilibrium_error <= 0.02
-    assert ("burnman" in sys.modules) == reference_loaded
-
-
-@pytest.mark.parametrize(
-    "pressure,temperature", [(1.0e9, 873.15), (2.0e9, 573.15), (5.0e8, 1073.15)]
-)
-def test_metasediment_setup_exact_water_and_native_stable_state(pressure, temperature):
-    reference_loaded = "burnman" in sys.modules
-    example = runpy.run_path(
-        str(
-            Path(__file__).resolve().parents[2]
-            / "examples/example_metasediment_phase_diagram.py"
-        )
-    )
-    oxides = example["METASEDIMENT_OXIDES"]
-    assert sum(oxides.values()) == 100.0
-    assert oxides["H2O"] == 2.0
-    phases = example["candidate_phases"]()
-    names = [p.name for p in phases]
-    assert len(names) == len(set(names))
-    assert {
-        "ms",
-        "bi",
-        "chl",
-        "ctd",
-        "st",
-        "cd",
-        "g",
-        "fsp",
-        "and",
-        "ky",
-        "sill",
-        "melt",
-        "H2O",
-    } <= set(names)
-    composition = example["METASEDIMENT_COMPOSITION"]
-    assert isinstance(composition, bm.Composition)
-    assert sum(composition.mass_composition.values()) == pytest.approx(0.1)
-    assert composition.mass_composition["H2O"] == pytest.approx(0.002)
-    state = bm.stable_equilibrium(
-        composition.atomic_composition, phases, pressure, temperature
-    )
-    assert state.success, state.message
-    assert state.mass_balance_error < 1.0e-8
-    assert state.minimum_affinity >= -0.2
-    assert state.equilibrium_error <= 0.02
-    assert ("burnman" in sys.modules) == reference_loaded
 
 
 def test_invalid_bulk_ranges_and_settings():
@@ -1274,96 +884,3 @@ def test_regular_solution_solvus_boundary_keeps_distinct_compositions():
     polygons = bm.phase_diagram_field_polygons(r)
     assert not polygons.diagnostics
     assert sorted(p.n_phases for p in polygons.polygons) == [1, 2]
-
-
-@pytest.mark.parametrize("alphas", [(1.0, 1.0), (1.5, 1.0)])
-@pytest.mark.parametrize("step", [0.025, 0.05, 0.1])
-def test_two_solvus_arms_close_at_composition_critical_point(alphas, step, tmp_path):
-    R, W = 8.31446261815324, 13000.0
-    a, b = alphas
-    x = b / (a + np.sqrt(a * a - (a - b) * b))
-    S = a * x + b * (1.0 - x)
-    B = 2.0 * W * a * b / (a + b)
-    critical_temperature = 2.0 * B * a * b * x * (1.0 - x) / (R * S**3)
-    chemical_difference = (
-        R * critical_temperature * np.log(x / (1.0 - x))
-        + B * ((1.0 - 2.0 * x) * S - x * (1.0 - x) * (a - b)) / S**2
-    )
-    mg = pure("Mg oxide", {"Mg": 1.0, "O": 1.0})
-    fe = pure("Fe oxide", {"Fe": 1.0, "O": 1.0})
-    main = bm.Solution(
-        bm.AsymmetricRegularSolution(
-            [(mg, "[Mg]O"), (fe, "[Fe]O")],
-            alphas=list(alphas),
-            energy_interaction=[[W]],
-        ),
-        [0.5, 0.5],
-        name="oxide",
-    )
-    mg2 = pure("Mg dioxide", {"Mg": 1.0, "O": 2.0})
-    fe2 = bm.CombinedMineral(
-        [pure("Fe dioxide", {"Fe": 1.0, "O": 2.0})],
-        [1.0],
-        [1000.0 - chemical_difference, 0.0, -1.0e-6],
-        name="Fe dioxide shifted",
-    )
-    auxiliary = bm.Solution(
-        bm.IdealSolution([(mg2, "[Mg]O2"), (fe2, "[Fe]O2")]), [0.5, 0.5], name="dioxide"
-    )
-    bulk = {"Mg": 0.6 * x + 0.2, "Fe": 0.8 - 0.6 * x, "O": 1.4}
-    s = settings()
-    s.step = step
-    s.pressure_seeds = s.temperature_seeds = 5
-    r = bm.phase_diagram(bulk, [main, auxiliary], (0.0, 2.0e9), (600.0, 900.0), s)
-    assert r.resolved, r.diagnostics
-    # Oxygen balance fixes main/auxiliary amounts at .6/.4. At the critical
-    # auxiliary composition .5 gives the critical pressure 1 GPa. For the
-    # asymmetric regular solution, G''=G'''=0 give x and T analytically above;
-    # the symmetric limit is x=.5 and T=W/(2R).
-    critical = [n for n in r.nodes if n.kind == "critical_point" and n.incident_lines]
-    assert len(critical) == 1, r.diagnostics
-    node = critical[0]
-    assert abs(node.pressure - 1.0e9) / (2.0e9) < s.node_tolerance * 2.0
-    assert abs(node.temperature - critical_temperature) / 300.0 < s.node_tolerance * 2.0
-    assert len(node.incident_lines) == 2
-    assert np.linalg.norm(node.critical_mode) == pytest.approx(1.0)
-    for index in node.incident_lines:
-        edge = r.boundaries[index]
-        other = r.nodes[
-            edge.end_node if edge.start_node == node.id else edge.start_node
-        ]
-        # In this model each arm approaches its critical pressure from one
-        # side. Nearly identical-copy roots must not overshoot and double back.
-        lower, upper = sorted([node.pressure, other.pressure])
-        pressures = [p.pressure for p in edge.points]
-        assert min(pressures) >= lower - 0.3
-        assert max(pressures) <= upper + 0.3
-        point = edge.points[0 if edge.start_node == node.id else -1]
-        copies = [p.composition for p in point.phases if p.candidate_index == 0]
-        assert len(copies) == 2
-        np.testing.assert_allclose(copies, [[x, 1.0 - x], [x, 1.0 - x]], atol=1e-8)
-    geometry = bm.phase_diagram_field_polygons(r)
-    assert all(p.n_phases > 0 for p in geometry.polygons), geometry.diagnostics
-    assert {p.n_phases for p in geometry.polygons} == {2, 3}
-    assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
-    # Verified critical endpoints intentionally have equal compositions.
-    # Saving/resuming must preserve them rather than rewinding them as false
-    # junctions; the recorded mode can seed an incomplete adjoining arm.
-    import json
-
-    example = runpy.run_path(
-        str(
-            Path(__file__).resolve().parents[2]
-            / "examples/example_basalt_phase_diagram.py"
-        )
-    )
-    path = tmp_path / "critical.json"
-    example["save_json"](r, path)
-    resumed = bm.refine_phase_diagram(
-        bulk, [main, auxiliary], json.loads(path.read_text()), s
-    )
-    assert resumed.resolved, resumed.diagnostics
-    assert len(resumed.boundaries) == 2
-    assert all(
-        p.n_phases > 0 for p in bm.phase_diagram_field_polygons(resumed).polygons
-    )

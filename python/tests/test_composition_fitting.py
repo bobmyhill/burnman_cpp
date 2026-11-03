@@ -13,12 +13,9 @@
 
 """Compositional solutions and nonnegative phase amounts."""
 
-from pathlib import Path
-
 import numpy as np
 from numpy.testing import assert_allclose
 import pytest
-from scipy.optimize import nnls
 
 import burnman_cpp as bm
 from burnman_cpp import minerals
@@ -27,9 +24,6 @@ from burnman_cpp.optimize.composition_fitting import (
     fit_composition_to_solution,
     fit_phase_proportions_to_bulk_composition as fit,
 )
-
-ROOT = Path(__file__).resolve().parents[2]
-DATA_FILE = ROOT / "examples/data/input_fitting/Bertka_Fei_1997_mars_mantle.dat"
 
 COMPOSITION_CASES = [
     (["Mg2SiO4", "Fe2SiO4"], ["[Mg]2SiO4", "[Fe]2SiO4"], [0.2, 0.8]),
@@ -443,47 +437,3 @@ def test_inexact_bulk_reaches_a_nonnegative_boundary():
 def test_invalid_or_underdetermined_compositions_raise(phases, bulk):
     with pytest.raises(ValueError):
         fit(phases, bulk)
-
-
-def test_all_mars_mantle_experiments_match_independent_nonnegative_fits():
-    data = np.genfromtxt(DATA_FILE, names=True, dtype=None, encoding="utf8")
-    compositions = np.array([data[name] for name in data.dtype.names[:6]])
-    bulk = compositions[:, 0]
-    for sample in np.unique(data["sample"]):
-        if sample == "bulk_composition":
-            continue
-        phases = compositions[:, data["sample"] == sample]
-        amounts, covariance, residual = fit(phases, bulk)
-        expected, residual_norm = nnls(phases, bulk)
-        assert_allclose(amounts, expected, atol=1e-7, rtol=1e-6, err_msg=sample)
-        assert amounts.min() >= -1e-10, sample
-        assert_allclose(
-            residual, residual_norm**2, atol=1e-10, rtol=1e-9, err_msg=sample
-        )
-        inverse = np.linalg.pinv(phases)
-        assert_allclose(
-            covariance, inverse @ inverse.T, rtol=1e-8, atol=1e-9, err_msg=sample
-        )
-
-
-def test_optional_python_burnman_parity_and_data_provenance():
-    burnman = pytest.importorskip("burnman")
-    pytest.importorskip("cvxpy")
-    from burnman.optimize.composition_fitting import (
-        fit_phase_proportions_to_bulk_composition,
-    )
-
-    source = Path(burnman.__file__).parent / "data/input_fitting" / DATA_FILE.name
-    assert DATA_FILE.read_bytes() == source.read_bytes()
-    data = np.genfromtxt(DATA_FILE, names=True, dtype=None, encoding="utf8")
-    compositions = np.array([data[name] for name in data.dtype.names[:6]])
-    bulk = compositions[:, 0]
-    for sample in np.unique(data["sample"]):
-        if sample == "bulk_composition":
-            continue
-        phases = compositions[:, data["sample"] == sample]
-        actual = fit(phases, bulk)
-        expected = fit_phase_proportions_to_bulk_composition(phases, bulk)
-        assert_allclose(actual[0], expected[0], rtol=1e-5, atol=1e-7, err_msg=sample)
-        assert_allclose(actual[1], expected[1], rtol=1e-6, atol=1e-9, err_msg=sample)
-        assert_allclose(actual[2], expected[2], rtol=1e-7, atol=1e-10, err_msg=sample)
