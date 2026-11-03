@@ -29,6 +29,29 @@ from burnman_cpp.minerals import (
 )
 
 
+@pytest.mark.parametrize(
+    "factory,args",
+    [
+        (model_sets.metapelite, ()),
+        (model_sets.metabasite, ("dio",)),
+        (model_sets.metabasite, ("aug",)),
+        (model_sets.igneous, ("G25",)),
+        (model_sets.igneous, ("W24",)),
+    ],
+)
+def test_model_sets_include_matched_silica_polymorphs(factory, args):
+    models = factory(*args)
+    dataset = getattr(bm.minerals, models.dataset)
+    for name in ("q", "trd", "crst", "coe", "stv"):
+        phases = [phase for phase in models.phases if phase.name == name]
+        assert len(phases) == 1
+        phase, reference = phases[0], getattr(dataset, name)()
+        assert phase.formula == {"Si": 1.0, "O": 2.0}
+        phase.set_state(5.0e9, 1200.0)
+        reference.set_state(5.0e9, 1200.0)
+        assert phase.molar_gibbs == pytest.approx(reference.molar_gibbs, abs=1.0e-8)
+
+
 @pytest.mark.parametrize("family", ["metapelite", "metabasite"])
 def test_model_sets_have_independent_phases_and_ps94_water(family):
     first, second = getattr(model_sets, family)(), getattr(model_sets, family)()

@@ -20,6 +20,7 @@ namespace burnman::minerals::model_sets {
 /// HPx phase-model collections and their calibration provenance. Each call
 /// creates independently owned phases. Pressures are in Pa; water is PS94 with
 /// the Holland-Powell (2011) ideal-gas thermal reference.
+/// All sets include q, trd, crst, coe and stv from their matching dataset.
 struct ModelSet {
   std::string name, version, dataset, source, citation;
   double recommended_max_pressure, cautious_max_pressure;
