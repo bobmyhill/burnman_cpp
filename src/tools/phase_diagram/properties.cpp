@@ -360,13 +360,12 @@ std::optional<State> field_seed(const Result &source, const FieldPolygon &field,
   return best;
 }
 
-void validate_candidates(
+void validate_candidate_names(
     const Result &source,
     const std::vector<std::shared_ptr<Material>> &candidates) {
   const int stride = source.settings.max_phase_instances;
-  if (source.composition_start.empty() || stride < 1)
-    throw std::invalid_argument("Grid requires saved composition_start and a "
-                                "positive phase-ID stride.");
+  if (stride < 1)
+    throw std::invalid_argument("Grid requires a positive phase-ID stride.");
   if (source.phase_names.size() !=
       candidates.size() * static_cast<std::size_t>(stride))
     throw std::invalid_argument(
@@ -377,6 +376,14 @@ void validate_candidates(
             source.phase_names[i * static_cast<std::size_t>(stride)])
       throw std::invalid_argument(
           "Grid candidate names/order must match the saved phase_diagram.");
+}
+
+void validate_candidates(
+    const Result &source,
+    const std::vector<std::shared_ptr<Material>> &candidates) {
+  if (source.composition_start.empty())
+    throw std::invalid_argument("Grid requires saved composition_start.");
+  validate_candidate_names(source, candidates);
 }
 
 void validate_grid_axis(const Eigen::VectorXd &coordinates,
@@ -394,6 +401,7 @@ void validate_grid_axis(const Eigen::VectorXd &coordinates,
 GridSolution capture_solution(const Assemblage &a, const detail::Engine &engine,
                               const std::vector<int> &ids) {
   GridSolution solution;
+  solution.max_phase_instances = engine.settings.max_phase_instances;
   solution.n_moles = a.get_n_moles();
   solution.gibbs = a.get_n_moles() * a.get_molar_gibbs();
   solution.molar_fractions = a.get_molar_fractions();
@@ -413,8 +421,28 @@ GridSolution capture_solution(const Assemblage &a, const detail::Engine &engine,
   return solution;
 }
 
+std::vector<std::shared_ptr<Material>>
+candidate_materials(const detail::Engine &engine) {
+  std::vector<std::shared_ptr<Material>> candidates;
+  candidates.reserve(engine.phases.size());
+  for (const auto &phase : engine.phases)
+    candidates.push_back(phase.material);
+  return candidates;
+}
+
 std::shared_ptr<Assemblage> restore_solution(const GridSolution &solution,
                                              detail::Engine &engine) {
+  return reconstruct_assemblage(solution, candidate_materials(engine),
+                                engine.settings.max_phase_instances);
+}
+} // namespace
+
+std::shared_ptr<Assemblage>
+reconstruct_assemblage(const GridSolution &solution,
+                       const std::vector<std::shared_ptr<Material>> &candidates,
+                       int max_phase_instances) {
+  if (max_phase_instances < 1)
+    throw std::invalid_argument("max_phase_instances must be positive.");
   const auto &state = solution.state;
   if (!std::isfinite(state.pressure) || !std::isfinite(state.temperature) ||
       state.pressure < 0. || state.temperature < 0. || state.phases.empty() ||
@@ -433,16 +461,19 @@ std::shared_ptr<Assemblage> restore_solution(const GridSolution &solution,
     const auto &p = state.phases[i];
     const auto &basis = solution.phase_bases[i];
     const auto &composition = solution.phase_compositions[i];
-    if (p.id < 0 ||
-        p.candidate_index != p.id / engine.settings.max_phase_instances ||
-        static_cast<std::size_t>(p.candidate_index) >= engine.phases.size() ||
+    if (p.id < 0 || p.candidate_index != p.id / max_phase_instances ||
+        static_cast<std::size_t>(p.candidate_index) >= candidates.size() ||
         !std::isfinite(p.amount) || p.amount < -1.e-12 * solution.n_moles)
       throw std::invalid_argument(
           "Invalid saved grid phase identity or amount.");
-    auto phase = detail::clone(
-        engine.phases[static_cast<std::size_t>(p.candidate_index)].material);
-    const auto n = engine.phases[static_cast<std::size_t>(p.candidate_index)]
-                       .vertices.cols();
+    const auto &original =
+        candidates[static_cast<std::size_t>(p.candidate_index)];
+    if (!original)
+      throw std::invalid_argument("Saved grid candidate model is null.");
+    auto phase = detail::clone(original);
+    const auto material_solution = std::dynamic_pointer_cast<Solution>(phase);
+    const Eigen::Index n =
+        material_solution ? material_solution->get_n_endmembers() : 1;
     if (basis.cols() != n || basis.rows() < 1 || basis.rows() > n ||
         composition.size() != basis.rows() || p.composition.size() != n ||
         !basis.allFinite() || !composition.allFinite() ||
@@ -480,7 +511,17 @@ std::shared_ptr<Assemblage> restore_solution(const GridSolution &solution,
   a->set_state(state.pressure, state.temperature);
   return a;
 }
-} // namespace
+
+void bind_reconstruction_phases(
+    PropertyGrid &grid,
+    const std::vector<std::shared_ptr<Material>> &candidates) {
+  validate_candidate_names(grid.context, candidates);
+  auto models = std::make_shared<std::vector<std::shared_ptr<Material>>>();
+  models->reserve(candidates.size());
+  for (const auto &phase : candidates)
+    models->push_back(detail::clone(phase));
+  grid.reconstruction_phases = std::move(models);
+}
 
 std::vector<std::string> thermodynamic_property_names() {
   std::vector<std::string> names;
@@ -540,6 +581,8 @@ PropertyGrid PropertyGridder::evaluate(const std::vector<std::string> &names,
   result.equilibrium_diagnostics = result.diagnostics;
   calculate(result, false);
   audit(result);
+  if (store_solutions)
+    bind_reconstruction_phases(result, candidate_materials(*engine_));
   return result;
 }
 
@@ -555,6 +598,8 @@ void PropertyGridder::retry(PropertyGrid &grid) {
         "Saved grid does not match the source diagram.");
   calculate(grid, true);
   audit(grid, true);
+  if (!grid.reconstruction_phases)
+    bind_reconstruction_phases(grid, candidate_materials(*engine_));
 }
 
 void PropertyGridder::audit(PropertyGrid &grid, bool reverse, bool reset) {
@@ -983,6 +1028,7 @@ phase_diagram_grid(const Result &source,
   if (!store_solutions) {
     grid.solutions.clear();
     grid.solutions.shrink_to_fit();
+    grid.reconstruction_phases.reset();
   }
   return grid;
 }
@@ -1033,6 +1079,7 @@ evaluate_property_grid(const PropertyGrid &saved,
   detail::Engine engine(saved.context.composition_start, candidates,
                         saved.context.settings, saved.context.section);
   PropertyGrid result = saved;
+  bind_reconstruction_phases(result, candidates);
   result.relaxed = relaxed;
   result.equilibrium_solves = 0;
   result.diagnostics = saved.equilibrium_diagnostics;

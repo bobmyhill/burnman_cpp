@@ -33,7 +33,18 @@ struct GridSolution {
   // Original candidate coefficients remain available in state.phases.
   std::vector<Eigen::MatrixXd> phase_bases;
   std::vector<Eigen::VectorXd> phase_compositions;
+  // Runtime model context; never serialized into equilibrium files.
+  std::shared_ptr<const std::vector<std::shared_ptr<Material>>>
+      reconstruction_phases;
+  int max_phase_instances = 3;
 };
+
+/// Restore independent ordinary phases, their exact active bases, amounts and
+/// physical P,T from a retained equilibrium. Never equilibrates or relaxes.
+std::shared_ptr<Assemblage>
+reconstruct_assemblage(const GridSolution &,
+                       const std::vector<std::shared_ptr<Material>> &,
+                       int max_phase_instances = 3);
 
 struct PropertyGrid {
   DiagramType diagram_type = DiagramType::PT;
@@ -56,7 +67,15 @@ struct PropertyGrid {
   // Empty unless requested; otherwise row-major, with nullopt at unsolved
   // points.
   std::vector<std::optional<GridSolution>> solutions;
+  std::shared_ptr<const std::vector<std::shared_ptr<Material>>>
+      reconstruction_phases;
 };
+
+/// Bind private candidate copies for one-argument reconstruction of snapshots.
+/// This runtime context is shared by snapshots and survives the grid's
+/// lifetime.
+void bind_reconstruction_phases(PropertyGrid &,
+                                const std::vector<std::shared_ptr<Material>> &);
 
 /// Equilibrate candidate assemblages from the saved fields.
 /// Coordinates use native diagram_axes order and SI units, including total
