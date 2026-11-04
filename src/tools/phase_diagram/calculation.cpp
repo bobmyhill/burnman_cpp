@@ -30,7 +30,7 @@ namespace burnman::phase_diagrams::detail {
 // Master sequence for new diagrams and saved-diagram refinement.
 Result Tracer::calculate(const Result *previous,
                          const std::optional<LineResolution> &resolution) {
-  if (previous && previous->resolved && previous->diagnostics.empty()) {
+  if (previous) {
     validate_previous_identity(*previous);
     result = *previous;
     result.settings = engine.settings;
@@ -41,25 +41,18 @@ Result Tracer::calculate(const Result *previous,
           result, engine, *resolution, [&](Boundary &line, std::size_t k) {
             return refine_segment(line, k);
           });
+      record_limiting_curves(result, engine);
     }
-    // Preserve accepted connections, labels, original points, nodes, samples
-    // and exclusions; point insertion needs no recovery or recertification.
-    record_limiting_curves(result, engine);
+    // Preserve the saved graph and evidence, including unresolved problems.
+    // Refinement only inserts points; recovery belongs to diagram creation.
     result.equilibrium_solves += engine.equilibrium_solves;
     result.minimization_calls += engine.minimization_calls;
     audit_thermodynamic_samples(result);
     return result;
   }
-  if (previous) {
-    const bool search_junctions = prepare_previous(*previous, resolution);
-    recover();
-    if (search_junctions)
-      search();
-  } else {
-    seed_boundaries();
-    search();
-    recover();
-  }
+  seed_boundaries();
+  search();
+  recover();
   apply_model_domain();
   remove_retraced_spurs();
   recover_failed_seeds();

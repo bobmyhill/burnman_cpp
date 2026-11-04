@@ -43,20 +43,18 @@ Result phase_diagram(const types::FormulaMap &composition,
                      const Settings &settings = Settings{},
                      const CompositionSection &section = CompositionSection{});
 
-/// Continue and refine a saved calculation, returning a new Result.
+/// Refine the boundary sampling of a saved calculation, returning a new Result.
 /// Reuse the original bulk, candidate order and max_phase_instances so saved
 /// phase IDs still identify the same minerals and coexisting solution copies.
-/// A resolved result retains all connections, labels, nodes and original
-/// points; only validated boundary points are added. An unresolved result also
-/// runs recovery from accepted states, revisiting junction branches where
-/// needed, trimming verified overshoots and removing duplicate traces.
+/// Retain all connections, labels, nodes, samples and original points,
+/// including unresolved problems; only validated boundary points are added.
+/// Refinement does not repair, retrace or relabel a diagram. Without
+/// resolution, no equilibrium calculations are performed.
 ///
 /// Optional resolution controls the spacing of solved boundary points, rather
 /// than the density of initial assemblage samples: 101 axis points means 100
 /// divisions of that axis. With resolution.region, subdivide the window span
-/// and refine segments intersecting it, retaining the whole diagram. Recovery
-/// can retrace suspect arcs; when resolution is supplied, additional
-/// equilibrium samples test closed fields that still lack a trusted label.
+/// and refine segments intersecting it, retaining the whole diagram.
 ///
 /// Every inserted point is an equilibrium calculation, not a linear estimate
 /// of mineral compositions. Unmet spacing is reported in spacing_diagnostics,
