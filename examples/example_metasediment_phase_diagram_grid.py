@@ -12,17 +12,22 @@
 #
 # ------------------------------------------------------
 
-"""Shaly metasediment at 5-10 kbar and 500-900 °C, in three parts.
+"""
+Calculates stable equilibria for a shaly metasediment
+at 5-10 kbar and 500-900 °C, in three parts.
 
-First create, refine and save the phase diagram. Then save the equilibria on
-an inclusive 101x101 P-T grid for later use. Finally, optionally label solution
-branches in the completed diagram and save a separate plot. The closed bulk
-contains 2 wt% H2O and uses the matched HPx metapelite model set, as in
-example_metasediment_phase_diagram.py.
+1) Create, refine and save the phase diagram.
+2) Calculate the stable equilibria on a 101x101 P-T grid.
+3) Where there are multiple copies of the same phase in the
+completed diagram, define a secondary label for each
+solution branch and save the labels. These labels
+can be used to consistently contour the compositions -
+for example, where there are two feldspars, and they have
+overlapping stability fields, the secondary labels allow
+the two feldspars to be contoured separately.
 
-Run this script without command-line arguments; edit the settings below.
-Results go to a new output directory beside this script. The equilibrium
-data are saved without subsequent property or potential processing.
+Contouring the compositions of the stable phases is done in a separate
+script, example_metasediment_phase_diagram_grid_step2_contours.py
 """
 
 from pathlib import Path
@@ -38,10 +43,8 @@ OUTPUT_DIR = (
 PRESSURE_RANGE = (5.0e8, 1.0e9)  # Pa: 5-10 kbar.
 TEMPERATURE_RANGE = (773.15, 1173.15)  # K: 500-900 °C.
 GRID_RESOLUTION = (101, 101)
-SECONDARY_LABELS = True  # Run the optional third step on the completed diagram.
+SECONDARY_LABELS = True  # Run the labelling step.
 MODEL_SET = model_sets.metapelite()
-
-# Masses in a 100 g wet rock, including exactly 2 g H2O.
 METASEDIMENT_OXIDES = dict(
     SiO2=61.5,
     Al2O3=20.0,
@@ -76,7 +79,7 @@ def print_solutions():
         print(f"mp50NCKFMASHTO.{name} ({phase.name}): {formula}", flush=True)
 
 
-def main():
+if __name__ == "__main__":
     # Part 0: Print solution names and generic formulae for the dataset.
     print_solutions()
 
@@ -111,7 +114,7 @@ def main():
     polygons = bm.phase_diagram_field_polygons(run.diagram)
     if not run.diagram.resolved or polygons.diagnostics:
         print("Gridding skipped: the phase diagram has unresolved fields.")
-        return
+        exit(1)
 
     grid = bm.phase_diagram_grid(
         run.diagram,
@@ -148,7 +151,3 @@ def main():
             encoding="utf-8",
         )
         print(f"Annotated diagram and labelled plots: {path.parent}")
-
-
-if __name__ == "__main__":
-    main()

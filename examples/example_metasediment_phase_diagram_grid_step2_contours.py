@@ -13,11 +13,14 @@
 # ------------------------------------------------------
 
 """
-Step 2: interpolate composition and property contours from a saved grid.
+This example script is a follow-up to
+example_metasediment_phase_diagram_grid.py.
 
-Run example_metasediment_phase_diagram_grid.py first. Edit CONTOUR_SETS below
-to choose phases, expressions, scalar attribute properties and levels.
-This example performs no equilibrium calculations.
+In this step, the saved equilibria on a 101x101 P-T grid
+are used to interpolate composition and property contours.
+The contours are saved in JSON format and plotted on the
+phase diagram. The contours are interpolated from the
+saved grid, so no new equilibrium calculations are performed.
 """
 
 from pathlib import Path
@@ -32,7 +35,8 @@ from burnman_cpp.tools.phase_diagram_helpers import save_figure
 
 SOURCE = Path(__file__).resolve().with_name("metasediment_phase_diagram_grid_output")
 OUTPUT_DIR = SOURCE / "composition_contours"
-# Freeze saved amounts and compositions, evaluating volumes at 1 bar, 298.15 K.
+# The following line freezes saved amounts and compositions,
+# so that volume fractions are evaluated at 1 bar, 298.15 K.
 STANDARD_STATE_VOLUME_FRACTIONS = True
 VOLUME_FRACTION_EXCLUDE_PHASES = ("H2O", "melt")  # Use () to include every phase.
 CONTOUR_SETS = [
@@ -105,7 +109,7 @@ CONTOUR_SETS = [
 ]
 
 
-def main():
+if __name__ == "__main__":
     diagram = bm.load_phase_diagram(SOURCE / "refined.json")
     phases = model_sets.metapelite().phases
     equilibria = bm.load_property_grid(SOURCE / "grid_equilibria.json.gz")
@@ -188,8 +192,3 @@ def main():
         figure, OUTPUT_DIR / "contours.png", formats=("svg",), bbox_inches="tight"
     )
     print(f"Saved scalar grids and interpolated contours: {OUTPUT_DIR}")
-    print("New equilibrium solves: 0")
-
-
-if __name__ == "__main__":
-    main()
