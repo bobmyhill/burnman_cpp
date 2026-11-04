@@ -12,111 +12,80 @@
 #
 # ------------------------------------------------------
 
-"""Step 2: calculate local patches and merge them into a saved metasediment diagram.
+"""
+Sometimes, you might find that the original seeds for a phase diagram
+were spaced too far apart for refinement to find small or narrow fields.
+One solution to this problem would be to recalculate the entire diagram
+with more seeds, but that can be expensive and time-consuming.
 
-Run example_metasediment_phase_diagram.py first. Edit the settings below and
-run without arguments. FIELDS selects one-based field numbers; None selects
-problematic fields and boundaries from the saved diagnostics. PATCH_FILES
-can instead select existing patch JSON files, applied in the given order.
-Set MERGE=False to save calculated patches for inspection before merging.
+This example shows an alternative approach to this problem:
+recalculating phase boundaries within a small window of the original diagram,
+then merging the results into the original diagram.
+
+The example uses the metasediment phase diagram from
+example_metasediment_phase_diagram.py. After running that script,
+this example recalculates phase boundaries for the region
+873.15-973.15 K and 8.0e8-1.2e9 Pa using a 9x9 seed grid,
+then merges the patch into the original diagram.
 """
 
-from functools import partial
 from pathlib import Path
 
 import burnman_cpp as bm
-from burnman_cpp.tools.phase_diagram_helpers import (
-    load_example,
-    plot_phase_diagram_example,
-    write_phase_diagram,
-)
+from burnman_cpp.minerals import model_sets
+from burnman_cpp.tools.phase_diagram_helpers import plot_phase_diagram_example
 
 EXAMPLES = Path(__file__).resolve().parent
 SOURCE = EXAMPLES / "metasediment_phase_diagram_output/metasediment_phase_diagram.json"
-MODELS = EXAMPLES / "example_metasediment_phase_diagram.py"
 OUTPUT_DIR = EXAMPLES / "patched_phase_diagram_output"
-FIELDS = None  # E.g. (1, 3) selects Field 1 and Field 3.
-SEEDS = (9, 9)  # x/y: temperature/pressure for a P-T diagram.
-PADDING = 0.05  # Expand each patch window by 5% per side.
-PATCH_FILES = ()  # Existing patches, or () to calculate new ones.
-MERGE = True
-PLOT = True
-VERBOSE = True
-
-
-def candidate_phases(module_name):
-    """Accept an import name or a Python file, including sibling imports."""
-    return load_example(module_name).candidate_phases()
-
-
-def save(result, directory, plots, metadata=None):
-    data = result if isinstance(result, dict) else result.to_dict()
-    data = dict(metadata or {}) | data
-    return write_phase_diagram(
-        data,
-        directory / "phase_diagram",
-        plot=(
-            partial(
-                plot_phase_diagram_example,
-                key_path=directory / "assemblages.md",
-                bbox_inches=None,
-            )
-            if plots
-            else None
-        ),
-    )
-
-
-def main():
-    source = bm.load_phase_diagram(SOURCE)
-    phases = candidate_phases(MODELS) if MODELS is not None else None
-    if PATCH_FILES:
-        patches = [(str(path), bm.load_phase_diagram(path)) for path in PATCH_FILES]
-    else:
-        windows = (
-            {
-                f"Field {number}": region
-                for number, region in bm.phase_diagram_field_regions(
-                    source, FIELDS, padding=PADDING
-                ).items()
-            }
-            if FIELDS is not None
-            else bm.phase_diagram_problem_regions(source, padding=PADDING)
-        )
-        if not windows:
-            print(
-                "No problematic fields or boundaries found; no patches were calculated."
-            )
-            return
-        settings = bm.PhaseDiagramSettings.from_dict(source.get("settings", {}))
-        names = dict(
-            P="pressure", T="temperature", S="entropy", V="volume", X="composition"
-        )
-        for axis, count in zip(source.get("diagram_type", "PT")[::-1], SEEDS):
-            setattr(settings, names[axis] + "_seeds", count)
-        settings.verbose = VERBOSE
-        patches = []
-        for label, region in windows.items():
-            print(f"Calculating {label}: x={region[0]}, y={region[1]}", flush=True)
-            patch = bm.calculate_phase_diagram_patch(source, phases, region, settings)
-            patch = save(
-                patch,
-                OUTPUT_DIR / (label.lower().replace(" ", "_") + "_patch"),
-                PLOT,
-                metadata=source,
-            )
-            patches.append((label, patch))
-    if MERGE:
-        merged, reports = source, []
-        for label, patch in patches:
-            merged, report = bm.merge_phase_diagrams(merged, patch, phases=phases)
-            reports.extend(f"{label}: {message}" for message in report)
-        save(merged, OUTPUT_DIR / "final", PLOT)
-        (OUTPUT_DIR / "merge_report.txt").write_text(
-            "\n".join(reports) + "\n", encoding="utf-8"
-        )
-        print(*reports, sep="\n")
+MODEL_SET = model_sets.metapelite()
+REGION = ((873.15, 973.15), (8.0e8, 1.2e9))  # x: temperature (K), y: pressure (Pa).
+SEEDS = 9
 
 
 if __name__ == "__main__":
-    main()
+    source = bm.load_phase_diagram(SOURCE)
+    if source.get("model_set") != MODEL_SET.to_dict():
+        raise ValueError("Use the same metapelite model set as the saved diagram.")
+    phases = MODEL_SET.phases
+    settings = bm.PhaseDiagramSettings.from_dict(source["settings"])
+    settings.pressure_seeds = settings.temperature_seeds = SEEDS
+    settings.verbose = True
+
+    # There are a number of ways to select a region for patching.
+    # The simplest, demonstrated below, is to specify a rectangular window
+    # in temperature and pressure.
+    patch = bm.calculate_phase_diagram_patch(
+        source, phases, REGION, settings, temperature_unit="K", pressure_unit="Pa"
+    )
+    # One can also specify a region using other methods. 
+    # For example, you can select a field by its one-based number
+    # on the plot/assemblage key, for example:
+    # windows = bm.phase_diagram_field_regions(
+    #     source, (1,), padding=0.05, temperature_unit="K", pressure_unit="Pa"
+    # )
+    # One can also find problem regions in the original diagram
+    # based on their saved diagnostics, for example:
+    # windows = bm.phase_diagram_problem_regions(
+    #     source, padding=0.05, temperature_unit="K", pressure_unit="Pa"
+    # )
+
+    # The patch can be saved as usual..
+    bm.save_phase_diagram(patch, OUTPUT_DIR / "patch.json", metadata=source)
+
+    # Patches can be merged, one at a time, into the original diagram.
+    merged, report = bm.merge_phase_diagrams(source, patch, phases=phases)
+
+    # The merged diagram can also be saved and plotted as usual.
+    bm.save_phase_diagram(merged, OUTPUT_DIR / "merged.json")
+    plot_phase_diagram_example(
+        merged,
+        OUTPUT_DIR / "merged.png",
+        phase_aliases={"g": "gt"},
+        temperature_unit="K",
+        pressure_unit="Pa",
+    )
+    (OUTPUT_DIR / "merge_report.txt").write_text(
+        "\n".join(report) + "\n", encoding="utf-8"
+    )
+    print(*report, sep="\n")

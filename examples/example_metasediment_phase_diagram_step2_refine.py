@@ -12,12 +12,15 @@
 #
 # ------------------------------------------------------
 
-"""Step 2: refine a saved metasediment diagram to 101 by 201 axis points.
+"""
+This script is a follow-up to example_metasediment_phase_diagram.py.
 
-Run example_metasediment_phase_diagram.py first, then run this script without
-arguments. Edit SOURCE, MODELS and RESOLUTION below to refine another diagram.
-Resolved diagrams retain their connections and labels while adding solved
-points. Unresolved diagrams also run recovery; spacing failures are reported.
+It refines the metasediment phase diagram created by that script,
+refining each phase boundary so that points are sampled where they
+intersect a grid of 101 pressures and 201 temperatures.
+
+Resolved diagrams retain their original connections and labels.
+Any calculation failures are reported.
 """
 
 from functools import partial
@@ -39,7 +42,7 @@ RESOLUTION = (101, 201)
 DISPLAY = dict(pressure_unit="kbar", temperature_unit="C")
 
 
-def main():
+if __name__ == "__main__":
     saved = bm.load_phase_diagram(SOURCE)
     result = refine_saved(
         saved,
@@ -48,13 +51,9 @@ def main():
         verbose=True,
         **DISPLAY,
     )
-    return write_phase_diagram(
+    write_phase_diagram(
         result,
         OUTPUT_DIR / "phase_diagram",
         metadata=saved,
         plot=partial(plot_phase_diagram_example, **DISPLAY),
     )
-
-
-if __name__ == "__main__":
-    main()
