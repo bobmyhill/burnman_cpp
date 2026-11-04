@@ -58,7 +58,7 @@ if __name__ == "__main__":
     patch = bm.calculate_phase_diagram_patch(
         source, phases, REGION, settings, temperature_unit="K", pressure_unit="Pa"
     )
-    # One can also specify a region using other methods. 
+    # One can also specify a region using other methods.
     # For example, you can select a field by its one-based number
     # on the plot/assemblage key, for example:
     # windows = bm.phase_diagram_field_regions(
