@@ -16,8 +16,8 @@
 Thermodynamic states and reaction lines are calculated in C++. Closed loops of
 connected lines define the plotted fields. A loop's coordinate sequence is a
 ring, with its first point repeated at the end; interior rings describe holes.
-Saved calculations use SI units, while plotting and patch-window helpers can
-use geological display units such as kbar and degrees Celsius.
+Calculations, plots and patch-window helpers default to SI units: Pa, K, J/K
+and m3. Alternative display units must be requested explicitly.
 """
 
 from collections.abc import Mapping
@@ -154,7 +154,8 @@ def phase_diagram_field_regions(result, field_numbers=None, *, padding=0.05, **d
     Each window includes the field's saved reaction points and endpoint nodes.
     Pad each side by ``padding`` times that coordinate's window span, then clip
     to the calculation domain. A zero-width field uses the tracing step as a
-    minimum width. Windows use plot units and axis order; ``**display`` accepts
+    minimum width. Windows default to SI units (Pa, K, J/K, m3) in plot axis
+    order: for P-T, x is temperature and y is pressure. ``**display`` accepts
     the unit options of ``plot_phase_diagram``. No equilibria are calculated.
     """
     import numpy as np
@@ -199,7 +200,7 @@ def phase_diagram_problem_regions(result, *, padding=0.05, **display):
 
     Field numbers are the one-based plot labels; Boundary IDs are used as saved,
     without adding one. Each boundary is included once. Windows use the padding,
-    clipping and plot units of ``phase_diagram_field_regions``. This selects
+    clipping and SI defaults of ``phase_diagram_field_regions``. This selects
     windows only; ``calculate_phase_diagram_patch`` performs the new calculations.
     """
     import re
@@ -236,7 +237,8 @@ def calculate_phase_diagram_patch(
 
     ``previous`` is a native result, dictionary or JSON path; its bulk, diagram
     axes, composition endpoints and fixed coordinate are reused. ``region``
-    is ``((xmin, xmax), (ymin, ymax))`` in the chosen plot units and axis order.
+    is ``((xmin, xmax), (ymin, ymax))`` in plot axis order, defaulting to SI units
+    (Pa, K, J/K, m3). For P-T, x is temperature and y is pressure.
     Supply the original candidate mineral/solution models in their original order.
 
     Seed counts in ``settings`` control the initial equilibrium grid across the
@@ -714,8 +716,8 @@ def merge_phase_diagrams(base, patch, *, join_tolerance=None, phases=None):
 
 def _coordinate_units(result, quantities, options):
     """SI-to-display scales for coordinates and contour values."""
-    pressure_unit = options.get("pressure_unit", "kbar")
-    temperature_unit = options.get("temperature_unit", "C")
+    pressure_unit = options.get("pressure_unit", "Pa")
+    temperature_unit = options.get("temperature_unit", "K")
     entropy_unit = options.get("entropy_unit", "J/K")
     volume_unit = options.get("volume_unit", "m3")
     pressure_scales = {"Pa": 1.0, "GPa": 1.0e9, "kbar": 1.0e8}
@@ -760,8 +762,8 @@ def _coordinate_units(result, quantities, options):
 
 def _coordinate_transforms(
     result,
-    pressure_unit="kbar",
-    temperature_unit="C",
+    pressure_unit="Pa",
+    temperature_unit="K",
     entropy_unit="J/K",
     volume_unit="m3",
     swap_axes=False,
@@ -819,8 +821,8 @@ def refine_phase_diagram(
     *,
     resolution=None,
     region=None,
-    pressure_unit="kbar",
-    temperature_unit="C",
+    pressure_unit="Pa",
+    temperature_unit="K",
     entropy_unit="J/K",
     volume_unit="m3",
     swap_axes=False,
@@ -844,8 +846,9 @@ def refine_phase_diagram(
 
     ``region=((xmin, xmax), (ymin, ymax))`` restricts spacing refinement to
     segments meeting that window. Bounds use the chosen plot units and axis
-    order, and counts subdivide the window's spans. Density units request uniform
-    spacing in density rather than volume. A region requires ``resolution``.
+    order, defaulting to SI units (Pa, K, J/K, m3). For P-T, x is temperature
+    and y is pressure. Counts subdivide the window's spans. Density units request
+    uniform spacing in density rather than volume. A region requires ``resolution``.
 
     A resolved input retains its boundary IDs, connections, side labels, nodes,
     field labels and original points. Refinement only inserts validated points;
@@ -923,8 +926,8 @@ def plot_phase_diagram(
     show_unresolved=True,
     close_domain=True,
     tolerance=1.0e-8,
-    pressure_unit="kbar",
-    temperature_unit="C",
+    pressure_unit="Pa",
+    temperature_unit="K",
     entropy_unit="J/K",
     volume_unit="m3",
     swap_axes=False,
@@ -978,8 +981,9 @@ def plot_phase_diagram(
     fraction; ``composition_label`` supplies its label. Unit conversions follow
     the physical coordinate, including T on the vertical axis of a T-X diagram.
 
-    Pressure units are ``'Pa'``, ``'GPa'`` or ``'kbar'``; temperature units are
-    ``'K'`` or ``'C'``. Total entropy units are ``'J/K'`` or ``'kJ/K'``;
+    Units default to Pa, K, J/K and m3. Pressure units are ``'Pa'``, ``'GPa'``
+    or ``'kbar'``; temperature units are ``'K'`` or ``'C'``.
+    Total entropy units are ``'J/K'`` or ``'kJ/K'``;
     total volume units are ``'m3'`` or ``'cm3'``. For constant-composition
     sections, ``entropy_unit='kB/atom'`` divides entropy by the supplied bulk
     atom amount times the gas constant; ``volume_unit='kg/m3'`` displays
@@ -1441,7 +1445,8 @@ def plot_phase_diagram_contours(
     This performs no equilibrium solves. Contours are the result of
     phase_diagram_contours or its JSON dictionary. Display units and axis
     order inherit those of plot_phase_diagram on the supplied axes.
-    For other axes, supply the units used to draw their phase diagram.
+    Other axes default to SI units (Pa, K, J/K, m3); supply explicit units
+    if their phase diagram uses a different convention.
     The label names this contour level in the legend and, optionally, along
     sufficiently long segments; all text uses label_fontsize.
 

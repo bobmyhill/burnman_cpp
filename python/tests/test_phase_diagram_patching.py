@@ -230,10 +230,8 @@ def test_fresh_patch_and_saved_merge_can_resume_native_checks(tmp_path):
     patch = bm.calculate_phase_diagram_patch(
         base,
         phases,
-        ((800, 1200), (0.5, 1.5)),
+        ((800, 1200), (0.5e9, 1.5e9)),
         opts,
-        pressure_unit="GPa",
-        temperature_unit="K",
         resolution=(11, 13),
     )
     assert patch.resolved, patch.diagnostics
@@ -279,7 +277,7 @@ def test_local_calculation_preserves_thermodynamic_axes_and_fixed_coordinate(
     base = bm.phase_diagram(
         {"Mg": 1, "O": 1}, [mineral], settings=opts, diagram=diagram_type, **options
     )
-    display = dict(pressure_unit="Pa", temperature_unit="K", swap_axes=True)
+    display = dict(swap_axes=True)
     region = tuple(
         (lo + 0.25 * (hi - lo), hi - 0.25 * (hi - lo))
         for lo, hi in (ranges[a] for a in diagram_type)
@@ -296,9 +294,7 @@ def test_local_calculation_preserves_thermodynamic_axes_and_fixed_coordinate(
 
 def test_field_windows_use_plot_numbers_and_clip_padding():
     base = diagram([(0.5, 0), (0.5, 1)])
-    fields = bm.phase_diagram_field_regions(
-        base, [1], padding=0.05, temperature_unit="K", pressure_unit="Pa"
-    )
+    fields = bm.phase_diagram_field_regions(base, [1], padding=0.05)
     assert list(fields) == [1]
     assert fields[1][0] == pytest.approx((0, 1))
     assert 0 <= fields[1][1][0] < fields[1][1][1] <= 1
@@ -318,9 +314,7 @@ def test_problem_regions_include_boundary_diagnostics_without_problem_fields(tmp
     original = deepcopy(base)
     assert bm.phase_diagram_field_regions(base) == {}
     path = bm.save_phase_diagram(base, tmp_path / "base.json")
-    regions = bm.phase_diagram_problem_regions(
-        path, pressure_unit="Pa", temperature_unit="K"
-    )
+    regions = bm.phase_diagram_problem_regions(path)
     assert list(regions) == ["Boundary 0"]
     assert regions["Boundary 0"][0] == pytest.approx((0, 1))
     assert regions["Boundary 0"][1] == pytest.approx((0.4875, 0.5125))

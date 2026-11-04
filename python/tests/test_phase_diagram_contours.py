@@ -428,7 +428,7 @@ def test_separate_contour_plotter_inherits_units_and_accepts_json(units):
     else:
         np.testing.assert_allclose(points[:, 0], v, rtol=1.0e-9)
     with pytest.raises(ValueError, match="must match"):
-        bm.plot_phase_diagram_contours(result, contours, ax, temperature_unit="K")
+        bm.plot_phase_diagram_contours(result, contours, ax, temperature_unit="C")
     plt.close(fig)
 
 

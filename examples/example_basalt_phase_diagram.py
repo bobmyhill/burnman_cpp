@@ -117,6 +117,8 @@ def plot(
         result,
         path,
         label_fontsize,
+        pressure_unit="kbar",
+        temperature_unit="C",
         phase_aliases={"g": "gt"},
         axes=dict(
             xlim=temperature_range,
