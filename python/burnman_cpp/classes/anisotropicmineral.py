@@ -90,6 +90,7 @@ class AnisotropicMineral(_core.AnisotropicMineral):
             self.orthotropic,
         )
         result.name = self.name
+        result.number_of_moles = self.number_of_moles
         if self.has_state():
             result.set_state(self.pressure, self.temperature)
         return result
@@ -149,16 +150,7 @@ def _explicit_property(name):
     return property(get)
 
 
-for _alias, _name in dict(
-    _ALIASES,
-    volume="molar_volume",
-    entropy="molar_entropy",
-    enthalpy="molar_enthalpy",
-    helmholtz="molar_helmholtz",
-    internal_energy="molar_internal_energy",
-    heat_capacity_p="molar_heat_capacity_p",
-    heat_capacity_v="molar_heat_capacity_v",
-).items():
+for _alias, _name in _ALIASES.items():
     if _alias in ("K_T", "K_S", "beta_T", "beta_S"):
         setattr(AnisotropicMineral, _alias, _explicit_property(_alias))
     elif _alias != _name:

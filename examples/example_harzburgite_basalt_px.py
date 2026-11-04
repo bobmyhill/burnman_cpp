@@ -12,37 +12,30 @@
 #
 # ------------------------------------------------------
 
-"""Harzburgite–basalt P-X section, SLB2024 solids, 1673 K and 0–25 GPa.
+"""
+This example calculates the pressure-composition phase diagram
+for a chemically equilibrated mixture of harzburgite and basalt.
+It uses the SLB2024 solid solution model at 1673 K
+and pressures from 0 to 25 GPa.
 
-Table 1 of Stixrude & Lithgow-Bertelloni (2024), doi:10.1093/gji/ggae126,
-supplies both dry oxide compositions, including their different ferric ratios.
-Each native Composition is normalized to 100 g (0.1 kg). X is the basalt mass
-fraction: bulk(X)=(1-X)*harzburgite+X*basalt, always representing 100 g.
-The pyrolite example supplies the complete SLB2024 candidate set and settings.
-All stability searches, equilibrium and tracing run in C++; Python plots.
-The pyrolite EOS-domain checks are retained. Melting is excluded; oxygen is
-closed and unbuffered.
-
-Run: python examples/example_harzburgite_basalt_px.py
+The dry compositions are taken from Table 1 of
+Stixrude & Lithgow-Bertelloni (2024), doi:10.1093/gji/ggae126.
+X is the basalt mass fraction: bulk(X)=(1-X)*harzburgite+X*basalt.
+The compositions always sum to 100 g.
 """
 
 from pathlib import Path
 
 import burnman_cpp as bm
+from burnman_cpp.minerals import model_sets
 from burnman_cpp.tools.phase_diagram_helpers import (
-    load_example,
     plot_phase_diagram_example,
     write_phase_diagram,
 )
 
 OUTPUT_DIR = Path(__file__).resolve().with_name("harzburgite_basalt_px_output")
 SEEDS = 7
-
-
-pyrolite = load_example(Path(__file__).with_name("example_pyrolite_phase_diagram.py"))
-PAPER_URL = pyrolite.PAPER_URL
-candidate_phases = pyrolite.candidate_phases
-settings = pyrolite.settings
+PAPER_URL = "https://doi.org/10.1093/gji/ggae126"
 
 
 def endmember(oxides):
@@ -77,12 +70,17 @@ BASALT = endmember(
 )
 
 
-def calculate(seeds=7, quick=False, verbose=False):
-    opts = settings(seeds, quick, verbose)
+def calculate(seeds=7, verbose=False):
+    opts = bm.PhaseDiagramSettings()
+    opts.pressure_seeds = opts.temperature_seeds = seeds
     opts.composition_seeds = opts.pressure_seeds
+    # Mask undefined Mg-Tschermak EoS states and the cf ordering transition.
+    opts.required_eos_phases = ["opx"]
+    opts.required_thermal_phases = ["cf"]
+    opts.verbose = verbose
     return bm.phase_diagram(
         HARZBURGITE.atomic_composition,
-        candidate_phases(),
+        model_sets.slb2024().phases,
         diagram="PX",
         composition_end=BASALT.atomic_composition,
         pressure_range=(0.0, 25.0e9),
@@ -114,20 +112,16 @@ def plot(result, path, label_fontsize=8.0):
         formats=("pdf",),
         pressure_unit="GPa",
         composition_label="Basalt mass fraction",
-        axes=dict(title="Harzburgite–basalt at 1673 K (SLB2024 solids)"),
+        axes=dict(title="Harzburgite-basalt at 1673 K (SLB2024 solids)"),
         key_path=path.with_name(path.stem + "_labels.md"),
     )
 
 
-def main():
-    return write_phase_diagram(
+if __name__ == "__main__":
+    write_phase_diagram(
         calculate(seeds=SEEDS, verbose=True),
         OUTPUT_DIR / "harzburgite_basalt_px",
         save_json=save_json,
         plot=plot,
         label_fontsize=8.0,
     )
-
-
-if __name__ == "__main__":
-    main()

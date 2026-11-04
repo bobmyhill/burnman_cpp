@@ -12,22 +12,18 @@
 #
 # ------------------------------------------------------
 
-"""Pyrolite S–P phase diagram, 0–40 GPa, with SLB2024 solids.
+"""
+Phase diagram generation for a dry, solid, closed-system pyrolite containing
+2% Fe³⁺/ΣFe on a metal-free basis, calculated from 0-40 GPa in P-S coordinates.
+It uses the Stixrude & Lithgow-Bertelloni (2024) thermodynamic dataset,
+with a composition taken from Table 1 of that paper.
 
-Set the entropy bounds from equilibria at (0 GPa, 0 deg C) and
-(140 GPa, 4000 deg C), on the original example's 100 g bulk scale.
-The upper reference temperature is specified at 140 GPa, not as a
-zero-pressure potential temperature. No entropy extrapolation is used.
+The example sets the entropy bounds as calculated from stable equilibria
+at (0 GPa, 0 °C) and (140 GPa, 4000 °C).
 
-Calculate directly in P–S coordinates and plot entropy horizontally and
-pressure vertically. Start with 41 pressure and entropy seeds, and retain
-41 temperature seeds in the settings. The temperature range supplies physical
-starting guesses for the entropy-constrained solves; it is not a diagram axis.
-The original pyrolite composition, models and EOS-domain policy are retained.
-Only solid phases are included; unavailable states remain in the diagnostics.
-
-Run without arguments; edit SEEDS and ENTROPY_UNIT below. JSON retains
-total entropy in J/K; the plot displays entropy in kB per atom by default.
+A mask is applied to states where the full orthopyroxene model has
+no stable EOS root or the calcium-ferrite-structured solution has negative
+heat capacity.
 """
 
 from functools import partial
@@ -35,8 +31,8 @@ from math import isfinite
 from pathlib import Path
 
 import burnman_cpp as bm
+from burnman_cpp.minerals import model_sets
 from burnman_cpp.tools.phase_diagram_helpers import (
-    load_example,
     plot_phase_diagram_example,
     write_phase_diagram,
 )
@@ -44,22 +40,48 @@ from burnman_cpp.tools.phase_diagram_helpers import (
 OUTPUT_DIR = Path(__file__).resolve().with_name("pyrolite_sp_phase_diagram_output")
 SEEDS = 41
 ENTROPY_UNIT = "kB/atom"  # Or "J/K" or "kJ/K".
+PAPER_URL = "https://doi.org/10.1093/gji/ggae126"
+MODEL_SET = model_sets.slb2024()
+PHASE_GLOSSARY = MODEL_SET.phase_glossary
+PHASES = MODEL_SET.phases
 
-
-pyrolite = load_example(Path(__file__).with_name("example_pyrolite_phase_diagram.py"))
-PRESSURE_RANGE = (0.0, 40.0e9)
+PRESSURE_RANGE = (0.0, 40.0e9)  # in Pa.
+TEMPERATURE_RANGE = (273.15, 4273.15)  # in K.
 ENTROPY_REFERENCES = ((0.0, 273.15), (140.0e9, 4273.15))
-TEMPERATURE_RANGE = (273.15, 4273.15)
+
+# Get the pyrolite composition from Table 1 of Stixrude & Lithgow-Bertelloni (2024).
+# This corresponds to an Fe3+/sum(Fe) ratio of 2% on a metal-free basis.
+# The composition is normalized to 100 g (0.1 kg).
+PYROLITE_COMPOSITION = bm.Composition(
+    dict(
+        SiO2=45.00,
+        MgO=38.88,
+        FeO=8.05,
+        Fe2O3=0.18,
+        CaO=3.18,
+        Al2O3=4.00,
+        Na2O=0.13,
+        Cr2O3=0.57,
+    ),
+    unit_type="mass",
+)
+PYROLITE_COMPOSITION.renormalize("mass", "total", 0.1)
+
+# Masses in grams of a 100 g rock are also oxide weight percentages
+# for JSON storage.
+PYROLITE_OXIDES = {
+    oxide: kg * 1.0e3 for oxide, kg in PYROLITE_COMPOSITION.mass_composition.items()
+}
 
 
-def candidate_phases():
-    """Restore the original pyrolite candidate models in their saved order."""
-    return pyrolite.candidate_phases()
-
-
-def settings(seeds=41, quick=False, verbose=False):
-    opts = pyrolite.settings(seeds, quick, verbose)
-    opts.entropy_seeds = opts.pressure_seeds
+def settings(seeds=41, verbose=False):
+    opts = bm.PhaseDiagramSettings()
+    opts.pressure_seeds = opts.temperature_seeds = opts.entropy_seeds = seeds
+    # Mask the diagram where the EoS of Mg-Tschermak breaks down.
+    opts.required_eos_phases = ["opx"]
+    # Mask the diagram where endmembers of cf have negative heat capacities.
+    opts.required_thermal_phases = ["cf"]
+    opts.verbose = verbose
     return opts
 
 
@@ -68,13 +90,17 @@ def entropy_references(opts):
     records = []
     for pressure, temperature in ENTROPY_REFERENCES:
         state = bm.stable_equilibrium(
-            pyrolite.PYROLITE_COMPOSITION.atomic_composition,
-            candidate_phases(),
+            PYROLITE_COMPOSITION.atomic_composition,
+            PHASES,
             pressure,
             temperature,
             opts,
         )
-        if not state.success or not isfinite(state.entropy):
+        if (
+            not state.success
+            or state.outside_model_domain
+            or not isfinite(state.entropy)
+        ):
             raise RuntimeError(
                 f"Entropy reference at {pressure / 1e9:g} GPa, "
                 f"{temperature - 273.15:g} deg C failed: {state.message}"
@@ -98,36 +124,41 @@ def entropy_references(opts):
     return records
 
 
-def calculate(seeds=41, quick=False, verbose=False):
-    """Calculate the native P–S section and retain its entropy-reference metadata."""
-    opts = settings(seeds, quick, verbose)
-    references = entropy_references(opts)
-    entropy_range = tuple(r["total_entropy_J_per_K"] for r in references)
-    print(
-        f"Entropy bounds: {entropy_range[0]:.8g}–{entropy_range[1]:.8g} J/K per 100 g.",
-        flush=True,
-    )
-    result = bm.phase_diagram(
-        pyrolite.PYROLITE_COMPOSITION.atomic_composition,
-        candidate_phases(),
-        diagram="PS",
-        pressure_range=PRESSURE_RANGE,
-        entropy_range=entropy_range,
-        temperature_range=TEMPERATURE_RANGE,
-        settings=opts,
-    )
-    return result.to_dict() | dict(
-        entropy_reference_states=references,
-        oxide_wt_percent=pyrolite.PYROLITE_OXIDES,
-        initial_ferric_fraction=pyrolite.INITIAL_FERRIC_FRACTION,
-        dataset="SLB_2024",
-        dataset_source=pyrolite.PAPER_URL,
-        closed_system=True,
-        solid_only=True,
+def save_json(
+    result,
+    path,
+    *,
+    pressure_range=PRESSURE_RANGE,
+    entropy_reference_states=(),
+):
+    bm.save_phase_diagram(
+        result,
+        path,
+        metadata=dict(
+            oxide_wt_percent=PYROLITE_OXIDES,
+            closed_system=True,
+            dataset="SLB_2024",
+            dataset_source=PAPER_URL,
+            model_set=MODEL_SET.to_dict(),
+            solid_only=True,
+            display_pressure_range_GPa=[p / 1.0e9 for p in pressure_range],
+            display_entropy_unit=ENTROPY_UNIT,
+            temperature_search_range_K=list(TEMPERATURE_RANGE),
+            entropy_reference_states=list(entropy_reference_states),
+        ),
     )
 
 
-def plot(result, path, label_fontsize=7.0, *, entropy_unit="kB/atom"):
+def plot(
+    result,
+    path,
+    label_fontsize=7.0,
+    *,
+    pressure_range=PRESSURE_RANGE,
+    entropy_unit=ENTROPY_UNIT,
+    figsize=(12, 10),
+):
+    key_path = Path(path).with_name(Path(path).stem + "_assemblages.md")
     plot_phase_diagram_example(
         result,
         path,
@@ -135,19 +166,50 @@ def plot(result, path, label_fontsize=7.0, *, entropy_unit="kB/atom"):
         pressure_unit="GPa",
         entropy_unit=entropy_unit,
         show_nodes=False,
-        axes=dict(ylim=(0.0, 40.0), title="Pyrolite, S–P phase diagram"),
-        scope="SLB2024 solids; closed oxygen; 3% initial Fe³⁺/ΣFe; no liquids",
-        notes="Entropy bounds: S(0 GPa, 0 °C) to S(140 GPa, 4000 °C). Numbered fields: ",
+        figsize=figsize,
+        axes=dict(
+            ylim=tuple(p / 1.0e9 for p in pressure_range),
+            ylabel="Pressure (GPa)",
+            title="Pyrolite, S-P phase diagram; 2% Fe³⁺/ΣFe on a no metal-basis",
+        ),
+        scope="SLB2024 solids; closed oxygen; high/low spin populations equilibrated; no liquids",
+        notes="Hatched area: one or more phases have undefined equations of state. "
+        "Entropy bounds: S(0 GPa, 0 °C) to S(140 GPa, 4000 °C). Numbered fields: ",
     )
-
-
-def main():
-    return write_phase_diagram(
-        calculate(seeds=SEEDS, verbose=True),
-        OUTPUT_DIR / "pyrolite_sp_phase_diagram",
-        plot=partial(plot, entropy_unit=ENTROPY_UNIT),
-    )
+    if key_path.exists():
+        with key_path.open("a") as key:
+            key.write("\n## Phase abbreviations\n\n| Label | Model |\n| --- | --- |\n")
+            for label, name in PHASE_GLOSSARY.items():
+                key.write(f"| {label} | {name} |\n")
+            key.write(
+                "\nA leading number means that many coexisting compositions of the same solution.\n"
+            )
+            key.write(
+                f"\nDataset and bulk source: [Stixrude & Lithgow-Bertelloni (2024)]({PAPER_URL}).\n"
+            )
 
 
 if __name__ == "__main__":
-    main()
+    opts = settings(SEEDS, verbose=True)
+    references = entropy_references(opts)
+    entropy_range = tuple(r["total_entropy_J_per_K"] for r in references)
+    print(
+        f"Entropy bounds: {entropy_range[0]:.8g}-{entropy_range[1]:.8g} J/K per 100 g.",
+        flush=True,
+    )
+    phase_diagram = bm.phase_diagram(
+        PYROLITE_COMPOSITION.atomic_composition,
+        PHASES,
+        diagram="PS",
+        pressure_range=PRESSURE_RANGE,
+        entropy_range=entropy_range,
+        temperature_range=TEMPERATURE_RANGE,
+        settings=opts,
+    )
+
+    write_phase_diagram(
+        phase_diagram,
+        OUTPUT_DIR / "pyrolite_sp_phase_diagram",
+        save_json=partial(save_json, entropy_reference_states=references),
+        plot=plot,
+    )

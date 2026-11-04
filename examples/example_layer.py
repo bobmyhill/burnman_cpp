@@ -11,109 +11,211 @@
 #
 # ------------------------------------------------------
 
-"""Build a lower-mantle layer and compare its properties with PREM.
+"""
+example_layer
+----------------
 
-Pressures and gravity are calculated self-consistently for an adiabatic
-perovskite-periclase mixture. PREM supplies the upper pressure and lower gravity
-boundary conditions. All calculations use SI units.
+This example script is building on example_beginner.py.
+In this case we use the layer Class. Instead of computing properties at
+pressures defined by the seismic PREM model (as is done in many examples),
+we compute properties at pressures self-consistent to the layer.
+Layer can be used to evaluate geophysical parameter, such as
+the Bullen parameter or the Brunt_vasala frequency.
+Through the 'modified_adiabat' temperature setting it allows for inclusions of
+thermal boundary layers.
+Layers can also be used to build an entire planet (see example_build_planet.py)
+
+*Uses:*
+
+* :doc:`mineral_database`
+* :class:`burnman_cpp.Layer`
+* :class:`burnman_cpp.Assemblage`
+* :class:`burnman_cpp.seismic.PREM`
+
+
+*Demonstrates:*
+
+* creating basic layer
+* calculating thermoelastic properties with self-consistent pressures
+* seismic comparison
 """
 
-import matplotlib.pyplot as plt
+# Here we import standard python modules that are required for
+# usage of BurnMan.
 import numpy as np
+import matplotlib.pyplot as plt
 
-import burnman_cpp as burnman
+# Here we import the relevant modules from BurnMan.
+import burnman_cpp
 from burnman_cpp import minerals
 
-
-def main():
-    # Define the lower-mantle rock as 80 mol% perovskite and 20 mol% periclase.
-    rock = burnman.Assemblage(
+if __name__ == "__main__":
+    # This is the first actual work done in this example.  We define
+    # composite object and name it "rock".
+    rock = burnman_cpp.Assemblage(
         [minerals.SLB_2011.mg_perovskite(), minerals.SLB_2011.periclase()], [0.8, 0.2]
     )
-    seismic_model = burnman.seismic.PREM()
+
+    # Here we create and load the PREM seismic velocity model, which will be
+    # used for comparison with the seismic velocities of the "rock" composite
+    seismic_model = burnman_cpp.seismic.PREM()
+
+    # We create an array of 20 depths at which we want to evaluate PREM,
+    # and then query the seismic model for the pressure, density,
+    # P wave speed, S wave speed, and bulk sound velocity at those depths
     depths = np.linspace(2890e3, 670e3, 20)
-    pressure, gravity, seis_rho, seis_vp, seis_vs = seismic_model.evaluate(
+
+    # Native seismic-model warnings are written to stderr.
+    eval = seismic_model.evaluate(
         ["pressure", "gravity", "density", "v_p", "v_s"], depths
     )
+    pressure, gravity, seis_rho, seis_vp, seis_vs = eval
     seis_bullen = seismic_model.bullen(depths)
 
-    lower_mantle = burnman.Layer("Lower Mantle", radii=6371e3 - depths)
+    # Here we define the lower mantle as a Layer(). The layer needs various
+    # parameters to set a depth array and radius array.
+    lower_mantle = burnman_cpp.Layer(name="Lower Mantle", radii=6371.0e3 - depths)
+    # Here we set the composition of the layer as the above defined 'rock'.
     lower_mantle.set_material(rock)
-    lower_mantle.set_temperature_mode("adiabatic", temperature_top=1900.0)
-    # To prescribe temperatures instead, use:
-    # temperatures = burnman.geotherm.BrownShankland().temperatures(depths)
-    # lower_mantle.set_temperature_mode("user-defined", temperatures)
-    lower_mantle.set_pressure_mode(
-        "self-consistent", pressure_top=pressure[-1], gravity_bottom=gravity[0]
-    )
-    # To prescribe pressures instead, use:
-    # lower_mantle.set_pressure_mode("user-defined", pressure, gravity_bottom=gravity[0])
-    lower_mantle.make()
-    print(lower_mantle, end="")
-    print(f"Layer mass: {lower_mantle.mass:.6e} kg")
 
-    figure, axes = plt.subplots(2, 2, figsize=(10, 6))
-    axes = axes.ravel()
-    for computed, reference, color, label in [
-        (lower_mantle.v_p, seis_vp, "r", r"V$_P$"),
-        (lower_mantle.v_s, seis_vs, "b", r"V$_S$"),
-    ]:
-        axes[0].plot(
-            lower_mantle.P / 1e9,
-            computed / 1e3,
-            color + "-o",
-            markersize=4,
-            label=f"{label} (computed)",
-        )
-        axes[0].plot(
-            pressure / 1e9,
-            reference / 1e3,
-            color + "--o",
-            markerfacecolor="w",
-            markersize=4,
-            label=f"{label} (reference)",
-        )
-    axes[0].set_ylabel("Wave speeds (km/s)")
-    axes[1].plot(
-        lower_mantle.P / 1e9,
-        lower_mantle.rho / 1e3,
-        "g-o",
+    # Now we set the temperature mode of the layer.
+    # Here we use an adiabatic temperature and set the temperature at the
+    # top of the layer
+    lower_mantle.set_temperature_mode(
+        temperature_mode="adiabatic", temperature_top=1900.0
+    )
+    # Alternatively, we choose a user-defined temperature, given by the
+    # Brown & Shankland geotherm
+    # lower_mantle.set_temperature_mode(temperature_mode ='user_defined',
+    # geotherm = burnman_cpp.geotherm.BrownShankland()
+    # temperatures = geotherm.temperatures(depths)
+
+    # And we set a self-consistent pressure. The pressure at the top of the
+    # layer and gravity at the bottom of the layer are given by the PREM.
+    lower_mantle.set_pressure_mode(
+        pressure_mode="self-consistent",
+        pressure_top=pressure[-1],
+        gravity_bottom=gravity[0],
+    )
+    # Alternatively, we set a user-defined pressure given by PREM
+    # lower_mantle.set_pressure_mode(pressure_mode='user-defined',
+    # pressures = pressure, gravity_bottom=gravity[0])
+
+    lower_mantle.make()
+
+    # All the work is done, now we can plot various properties!
+    fig = plt.figure(figsize=(10, 6))
+    ax = [fig.add_subplot(2, 2, i) for i in range(1, 5)]
+
+    # First, we plot the p-wave speed verses the PREM p-wave speed
+    ax[0].plot(
+        lower_mantle.pressures / 1.0e9,
+        lower_mantle.v_p / 1.0e3,
+        color="r",
+        linestyle="-",
+        marker="o",
+        markerfacecolor="r",
+        markersize=4,
+        label="V$_P$ (computed)",
+    )
+    ax[0].plot(
+        pressure / 1.0e9,
+        seis_vp / 1.0e3,
+        color="r",
+        linestyle="--",
+        marker="o",
+        markerfacecolor="w",
+        markersize=4,
+        label="V$_P$ (reference)",
+    )
+
+    # Next, we plot the s-wave speed verses the PREM s-wave speed
+    ax[0].plot(
+        lower_mantle.pressures / 1.0e9,
+        lower_mantle.v_s / 1.0e3,
+        color="b",
+        linestyle="-",
+        marker="o",
+        markerfacecolor="b",
+        markersize=4,
+        label="V$_S$ (computed)",
+    )
+    ax[0].plot(
+        pressure / 1.0e9,
+        seis_vs / 1.0e3,
+        color="b",
+        linestyle="--",
+        marker="o",
+        markerfacecolor="w",
+        markersize=4,
+        label="V$_S$ (reference)",
+    )
+
+    ax[0].set_ylabel("Wave speeds (km/s)")
+
+    # Next, we plot the density versus the PREM density
+    ax[1].plot(
+        lower_mantle.pressures / 1.0e9,
+        lower_mantle.density / 1.0e3,
+        color="g",
+        linestyle="-",
+        marker="o",
+        markerfacecolor="g",
         markersize=4,
         label="computed",
     )
-    axes[1].plot(
-        pressure / 1e9,
-        seis_rho / 1e3,
-        "g--o",
+    ax[1].plot(
+        pressure / 1.0e9,
+        seis_rho / 1.0e3,
+        color="g",
+        linestyle="--",
+        marker="o",
         markerfacecolor="w",
         markersize=4,
         label="reference",
     )
-    axes[1].set_ylabel(r"Density (g/cm$^3$)")
-    axes[2].plot(
-        lower_mantle.P / 1e9, lower_mantle.bullen, "k-o", markersize=4, label="computed"
+    ax[1].set_ylabel("Density (g/cm$^3$)")
+
+    # And the Bullen parameter
+    ax[2].plot(
+        lower_mantle.pressures / 1e9,
+        lower_mantle.bullen,
+        color="k",
+        linestyle="-",
+        marker="o",
+        markerfacecolor="k",
+        markersize=4,
+        label="computed",
     )
-    axes[2].plot(
-        pressure / 1e9,
+    ax[2].plot(
+        pressure / 1.0e9,
         seis_bullen,
-        "k--o",
+        color="k",
+        linestyle="--",
+        marker="o",
         markerfacecolor="w",
         markersize=4,
         label="reference",
     )
-    axes[2].set_ylabel("Bullen parameter")
-    axes[3].plot(
-        lower_mantle.P / 1e9, lower_mantle.T, "k-o", markersize=4, label="geotherm"
+    ax[2].set_ylabel("Bullen parameter")
+
+    # Finally, we plot the used geotherm
+    ax[3].plot(
+        lower_mantle.pressures / 1e9,
+        lower_mantle.temperatures,
+        color="k",
+        linestyle="-",
+        marker="o",
+        markerfacecolor="k",
+        markersize=4,
+        label="used geotherm",
     )
-    axes[3].set_ylabel("Temperature (K)")
-    for axis in axes:
-        axis.set_xlabel("Pressure (GPa)")
-        axis.set_xlim(pressure.min() / 1e9, pressure.max() / 1e9)
-        axis.legend(loc="best")
-    figure.tight_layout()
+    ax[3].set_ylabel("Temperature (K)")
+
+    for i in range(4):
+        ax[i].set_xlabel("Pressure (GPa)")
+        ax[i].set_xlim(min(pressure) / 1.0e9, max(pressure) / 1.0e9)
+        ax[i].legend(loc="best")
+
+    # At long last, we show the results!  We are done!
     plt.show()
-    return lower_mantle, figure
-
-
-if __name__ == "__main__":
-    main()

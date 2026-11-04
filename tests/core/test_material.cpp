@@ -15,11 +15,50 @@
 #include "burnman/core/material.hpp"
 #include "burnman/minerals/datasets.hpp"
 #include "burnman/utils/exceptions.hpp"
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <limits>
 #include <memory>
 #include <string>
 
 using namespace burnman;
+
+TEST_CASE(
+    "Extensive material properties retain the amount across states and copies",
+    "[core][material]") {
+  const auto mineral = minerals::SLB_2011::forsterite();
+  CHECK(mineral->get_n_moles() == 1.);
+  CHECK(mineral->get_mass() == mineral->get_molar_mass());
+  mineral->set_n_moles(2.5);
+  CHECK(mineral->get_property("mass") == 2.5 * mineral->get_molar_mass());
+  mineral->set_state(4.e9, 1200.);
+  CHECK(mineral->get_enthalpy() ==
+        Catch::Approx(mineral->get_internal_energy() +
+                      4.e9 * mineral->get_volume()));
+  CHECK(mineral->get_gibbs() == Catch::Approx(mineral->get_enthalpy() -
+                                              1200. * mineral->get_entropy()));
+  CHECK(mineral->get_helmholtz() ==
+        Catch::Approx(mineral->get_internal_energy() -
+                      1200. * mineral->get_entropy()));
+  CHECK(mineral->get_mass() ==
+        Catch::Approx(mineral->get_density() * mineral->get_volume()));
+  const double cp = mineral->get_heat_capacity_p();
+  mineral->set_state(4.e9, 1200.01);
+  const double hot = mineral->get_enthalpy();
+  mineral->set_state(4.e9, 1199.99);
+  CHECK(cp ==
+        Catch::Approx((hot - mineral->get_enthalpy()) / .02).epsilon(1.e-7));
+  const auto copy = mineral->copy();
+  mineral->set_n_moles(0.);
+  CHECK(mineral->get_property("heat_capacity_p") == 0.);
+  CHECK(mineral->get_volume() == 0.);
+  CHECK(copy->get_n_moles() == 2.5);
+  CHECK(copy->get_heat_capacity_p() > 0.);
+  for (double bad : {-1., std::numeric_limits<double>::infinity(),
+                     std::numeric_limits<double>::quiet_NaN()})
+    CHECK_THROWS_AS(copy->set_n_moles(bad), std::invalid_argument);
+  CHECK(copy->get_n_moles() == 2.5);
+}
 
 TEST_CASE("Material evaluation returns properties without setting its state",
           "[core][material]") {

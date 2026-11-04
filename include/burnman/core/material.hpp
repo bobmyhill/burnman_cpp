@@ -59,6 +59,22 @@ public:
 
   /// An independent Material class object with the same composition and state.
   virtual std::shared_ptr<Material> copy() const;
+  /// Amount in formula-unit moles. Defaults to one mole until explicitly set.
+  void set_n_moles(double new_n_moles);
+  double get_n_moles() const;
+  bool has_n_moles() const { return n_moles.has_value(); }
+
+  /// Extensive quantities on this material's mole scale, as in Python BurnMan.
+  double get_mass() const;            ///< kg
+  double get_internal_energy() const; ///< J
+  double get_gibbs() const;           ///< J
+  double get_helmholtz() const;       ///< J
+  double get_enthalpy() const;        ///< J
+  double get_volume() const;          ///< m^3
+  double get_entropy() const;         ///< J/K
+  double get_heat_capacity_p() const; ///< J/K
+  double get_heat_capacity_v() const; ///< J/K
+
   /// Read a scalar thermodynamic property, including its conventional alias.
   double get_property(const std::string &property_name) const;
 
@@ -716,6 +732,8 @@ protected:
   bool has_custom_name() const;
 
 private:
+  // Amount is state-independent and survives cache resets and state changes.
+  std::optional<double> n_moles;
   // std::optional used for caching
   mutable std::optional<double> pressure;
   mutable std::optional<double> temperature;

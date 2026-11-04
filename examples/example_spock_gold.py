@@ -57,7 +57,9 @@ if __name__ == "__main__":
 
     # Compute the P-V curve
     temperature = 298.15
-    pressures = np.linspace(PRESSURE_RANGE_GPA[0] * 1.0e9, PRESSURE_RANGE_GPA[1] * 1.0e9, 801)
+    pressures = np.linspace(
+        PRESSURE_RANGE_GPA[0] * 1.0e9, PRESSURE_RANGE_GPA[1] * 1.0e9, 801
+    )
     volumes = np.array([eos.compute_volume(p, temperature, params) for p in pressures])
     relative_volumes = volumes / params.V_0
     if not np.all(np.diff(volumes) < 0.0):

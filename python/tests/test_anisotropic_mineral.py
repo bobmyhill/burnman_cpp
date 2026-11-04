@@ -269,7 +269,11 @@ def test_custom_psi_and_polynomial_derivatives():
     )
     assert_allclose(custom.cell_vectors, standard.cell_vectors)
     for mineral in [custom, standard]:
+        mineral.number_of_moles = 2.5
         copy = mineral.copy()
+        assert copy.number_of_moles == 2.5
+        assert copy.volume == pytest.approx(2.5 * mineral.molar_volume)
+        assert copy.entropy == pytest.approx(2.5 * mineral.molar_entropy)
         assert copy.isotropic_mineral is not mineral.isotropic_mineral
         copy.set_state(1.0e9, 300.0)
         assert mineral.pressure == 20.0e9

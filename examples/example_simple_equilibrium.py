@@ -20,7 +20,6 @@ pressure, and temperature.
 
 import burnman_cpp as bm
 
-
 if __name__ == "__main__":
     periclase = bm.Mineral(
         {

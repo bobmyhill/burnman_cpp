@@ -12,18 +12,19 @@
 #
 # ------------------------------------------------------
 
-"""Pyrolite mineral modes along the SLB2024 Figure 13 isentrope.
+"""
+Calculate and plot pyrolite mineral modes along the
+Stixrude & Lithgow-Bertelloni (2024, doi:10.1093/gji/ggae126)
+Figure 13 isentrope.
 
-Use the Table 1 cation ratios, initial Fe3+/total Fe = 0.02 and a 100 g bulk.
-Find the entropy at 0 Pa and 1600 K, then hold it fixed to 135.751 GPa.
-Oxygen stays closed; native iron and high/low-spin populations equilibrate.
-Plot atomic fractions, summing coexisting copies of each solution model.
-As in the paper's top panel, magnify native Fe 100 times downward from 1.
-The horizontal axis is pressure rather than PREM depth; only solids are used.
-Reference: Stixrude & Lithgow-Bertelloni (2024), doi:10.1093/gji/ggae126.
+This example uses the composition from Table 1,
+including an initial Fe3+/total Fe = 0.02 and a 100 g total mass.
+The example first finds the entropy at 0 Pa and 1600 K,
+then holds the entropy fixed to 136 GPa.
 
-Run: python examples/example_pyrolite_modebox.py
-Edit the settings below to change path sampling, progress output or destination.
+As in the Figure 13 top panel, the amount of native Fe is
+magnified 100 times and plotted as a line downward from 1.
+Depth is inferred from pressure using PREM.
 """
 
 from pathlib import Path
@@ -31,58 +32,62 @@ from pathlib import Path
 import numpy as np
 
 import burnman_cpp as bm
+from burnman_cpp import seismic
 from burnman_cpp.minerals import SLB_2024, load_dataset
 from burnman_cpp.tools.phase_diagram_helpers import save_figure
 
-N_POINTS = 801
+N_POINTS = 1001
 VERBOSE = True
 OUTPUT_DIR = Path(__file__).with_name("pyrolite_modebox_output")
 
 
 def pyrolite_composition():
-    """Preserve Table 1 cation ratios while setting 2% ferric iron and 100 g."""
-    iron = bm.Composition(dict(FeO=8.05e-3, Fe2O3=0.18e-3), "mass")
-    total_fe = iron.atomic_composition["Fe"]
     bulk = bm.Composition(
         dict(
-            SiO2=45.0e-3,
-            MgO=38.88e-3,
-            CaO=3.18e-3,
-            Al2O3=4.0e-3,
-            Na2O=0.13e-3,
-            Cr2O3=0.57e-3,
+            SiO2=45.0,
+            MgO=38.88,
+            FeO=8.05,
+            Fe2O3=0.18,
+            CaO=3.18,
+            Al2O3=4.0,
+            Na2O=0.13,
+            Cr2O3=0.57,
         ),
         "mass",
     )
-    bulk.add_components(dict(FeO=0.98 * total_fe, Fe2O3=0.01 * total_fe), "molar")
     bulk.renormalize("mass", "total", 0.1)
     return bulk
 
 
 def calculate():
-    """Solve the surface reference and a linear P-S path with constant entropy."""
+    """
+    Solve the surface reference and a
+    linear P-S path with constant entropy.
+    """
     bulk = pyrolite_composition()
     phases, _ = load_dataset(SLB_2024)
     for phase in phases:
         phase.set_name(SLB_2024.phase_aliases[phase.name])
     settings = bm.PhaseDiagramSettings()
     settings.verbose = VERBOSE
-    surface = bm.stable_equilibrium(
+    stable_equilibrium = bm.stable_equilibrium(
         bulk.atomic_composition,
         phases,
         pressure=0.0,
         temperature=1600.0,
         settings=settings,
     )
-    if not surface.success or surface.outside_model_domain:
-        raise RuntimeError(surface.message)
-    # Total S is in J/K for this 100 g bulk, not molar or specific entropy.
-    # Each point searches all candidates, using its predecessor as a warm start.
+    if not stable_equilibrium.success or stable_equilibrium.outside_model_domain:
+        raise RuntimeError(stable_equilibrium.message)
+    # Total S is in J/K for this 100 g bulk,
+    # not molar or specific entropy.
+    # Each point searches all candidates,
+    # using its predecessor as a warm start.
     path = bm.calculate_equilibrium_path(
         bulk,
         phases,
-        {"P": 0.0, "S": surface.entropy},
-        {"P": 135.751e9, "S": surface.entropy},
+        {"P": 0.0, "S": stable_equilibrium.entropy},
+        {"P": 136e9, "S": stable_equilibrium.entropy},
         n_points=N_POINTS,
         settings=settings,
         temperature_range=(1400.0, 4500.0),
@@ -90,21 +95,24 @@ def calculate():
     return path
 
 
-def main():
+if __name__ == "__main__":
     path = calculate()
     fractions = path.fractions("atomic")
     metals = [i for i, name in enumerate(path.phase_names) if name.startswith("Fe-")]
     native_iron = fractions[:, metals].sum(axis=1)
-    pressure_GPa = path.coordinates("P") / 1e9
-    figure, ax = bm.plot_mode_box(path, x=pressure_GPa, xlabel="Pressure (GPa)")
+    prem = seismic.PREM()
+    depth = prem.depth(path.coordinates("P"))
+    depth_km = depth / 1e3
+    figure, ax = bm.plot_mode_box(path, x=depth_km, xlabel="Depth (km)")
     ax.plot(
-        pressure_GPa,
+        depth_km,
         1.0 - 100.0 * native_iron,
         "k--",
-        label="Native Fe ×100 (downward from 1)",
+        label="Native Fe x100 (downward from 1)",
     )
     ax.set(
-        xlim=(0.0, 135.751),
+        xlim=prem.depth([0.0, 136e9]) / 1e3,
+        ylim=(0.0, 1.0),
         title="SLB2024 pyrolite: 1600 K surface isentrope; initial Fe³⁺/ΣFe = 0.02",
     )
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.14), ncol=6, fontsize=8)
@@ -114,6 +122,7 @@ def main():
     np.savez_compressed(
         OUTPUT_DIR / "pyrolite_modebox.npz",
         pressure=path.coordinates("P"),
+        depth=depth,
         temperature=path.coordinates("T"),
         entropy=path.coordinates("S"),
         volume=path.coordinates("V"),
@@ -128,7 +137,3 @@ def main():
     print(f"Solved {path.success.sum()}/{N_POINTS} points. Outputs: {OUTPUT_DIR}")
     for message in path.diagnostics:
         print(message)
-
-
-if __name__ == "__main__":
-    main()

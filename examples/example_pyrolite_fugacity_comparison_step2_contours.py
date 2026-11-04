@@ -13,19 +13,20 @@
 # ------------------------------------------------------
 
 """
-Step 2: contour pyrolite oxygen fugacity differences and offsets from FMQ.
+This example is a follow-up to example_pyrolite_fugacity_comparison.py.
+It reads the saved equilibrium grids for pyrolites with
+initial Fe3+/total Fe of 3% and 10% (on a metal-free basis).
+It calculates the oxygen fugacity difference
+and the offset from a fayalite-magnetite-quartz buffer.
 
-Run example_pyrolite_fugacity_comparison.py first. This script reads
-and processes its two saved equilibrium grids.
+At common P,T, delta log10(fO2) = (mu_{O2,10%} - mu_{O2,3%})/(R*T*ln(10)),
+such that a positive difference means the 10% bulk has higher fO2.
+Contours use only cells valid in both compositions.
 
-At common P,T, delta log10(fO2) = (mu_{O2,10%} - mu_{O2,3%})/(R*T*ln(10)).
-Chemical potentials use the O2 formula {"O": 2}, so no additional factor of
-two or oxygen reference EOS is needed. A positive difference means the 10%
-bulk has higher fO2. Contours use only cells valid in both compositions.
-
-FMQ uses fixed SLB2024 fayalite, magnetite and quartz: mu(O2) = 2 G_mt +
-3 G_qtz - 3 G_fa. These are a metastable reference at 20-25 GPa, not the
-stable polymorphs or assemblage.
+The fayalite-magnetite-quartz buffer is taken from
+Stixrude and Lithgow-Bertelloni (2024) and calculated as:
+mu(O2) = 2 G_mt + 3 G_qtz - 3 G_fa.
+This is a metastable assemblage at 20-25 GPa.
 """
 
 from pathlib import Path
@@ -35,12 +36,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import SLB_2024, load_dataset
+from burnman_cpp.minerals import SLB_2024, load_dataset, model_sets
 from burnman_cpp.tools.phase_diagram_helpers import save_figure
 
 SOURCE = Path(__file__).resolve().with_name("pyrolite_fugacity_comparison_output")
 OUTPUT_DIR = SOURCE / "fugacity_difference"
-COMPOSITIONS = ("fe3_03", "fe3_10")  # Difference is second minus first.
+COMPOSITIONS = ("0.03", "0.10")  # Difference is second minus first.
 CONTOUR_LEVELS = 12  # An integer chooses levels automatically; a sequence fixes them.
 
 
@@ -127,7 +128,10 @@ def main():
     diagrams = [
         bm.load_phase_diagram(SOURCE / name / "refined.json") for name in COMPOSITIONS
     ]
-    phases, _ = load_dataset(SLB_2024)
+    models = model_sets.slb2024()
+    provenance = diagrams[0].get("workflow", {}).get("models", {})
+    dataset = models if provenance.get("name") == models.name else SLB_2024
+    phases, _ = load_dataset(dataset)
     grids = [
         bm.load_property_grid(SOURCE / name / "grid_equilibria.json.gz", phases=phases)
         for name in COMPOSITIONS
@@ -204,7 +208,7 @@ def main():
         )
     axes[0].set_ylabel("Pressure (GPa)")
     figure.colorbar(filled, ax=list(axes), label="ΔFMQ = log₁₀(fO₂ / fO₂,FMQ)")
-    figure.suptitle("SLB2024 · fixed fayalite-magnetite-quartz reference")
+    figure.suptitle("SLB2024. Fixed fayalite-magnetite-quartz reference")
     save_figure(figure, OUTPUT_DIR / "fmq_offsets.png", formats=("svg",))
     print(
         f"Δlog10(fO2), 10% minus 3%: {difference[valid].min():.6g} to {difference[valid].max():.6g}"

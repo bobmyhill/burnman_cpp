@@ -49,6 +49,11 @@ void bind_materials(py::module_ &m) {
            "and composition.")
       .def("clear_computed_properties", &Material::clear_computed_properties)
       .def("has_state", &Material::has_state)
+      .def_property("n_moles", &Material::get_n_moles, &Material::set_n_moles,
+                    "Amount in formula-unit moles; defaults to one mole.")
+      .def_property("number_of_moles", &Material::get_n_moles,
+                    &Material::set_n_moles,
+                    "Amount in moles, following Python BurnMan.")
       .def("set_name", &Material::set_name, py::arg("name"))
       .def("get_name", &Material::get_name)
       .def_property("name", &Material::get_name, &Material::set_name);
@@ -99,6 +104,14 @@ void bind_materials(py::module_ &m) {
   STATE_PROPERTY(density);
   STATE_PROPERTY(molar_entropy);
   STATE_PROPERTY(molar_enthalpy);
+  STATE_PROPERTY(internal_energy);
+  STATE_PROPERTY(gibbs);
+  STATE_PROPERTY(helmholtz);
+  STATE_PROPERTY(enthalpy);
+  STATE_PROPERTY(volume);
+  STATE_PROPERTY(entropy);
+  STATE_PROPERTY(heat_capacity_p);
+  STATE_PROPERTY(heat_capacity_v);
   STATE_PROPERTY(isothermal_bulk_modulus_reuss);
   STATE_PROPERTY(isentropic_bulk_modulus_reuss);
   STATE_PROPERTY(isothermal_compressibility_reuss);
@@ -132,6 +145,9 @@ void bind_materials(py::module_ &m) {
                           &Material::get_effective_shear_modulus, true);
   bind_property<Material>(material, "molar_mass", "get_molar_mass",
                           &Material::get_molar_mass);
+  bind_property<Material>(material, "mass", "get_mass", &Material::get_mass,
+                          false,
+                          "Total mass [kg] on the material's mole scale.");
 
   py::class_<Mineral, Material, py::smart_holder>(m, "Mineral",
                                                   py::multiple_inheritance())
@@ -312,21 +328,12 @@ void bind_materials(py::module_ &m) {
             return self.get_phase(static_cast<std::size_t>(index));
           },
           py::arg("index"))
-      .def_property_readonly(
-          "phases",
-          [](const Assemblage &self) {
-            std::vector<std::shared_ptr<Material>> phases;
-            for (Eigen::Index i = 0; i < self.get_n_phases(); ++i)
-              phases.push_back(self.get_phase(static_cast<std::size_t>(i)));
-            return phases;
-          })
-      .def_property("n_moles", &Assemblage::get_n_moles,
-                    [](Assemblage &self, double value) {
-                      if (!std::isfinite(value) || value <= 0.0)
-                        throw std::invalid_argument(
-                            "n_moles must be positive and finite.");
-                      self.set_n_moles(value);
-                    });
+      .def_property_readonly("phases", [](const Assemblage &self) {
+        std::vector<std::shared_ptr<Material>> phases;
+        for (Eigen::Index i = 0; i < self.get_n_phases(); ++i)
+          phases.push_back(self.get_phase(static_cast<std::size_t>(i)));
+        return phases;
+      });
   bind_property<Assemblage>(assemblage, "n_phases", "get_n_phases",
                             &Assemblage::get_n_phases);
   bind_property<Assemblage>(assemblage, "molar_fractions",

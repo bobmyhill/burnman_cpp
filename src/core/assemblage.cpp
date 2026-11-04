@@ -151,10 +151,6 @@ void Assemblage::set_fractions(std::initializer_list<double> fractions,
       fraction_type);
 }
 
-void Assemblage::set_n_moles(double new_n_moles) {
-  this->n_moles = new_n_moles;
-}
-
 void Assemblage::set_equilibrium_tolerance(double new_equilibrium_tolerance) {
   this->equilibrium_tolerance = new_equilibrium_tolerance;
 }
@@ -197,13 +193,6 @@ std::shared_ptr<Material> Assemblage::get_phase(std::size_t index) const {
 
 Eigen::ArrayXd Assemblage::get_molar_fractions() const {
   return this->molar_fractions;
-}
-
-double Assemblage::get_n_moles() const {
-  if (!this->n_moles.has_value()) {
-    throw std::runtime_error("n_moles not set!");
-  }
-  return *n_moles;
 }
 
 double Assemblage::get_equilibrium_tolerance() const {

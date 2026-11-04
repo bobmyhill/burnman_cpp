@@ -67,6 +67,10 @@ def phase_diagram_grid(
     (the point itself is still equilibrated). ``relaxed=True`` includes all
     active mass-conserving reactions using the projected Gibbs Hessian,
     following Stixrude & Lithgow-Bertelloni, doi:10.1093/gji/ggab394, eqs 19–26.
+    ``mass`` (kg), ``volume`` (m^3), ``entropy`` and ``heat_capacity_p/v``
+    (J/K), and ``internal_energy``, ``enthalpy``, ``gibbs`` and ``helmholtz``
+    (J) are totals for the original bulk amount. Their ``molar_*`` counterparts
+    are per current formula-unit mole, which can change with reaction progress.
     Relaxation changes alpha, Cp, compressibility and their derived properties;
     equilibrium densities and energies are the same in both modes. Singular
     reaction curvature yields NaN for undefined relaxed response properties.

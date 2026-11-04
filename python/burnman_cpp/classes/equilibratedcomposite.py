@@ -30,7 +30,6 @@ _ALIASES = {
     "S": "molar_entropy",
     "H": "molar_enthalpy",
     "F": "molar_helmholtz",
-    "gibbs": "molar_gibbs",
     "energy": "molar_internal_energy",
     "molar_gibbs_free_energy": "molar_gibbs",
     "molar_helmholtz_energy": "molar_helmholtz",

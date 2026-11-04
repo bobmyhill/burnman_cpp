@@ -38,6 +38,15 @@ const std::map<std::string, Getter> getters = {
     PROPERTY(density),
     PROPERTY(molar_entropy),
     PROPERTY(molar_enthalpy),
+    PROPERTY(mass),
+    PROPERTY(internal_energy),
+    PROPERTY(gibbs),
+    PROPERTY(helmholtz),
+    PROPERTY(enthalpy),
+    PROPERTY(volume),
+    PROPERTY(entropy),
+    PROPERTY(heat_capacity_p),
+    PROPERTY(heat_capacity_v),
     PROPERTY(isothermal_bulk_modulus_reuss),
     PROPERTY(isentropic_bulk_modulus_reuss),
     PROPERTY(isothermal_compressibility_reuss),
@@ -200,6 +209,15 @@ public:
   Properties(const Assemblage &input, bool relax) : a(input), relaxed(relax) {}
   void check_stability() { curvature.emplace(a); }
   double value(const std::string &name) {
+    // Relax the molar response before scaling to the fixed bulk's amount.
+    // In particular, total Cp/Cv must include the same reaction terms.
+    const std::string molar = "molar_" + name;
+    if (getters.count(molar)) {
+      const double total = a.get_n_moles() * value(molar);
+      if (!std::isfinite(total))
+        throw std::runtime_error("Non-finite property: " + name);
+      return total;
+    }
     if (relaxed && name == "thermal_expansivity") {
       if (!curvature)
         curvature.emplace(a);

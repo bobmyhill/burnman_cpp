@@ -13,7 +13,9 @@
 
 """BurnMan C++ mineral physics, solid solutions and equilibrium calculations.
 
-All quantities use SI units: Pa, K, m³/mol, kg/mol and J/mol.
+All quantities use SI units. ``molar_*`` properties are per formula-unit mole;
+``mass``, ``volume``, energies, ``entropy`` and ``heat_capacity_p/v`` are totals
+on the material's ``number_of_moles`` (or ``n_moles``) scale, defaulting to one.
 """
 
 from collections.abc import Mapping

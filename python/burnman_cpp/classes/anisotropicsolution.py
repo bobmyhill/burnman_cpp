@@ -61,6 +61,7 @@ class AnisotropicSolution(_core.AnisotropicSolution):
             fractions,
         )
         result.T_0 = self.T_0
+        result.number_of_moles = self.number_of_moles
         if self.has_state():
             result.set_state(self.pressure, self.temperature)
         return result

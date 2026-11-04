@@ -78,6 +78,7 @@ def test_relaxed_response_matches_fixed_bulk_finite_differences():
     assert relaxed["molar_heat_capacity_p"] == pytest.approx(
         t * dsdt / a.n_moles, rel=2e-6
     )
+    assert relaxed["heat_capacity_p"] == pytest.approx(t * dsdt, rel=2e-6)
     assert relaxed["isothermal_compressibility_reuss"] == pytest.approx(
         -dvdp / volume, rel=2e-6
     )
@@ -87,7 +88,9 @@ def test_relaxed_response_matches_fixed_bulk_finite_differences():
         > frozen["isothermal_compressibility_reuss"]
     )
     scaled = bm.assemblage_properties(equilibrated(scale=7.0), names, relaxed=True)
-    np.testing.assert_allclose(list(scaled.values()), list(relaxed.values()), rtol=1e-8)
+    for name in names:
+        factor = 7.0 if f"molar_{name}" in names else 1.0
+        assert scaled[name] == pytest.approx(factor * relaxed[name], rel=1e-8, abs=0.0)
     alpha, cp, kt, v = [
         relaxed[n]
         for n in (
@@ -115,8 +118,39 @@ def test_response_uses_extensive_derivatives_when_reactions_change_total_moles()
         * (hot.n_moles * hot.molar_entropy - cold.n_moles * cold.molar_entropy)
         / (2 * dt * a.n_moles)
     )
-    cp = bm.assemblage_properties(a, ["molar_heat_capacity_p"])["molar_heat_capacity_p"]
-    assert cp == pytest.approx(expected, rel=2e-6)
+    values = bm.assemblage_properties(a, ["molar_heat_capacity_p", "heat_capacity_p"])
+    assert values["molar_heat_capacity_p"] == pytest.approx(expected, rel=2e-6)
+    assert values["heat_capacity_p"] == pytest.approx(expected * a.n_moles, rel=2e-6)
+
+
+@pytest.mark.parametrize("relaxed", [False, True])
+def test_saved_grid_totals_preserve_the_original_bulk_amount(tmp_path, relaxed):
+    phase = bm.Mineral(oxide_params())
+    settings = bm.PhaseDiagramSettings()
+    settings.pressure_seeds = settings.temperature_seeds = 2
+    settings.max_phase_instances = 1
+    result = bm.phase_diagram(
+        {"Mg": 2.5, "O": 2.5}, [phase], (3e9, 5e9), (800.0, 1200.0), settings
+    )
+    names = ["mass", "volume", "entropy", "enthalpy", "heat_capacity_p"]
+    grid = bm.phase_diagram_grid(
+        result, [phase], names, resolution=(2, 2), relaxed=relaxed, store_solutions=True
+    )
+    assert grid.resolved, grid.diagnostics
+    path = tmp_path / "grid.json"
+    bm.save_property_grid(grid, path)
+    replay = bm.evaluate_property_grid(
+        bm.load_property_grid(path), [phase], names, relaxed=relaxed
+    )
+    assert replay.equilibrium_solves == 0
+    for name in names:
+        np.testing.assert_allclose(replay.values[name], grid.values[name], rtol=1e-12)
+        for j, temperature in enumerate(grid.y):
+            for i, pressure in enumerate(grid.x):
+                phase.set_state(pressure, temperature)
+                assert replay.values[name][j, i] == pytest.approx(
+                    2.5 * getattr(phase, f"molar_{name}"), rel=1e-10
+                )
 
 
 @pytest.fixture

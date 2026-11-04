@@ -227,12 +227,6 @@ public:
   void set_method(std::shared_ptr<EquationOfState> new_method) override;
 
   /**
-   * @brief Set n_moles (Used to convert mole fractions / absolute phase
-   * amounts).
-   */
-  void set_n_moles(double new_n_moles);
-
-  /**
    * @brief Set the assemblage equilibrium tolerance.
    */
   void set_equilibrium_tolerance(double new_equilibrium_tolerance);
@@ -292,13 +286,6 @@ public:
   const std::vector<std::shared_ptr<Material>> &get_phases() const {
     return phases;
   }
-
-  /**
-   * @brief Get n_moles (Used to convert mole fractions / absolute phase
-   * amounts).
-   */
-  double get_n_moles() const;
-  bool has_n_moles() const { return n_moles.has_value(); }
 
   /**
    * @brief Returns the equilibrium tolerance (J/reaction).
@@ -381,7 +368,6 @@ private:
   // Stored (cached) properties not reset
   mutable std::optional<std::vector<int>> endmembers_per_phase;
 
-  mutable std::optional<double> n_moles;
   double equilibrium_tolerance = 1.0e-3; // J/reaction
 
   // Compute / setup functions for Composite properties
