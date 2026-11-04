@@ -37,7 +37,7 @@ from burnman_cpp.tools.phase_diagram_helpers import (
 EXAMPLES = Path(__file__).resolve().parent
 SOURCE = EXAMPLES / "metasediment_phase_diagram_output/metasediment_phase_diagram.json"
 MODELS = EXAMPLES / "example_metasediment_phase_diagram.py"
-OUTPUT_DIR = EXAMPLES / "refined_phase_diagram_output"
+OUTPUT_DIR = EXAMPLES / "metasediment_phase_diagram_step2_refine_output"
 RESOLUTION = (101, 201)
 DISPLAY = dict(pressure_unit="kbar", temperature_unit="C")
 
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     saved = bm.load_phase_diagram(SOURCE)
     result = refine_saved(
         saved,
-        load_example(MODELS).candidate_phases(),
+        load_example(MODELS).PHASES,
         resolution=RESOLUTION,
         verbose=True,
         **DISPLAY,
