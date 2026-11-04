@@ -240,8 +240,8 @@ if __name__ == "__main__":
             cbar.add_lines(lines)
 
         fig.set_layout_engine("tight")
-        Path("output_figures").mkdir(exist_ok=True)
-        plt.savefig("output_figures/example_anisotropy.png")
+        Path("anisotropy_output").mkdir(exist_ok=True)
+        plt.savefig("anisotropy_output/example_anisotropy.png")
         plt.show()
 
     plot_anisotropic_seismic_properties(talc)
