@@ -82,35 +82,10 @@ class RelaxedComposite(_core.RelaxedComposite):
         except ValueError:
             return output
 
-    @property
-    def number_of_moles(self):
-        return self.n_moles
-
-    @number_of_moles.setter
-    def number_of_moles(self, value):
-        self.n_moles = value
-        self.reset_cache()
-
 
 def _property_alias(name):
     return property(lambda self: getattr(self, name))
 
-
-def _extensive_property(name):
-    return property(lambda self: getattr(self, name) * self.n_moles)
-
-
-for _name, _molar in {
-    "internal_energy": "molar_internal_energy",
-    "helmholtz": "molar_helmholtz",
-    "gibbs": "molar_gibbs",
-    "enthalpy": "molar_enthalpy",
-    "volume": "molar_volume",
-    "entropy": "molar_entropy",
-    "heat_capacity_p": "molar_heat_capacity_p",
-    "heat_capacity_v": "molar_heat_capacity_v",
-}.items():
-    setattr(RelaxedComposite, _name, _extensive_property(_molar))
 
 for _alias, _name in _ALIASES.items():
     if _alias != _name:

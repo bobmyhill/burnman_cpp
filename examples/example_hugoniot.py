@@ -11,13 +11,12 @@
 #
 # ------------------------------------------------------
 
-"""Compare equilibrium and non-reactive forsterite Hugoniots using SLB_2024.
+"""
+Compare equilibrium and non-reactive forsterite Hugoniots using SLB_2024.
 
-The EquilibratedComposite class object selects the stable solid phases at
-each pressure and temperature. Energy balance follows a fixed mass as the
-number of formula-unit moles changes. Melting and transformation kinetics
-are not included. All calculations use SI units.
-The comparison retains forsterite as a single phase throughout compression.
+The equilibrium hugoniot is calculated using the EquilibratedComposite
+class object, which calculates the stable solid phases
+at each pressure and temperature.
 """
 
 import matplotlib.pyplot as plt
@@ -27,37 +26,36 @@ from burnman_cpp import EquilibratedComposite
 from burnman_cpp.minerals import SLB_2024
 from burnman_cpp.tools.chemistry import hugoniot
 
+if __name__ == "__main__":
 
-def main(material=None):
-    """Plot the Hugoniot of a supplied EquilibratedComposite class object.
+    # Create a material with a bulk composition
+    # of forsterite.
+    bulk_composition = {"Mg": 2.0, "Si": 1.0, "O": 4.0}
+    material = EquilibratedComposite(
+        bulk_composition,
+        SLB_2024,
+        phase_names=[
+            "forsterite",
+            "mg_wadsleyite",
+            "mg_ringwoodite",
+            "mg_perovskite",
+            "mg_postperovskite",
+            "periclase",
+            "mg_akimotoite",
+            "mg_majorite",
+            "enstatite",
+            "clinoenstatite",
+            "hp_clinoenstatite",
+            "stishovite",
+            "coesite",
+            "quartz",
+            "alpha_pbo_2_sio_2",
+        ],
+        name="Mg2SiO4 (SLB_2024)",
+    )
 
-    Without an argument, use Mg2SiO4 and the Mg-Si-O endmembers in SLB_2024.
-    """
-    if material is None:
-        bulk_composition = {"Mg": 2.0, "Si": 1.0, "O": 4.0}
-        material = EquilibratedComposite(
-            bulk_composition,
-            SLB_2024,
-            phase_names=[
-                "forsterite",
-                "mg_wadsleyite",
-                "mg_ringwoodite",
-                "mg_perovskite",
-                "mg_postperovskite",
-                "periclase",
-                "mg_akimotoite",
-                "mg_majorite",
-                "enstatite",
-                "clinoenstatite",
-                "hp_clinoenstatite",
-                "stishovite",
-                "coesite",
-                "quartz",
-                "alpha_pbo_2_sio_2",
-            ],
-            name="Mg2SiO4 (SLB_2024)",
-        )
-
+    # We calculate the Hugoniot starting from a reference state
+    # of 1 bar and 300 K.
     pressure_ref = 1.0e5
     temperature_ref = 300.0
     pressures = np.linspace(pressure_ref, 100.0e9, 201)
@@ -65,15 +63,13 @@ def main(material=None):
     reference = material.snapshot()
     temperatures = np.empty_like(pressures)
 
-    # Phase formulae have different molar masses, so plot physical density
-    # and mass fractions rather than interpreting a current mole as Mg2SiO4.
     densities = np.empty_like(pressures)
     phase_amounts = []
     names = []
+
+    # Here we calculate the Hugoniot for the equilibrated material
     print("Pressure (GPa)  Temperature (K)  Density (kg/m³)  Phases")
     for i, pressure in enumerate(pressures):
-        # Retain the energy-determined phase proportions at coexistence.
-        # Each accepted state supplies the estimate for the following pressure.
         temperature, _ = hugoniot(
             material, pressure_ref, temperature_ref, [pressure], reference
         )
@@ -93,12 +89,14 @@ def main(material=None):
             + ", ".join(amounts)
         )
 
+    # Here we calculate the Hugoniot for non-reactive forsterite
     forsterite = SLB_2024.forsterite()
     forsterite_temperatures, forsterite_volumes = hugoniot(
         forsterite, pressure_ref, temperature_ref, pressures
     )
     forsterite_densities = forsterite.molar_mass / forsterite_volumes
 
+    # Finally, we plot the results.
     figure, axes = plt.subplots(1, 3, figsize=(15, 4))
     figure.suptitle(f"Hugoniot: {material.name}")
     axes[0].plot(pressures / 1.0e9, temperatures, label="Equilibrium assemblage")
@@ -132,8 +130,3 @@ def main(material=None):
         axis.set_xlim(pressures[0] / 1.0e9, pressures[-1] / 1.0e9)
     figure.tight_layout()
     plt.show()
-    return material, figure
-
-
-if __name__ == "__main__":
-    main()

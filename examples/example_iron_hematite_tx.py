@@ -12,16 +12,17 @@
 #
 # ------------------------------------------------------
 
-"""Iron-hematite T-X diagram at 1 bar, from Fe to Fe2O3, 300 to 1500 K.
+"""
+Iron-hematite T-X diagram at 1 bar,
+from Fe to Fe2O3, 300 to 1500 K.
+For a given X, the composition is: Fe=1+X, O=3X.
 
-Uses HGP_2018_ds633 iron, wuestite, magnetite and hematite with the Holland
-and Powell EOS. X mixes one mole Fe with one mole Fe2O3: Fe=1+X, O=3X.
+Uses iron, wuestite, magnetite and hematite
+with the Holland and Powell EOS from dataset HGP_2018_ds633.
+
 The system is closed to oxygen. All equilibrium and tracing run in C++.
-These are stoichiometric solids; iron allotropes, nonstoichiometric FeO and
-liquids are outside this example's candidate set.
-
-Run: python examples/example_iron_hematite_tx.py
-Edit the settings below and run without arguments.
+These are stoichiometric solids; nonstoichiometric wuestite and
+liquids are outside the set of candidate phases.
 """
 
 from pathlib import Path
@@ -54,11 +55,11 @@ def candidate_phases():
     return phases
 
 
-def calculate(quick=False, verbose=False):
+def calculate(verbose=False):
     domain = dict(temperature_range=(300.0, 1500.0), pressure=1.0e5)
     settings = bm.PhaseDiagramSettings()
-    settings.pressure_seeds = settings.temperature_seeds = 5 if quick else SEEDS
-    settings.composition_seeds = 5 if quick else COMPOSITION_SEEDS
+    settings.pressure_seeds = settings.temperature_seeds = SEEDS
+    settings.composition_seeds = COMPOSITION_SEEDS
     settings.max_phase_instances = 1
     settings.verbose = verbose
     return bm.phase_diagram(
@@ -78,21 +79,17 @@ def plot(result, path, label_fontsize=9.0):
         label_fontsize,
         formats=("pdf",),
         temperature_unit="K",
-        composition_label="Molar hematite fraction in Fe–Fe$_2$O$_3$ bulk",
+        composition_label="Molar hematite fraction in Fe-Fe$_2$O$_3$ bulk",
         axes=dict(title="Iron-Hematite at 1 bar"),
         show_nodes=False,
         key_path=path.with_name(path.stem + "_labels.md"),
     )
 
 
-def main():
-    return write_phase_diagram(
+if __name__ == "__main__":
+    write_phase_diagram(
         calculate(verbose=True),
         OUTPUT_DIR / "Fe-O_tx",
         plot=plot,
         label_fontsize=9.0,
     )
-
-
-if __name__ == "__main__":
-    main()

@@ -27,6 +27,30 @@ std::shared_ptr<Material> Material::copy() const {
   throw_not_implemented_error("copy");
 }
 
+void Material::set_n_moles(double amount) {
+  if (!std::isfinite(amount) || amount < 0.)
+    throw std::invalid_argument("n_moles must be finite and nonnegative.");
+  n_moles = amount;
+  reset_cache();
+}
+
+double Material::get_n_moles() const { return n_moles.value_or(1.); }
+
+#define EXTENSIVE_PROPERTY(name)                                               \
+  double Material::get_##name() const {                                        \
+    return get_n_moles() * get_molar_##name();                                 \
+  }
+EXTENSIVE_PROPERTY(mass)
+EXTENSIVE_PROPERTY(internal_energy)
+EXTENSIVE_PROPERTY(gibbs)
+EXTENSIVE_PROPERTY(helmholtz)
+EXTENSIVE_PROPERTY(enthalpy)
+EXTENSIVE_PROPERTY(volume)
+EXTENSIVE_PROPERTY(entropy)
+EXTENSIVE_PROPERTY(heat_capacity_p)
+EXTENSIVE_PROPERTY(heat_capacity_v)
+#undef EXTENSIVE_PROPERTY
+
 Eigen::MatrixXd Material::evaluate(const std::vector<std::string> &properties,
                                    const Eigen::ArrayXd &pressures,
                                    const Eigen::ArrayXd &temperatures) const {
@@ -71,6 +95,15 @@ double Material::get_property(const std::string &property_name) const {
       PROPERTY(density),
       PROPERTY(molar_entropy),
       PROPERTY(molar_enthalpy),
+      PROPERTY(mass),
+      PROPERTY(internal_energy),
+      PROPERTY(gibbs),
+      PROPERTY(helmholtz),
+      PROPERTY(enthalpy),
+      PROPERTY(volume),
+      PROPERTY(entropy),
+      PROPERTY(heat_capacity_p),
+      PROPERTY(heat_capacity_v),
       PROPERTY(isothermal_bulk_modulus_reuss),
       PROPERTY(isentropic_bulk_modulus_reuss),
       PROPERTY(effective_isentropic_bulk_modulus),
@@ -90,8 +123,6 @@ double Material::get_property(const std::string &property_name) const {
       {"P", &Material::get_pressure},
       {"T", &Material::get_temperature},
       {"energy", &Material::get_molar_internal_energy},
-      {"gibbs", &Material::get_molar_gibbs},
-      {"helmholtz", &Material::get_molar_helmholtz},
       {"F", &Material::get_molar_helmholtz},
       {"V", &Material::get_molar_volume},
       {"rho", &Material::get_density},
@@ -115,7 +146,7 @@ double Material::get_property(const std::string &property_name) const {
   if (found == getters.end())
     throw std::invalid_argument("Unknown scalar material property: " +
                                 property_name);
-  if (!has_state() && property_name != "molar_mass")
+  if (!has_state() && property_name != "molar_mass" && property_name != "mass")
     throw std::runtime_error(
         "Set the material state before evaluating properties.");
   return (this->*found->second)();

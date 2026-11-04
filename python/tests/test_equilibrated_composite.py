@@ -316,6 +316,8 @@ def test_failed_solve_preserves_accepted_state_and_failure_diagnostics():
         rock.set_fractions([1.0])
     with pytest.raises(AttributeError):
         rock.n_moles = 3.0
+    with pytest.raises(AttributeError):
+        rock.number_of_moles = 3.0
     with pytest.raises(RuntimeError):
         rock.set_method(bm.EOSType.SLB3)
 

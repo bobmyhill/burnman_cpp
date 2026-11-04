@@ -19,8 +19,7 @@ Each call searches all candidate phases for a fixed bulk composition.
 import burnman_cpp as bm
 from burnman_cpp.minerals import SLB_2011
 
-
-def main():
+if __name__ == "__main__":
     """Recover one olivine-polymorph equilibrium using all six coordinate pairs."""
     bulk = bm.Composition(
         {"Mg2SiO4": 0.65, "Fe2SiO4": 0.35}, "molar"
@@ -71,7 +70,3 @@ def main():
                 f"  {phase.name}: {phase.amount:.6g} mol; "
                 f"endmember fractions {phase.composition}"
             )
-
-
-if __name__ == "__main__":
-    main()

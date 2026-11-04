@@ -43,45 +43,18 @@ import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.patches import Ellipse
 
 import burnman_cpp as bm
 from burnman_cpp.minerals import mp50MnNCKFMASHTO, HP_2011_ds62, SLB_2024
 from burnman_cpp.optimize.composition_fitting import fit_composition_to_solution
 from burnman_cpp.tools.thermobarometry import estimate_conditions
+from burnman_cpp.utils.chemistry import formula_to_string
+from burnman_cpp.optimize.nonlinear_fitting import plot_cov_ellipse
 from burnman_cpp.tools.thermobarometry import (
     get_reaction_matrix,
     assemblage_set_state_from_params,
     assemblage_affinity_misfit,
 )
-
-
-def plot_cov_ellipse(cov, pos, nstd=2, ax=None, **kwargs):
-    """Draw an uncertainty ellipse from a two-dimensional covariance matrix."""
-    if ax is None:
-        ax = plt.gca()
-    vals, vecs = np.linalg.eigh(cov)
-    order = vals.argsort()[::-1]
-    vals, vecs = vals[order], vecs[:, order]
-    theta = np.degrees(np.arctan2(*vecs[:, 0][::-1]))
-    width, height = 2 * nstd * np.sqrt(vals)
-    ellipse = Ellipse(xy=pos, width=width, height=height, angle=theta, **kwargs)
-    ax.add_artist(ellipse)
-    return ellipse
-
-
-def formula_to_string(formula):
-    """Print the elements present in these minerals, with amounts rounded to 0.01."""
-    element_order = ["K", "Na", "Ca", "Mg", "Ti", "Mn", "Fe", "Al", "Si", "O", "H"]
-    return "".join(
-        (
-            element
-            if abs(formula[element] - 1.0) < 1.0e-12
-            else element + str(round(formula[element], 2))
-        )
-        for element in element_order
-        if element in formula and abs(formula[element]) > 1.0e-12
-    )
 
 
 def equilibrium_conditions(composition, assemblage, equality_constraints):
@@ -127,7 +100,7 @@ def physical_site_occupancies(assemblage, params):
     return True
 
 
-def main():
+if __name__ == "__main__":
     # Example 1: Sillimanite-Kyanite equilibrium
     # In this example, we will estimate the temperature of
     # the sillimanite-kyanite equilibrium at known pressure,
@@ -137,7 +110,7 @@ def main():
     ky = HP_2011_ds62.ky()
     assemblage = bm.Assemblage([sill, ky], [0.5, 0.5])
 
-    temperatures = np.linspace(610, 800, 5)
+    temperatures = np.linspace(605, 800, 5)
     prm = bm.get_equilibration_parameters(assemblage, ky.formula)
     equality_constraints = [
         [bm.TemperatureConstraint(t) for t in temperatures],
@@ -438,7 +411,7 @@ def main():
         f"    Temperature: {assemblage.temperature:.0f} "
         f"+/- {np.sqrt(res.xcov[1, 1]):.0f} K"
     )
-    print(f"    Correlation between P and T: {res.xcorr[0][1]:.2f}")
+    print(f"    Correlation between P and T: {res.xcorr[0][1]:.1f}")
     print(f"    Number of Reactions: {res.n_reactions}")
     print(f"    Number of Parameters: {res.n_params}")
     print(f"    Degrees of Freedom: {res.degrees_of_freedom}")
@@ -488,7 +461,9 @@ def main():
                     site_formula = site_formula.replace(old, new)
                 print(f"        free site occupancy vector: {site_formula}")
 
-        print(f"        composition: {formula_to_string(phase.formula)}")
+        print(
+            f"        composition: {formula_to_string(phase.formula, use_fractions=False)}"
+        )
         if hasattr(phase, "molar_fractions"):
             site_formula = phase.site_formula(2)
             for old, new in replace_strings:
@@ -544,7 +519,3 @@ def main():
     # print("Weighted reaction affinities:")
     # np.set_printoptions(precision=2)
     # print(res.weighted_affinities)
-
-
-if __name__ == "__main__":
-    main()

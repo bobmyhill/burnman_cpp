@@ -40,7 +40,12 @@ void bind_equilibrated_composite(py::module_ &m) {
           },
           py::arg("fractions"),
           py::arg("fraction_type") = types::FractionType::Molar)
-      .def_property_readonly("n_moles", &EquilibratedComposite::get_n_moles)
+      .def_property_readonly(
+          "n_moles",
+          [](const EquilibratedComposite &self) { return self.get_n_moles(); })
+      .def_property_readonly(
+          "number_of_moles",
+          [](const EquilibratedComposite &self) { return self.get_n_moles(); })
       .def_property("relaxed", &EquilibratedComposite::get_relaxed,
                     &EquilibratedComposite::set_relaxed)
       .def_property("warm_start", &EquilibratedComposite::get_warm_start,

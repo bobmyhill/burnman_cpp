@@ -338,7 +338,10 @@ def test_states_copies_evaluation_and_validation():
     assert not solution.has_state()
     assert_array_equal(solution.molar_fractions, [0.8, 0.2])
     solution.set_state(20.0e9, 1000.0)
+    solution.number_of_moles = 2.5
     copy = solution.copy()
+    assert copy.number_of_moles == 2.5
+    assert copy.volume == pytest.approx(2.5 * solution.molar_volume)
     assert copy.endmembers[0][0] is not solution.endmembers[0][0]
     copy.set_composition([0.3, 0.7])
     copy.set_state(1.0e9, 300.0)

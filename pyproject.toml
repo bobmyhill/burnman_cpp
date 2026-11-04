@@ -42,6 +42,7 @@ sdist.include = [
   "/python/tests/data/Pearson_York.dat",
   "/examples/data/input_compositions/*",
   "/examples/data/input_fitting/*",
+  "/examples/data/input_seismic/*",
   "/src/data/input_seismic/*", "/tools/export_seismic_data.py",
   "/src/data/input_geotherm/*", "/tools/export_geotherm_data.py",
   "/src/data/input_covariance/*.h5",

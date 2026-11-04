@@ -23,7 +23,6 @@ import numpy as np
 from burnman_cpp import Composition, EquilibratedComposite
 from burnman_cpp.minerals import SLB_2011
 
-
 if __name__ == "__main__":
     # Uncomment to print all available phase_names in this dataset.
     # print(*EquilibratedComposite.available_phase_names(SLB_2011), sep="\n")

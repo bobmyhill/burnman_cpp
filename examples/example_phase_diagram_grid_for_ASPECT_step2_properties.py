@@ -12,27 +12,27 @@
 #
 # ------------------------------------------------------
 
-"""Step 2: plot relaxed/unrelaxed alpha, beta_T and Cp from saved P-S equilibria.
+"""
+This example is a follow-up to example_phase_diagram_grid_for_ASPECT.py.
+It reads the saved P-S equilibria for the pyrolitic composition.
+It then evaluates relaxed and unrelaxed
+thermal expansivity alpha (1/K), isothermal compressibility beta_T (1/Pa)
+and absolute isobaric heat capacity Cp (J/K) for the original 100 g bulk.
 
-Run example_phase_diagram_grid.py with its pyrolite entry first. Edit the
-paths below and run this script without arguments. GRID_SOLUTIONS accepts a
-grid_solutions directory, its manifest.json, or a retained grid JSON file.
+Relaxed responses allow phase amounts and endmember compositions to adjust
+to pressure and temperature perturbations at fixed bulk composition.
+Unrelaxed responses hold phase amounts and endmember compositions fixed.
 
-Only response properties are evaluated: no equilibrium solves or retries run.
-An expansivity.npz archive alone does not contain the retained equilibria
-needed to calculate compressibility and heat capacity.
+The six panels show pressure in GPa (x axis) and total entropy in J/K (y axis).
+Rows show alpha, beta_T and Cp. Columns show relaxed and unrelaxed responses.
+Phase boundaries and the 1000, 1500 and 2000 K isotherms are overlaid.
 
-Relaxed responses allow phase amounts and compositions to adjust; unrelaxed
-responses hold them fixed at the same saved equilibrium. Cp is per current
-mole of assemblage, rather than per original 100 g bulk composition. Beta_T
-is isothermal compressibility, not bulk modulus. Missing properties stay grey.
-Each property uses the same colour scale for both modes. Alpha spans +/-5e-5
-K^-1; beta_T and Cp span the central 99% of the displayed values, including
-zero. Colour clipping never changes the saved numerical values.
-
-Write a six-panel PNG/PDF, SI-unit arrays in properties.npz and arrays/*.npy,
-labelled isotherms, and diagnostics. Chunked inputs keep equilibrium memory
-bounded; PLOT_RESOLUTION limits rendering only, preserving the saved grid.
+Outputs share Step 1's phase_diagram_grid_for_ASPECT_output directory.
+The figure is saved as pyrolite_sp_properties.png and .pdf. Full-resolution
+SI-unit arrays are saved in properties.npz and arrays/*.npy, together with
+isotherm coordinates and property-evaluation diagnostics. diagnostics.json
+contains the summary; diagnostics.jsonl streams one JSON record per failed
+property batch.
 """
 
 import json
@@ -42,21 +42,22 @@ from types import SimpleNamespace
 import numpy as np
 
 import burnman_cpp as bm
-from burnman_cpp.tools.phase_diagram_helpers import load_example, save_figure
+from burnman_cpp.minerals import load_dataset, model_sets
+from burnman_cpp.tools.phase_diagram_helpers import save_figure
 
 EXAMPLES = Path(__file__).resolve().parent
-SOURCE_DIR = EXAMPLES / "pyrolite_sp_phase_diagram_grid_output"
+SOURCE_DIR = EXAMPLES / "phase_diagram_grid_for_ASPECT_output"
 DIAGRAM = SOURCE_DIR / "refined.json"
 GRID_SOLUTIONS = SOURCE_DIR / "grid_solutions"
-MODELS = EXAMPLES / "example_pyrolite_phase_diagram.py"
-OUTPUT_DIR = EXAMPLES / "pyrolite_sp_properties_output"
+MODEL_SET = model_sets.slb2024()
+OUTPUT_DIR = SOURCE_DIR
 PLOT_RESOLUTION = 1001
 ISOTHERMS = (1000.0, 1500.0, 2000.0)  # K; use () to omit isotherms.
 
 PROPERTIES = (
     ("thermal_expansivity", r"$\alpha$ ($10^{-5}$ K$^{-1}$)", 1e5),
     ("isothermal_compressibility_reuss", r"$\beta_T$ (GPa$^{-1}$)", 1e9),
-    ("molar_heat_capacity_p", r"$C_p$ (J mol$^{-1}$ K$^{-1}$)", 1.0),
+    ("heat_capacity_p", r"$C_p$ (J K$^{-1}$)", 1.0),
 )
 MODES = ("relaxed", "unrelaxed")
 
@@ -108,7 +109,10 @@ def evaluate_saved(path, phases, output_dir, *, verbose=False):
                 raise ValueError("Saved chunk coordinates disagree with the grid axes.")
             for mode in MODES:
                 replay = bm.evaluate_property_grid(
-                    grid, phases, names + ["temperature"], relaxed=(mode == "relaxed")
+                    grid,
+                    phases,
+                    names + ["temperature"],
+                    relaxed=(mode == "relaxed"),
                 )
                 for name in names:
                     arrays[f"{mode}_{name}"][rows, cols] = replay.values[name]
@@ -251,13 +255,23 @@ def plot(diagram, x, y, arrays, *, isotherms=(), max_plot_resolution=1001):
     return fig, axes
 
 
-def main():
+if __name__ == "__main__":
     diagram = bm.load_phase_diagram(DIAGRAM)
     if diagram.get("diagram_type") != "PS":
         raise ValueError("DIAGRAM must contain a pressure-entropy (PS) diagram.")
+    models = diagram.get("workflow", {}).get("models", {})
+    if "phase_names" in models:
+        dataset = models["dataset"].rsplit(".", 1)[-1]
+        phases, _ = load_dataset(dataset, models["phase_names"])
+    else:
+        if models and models != MODEL_SET.to_dict():
+            raise ValueError(
+                "Saved model set does not match the configured SLB2024 models."
+            )
+        phases = MODEL_SET.phases
     x, y, arrays = evaluate_saved(
         GRID_SOLUTIONS,
-        load_example(MODELS).candidate_phases(),
+        phases,
         OUTPUT_DIR,
         verbose=True,
     )
@@ -266,7 +280,7 @@ def main():
             dict(
                 source_json=str(DIAGRAM.resolve()),
                 grid_solutions=str(GRID_SOLUTIONS.resolve()),
-                models=str(MODELS),
+                models=models or MODEL_SET.to_dict(),
                 equilibrium_solves=0,
                 shape=[len(y), len(x)],
                 finite_points={
@@ -301,7 +315,3 @@ def main():
     )
     save_figure(fig, OUTPUT_DIR / "pyrolite_sp_properties.png", formats=("pdf",))
     print(f"Figure and arrays: {OUTPUT_DIR.resolve()}", flush=True)
-
-
-if __name__ == "__main__":
-    main()
