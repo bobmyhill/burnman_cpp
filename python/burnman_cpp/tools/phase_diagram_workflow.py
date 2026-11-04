@@ -333,6 +333,7 @@ def calculate_phase_diagram_grid(
     chunk_size=4096,
     verbose=False,
     make_grid=False,
+    stop_on_unresolved=False,
     plot=False,
     plot_kwargs=None,
     plot_formats="png",
@@ -364,6 +365,8 @@ def calculate_phase_diagram_grid(
     otherwise return grid_manifest=None and diagnostics. Unmet boundary spacing
     remains a warning and does not block gridding. These checks cannot prove
     that every possible disconnected field was discovered.
+    With stop_on_unresolved=True, save initial.json and raise RuntimeError
+    before refinement if the initial diagram is unresolved.
     A grid_solutions manifest journals compressed batches, retained equilibria
     and a reverse retry/final audit. No infilling or smoothing is automatic.
     Use calculate_potential_grid(run.grid_manifest, run.phases) separately for
@@ -478,6 +481,11 @@ def calculate_phase_diagram_grid(
     initial_path = save_phase_diagram(
         initial, directory / "initial.json", metadata=metadata
     )
+    if stop_on_unresolved and not initial.resolved:
+        raise RuntimeError(
+            f"Initial phase diagram is unresolved; refinement stopped. See {initial_path}.\n"
+            + "\n".join(initial.diagnostics)
+        )
     started = perf_counter()
     resolution = (
         boundary_resolution if native == variables else boundary_resolution[::-1]

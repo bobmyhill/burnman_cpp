@@ -827,7 +827,7 @@ def refine_phase_diagram(
     volume_unit="m3",
     swap_axes=False,
 ):
-    """Continue unfinished reaction lines and refine their equilibrium sampling.
+    """Refine the equilibrium sampling of saved reaction lines.
 
     ``previous`` accepts a native result, its full dictionary or a JSON path.
     Supply the same elemental bulk and candidate models, in the original order.
@@ -850,8 +850,9 @@ def refine_phase_diagram(
     and y is pressure. Counts subdivide the window's spans. Density units request
     uniform spacing in density rather than volume. A region requires ``resolution``.
 
-    A resolved input retains its boundary IDs, connections, side labels, nodes,
-    field labels and original points. Refinement only inserts validated points;
+    The input retains its boundary IDs, connections, side labels, nodes,
+    field labels, samples and original points, including unresolved problems.
+    Refinement only inserts validated points;
     without ``resolution``, it performs no further equilibrium solves. A final
     read-only thermodynamic audit compares saved samples aligned along each
     diagram axis, including later samples. ``thermodynamic_validation`` records
@@ -859,11 +860,8 @@ def refine_phase_diagram(
     ``aligned_samples`` or ``not_applicable`` for non-natural coordinates.
     These comparisons do not certify unsampled interiors or global stability.
 
-    For an unresolved input, recovery can trim overshoots, reconcile duplicate
-    traces and retrace suspect arcs, including those around provisional fields.
-    ``max_recovery_passes`` controls recovery. With resolution supplied, additional
-    interior equilibria test closed fields whose labels remain provisional or
-    unknown. This differs from plotting, which only interprets saved evidence.
+    Refinement does not repair, retrace or relabel the diagram, or sample new
+    field interiors. ``max_recovery_passes`` applies to diagram creation only.
     The whole diagram and its original frame are retained. Use
     ``settings.verbose = True`` to follow calculation progress.
     """

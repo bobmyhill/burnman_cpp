@@ -1353,20 +1353,20 @@ finite sampling cannot prove discovery of every disconnected stability field.
       py::arg("settings") = py::none(), py::kw_only(),
       py::arg("resolution") = py::none(), py::arg("reciprocal_volume") = false,
       py::arg("region") = py::none(),
-      R"doc(Continue saved reaction lines and optionally refine their equilibrium sampling.
+      R"doc(Refine the equilibrium sampling of saved reaction lines.
 
 Supply the original bulk, candidate order and phase-instance settings. previous
 is a native result or full saved dictionary; omitted settings reuse its settings.
-Recovery can extend incomplete reactions, trim overshoots and reconcile duplicate
-records. With resolution supplied, closed fields still lacking trusted labels
-can receive additional interior equilibrium samples.
+Connections, labels, nodes, samples and original points are preserved, including
+unresolved problems. Refinement does not repair, retrace or relabel the diagram.
+Without resolution, no equilibrium calculations are performed.
 
 resolution gives point counts in calculation-axis order: 101 means 100 divisions.
 It limits spacing along reaction lines, rather than adding an assemblage seed
 grid. reciprocal_volume requests uniform density spacing. region gives a window
-in native diagram units; counts then subdivide its spans. Suspect arcs can be
-retraced during recovery. The complete diagram is retained, and unmet spacing
-or unresolved connections/labels remain in the returned diagnostics.
+in native diagram units; counts then subdivide its spans. The complete diagram
+and its existing diagnostics are retained. Unmet spacing is reported separately
+in spacing_diagnostics.
 )doc");
   m.def("water_fluid", py::overload_cast<>(&minerals::water_fluid));
 }
