@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 
 import burnman_cpp as bm
-from burnman_cpp.minerals import JH_2015, SLB_2011, HGP_2018_ds633
+from burnman_cpp.minerals import JH_2015, SLB_2011, SLB_2024, HGP_2018_ds633
 from conftest import oxide_params
 
 
@@ -142,6 +142,7 @@ def test_repeated_simplification_and_state_preservation():
     [
         (JH_2015.orthopyroxene, dict(Mg=1, Fe=1, Si=2, O=6), 3),
         (SLB_2011.garnet, dict(Mg=1.5, Ca=1.5, Al=2, Si=3, O=12), 2),
+        (SLB_2024.garnet, dict(Mg=1.5, Ca=1.5, Al=2, Si=3, O=12), 2),
         (SLB_2011.mg_fe_bridgmanite, dict(Mg=0.9, Fe=0.1, Si=1, O=3), 2),
     ],
 )

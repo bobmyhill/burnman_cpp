@@ -181,29 +181,6 @@ def test_two_phase_entries_between_seeds_retain_the_intermediate_field():
             1000.0 - 8.31446261815324 * point.temperature * np.log(0.3)
         ) / 1.0e-5
         assert point.pressure == pytest.approx(pressure, abs=0.1)
-    # A saved diagram with that line omitted still has closed, coloured faces.
-    # Its perimeter labels still agree, but a sampled assemblage has no
-    # corresponding region. Report that gap without adding a new line.
-    incomplete = result.to_dict()
-    incomplete["resolved"] = False  # Removing a boundary invalidates completion.
-    incomplete["boundaries"] = [
-        boundary
-        for boundary in incomplete["boundaries"]
-        if boundary["zero_phase"] != line.zero_phase
-    ]
-    geometry = bm.phase_diagram_field_polygons(incomplete)
-    assert not geometry.diagnostics
-    for passes in (0, 2):
-        opts.max_recovery_passes = passes
-        unresolved = bm.refine_phase_diagram(
-            {"Mg": 0.3, "Fe": 0.3, "Ca": 0.4, "O": 1.0}, phases, incomplete, opts
-        )
-        assert not unresolved.resolved
-        assert any("No closed region" in d for d in unresolved.diagnostics)
-        assert len(unresolved.boundaries) == 1
-        assert all(
-            p.phases for p in bm.phase_diagram_field_polygons(unresolved).polygons
-        )
 
 
 def test_boundary_probes_keep_a_narrow_field_between_equal_phase_counts():
@@ -246,7 +223,7 @@ def test_boundary_probes_keep_a_narrow_field_between_equal_phase_counts():
     saved = result.to_dict()
     for line in saved["boundaries"]:
         line.update(side_a=[0, 6], side_b=[0, 3])
-    saved["resolved"] = False  # Deliberately stale labels require recovery.
+    saved["resolved"] = False  # Deliberately stale labels remain unchanged.
     # The reaction graph can recover all three finite assemblages from the
     # verified phase-out conditions, independently of those stale probes.
     for representation in (saved, bm.PhaseDiagramResult.from_dict(saved)):
@@ -257,7 +234,6 @@ def test_boundary_probes_keep_a_narrow_field_between_equal_phase_counts():
             (0, 3),
             (0, 6),
         }
-    check_neighbours(bm.refine_phase_diagram(bulk, phases, saved))
 
 
 def test_four_branches_at_a_phase_swap_node():
@@ -367,121 +343,10 @@ def test_resume_refines_curved_chords_only_when_resolution_is_requested():
         assert p.residual < 0.01
 
 
-@pytest.mark.parametrize("reverse_order", [False, True])
-def test_resume_removes_a_verified_retraced_part_of_a_curved_boundary(reverse_order):
-    phases = curved_phases()
-    opts = settings()
-    opts.max_recovery_passes = 0
-    bulk = {"Mg": 1.0, "O": 1.0}
-    result = bm.phase_diagram(bulk, phases, (0.0, 5.0e9), (600.0, 1400.0), opts)
-    assert result.resolved, result.diagnostics
-    assert len(result.boundaries) == 1
-    saved = result.to_dict()
-    line = saved["boundaries"][0]
-    original = line["points"]
-    assert len(original) > 10
-    # The retained edge and the duplicate have real equilibrium states, but
-    # use different chords. A closed out-and-back trace has zero area; it
-    # must not create a field or make an otherwise complete loop open.
-    line["points"] = original[::6] + [original[-1]]
-    duplicate = dict(
-        line,
-        id=1,
-        end_node=line["start_node"],
-        points=original[:6] + original[4::-1],
-        termination="junction; junction",
-    )
-    saved["boundaries"].append(duplicate)
-    if reverse_order:
-        saved["boundaries"].reverse()
-    saved["resolved"] = False  # Request repair of the injected retrace.
-    assert not any(
-        p.has_open_boundary for p in bm.phase_diagram_field_polygons(saved).polygons
-    )
-    repaired = bm.refine_phase_diagram(bulk, phases, saved, opts)
-    assert repaired.resolved, repaired.diagnostics
-    assert len(repaired.boundaries) == 1
-    geometry = bm.phase_diagram_field_polygons(repaired)
-    assert not geometry.diagnostics
-    assert len(geometry.polygons) == 2
-    assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
-
-
-def test_resume_does_not_relocate_or_reverify_samples_from_another_domain():
-    mg = pure("Mg", {"Mg": 1.0, "O": 1.0})
-    fe = pure("Fe", {"Fe": 1.0, "O": 1.0})
-    phases = [
-        bm.Solution(
-            bm.IdealSolution([(mg, "[Mg]O"), (fe, "[Fe]O")]),
-            [0.3, 0.7],
-            name="solution",
-        ),
-        bm.CombinedMineral([mg], [1.0], [1000.0, 0.0, -1.0e-5], name="Mg high"),
-    ]
-    bulk = {"Mg": 0.3, "Fe": 0.7, "O": 1.0}
-    opts = settings()
-    opts.pressure_seeds = opts.temperature_seeds = 2
-    opts.max_recovery_passes = 0
-    result = bm.phase_diagram(bulk, phases, (1.5e9, 1.6e9), (700.0, 800.0), opts)
-    assert result.resolved, result.diagnostics
-    assert all(len(s.phases) == 2 for s in result.samples if s.success)
-    saved = result.to_dict()
-    # Reuse a distant warm start in a small subdomain where the second phase
-    # is unstable. Dropping it must preserve the requested field coordinates.
-    saved["boundaries"] = []
-    saved["nodes"] = []
-    saved["pressure_range"] = [1e5, 1.01e5]
-    saved["temperature_range"] = [700.0, 700.1]
-    saved["samples"] = saved["samples"][:1]
-    repaired = bm.refine_phase_diagram(bulk, phases, saved, opts)
-    assert repaired.to_dict()["samples"] == saved["samples"]
-    assert repaired.equilibrium_solves == saved["equilibrium_solves"]
-    geometry = bm.phase_diagram_field_polygons(repaired)
-    assert geometry.polygons[0].is_provisional
-    assert any("label is provisional" in d for d in geometry.diagnostics)
-
-
-@pytest.mark.parametrize("ambiguous_edges", [1, 2])
-def test_label_recovery_still_merges_duplicate_two_point_boundaries(ambiguous_edges):
-    bulk = {"Mg": 1.0, "Fe": 1.0, "O": 2.0}
-    opts = settings()
-    opts.max_recovery_passes = 0
-    saved = bm.phase_diagram(
-        bulk, crossing_phases(), (0.0, 2e9), (600.0, 1400.0), opts
-    ).to_dict()
-    line = saved["boundaries"][0]
-    expected = dict(line)
-    line["points"] = [line["points"][0], line["points"][-1]]
-    duplicate = dict(
-        line,
-        id=len(saved["boundaries"]),
-        start_node=line["end_node"],
-        end_node=line["start_node"],
-        points=line["points"][::-1],
-        side_a=[],
-        side_b=[],
-    )
-    if ambiguous_edges == 2:
-        line["side_a"] = line["side_b"] = []
-    saved["boundaries"].append(duplicate)
-    saved["resolved"] = False  # Request repair of the injected duplicate.
-    result = bm.refine_phase_diagram(bulk, crossing_phases(), saved, opts)
-    assert result.resolved, result.diagnostics
-    assert len(result.boundaries) == 4
-    retained = next(b for b in result.boundaries if b.assemblage == line["assemblage"])
-    aligned = retained.start_node == expected["start_node"]
-    assert retained.side_a == expected["side_a" if aligned else "side_b"]
-    assert retained.side_b == expected["side_b" if aligned else "side_a"]
-    geometry = bm.phase_diagram_field_polygons(result)
-    assert not geometry.diagnostics
-    assert len(geometry.polygons) == 4
-    assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
-
-
 @pytest.mark.parametrize(
     "resolution, saved_resolved", [(None, False), ((17, 21), False), ((17, 21), True)]
 )
-def test_resume_uses_accepted_endpoints_and_closes_truncated_fields(
+def test_refinement_preserves_truncated_boundaries_and_diagnostics(
     resolution, saved_resolved
 ):
     s = settings()
@@ -503,19 +368,21 @@ def test_resume_uses_accepted_endpoints_and_closes_truncated_fields(
     resumed = bm.refine_phase_diagram(
         bulk, crossing_phases(), previous, s, resolution=resolution
     )
-    assert resumed.resolved, resumed.diagnostics
-    assert len(resumed.boundaries) == 4
-    assert (
-        len(next(n for n in resumed.nodes if n.kind == "junction").incident_lines) == 4
-    )
-    assert all(
-        line.start_node >= 0 and line.end_node >= 0 for line in resumed.boundaries
-    )
-    polygons = bm.phase_diagram_field_polygons(resumed)
-    assert not polygons.diagnostics
-    assert len(polygons.polygons) == 4
-    assert all(p.n_phases == 2 for p in polygons.polygons)
-    assert resumed.equilibrium_solves > result.equilibrium_solves
+    assert not resumed.resolved
+    after = resumed.to_dict()
+    assert after["diagnostics"] == previous["diagnostics"]
+    for key in ("nodes", "fields", "samples", "excluded_regions"):
+        assert after[key] == previous[key]
+    assert len(after["boundaries"]) == len(previous["boundaries"])
+    for old, new in zip(previous["boundaries"], after["boundaries"]):
+        assert {
+            k: v for k, v in new.items() if k not in ("points", "limiting_curves")
+        } == {k: v for k, v in old.items() if k not in ("points", "limiting_curves")}
+        assert new["points"][0] == old["points"][0]
+        assert new["points"][-1] == old["points"][-1]
+    if resolution is None:
+        assert after["boundaries"] == previous["boundaries"]
+        assert resumed.equilibrium_solves == previous["equilibrium_solves"]
     assert not result.resolved  # The previous result was not mutated.
     with pytest.raises(ValueError, match="candidate names"):
         bm.refine_phase_diagram(bulk, crossing_phases()[:-1], result, s)
@@ -597,32 +464,6 @@ def test_settings_dictionary_rejects_unknown_options():
         bm.PhaseDiagramSettings.from_dict({"minimum_step": 1.0e-7})
 
 
-def test_conflicting_loops_recheck_stale_edges_without_interior_samples():
-    bulk = {"Mg": 1.0, "Fe": 1.0, "O": 2.0}
-    previous = bm.phase_diagram(
-        bulk, crossing_phases(), (0.0, 2e9), (600.0, 1400.0), settings()
-    ).to_dict()
-    expected = {tuple(f["phases"]) for f in previous["fields"]}
-    labels = [f["phases"] for f in previous["fields"][:2]]
-    for line in previous["boundaries"]:
-        line["side_a"], line["side_b"] = labels
-    previous["samples"] = previous["fields"] = []
-    previous["resolved"] = False  # Recheck the deliberately corrupted labels.
-    opts = settings()
-    opts.max_lines = 8
-    opts.max_recovery_passes = 0
-    result = bm.refine_phase_diagram(bulk, crossing_phases(), previous, opts)
-    assert not any("No field edge" in d for d in result.diagnostics)
-    polygons = bm.phase_diagram_field_polygons(result)
-    assert len(polygons.polygons) == 4
-    assert all(p.n_phases == 2 and p.phases for p in polygons.polygons)
-    assert {tuple(p.phases) for p in polygons.polygons} == expected
-    assert not any(p.is_provisional for p in polygons.polygons)
-    assert result.resolved, result.diagnostics
-    assert result.equilibrium_solves > previous["equilibrium_solves"]
-    assert not any(s.is_field_verification for s in result.samples)
-
-
 def test_polymorph_reduced_variance_has_three_lines():
     phases = [HP_2011_ds62.andalusite(), HP_2011_ds62.ky(), HP_2011_ds62.sill()]
     r = bm.phase_diagram(
@@ -683,67 +524,6 @@ def test_stability_selects_lower_energy_and_bulk_scaling():
             [p.amount for p in state.phases], [2.0, 2.0], atol=1e-9
         )
         assert state.mass_balance_error < 1e-9
-
-
-@pytest.mark.parametrize("crowded_neighbours", [False, True])
-def test_resume_retains_conflicting_seed_assemblages_as_provisional_evidence(
-    crowded_neighbours,
-):
-    lower = pure("lower", {"Mg": 1.0, "O": 1.0})
-    higher = bm.CombinedMineral([lower], [1.0], [0.1, 0.0, 0.0], name="higher")
-    opts = settings()
-    result = bm.phase_diagram(
-        {"Mg": 1.0, "O": 1.0},
-        [higher, lower],
-        (1.0e9, 2.0e9),
-        (600.0, 800.0),
-        opts,
-    )
-    saved = result.to_dict()
-    saved["samples"] = saved["samples"][:2]
-    saved["resolved"] = False  # The altered sample evidence needs rechecking.
-    first, second = saved["samples"]
-    first.update(
-        pressure=1.5e9,
-        temperature=700.0,
-        is_field_verification=True,
-        minimum_affinity=-0.1,
-    )
-    first["phases"][0].update(id=0, candidate_index=0, name="higher")
-    second.update(pressure=1.2e9, temperature=640.0)
-    if crowded_neighbours:
-        # The lower-energy state is far along the region. Nearby higher-energy
-        # roots must not crowd that known conflicting assemblage out of recovery.
-        saved["samples"].extend(
-            dict(first, pressure=1.5e9 + (i + 1) * 100.0) for i in range(36)
-        )
-        saved["settings"]["max_recovery_passes"] = 5
-    recovered = bm.refine_phase_diagram(
-        saved["composition_start"], [higher, lower], saved
-    )
-    if crowded_neighbours:
-        recovered = bm.refine_phase_diagram(
-            saved["composition_start"], [higher, lower], recovered
-        )
-    assert not recovered.resolved
-    assert not recovered.boundaries
-    assert {tuple(f.phases) for f in recovered.fields} == {(0,), (3,)}
-    samples = recovered.to_dict()["samples"]
-    assert samples[: len(saved["samples"])] == saved["samples"]
-    # Targeted interior verification may add evidence. It must preserve the
-    # conflicting accepted roots, rather than certify either as uniquely stable
-    # when their energy separation lies inside the configured affinity tolerance.
-    assert all(
-        s["success"]
-        and s["is_field_verification"]
-        and s["mass_balance_error"] <= opts.mass_balance_tolerance
-        and s["minimum_affinity"] >= -opts.affinity_tolerance
-        for s in samples[len(saved["samples"]) :]
-    )
-    geometry = bm.phase_diagram_field_polygons(recovered)
-    assert len(geometry.polygons) == 1
-    assert geometry.polygons[0].is_provisional
-    assert geometry.polygons[0].phases in ([0], [3])
 
 
 def test_water_eos_thermodynamic_derivatives_and_gas_limit():

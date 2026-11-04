@@ -66,7 +66,7 @@ def process(run, **kwargs):
 def test_real_diagram_refinement_saved_grid_and_potential_replay(
     tmp_path, diagram, symbol
 ):
-    run = calculate(tmp_path, diagram)
+    run = calculate(tmp_path, diagram, stop_on_unresolved=True)
     potentials = process(run)
     assert run.diagram.resolved and run.diagram.spacing_resolved
     assert run.grid_manifest is not None and not run.diagnostics
@@ -160,6 +160,29 @@ def test_real_diagram_refinement_saved_grid_and_potential_replay(
             )
     # Replay changes neither solve counts nor files on disk.
     assert manifest == json.loads(run.grid_manifest.read_text())
+
+
+def test_unresolved_initial_diagram_is_saved_before_stopping(tmp_path, monkeypatch):
+    phase_diagram = workflow._core.phase_diagram
+
+    def unresolved(*args, **kwargs):
+        data = phase_diagram(*args, **kwargs).to_dict()
+        data.update(resolved=False, diagnostics=["Unresolved test boundary"])
+        return bm.PhaseDiagramResult.from_dict(data)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Unresolved initial diagrams must stop before refinement")
+
+    monkeypatch.setattr(workflow._core, "phase_diagram", unresolved)
+    monkeypatch.setattr(workflow._core, "refine_phase_diagram", forbidden)
+    with pytest.raises(RuntimeError, match="Unresolved test boundary") as error:
+        calculate(tmp_path, stop_on_unresolved=True)
+    initial = tmp_path / "initial.json"
+    assert str(initial) in str(error.value)
+    assert set(tmp_path.iterdir()) == {initial}
+    saved = bm.load_phase_diagram(initial)
+    assert not saved["resolved"]
+    assert saved["diagnostics"] == ["Unresolved test boundary"]
 
 
 @pytest.mark.parametrize("problem", ["unresolved", "polygon"])

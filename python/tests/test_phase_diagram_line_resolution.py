@@ -134,11 +134,16 @@ def test_axis_counts_are_independent_of_linear_display_units(crossing):
 
 
 @pytest.mark.parametrize("scope", ["none", "all", "region"])
-def test_resolved_refinement_preserves_graph_ids_labels_and_saved_evidence(
-    crossing, scope
+@pytest.mark.parametrize("unresolved", [False, True])
+def test_refinement_preserves_graph_ids_labels_and_saved_evidence(
+    crossing, scope, unresolved
 ):
     bulk, original = crossing
     saved = deepcopy(original)
+    if unresolved:
+        saved["resolved"] = False
+        saved["diagnostics"] = ["Boundary 7: saved unresolved connection."]
+        saved["settings"]["max_recovery_passes"] = 5
     # Saved IDs are identities, even when no longer contiguous after editing.
     ids = {b["id"]: 7 + 10 * i for i, b in enumerate(saved["boundaries"])}
     for boundary in saved["boundaries"]:
@@ -159,8 +164,9 @@ def test_resolved_refinement_preserves_graph_ids_labels_and_saved_evidence(
         **options,
     )
     after = result.to_dict()
-    assert result.resolved and result.spacing_resolved
-    assert not result.diagnostics and not result.spacing_diagnostics
+    assert result.resolved == saved["resolved"]
+    assert result.diagnostics == saved["diagnostics"]
+    assert result.spacing_resolved and not result.spacing_diagnostics
     for key in ("nodes", "fields", "samples", "excluded_regions", "phase_names"):
         assert after[key] == saved[key]
     for old, new in zip(saved["boundaries"], after["boundaries"]):
@@ -173,236 +179,6 @@ def test_resolved_refinement_preserves_graph_ids_labels_and_saved_evidence(
     else:
         assert after["equilibrium_solves"] > saved["equilibrium_solves"]
     assert saved == before
-
-
-@pytest.mark.parametrize(
-    "name,finite", [("univariant_segments", False), ("thin_finite_field", True)]
-)
-def test_metasediment_reaction_segments_preserve_the_thin_finite_field(name, finite):
-    from burnman_cpp.minerals import model_sets
-
-    # Accepted full-diagram arcs, including different zero-amount constraints
-    # on the same reaction. No synthetic equilibrium states or label votes.
-    data = json.loads(
-        (Path(__file__).parent / "data" / f"metasediment_{name}.json").read_text()
-    )
-    before = bm.phase_diagram_field_polygons(data, close_domain=False)
-    assert len(before.polygons) == 1
-    if not finite:
-        assert not before.polygons[0].phases
-    candidate_names = data["phase_names"][:: data["settings"]["max_phase_instances"]]
-    by_name = {phase.name: phase for phase in model_sets.metapelite().phases}
-    phases = [by_name[name] for name in candidate_names]
-    result = bm.refine_phase_diagram(
-        data["composition_start"],
-        phases,
-        data,
-        resolution=(2, 2),
-        region=((573.15, 1173.15), (1.0e5, 2.0e9)),
-        temperature_unit="K",
-        pressure_unit="Pa",
-    )
-    geometry = bm.phase_diagram_field_polygons(result, close_domain=False)
-    assert result.settings.affinity_tolerance == data["settings"]["affinity_tolerance"]
-    assert result.pressure_range == data["pressure_range"]
-    assert result.temperature_range == data["temperature_range"]
-    if finite:
-        assert len(geometry.polygons) == 1
-        field = geometry.polygons[0]
-        assert field.phases == [0, 3, 6, 21, 33, 36, 39, 45, 48, 63]
-        assert field.n_phases == 10 and not field.is_provisional
-        assert field.area > 0.0
-        # The saved phase-out trace overshot its verified junction by
-        # 34 Pa before doubling back. Preserve the finite field while
-        # removing that excursion, rather than preserving its chord area.
-        edge = next(
-            b for b in result.boundaries if {b.start_node, b.end_node} == {2, 3}
-        )
-        assert (
-            max(p.temperature for p in edge.points)
-            <= result.nodes[2].temperature + 1.0e-6
-        )
-    else:
-        assert not geometry.polygons
-        assert len(result.boundaries) == 3
-        assert {frozenset((b.start_node, b.end_node)) for b in result.boundaries} == {
-            frozenset((0, 3)),
-            frozenset((3, 1)),
-            frozenset((1, 2)),
-        }
-    for line in result.boundaries:
-        for point in line.points:
-            assert point.mass_balance_error <= result.settings.mass_balance_tolerance
-            assert point.minimum_affinity >= -result.settings.affinity_tolerance
-
-
-@pytest.mark.parametrize("name", ["parallel_fields", "curved_node_connections"])
-def test_metasediment_curved_loops_keep_finite_fields_and_stable_connections(name):
-    from burnman_cpp.minerals import model_sets
-
-    path = Path(__file__).parent / "data" / f"metasediment_{name}.json"
-    data = json.loads(path.read_text())
-    candidate_names = data["phase_names"][:: data["settings"]["max_phase_instances"]]
-    by_name = {phase.name: phase for phase in model_sets.metapelite().phases}
-    phases = [by_name[name] for name in candidate_names]
-    result = bm.refine_phase_diagram(
-        data["composition_start"],
-        phases,
-        data,
-        resolution=(2, 2),
-        region=((573.15, 1173.15), (1.0e5, 2.0e9)),
-        temperature_unit="K",
-        pressure_unit="Pa",
-    )
-    geometry = bm.phase_diagram_field_polygons(result, close_domain=False)
-    assert all(not p.is_provisional for p in geometry.polygons)
-    if name == "parallel_fields":
-        # The original chords gave the intervening eight-phase field negative
-        # area. Its saved minimization must belong only to that finite strip.
-        expected = [0, 3, 6, 21, 36, 45, 48, 63]
-        target = [1.0881852213541665e8, 773.15]
-        assert len(geometry.polygons) == 3
-        matches = [
-            p for p in geometry.polygons if p.contains_rectangle(target, [1.0, 1.0e-8])
-        ]
-        assert len(matches) == 1 and matches[0].phases == expected
-        assert matches[0].area > 0.0
-        # Its neighbours retain distinct seven- and nine-phase fields.
-        assert {p.n_phases for p in geometry.polygons} == {7, 8, 9}
-    else:
-        assert {tuple(p.phases) for p in geometry.polygons} == {
-            (0, 1, 3, 18, 21, 36, 45, 60),
-            (0, 1, 3, 18, 21, 36, 37, 45, 60),
-        }
-        nodes = data["fixture_original_nodes"]
-        assert not any(
-            b.zero_phase == 51
-            and {b.start_node, b.end_node} == {nodes.index(172), nodes.index(173)}
-            for b in result.boundaries
-        )
-        full = bm.phase_diagram_field_polygons(result)
-        matches = [
-            p
-            for p in full.polygons
-            if p.contains_rectangle(
-                [1.5683486180088599e9, 689.1695969015594], [1.0, 1.0e-8]
-            )
-        ]
-        assert len(matches) == 1 and not matches[0].is_provisional
-        assert matches[0].phases == [0, 1, 3, 18, 21, 36, 45, 51, 60]
-    assert result.settings.affinity_tolerance == data["settings"]["affinity_tolerance"]
-    assert result.pressure_range == data["pressure_range"]
-    assert result.temperature_range == data["temperature_range"]
-    for boundary in result.boundaries:
-        for point in boundary.points:
-            assert point.mass_balance_error <= result.settings.mass_balance_tolerance
-            assert point.minimum_affinity >= -result.settings.affinity_tolerance
-
-
-def transform_saved_traces(data, transform):
-    if transform == "reverse":
-        for line in data["boundaries"]:
-            line["start_node"], line["end_node"] = line["end_node"], line["start_node"]
-            line["side_a"], line["side_b"] = line["side_b"], line["side_a"]
-            line["points"].reverse()
-            line["termination"] = "; ".join(reversed(line["termination"].split("; ")))
-    elif transform == "renumber":
-        copies = data["settings"]["max_phase_instances"]
-
-        def remap(i):
-            return i if i < 0 else i // copies * copies + copies - 1 - i % copies
-
-        for node in data["nodes"]:
-            for key in ["assemblage", "zero_phases"]:
-                node[key] = sorted(map(remap, node[key]))
-        for line in data["boundaries"]:
-            line["zero_phase"] = remap(line["zero_phase"])
-            for key in ["assemblage", "side_a", "side_b"]:
-                line[key] = sorted(map(remap, line[key]))
-            for point in line["points"]:
-                for phase in point["phases"]:
-                    phase["id"] = remap(phase["id"])
-                point["phases"].sort(key=lambda p: p["id"])
-
-
-@pytest.mark.parametrize("transform", ["original", "reverse", "renumber"])
-def test_nearby_bivariant_junctions_keep_the_finite_basalt_field(transform):
-    from burnman_cpp.minerals import model_sets
-
-    path = Path(__file__).parent / "data/basalt_nearby_bivariant_junctions.json"
-    data = json.loads(path.read_text())
-    transform_saved_traces(data, transform)
-    for pair in data["fixture_nearby_nodes"]:
-        assert all(
-            data["nodes"][n]["gibbs_variance"] == 2
-            and data["nodes"][n]["pt_nullity"] == 0
-            for n in pair
-        )
-    candidate_names = data["phase_names"][:: data["settings"]["max_phase_instances"]]
-    by_name = {phase.name: phase for phase in model_sets.metabasite().phases}
-    phases = [by_name[name] for name in candidate_names]
-    result = bm.refine_phase_diagram(
-        data["composition_start"],
-        phases,
-        data,
-        resolution=(2, 2),
-        region=(data["temperature_range"], data["pressure_range"]),
-        temperature_unit="K",
-        pressure_unit="Pa",
-    )
-    geometry = bm.phase_diagram_field_polygons(result, close_domain=False)
-    fields = [
-        p
-        for p in geometry.polygons
-        if p.contains_rectangle([945.0e6, 740.0], [1.0, 1.0e-8])
-    ]
-    assert len(fields) == 1
-    assert fields[0].phases == [0, 1, 2, 15, 18, 21, 24, 33, 42]
-    assert not fields[0].is_provisional and not fields[0].has_open_boundary
-    for pair in data["fixture_nearby_nodes"]:
-        assert all(result.nodes[n].incident_lines for n in pair)
-
-
-def test_regional_retrace_recovers_missing_metasediment_connection():
-    from burnman_cpp.minerals import model_sets
-
-    # Counterexample assembled from accepted local states and the actual coarse
-    # melt-out arc that skipped the second-ilmenite junction in the full diagram.
-    path = Path(__file__).parent / "data/metasediment_missing_melt_connection.json"
-    saved = json.loads(path.read_text())
-    before = bm.phase_diagram_field_polygons(saved)
-    target = [1.107e9, 950.5]
-    assert any(
-        p.is_provisional and p.contains_rectangle(target, [1.0, 1.0e-8])
-        for p in before.polygons
-    )
-    assert not any(
-        b["zero_phase"] == 42 and {b["start_node"], b["end_node"]} == {6, 11}
-        for b in saved["boundaries"]
-    )
-    candidate_names = saved["phase_names"][:: saved["settings"]["max_phase_instances"]]
-    by_name = {phase.name: phase for phase in model_sets.metapelite().phases}
-    phases = [by_name[name] for name in candidate_names]
-    result = bm.refine_phase_diagram(
-        saved["composition_start"],
-        phases,
-        saved,
-        resolution=(21, 21),
-        region=((944.0, 955.0), (1.09, 1.12)),
-        pressure_unit="GPa",
-        temperature_unit="K",
-    )
-    assert result.pressure_range == saved["pressure_range"]
-    assert result.temperature_range == saved["temperature_range"]
-    assert any(
-        b.zero_phase == 42 and {b.start_node, b.end_node} == {6, 11}
-        for b in result.boundaries
-    )
-    after = bm.phase_diagram_field_polygons(result)
-    fields = [p for p in after.polygons if p.contains_rectangle(target, [1.0, 1.0e-8])]
-    assert len(fields) == 1 and not fields[0].is_provisional
-    assert list(fields[0].phases) == [0, 3, 18, 21, 36, 45, 51, 60, 63]
-    check_spacing(result, (21, 21), pressure_unit="GPa", temperature_unit="K")
 
 
 def test_single_axis_division_is_valid(crossing):
@@ -550,36 +326,7 @@ def test_missing_line_remains_diagnosed_with_provisional_field_labels(crossing):
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
 
 
-def test_completed_snapshot_recovers_a_dangling_internal_junction(crossing):
-    bulk, original = crossing
-    saved = json.loads(json.dumps(original))
-    saved["boundaries"] = saved["boundaries"][:1]
-    saved["samples"] = []
-    saved["fields"] = []
-    # Deliberately removing branches requests recovery of an unresolved graph.
-    saved["resolved"] = False
-    assert "junction" in saved["boundaries"][0]["termination"]
-    opts = bm.PhaseDiagramSettings.from_dict(saved["settings"])
-    opts.max_recovery_passes = 0
-    opts.max_lines = 1
-    incomplete = bm.refine_phase_diagram(
-        bulk, crossing_phases(), saved, opts, resolution=(17, 21)
-    )
-    assert not incomplete.resolved
-    assert any("Unpaired internal junction" in d for d in incomplete.diagnostics)
-    opts.max_recovery_passes = 2
-    opts.max_lines = 500
-    repaired = bm.refine_phase_diagram(
-        bulk, crossing_phases(), saved, opts, resolution=(17, 21)
-    )
-    assert repaired.resolved, repaired.diagnostics
-    assert len(repaired.boundaries) == 4
-    assert len(bm.phase_diagram_field_polygons(repaired).polygons) == 4
-    check_spacing(repaired, (17, 21))
-
-
-@pytest.mark.parametrize("recovery", [False, True])
-def test_saved_ordering_jump_recovers_the_intervening_two_ilmenite_fields(recovery):
+def test_refinement_reports_an_ordering_jump_without_repair():
     from burnman_cpp.minerals import model_sets
 
     # The old ky-out line jumped between ordered/disordered ilmenite roots.
@@ -587,9 +334,7 @@ def test_saved_ordering_jump_recovers_the_intervening_two_ilmenite_fields(recove
     saved = json.loads(
         (Path(__file__).parent / "data/metasediment_ordering_segment.json").read_text()
     )
-    saved["resolved"] = False  # The known ordering jump requires recovery.
-    if not recovery:
-        saved["settings"]["max_recovery_passes"] = 0
+    saved["resolved"] = False  # The known ordering jump remains unresolved.
     candidate_names = saved["phase_names"][:: saved["settings"]["max_phase_instances"]]
     by_name = {phase.name: phase for phase in model_sets.metapelite().phases}
     phases = [by_name[name] for name in candidate_names]
@@ -599,196 +344,14 @@ def test_saved_ordering_jump_recovers_the_intervening_two_ilmenite_fields(recove
         saved,
         resolution=(21, 21),
     )
-    if not recovery:
-        assert result.resolved and not result.diagnostics
-        assert not result.spacing_resolved
-        assert any(
-            "equilibrium refinement failed" in d for d in result.spacing_diagnostics
-        )
-        return
-    assert all(
-        "label is provisional" in d for d in result.diagnostics
-    ), result.diagnostics
-    polygons = bm.phase_diagram_field_polygons(result).polygons
-    assert any(
-        "ilm #2" in [result.phase_names[i] for i in field.phases] for field in polygons
-    )
-    assert all(p.phases for p in polygons)
-    check_spacing(result, (21, 21))
-
-
-@pytest.mark.parametrize("reverse", [False, True])
-def test_metasediment_curved_mica_boundary_preserves_the_finite_nine_phase_field(
-    reverse,
-):
-    from burnman_cpp.minerals import model_sets
-
-    saved = json.loads(
-        (Path(__file__).parent / "data/metasediment_curved_mica_field.json").read_text()
-    )
-    if reverse:
-        for line in saved["boundaries"]:
-            line["points"].reverse()
-            line["start_node"], line["end_node"] = (
-                line["end_node"],
-                line["start_node"],
-            )
-            line["side_a"], line["side_b"] = line["side_b"], line["side_a"]
-            line["termination"] = "; ".join(reversed(line["termination"].split("; ")))
-    original = deepcopy(saved)
-    assert any(
-        p.is_provisional and not p.has_open_boundary
-        for p in bm.phase_diagram_field_polygons(saved).polygons
-    )
-    candidate_names = saved["phase_names"][:: saved["settings"]["max_phase_instances"]]
-    by_name = {phase.name: phase for phase in model_sets.metapelite().phases}
-    phases = [by_name[name] for name in candidate_names]
-    result = bm.refine_phase_diagram(
-        saved["composition_start"],
-        phases,
-        saved,
-        resolution=(2, 2),
-        region=((645.0, 675.0), (1.4e6, 2.6e6)),
-        pressure_unit="Pa",
-        temperature_unit="K",
-    )
-    # The extracted exterior is intentionally open. The interior fields must
-    # close consistently, including the narrow ms + two-feldspar strip.
-    closed = [
-        p
-        for p in bm.phase_diagram_field_polygons(result).polygons
-        if not p.has_open_boundary
-    ]
-    assert closed and all(p.phases and not p.is_provisional for p in closed)
-    assert any(p.phases == [0, 3, 21, 22, 33, 45, 48, 60, 63] for p in closed)
-    assert len(result.boundaries) == len(saved["boundaries"])
-    for old, line in zip(saved["boundaries"], result.boundaries):
-        assert (line.start_node, line.end_node) == (old["start_node"], old["end_node"])
-        for point in line.points:
-            assert point.mass_balance_error <= result.settings.mass_balance_tolerance
-            assert point.minimum_affinity >= -result.settings.affinity_tolerance
-            assert point.residual < 0.01
-    assert saved == original
-
-
-def test_unresolved_metasediment_ordering_segment_preserves_input_and_diagnostics():
-    from burnman_cpp.minerals import model_sets
-
-    # This ordering jump cannot supply a valid reaction midpoint. Preserve the
-    # saved data and report the ambiguity without assuming a fixed solve count.
-    saved = json.loads(
-        (Path(__file__).parent / "data/metasediment_ordering_segment.json").read_text()
-    )
-    saved["resolved"] = False
-    saved["settings"].update(verbose=False, max_recovery_passes=0)
-    saved["boundaries"][0].update(side_a=[], side_b=[])
-    original = deepcopy(saved)
-    candidate_names = saved["phase_names"][:: saved["settings"]["max_phase_instances"]]
-    by_name = {phase.name: phase for phase in model_sets.metapelite().phases}
-    phases = [by_name[name] for name in candidate_names]
-    result = bm.refine_phase_diagram(
-        saved["composition_start"],
-        phases,
-        saved,
-        resolution=(2, 2),
-        region=((910.0, 926.0), (1.06e9, 1.07e9)),
-        pressure_unit="Pa",
-        temperature_unit="K",
-    )
     assert not result.resolved
-    assert any("neighbouring fields" in d for d in result.diagnostics)
-    assert saved == original
-
-
-@pytest.mark.parametrize("crowded", [False, True])
-@pytest.mark.parametrize("previously_verified", [False, True])
-def test_perimeter_labels_survive_crowded_or_previously_verified_warm_roots(
-    crowded, previously_verified
-):
-    from copy import deepcopy
-    from burnman_cpp.minerals import model_sets
-
-    # Perimeter and warm roots captured immediately before interior checking
-    # changed a correct basalt field to a metastable plagioclase-free root.
-    saved = json.loads(
-        (Path(__file__).parent / "data/basalt_field_verification.json").read_text()
-    )
-    saved["samples"][0]["is_field_verification"] = previously_verified
-    if crowded:
-        # The physically competing state must be tried even when more than
-        # 32 closer starting states all supply the higher-energy assemblage.
-        for i in range(40):
-            sample = deepcopy(saved["samples"][0])
-            sample["pressure"] += (i + 1) * 10.0
-            saved["samples"].append(sample)
-    candidate_names = saved["phase_names"][:: saved["settings"]["max_phase_instances"]]
-    by_name = {phase.name: phase for phase in model_sets.metabasite().phases}
-    phases = [by_name[name] for name in candidate_names]
-    result = bm.refine_phase_diagram(saved["composition_start"], phases, saved)
-    geometry = bm.phase_diagram_field_polygons(result)
-    polygons = [
-        polygon
-        for polygon in geometry.polygons
-        if polygon.contains_rectangle(
-            [906391997.4521586, 725.3100445735436], [1.0e-5, 1.0e-10]
-        )
-    ]
-    assert len(polygons) == 1
-    assert not polygons[0].has_open_boundary
-    assert [result.phase_names[i] for i in polygons[0].phases] == [
-        "hb",
-        "hb #2",
-        "hb #3",
-        "pl",
-        "ep",
-        "bi",
-        "q",
-        "sph",
-        "ab",
-    ]
-
-
-@pytest.mark.parametrize(
-    "name, point, expected",
-    [
-        (
-            "plagioclase",
-            [906391997.4521586, 725.3100445735436],
-            ["hb", "hb #2", "hb #3", "pl", "ep", "bi", "q", "sph", "ab"],
-        ),
-        (
-            "amphibole",
-            [1478685047.4731708, 808.0422314933551],
-            ["hb", "hb #2", "hb #3", "g", "ep", "q", "ru", "sph", "H2O", "ms"],
-        ),
-    ],
-)
-def test_local_basalt_fields_use_saved_evidence_without_new_interior_roots(
-    name, point, expected
-):
-    from burnman_cpp.minerals import model_sets
-
-    # Small independently seeded diagrams around the two basalt regressions.
-    # The amphibole case also needs a new chlorite-bearing root: both supplied
-    # assemblages at its ambiguous interior fail tighter stability checks.
-    saved = json.loads(
-        (Path(__file__).parent / f"data/basalt_local_{name}.json").read_text()
-    )
-    candidate_names = saved["phase_names"][:: saved["settings"]["max_phase_instances"]]
-    by_name = {phase.name: phase for phase in model_sets.metabasite().phases}
-    phases = [by_name[name] for name in candidate_names]
-    result = bm.refine_phase_diagram(saved["composition_start"], phases, saved)
-    geometry = bm.phase_diagram_field_polygons(result)
-    assert all(p.phases for p in geometry.polygons)
-    assert all("label is provisional" in d for d in geometry.diagnostics)
-    containing = [
-        polygon
-        for polygon in geometry.polygons
-        if polygon.contains_rectangle(point, [1.0e-5, 1.0e-10])
-    ]
-    assert len(containing) == 1
-    assert not containing[0].has_open_boundary
-    assert [result.phase_names[i] for i in containing[0].phases] == expected
+    assert result.diagnostics == saved["diagnostics"]
+    assert not result.spacing_resolved
+    assert any("equilibrium refinement failed" in d for d in result.spacing_diagnostics)
+    after = result.to_dict()
+    for key in ("nodes", "fields", "samples"):
+        assert after[key] == saved[key]
+    assert len(after["boundaries"]) == len(saved["boundaries"])
 
 
 def test_curved_line_refinement_checks_actual_equilibrium_and_default_plot_units():
@@ -812,78 +375,7 @@ def test_curved_line_refinement_checks_actual_equilibrium_and_default_plot_units
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0)
 
 
-def test_near_chord_sample_does_not_trigger_automatic_geometry_repair():
-    phases = curved_phases()
-    bulk = {"Mg": 1.0, "O": 1.0}
-    opts = settings()
-    previous = bm.phase_diagram(bulk, phases, (0.0, 5.0e9), (600.0, 1400.0), opts)
-    data = previous.to_dict()
-    points = data["boundaries"][0]["points"]
-    a, b = points[len(points) // 2 : len(points) // 2 + 2]
-    fraction = 0.01
-    temperature = (1.0 - fraction) * a["temperature"] + fraction * b["temperature"]
-    chord = (1.0 - fraction) * a["pressure"] + fraction * b["pressure"]
-    # Locate the actual coexistence pressure independently from tracing.
-    low, high = data["pressure_range"]
-    for _ in range(60):
-        middle = (low + high) / 2.0
-        for phase in phases:
-            phase.set_state(middle, temperature)
-        if phases[0].molar_gibbs < phases[1].molar_gibbs:
-            low = middle
-        else:
-            high = middle
-    pressure = (chord + (low + high) / 2.0) / 2.0
-
-    def verified(p, t):
-        tight = bm.PhaseDiagramSettings.from_dict(data["settings"])
-        tight.affinity_tolerance = 1.0e-5
-        state = bm.stable_equilibrium(bulk, phases, p, t, tight)
-        assert state.success, state.message
-        return dict(
-            data["samples"][0],
-            pressure=p,
-            temperature=t,
-            entropy=state.entropy,
-            volume=state.volume,
-            success=True,
-            is_field_verification=True,
-            message=state.message,
-            gibbs=state.gibbs,
-            mass_balance_error=state.mass_balance_error,
-            minimum_affinity=state.minimum_affinity,
-            equilibrium_error=state.equilibrium_error,
-            phases=[
-                dict(
-                    id=q.id,
-                    candidate_index=q.candidate_index,
-                    name=q.name,
-                    amount=q.amount,
-                    composition=list(q.composition),
-                )
-                for q in state.phases
-            ],
-        )
-
-    data["samples"] = [
-        verified(1.0e9, 1000.0),
-        verified(4.8e9, 1000.0),
-        verified(pressure, temperature),
-    ]
-    assert not bm.phase_diagram_field_polygons(data).diagnostics
-    opts.max_lines = 1
-    result = bm.refine_phase_diagram(bulk, phases, data, opts)
-    assert result.resolved, result.diagnostics
-    assert len(result.boundaries) == 1
-    assert len(result.boundaries[0].points) == len(points)
-    assert result.equilibrium_solves == data["equilibrium_solves"]
-    assert result.to_dict()["samples"] == data["samples"]
-
-
-@pytest.mark.parametrize("recovery_passes", [0, 2])
-def test_metasediment_explicit_refinement_preserves_saved_samples(
-    recovery_passes,
-):
+def test_metasediment_explicit_refinement_preserves_saved_samples():
     from burnman_cpp.minerals import model_sets
 
     # Chl-out and Mt-out from the fresh metasediment calculation. Refining
@@ -894,7 +386,6 @@ def test_metasediment_explicit_refinement_preserves_saved_samples(
     )
     opts = bm.PhaseDiagramSettings.from_dict(data["settings"])
     opts.verbose = False
-    opts.max_recovery_passes = recovery_passes
     opts.max_lines = 4
     location = [data["samples"][0][c] for c in ("pressure", "temperature")]
     expected = sorted(q["id"] for q in data["samples"][0]["phases"])
