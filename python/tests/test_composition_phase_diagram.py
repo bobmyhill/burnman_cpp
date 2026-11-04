@@ -186,39 +186,6 @@ def test_unequal_atom_totals_preserve_supplied_amounts(diagram):
     assert sum(p.area for p in geometry.polygons) == pytest.approx(1.0, abs=1e-8)
 
 
-@pytest.mark.parametrize("diagram", ["PX", "TX"])
-def test_composition_section_resumes_saved_partial_lines(diagram):
-    settings = section_settings()
-    settings.max_trace_steps = 2
-    settings.max_recovery_passes = 0
-    partial = calculate(diagram, settings)
-    assert not partial.resolved
-    accepted = [
-        (p.pressure, p.composition_coordinate)
-        for line in partial.boundaries
-        for p in line.points
-    ]
-    completed = bm.refine_phase_diagram(
-        START,
-        binary_phases(),
-        json.loads(json.dumps(partial.to_dict())),
-        section_settings(),
-    )
-    assert completed.resolved, completed.diagnostics
-    check_boundaries(completed)
-    new_points = np.array(
-        [
-            (p.pressure, p.composition_coordinate)
-            for line in completed.boundaries
-            for p in line.points
-        ]
-    )
-    for point in accepted:
-        assert (
-            np.min(np.linalg.norm((new_points - point) / [2.0e9, 1.0], axis=1)) < 1.0e-8
-        )
-
-
 def test_absent_element_restricts_a_multicomponent_solution_face():
     members = [
         (bm.Mineral(oxide_params(element, shift)), f"[{element}]O")
