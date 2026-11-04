@@ -24,6 +24,23 @@
 namespace burnman {
 namespace {
 constexpr double pi = 3.14159265358979323846;
+std::string material_property_name(const std::string &name) {
+  if (name == "V" || name == "material_volume")
+    return "volume";
+  if (name == "material_mass")
+    return "mass";
+  if (name == "energy")
+    return "internal_energy";
+  if (name == "S")
+    return "entropy";
+  if (name == "H")
+    return "enthalpy";
+  if (name == "C_p")
+    return "heat_capacity_p";
+  if (name == "C_v")
+    return "heat_capacity_v";
+  return name;
+}
 bool is_pressure(const std::string &name) {
   return name == "pressure" || name == "pressures" || name == "P";
 }
@@ -303,6 +320,10 @@ Layer::Array Layer::get_brunt_vasala() const {
 double Layer::get_mass() const {
   return 4. * pi * density_integral(get_property("density"), 2);
 }
+double Layer::get_volume() const {
+  return (4. * pi / 3.) *
+         (std::pow(outer_radius, 3) - std::pow(inner_radius, 3));
+}
 double Layer::get_moment_of_inertia() const {
   return (8. * pi / 3.) * density_integral(get_property("density"), 4);
 }
@@ -310,6 +331,10 @@ Layer::Array Layer::get_property(const std::string &property_name) const {
   if (property_name == "radii" || property_name == "radius")
     return radii;
   require_made();
+  if (property_name == "mass")
+    return Array::Constant(n_slices, get_mass());
+  if (property_name == "volume")
+    return Array::Constant(n_slices, get_volume());
   if (is_pressure(property_name))
     return pressures_;
   if (is_temperature(property_name))
@@ -326,8 +351,8 @@ Layer::Array Layer::get_property(const std::string &property_name) const {
     values = get_brunt_vasala();
   else
     for (Eigen::Index i = 0; i < n_slices; ++i)
-      values[i] =
-          sublayers_[static_cast<std::size_t>(i)]->get_property(property_name);
+      values[i] = sublayers_[static_cast<std::size_t>(i)]->get_property(
+          material_property_name(property_name));
   cached_[property_name] = values;
   return values;
 }
@@ -350,6 +375,10 @@ Eigen::MatrixXd Layer::evaluate(const std::vector<std::string> &properties,
                                     "radius to evaluate depth.");
       result.row(static_cast<Eigen::Index>(row)) =
           (*radius_planet - query).matrix().transpose();
+    } else if (property_name == "mass" || property_name == "volume") {
+      require_made();
+      result.row(static_cast<Eigen::Index>(row))
+          .setConstant(property_name == "mass" ? get_mass() : get_volume());
     } else if (!radlist) {
       result.row(static_cast<Eigen::Index>(row)) =
           get_property(property_name).matrix().transpose();
@@ -366,7 +395,7 @@ Eigen::MatrixXd Layer::evaluate(const std::vector<std::string> &properties,
         working->set_state(detail::interpolate(query[j], radii, pressures_),
                            detail::interpolate(query[j], radii, temperatures_));
         result(static_cast<Eigen::Index>(row), j) =
-            working->get_property(property_name);
+            working->get_property(material_property_name(property_name));
       }
     }
   }

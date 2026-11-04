@@ -24,6 +24,10 @@ Layers are sorted by inner radius. Set each layer's material and temperature
 mode, then call make(). The default boundary conditions are zero surface
 pressure and zero central gravity. Internal arrays retain both material states
 at an interface. Queries at an exact interface select the deeper layer.
+
+Thermodynamic totals and V/S/H/C_p/C_v follow each layer material's
+number_of_moles. material_mass and material_volume are sample profiles;
+mass and volume retain the planet's integrated mass and geometric volume.
 )doc");
   planet
       .def(py::init<std::string, std::vector<std::shared_ptr<Layer>>, int,
@@ -84,7 +88,9 @@ at an interface. Queries at an exact interface select the deeper layer.
           },
           py::arg("properties"), py::arg("radlist") = py::none(),
           "Evaluate properties on the internal grid or at query radii, "
-          "preserving query order.")
+          "preserving query order. mass and volume repeat the whole planet's "
+          "physical totals; use material_mass and material_volume for sample "
+          "profiles.")
       .def_property_readonly("mass", &Planet::get_mass)
       .def_property_readonly("average_density", &Planet::get_average_density)
       .def_property_readonly("moment_of_inertia",

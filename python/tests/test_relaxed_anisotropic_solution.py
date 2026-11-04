@@ -5,6 +5,7 @@ from numpy.testing import assert_allclose
 import pytest
 
 import burnman_cpp as bm
+from conftest import assert_material_amount_scaling
 from test_anisotropic_mineral import model_parameters, python_reference
 from test_anisotropic_solution import endmember_data, excess_psi
 
@@ -293,3 +294,7 @@ def test_site_constraints_in_an_ordering_mode():
     s.set_state(20e9, 1000.0)
     assert np.all(s.molar_fractions > 0.0)
     assert_allclose(np.array([1.0, -1.0]) @ s.partial_gibbs, 0.0, atol=1e-6)
+
+
+def test_relaxed_anisotropic_solution_intensive_and_extensive_properties():
+    assert_material_amount_scaling(make_relaxed())

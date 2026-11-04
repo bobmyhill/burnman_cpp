@@ -455,3 +455,79 @@ def test_optional_pinned_radial_interpolation():
                 python._compute_pressure(density, expected_gravity, 1e5),
                 rtol=2e-13,
             )
+
+
+@pytest.mark.parametrize("planet", [False, True])
+def test_radial_thermodynamic_profiles_follow_material_amounts(planet):
+    core = bm.Layer("core", np.linspace(0.0, 5e5, 4))
+    mantle = bm.Layer("mantle", np.linspace(5e5, 1e6, 4))
+    for layer, material, amount in (
+        (core, bm.minerals.SLB_2011.forsterite(), 0.4),
+        (mantle, bm.minerals.SLB_2011.periclase(), 2.5),
+    ):
+        material.number_of_moles = amount
+        layer.set_material(material)
+        layer.set_temperature_mode("user-defined", np.full(4, 1500.0))
+    if planet:
+        radial = bm.Planet("scaled samples", [core, mantle])
+        amounts = np.r_[np.full(4, 0.4), np.full(4, 2.5)]
+        queries = np.array([2e5, 8e5])
+        query_amounts = np.array([0.4, 2.5])
+    else:
+        radial = mantle
+        radial.set_pressure_mode(
+            "user-defined", np.linspace(6e9, 4e9, 4), gravity_bottom=10.0
+        )
+        amounts = np.full(4, 2.5)
+        queries = np.array([6e5, 9e5])
+        query_amounts = np.full(2, 2.5)
+    radial.make()
+    physical_mass = radial.mass
+    physical_volume = radial.volume
+    assert np.ndim(physical_mass) == np.ndim(physical_volume) == 0
+    inner = 0.0 if planet else radial.inner_radius
+    outer = radial.radius_planet if planet else radial.outer_radius
+    assert physical_volume == pytest.approx(4.0 * np.pi / 3.0 * (outer**3 - inner**3))
+    if planet:
+        assert physical_mass == pytest.approx(
+            sum(layer.mass for layer in radial.layers)
+        )
+        assert physical_volume == pytest.approx(
+            sum(layer.volume for layer in radial.layers)
+        )
+    totals = {
+        "energy": "molar_internal_energy",
+        "internal_energy": "molar_internal_energy",
+        "gibbs": "molar_gibbs",
+        "helmholtz": "molar_helmholtz",
+        "V": "molar_volume",
+        "material_volume": "molar_volume",
+        "material_mass": "molar_mass",
+        "S": "molar_entropy",
+        "H": "molar_enthalpy",
+        "C_p": "molar_heat_capacity_p",
+        "C_v": "molar_heat_capacity_v",
+    }
+    for name, molar in totals.items():
+        expected = amounts * getattr(radial, molar)
+        assert_allclose(getattr(radial, name), expected, rtol=1e-10)
+        assert_allclose(radial.evaluate([name]), expected, rtol=1e-10)
+        assert_allclose(
+            radial.evaluate([name], queries),
+            query_amounts * radial.evaluate([molar], queries),
+            rtol=1e-10,
+        )
+    for name, value in (("mass", physical_mass), ("volume", physical_volume)):
+        assert_allclose(radial.evaluate([name]), value)
+        assert_allclose(radial.evaluate([name], queries), value)
+    if planet:
+        assert physical_volume == pytest.approx(
+            4.0 * np.pi * radial.radius_planet**3 / 3.0
+        )
+        for layer in radial.layers:
+            layer.material.number_of_moles = 1.0
+    else:
+        radial.material.number_of_moles = 1.0
+    radial.make()
+    assert radial.mass == pytest.approx(physical_mass, rel=1e-10)
+    assert radial.volume == physical_volume

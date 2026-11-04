@@ -263,6 +263,10 @@ Planet::Array Planet::get_property(const std::string &property_name) const {
   if (property_name == "depth")
     return get_depth();
   require_made();
+  if (property_name == "mass")
+    return Array::Constant(radii_.size(), get_mass());
+  if (property_name == "volume")
+    return Array::Constant(radii_.size(), get_volume());
   if (property_name == "pressure" || property_name == "pressures" ||
       property_name == "P")
     return pressures_;
@@ -299,6 +303,10 @@ Eigen::MatrixXd Planet::evaluate(const std::vector<std::string> &properties,
     values.col(i) =
         layer->evaluate(properties, radius, get_radius_planet()).col(0);
   }
+  for (std::size_t row = 0; row < properties.size(); ++row)
+    if (properties[row] == "mass" || properties[row] == "volume")
+      values.row(static_cast<Eigen::Index>(row))
+          .setConstant(properties[row] == "mass" ? get_mass() : get_volume());
   return values;
 }
 std::string Planet::to_string() const {

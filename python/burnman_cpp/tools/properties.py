@@ -365,6 +365,8 @@ def evaluate_property_grid(
     physical P/T, amounts, compositions and exact active face; no interpolation,
     Gibbs minimization or equilibrium solving is performed. A previous property
     failure does not discard its equilibrium. Unsolved points remain masked.
+    Property names and units match ``phase_diagram_grid``; totals such as
+    ``heat_capacity_p`` (J/K) retain the original saved bulk amount.
 
     Return a new grid containing the requested properties and retained states;
     the input is unchanged. ``relaxed=None`` inherits the saved mode; True/False

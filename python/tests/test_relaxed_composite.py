@@ -7,6 +7,7 @@ import pytest
 from numpy.testing import assert_allclose
 
 import burnman_cpp as bm
+from conftest import assert_material_amount_scaling
 from burnman_cpp.minerals import SLB_2011
 
 REACTIONS = np.array([[1.0, -1.0, -1.0, 1.0], [1.0, 1.0, -1.0, -1.0]])
@@ -222,3 +223,17 @@ def test_optional_python_reference(transition, mode):
                 atol=1.0e-13,
                 err_msg=name,
             )
+
+
+def test_relaxed_composite_intensive_and_extensive_properties(transition):
+    base, composition, boundaries = transition
+    phase = bm.RelaxedComposite(base, base.reaction_basis)
+    phase.set_state(boundaries.mean(), 1600.0)
+
+    def scale(amount):
+        scaled = phase.copy()
+        scaled.unrelaxed.n_moles = amount
+        scaled.copy_state_from_unrelaxed()
+        return scaled
+
+    assert_material_amount_scaling(phase, scale)

@@ -18,6 +18,7 @@ from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
 import burnman_cpp as bm
+from conftest import assert_material_amount_scaling
 from burnman_cpp.minerals import SLB_2011
 from burnman_cpp.classes.anisotropicsolution import AnisotropicSolution
 from test_anisotropic_mineral import model_parameters, python_reference
@@ -393,3 +394,9 @@ def test_three_endmembers_and_duplicate_endmember_derivatives():
     assert_array_equal(solution.ones, np.ones(3))
     assert_array_equal(solution.eye, np.eye(3))
     assert solution.endmembers[0][0] is not solution.endmembers[1][0]
+
+
+def test_anisotropic_solution_intensive_and_extensive_properties():
+    phase = make_solution()
+    phase.set_state(20e9, 1000.0)
+    assert_material_amount_scaling(phase)

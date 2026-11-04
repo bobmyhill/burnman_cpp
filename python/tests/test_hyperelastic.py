@@ -8,6 +8,7 @@ import pytest
 from scipy.linalg import expm
 
 import burnman_cpp as bm
+from conftest import assert_material_amount_scaling
 from burnman_cpp.utils.anisotropy import (
     contract_compliances,
     contract_stiffnesses,
@@ -239,3 +240,9 @@ def test_tensor_utilities_preserve_nonsymmetric_major_indices():
         assert_allclose(F, expected, atol=1e-14)
     with pytest.raises(ValueError):
         polar_decomposition(F, "invalid")
+
+
+def test_hyperelastic_mineral_intensive_and_extensive_properties():
+    phase = make_model("triclinic", thermal=True)
+    set_finite_state(phase)
+    assert_material_amount_scaling(phase)

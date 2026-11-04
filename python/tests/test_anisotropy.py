@@ -195,3 +195,42 @@ def test_invalid_inputs_and_snapshots():
     ]:
         with pytest.raises(ValueError, match="orthogonal"):
             method([1.0, 0.0, 0.0], [1.0, 0.0, 0.0])
+
+
+@pytest.mark.parametrize(
+    "kind,coefficients",
+    [
+        ("IsotropicMaterial", [100, 100]),
+        ("CubicMaterial", [300, 100, 100]),
+        ("HexagonalMaterial", [300, 100, 100, 300, 100]),
+        ("TetragonalMaterial", [300, 100, 100, 300, 100, 100]),
+        ("RhombohedralMaterial", [300, 100, 100, 0, 300, 100, 100]),
+        ("OrthorhombicMaterial", [300, 100, 100, 300, 100, 300, 100, 100, 100]),
+        (
+            "MonoclinicMaterial",
+            [300, 100, 100, 0, 300, 100, 0, 300, 0, 100, 0, 100, 100],
+        ),
+        ("TriclinicMaterial", None),
+        ("AnisotropicMaterial", None),
+    ],
+)
+def test_tensor_only_materials_keep_their_intensive_elastic_response(
+    kind, coefficients
+):
+    matrix = np.zeros((6, 6))
+    matrix[:3, :3] = 100e9
+    np.fill_diagonal(matrix[:3, :3], 300e9)
+    np.fill_diagonal(matrix[3:, 3:], 100e9)
+    if kind == "AnisotropicMaterial":
+        coefficients = matrix
+    elif kind == "TriclinicMaterial":
+        coefficients = matrix[np.triu_indices(6)]
+    else:
+        coefficients = np.array(coefficients) * 1e9
+    phase = getattr(bm, kind)(3300.0, coefficients)
+    velocities, _ = phase.wave_velocities([1.0, 2.0, 3.0])
+    phase.number_of_moles = 2.5
+    assert phase.density == 3300.0
+    np.testing.assert_allclose(phase.isentropic_stiffness_tensor, matrix)
+    after, _ = phase.wave_velocities([1.0, 2.0, 3.0])
+    np.testing.assert_allclose(after, velocities, rtol=1e-12)

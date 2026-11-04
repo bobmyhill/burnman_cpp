@@ -171,3 +171,16 @@ def test_invalid_parameters_and_models(endmembers):
         bm.AsymmetricRegularSolution(endmembers, [1.0], [[1.0]])
     with pytest.raises(ValueError):
         bm.Assemblage([], [])
+
+
+def test_amount_validation_and_state_independent_mass():
+    mineral = bm.minerals.SLB_2011.forsterite()
+    mass = mineral.mass
+    mineral.n_moles = 3.0
+    assert not mineral.has_state()
+    assert mineral.number_of_moles == 3.0
+    assert mineral.mass == pytest.approx(3.0 * mass)
+    for invalid in (-1.0, np.nan, np.inf, -np.inf):
+        with pytest.raises(ValueError, match="finite and nonnegative"):
+            mineral.number_of_moles = invalid
+        assert mineral.number_of_moles == 3.0

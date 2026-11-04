@@ -18,6 +18,7 @@ from numpy.testing import assert_allclose, assert_array_equal
 import pytest
 
 import burnman_cpp as bm
+from conftest import assert_material_amount_scaling
 from burnman_cpp.minerals import SLB_2011
 from burnman_cpp.classes.anisotropicmineral import (
     AnisotropicMineral,
@@ -375,3 +376,9 @@ def test_invalid_parameters():
         bm.AnisotropicMineral(reference, cell, c)
     with pytest.raises(ValueError):
         bm.AnisotropicMineral(reference, cell, c, [0, 0, 1])
+
+
+def test_anisotropic_mineral_intensive_and_extensive_properties():
+    phase = make_model("triclinic", thermal=True)
+    phase.set_state(20e9, 1000.0)
+    assert_material_amount_scaling(phase)
