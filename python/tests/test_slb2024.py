@@ -17,6 +17,7 @@ import numpy as np
 import pytest
 
 import burnman_cpp as bm
+from conftest import assert_material_amount_scaling
 from burnman_cpp.minerals import SLB_2024
 
 SOLUTIONS = [
@@ -120,3 +121,10 @@ def test_sLB2024_catalogue_matches_python_reference(name):
                 atol=2.0e-5,
                 err_msg=f"{name}, {pressure}, {temperature}: {prop}",
             )
+
+
+def test_relaxed_solution_intensive_and_extensive_properties():
+    phase = SLB_2024.ferropericlase_relaxed()
+    phase.set_composition([0.75, 0.2, 0.03, 0.02])
+    phase.set_state(20e9, 1000.0)
+    assert_material_amount_scaling(phase)

@@ -20,6 +20,7 @@ from numpy.testing import assert_allclose
 import pytest
 
 import burnman_cpp as bm
+from conftest import assert_material_amount_scaling
 from burnman_cpp.classes.equilibratedcomposite import EquilibratedComposite
 from burnman_cpp.constants import gas_constant
 from burnman_cpp.minerals import SLB_2011, SLB_2024, available_phase_names, load_dataset
@@ -344,3 +345,12 @@ def test_invalid_bulk_and_candidates_are_rejected():
         EquilibratedComposite({"MgO": 1.0}, [])
     with pytest.raises(ValueError):
         EquilibratedComposite({"MgO": 1.0}, oxide_dataset(), phase_names=["a"])
+
+
+def test_equilibrated_composite_intensive_and_extensive_properties():
+    def make(amount):
+        phase = bm.EquilibratedComposite({"Mg2SiO4": amount}, [SLB_2011.forsterite()])
+        phase.set_state(20e9, 1000.0)
+        return phase
+
+    assert_material_amount_scaling(make(1.0), make)

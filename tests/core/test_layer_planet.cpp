@@ -68,6 +68,15 @@ TEST_CASE("Uniform spherical layer recovers analytical hydrostatic equilibrium",
   }
   const double mass = 4. * pi * rho * std::pow(radius, 3) / 3.;
   CHECK_THAT(layer->get_mass(), Catch::Matchers::WithinRel(mass, 1.e-13));
+  CHECK_THAT(layer->get_volume(),
+             Catch::Matchers::WithinRel(mass / rho, 1.e-13));
+  CHECK(layer->get_property("mass").isApprox(
+      Layer::Array::Constant(layer->n_slices, mass)));
+  layer->get_material()->set_n_moles(7.);
+  layer->make();
+  CHECK_THAT(layer->get_mass(), Catch::Matchers::WithinRel(mass, 1.e-13));
+  CHECK_THAT(layer->get_volume(),
+             Catch::Matchers::WithinRel(mass / rho, 1.e-13));
   CHECK_THAT(layer->get_moment_of_inertia(),
              Catch::Matchers::WithinRel(.4 * mass * radius * radius, 1.e-13));
   REQUIRE(layer->get_sublayers()[0] != layer->get_sublayers()[1]);
@@ -121,6 +130,14 @@ TEST_CASE("Layered planet preserves mass, interfaces and central gravity",
   CHECK(values(0, 1) == 8000.);
   CHECK(values(0, 2) == 8000.);
   CHECK(values(1, 0) == radius - query[0]);
+  const double expected_volume = 4. * pi * std::pow(radius, 3) / 3.;
+  CHECK_THAT(core->get_volume() + mantle->get_volume(),
+             Catch::Matchers::WithinRel(expected_volume, 1.e-13));
+  const auto physical_totals = planet.evaluate({"mass", "volume"}, query);
+  CHECK(physical_totals.row(0).isApprox(
+      Eigen::RowVector3d::Constant(expected_mass)));
+  CHECK(physical_totals.row(1).isApprox(
+      Eigen::RowVector3d::Constant(expected_volume)));
   CHECK_THROWS_AS(planet.get_layer_by_radius(-1.), std::out_of_range);
   CHECK_THROWS_AS(
       Planet("gap", {core, uniform_layer("outer", 1.1e6, 2.e6, 4000.)}),

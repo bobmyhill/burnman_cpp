@@ -110,6 +110,8 @@ public:
   double get_max_delta() const { return max_delta_; }
 
   double get_mass() const;
+  /// Geometric volume of the entire spherical layer [m^3].
+  double get_volume() const;
   double get_moment_of_inertia() const;
   Array get_gravity() const;
   Array get_bullen() const;

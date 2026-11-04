@@ -23,6 +23,9 @@ from burnman_cpp.minerals import (
     mp50MnNCKFMASHTO,
 )
 
+import burnman_cpp as bm
+from conftest import EXTENSIVE_PROPERTIES as TOTALS, assert_material_amount_scaling
+
 FACTORIES = [
     HGP_2018_ds633.iron,
     HGP_2018_ds633.wu,
@@ -80,3 +83,63 @@ def test_reduced_models_span_the_required_elements():
     assert np.isfinite(opx.molar_gibbs)
     with pytest.raises(ValueError, match="occupancies"):
         opx.set_composition([1.1, -1.2, 1.1])
+
+
+def _reference_material(package, kind):
+    dataset = package.minerals.SLB_2011
+    if kind == "mineral":
+        return dataset.forsterite()
+    if kind == "solution":
+        phase = dataset.mg_fe_olivine()
+        phase.set_composition([0.3, 0.7])
+        return phase
+    composite = bm.Assemblage if package is bm else package.Composite
+    return composite([dataset.forsterite(), dataset.fayalite()], [0.3, 0.7])
+
+
+@pytest.mark.parametrize("kind", ["mineral", "solution", "composite"])
+def test_total_properties_match_python_burnman_and_survive_evaluation(kind):
+    reference = _reference_material(pytest.importorskip("burnman"), kind)
+    native = _reference_material(bm, kind)
+    assert native.number_of_moles == 1.0
+    native.set_state(4e9, 900.0)
+    intensive_names = (
+        "density",
+        "thermal_expansivity",
+        "isothermal_bulk_modulus_reuss",
+    )
+    intensives = [getattr(native, name) for name in intensive_names]
+    reference.number_of_moles = native.number_of_moles = 2.5
+    assert [getattr(native, name) for name in intensive_names] == pytest.approx(
+        intensives
+    )
+    for temperature in (900.0, 1500.0):
+        reference.set_state(4e9, temperature)
+        native.set_state(4e9, temperature)
+        for name in TOTALS:
+            assert getattr(native, name) == pytest.approx(
+                getattr(reference, name), rel=1e-9
+            )
+    expected = reference.evaluate(TOTALS, [4e9, 5e9], [1100.0, 1600.0])
+    np.testing.assert_allclose(
+        native.evaluate(TOTALS, [4e9, 5e9], [1100.0, 1600.0]), expected, rtol=1e-9
+    )
+    assert (native.pressure, native.temperature) == (4e9, 1500.0)
+    copied = native.copy()
+    native.n_moles = 0.0
+    assert copied.number_of_moles == 2.5
+    for name in TOTALS:
+        assert getattr(native, name) == 0.0
+        assert getattr(copied, name) == pytest.approx(getattr(reference, name))
+
+
+@pytest.mark.parametrize("kind", ["mineral", "combined", "solution"])
+def test_native_material_intensive_and_extensive_properties(kind):
+    if kind == "combined":
+        phase = bm.CombinedMineral(
+            [SLB_2011.enstatite(), SLB_2011.periclase()], [0.5, 1.0]
+        )
+    else:
+        phase = SLB_2011.forsterite() if kind == "mineral" else SLB_2011.mg_fe_olivine()
+    phase.set_state(20e9, 1000.0)
+    assert_material_amount_scaling(phase)

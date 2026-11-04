@@ -19,6 +19,9 @@ import runpy
 import burnman_cpp as bm
 
 
+import numpy as np
+
+
 def pytest_sessionstart(session):
     """Prevent optional comparisons from silently using another BurnMan version."""
     if find_spec("burnman") is None:
@@ -83,3 +86,70 @@ def two_phase_assemblage():
     assemblage = bm.Assemblage([a, b], [0.4, 0.6])
     assemblage.set_state(1.0e9, 2000.0)
     return assemblage
+
+
+EXTENSIVE_PROPERTIES = (
+    "mass",
+    "internal_energy",
+    "helmholtz",
+    "gibbs",
+    "enthalpy",
+    "volume",
+    "entropy",
+    "heat_capacity_p",
+    "heat_capacity_v",
+)
+
+
+def assert_material_amount_scaling(material, make_scaled_material=None):
+    """Check totals, intensive responses, physical identities and copying."""
+    intensive = tuple("molar_" + name for name in EXTENSIVE_PROPERTIES) + (
+        "density",
+        "thermal_expansivity",
+        "isothermal_bulk_modulus_reuss",
+        "isentropic_bulk_modulus_reuss",
+        "grueneisen_parameter",
+    )
+    if isinstance(material, bm._core.AnisotropicMineral):
+        intensive += (
+            "cell_vectors",
+            "isothermal_stiffness_tensor",
+            "isentropic_compliance_tensor",
+            "thermal_expansivity_tensor",
+            "molar_isometric_heat_capacity",
+        )
+    expected = {
+        name: np.array(getattr(material, name), copy=True)
+        for name in intensive + EXTENSIVE_PROPERTIES
+    }
+    for amount in (0.1, 2.5):
+        if make_scaled_material is None:
+            phase = material.copy()
+            phase.number_of_moles = amount
+        else:
+            phase = make_scaled_material(amount)
+        assert phase.number_of_moles == pytest.approx(amount)
+        for name in intensive:
+            np.testing.assert_allclose(
+                getattr(phase, name),
+                expected[name],
+                rtol=1e-8,
+                atol=1e-12,
+                err_msg=name,
+            )
+        for name in EXTENSIVE_PROPERTIES:
+            assert np.isfinite(getattr(phase, name))
+            assert getattr(phase, name) == pytest.approx(
+                amount * expected[name], rel=1e-8
+            )
+        assert phase.mass == pytest.approx(phase.density * phase.volume)
+        assert phase.gibbs == pytest.approx(
+            phase.enthalpy - phase.temperature * phase.entropy
+        )
+        assert phase.helmholtz == pytest.approx(
+            phase.internal_energy - phase.temperature * phase.entropy
+        )
+        copied = phase.copy()
+        assert copied.number_of_moles == pytest.approx(amount)
+        for name in EXTENSIVE_PROPERTIES:
+            assert getattr(copied, name) == pytest.approx(getattr(phase, name))

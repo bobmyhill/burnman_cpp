@@ -7,6 +7,7 @@ from numpy.testing import assert_array_equal
 import pytest
 
 import burnman_cpp as bm
+from conftest import assert_material_amount_scaling
 from burnman_cpp.tools.chemistry import reaction_matrix_as_strings
 
 
@@ -82,3 +83,14 @@ def test_reaction_basis_strings_use_current_endmember_names():
     assert independent.reaction_basis_as_strings == []
     # The property also belongs to individual solid solutions.
     assert ol.reaction_basis_as_strings == []
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_intensive_and_extensive_composites(nested):
+    child = bm.minerals.SLB_2011.forsterite()
+    if nested:
+        child = bm.Assemblage([child, bm.minerals.SLB_2011.fayalite()], [0.3, 0.7])
+        child.n_moles = 3.0
+    phase = bm.Assemblage([child, bm.minerals.SLB_2011.periclase()], [0.6, 0.4])
+    phase.set_state(20e9, 1000.0)
+    assert_material_amount_scaling(phase)

@@ -255,3 +255,24 @@ def test_per_parameter_tolerances(two_phase_assemblage, stagnation_iterations):
     np.testing.assert_allclose(
         two_phase_assemblage.reaction_affinities, 0.0, atol=1.0e-6
     )
+
+
+def test_equilibrate_preserves_a_nonunit_bulk_and_returns_total_properties():
+    solution = bm.minerals.SLB_2011.mg_fe_olivine()
+    solution.set_composition([0.8, 0.2])
+    assemblage = bm.Assemblage([solution], [1.0])
+    assemblage.set_state(4e9, 900.0)
+    bulk = {"Mg": 1.5, "Fe": 3.5, "Si": 2.5, "O": 10.0}
+    result = bm.equilibrate(
+        bulk, assemblage, [bm.PressureConstraint(4e9), bm.TemperatureConstraint(900.0)]
+    )
+    assert result.sol_array.item().success, result.sol_array.item().message
+    assert assemblage.n_moles == pytest.approx(2.5)
+    assert np.sum(assemblage.molar_fractions) == pytest.approx(1.0)
+    np.testing.assert_allclose(solution.molar_fractions, [0.3, 0.7], atol=1e-8)
+    for element, amount in bulk.items():
+        assert assemblage.n_moles * assemblage.formula[element] == pytest.approx(amount)
+    assert assemblage.mass == pytest.approx(2.5 * solution.molar_mass)
+    assert assemblage.heat_capacity_p == pytest.approx(
+        2.5 * solution.molar_heat_capacity_p
+    )

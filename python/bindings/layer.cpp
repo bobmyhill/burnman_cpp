@@ -27,6 +27,10 @@ integrals use not-a-knot cubic interpolation with a local linear fallback for
 overshoot for monotone profiles (e.g., density jumps at layer boundaries).
 Property queries at other radii interpolate pressure and temperature before
 evaluating the material.
+
+Thermodynamic totals and V/S/H/C_p/C_v follow the material's number_of_moles.
+material_mass and material_volume are sample profiles; mass and volume are
+the physical totals for the entire layer.
 )doc");
   layer
       .def(py::init([](const std::optional<std::string> &name,
@@ -124,8 +128,11 @@ Evaluate properties at the internal grid or an ordered list of query radii.
 Query order is preserved and need not be increasing. A single property returns
 one dimension; multiple properties return one row per property. Supply
 radius_planet in metres when requesting depth.
+mass and volume repeat the whole layer's physical totals at each query radius;
+use material_mass and material_volume for material-sample profiles.
 )doc")
       .def_property_readonly("mass", &Layer::get_mass)
+      .def_property_readonly("volume", &Layer::get_volume)
       .def_property_readonly("moment_of_inertia", &Layer::get_moment_of_inertia)
       .def("_evaluate_temperature", &Layer::evaluate_temperature,
            py::arg("pressures"), py::arg("temperature_top") = py::none())
