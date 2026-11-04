@@ -156,6 +156,8 @@ def plot(data, target, temperature_range, pressure_range, title, fontsize):
     bm.plot_phase_diagram(
         data,
         ax=ax,
+        pressure_unit="kbar",
+        temperature_unit="C",
         cmap="Blues_r",
         fill_alpha=1.0,
         label_fontsize=fontsize,

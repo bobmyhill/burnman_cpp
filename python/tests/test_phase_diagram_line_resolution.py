@@ -417,7 +417,7 @@ def test_regional_refinement_preserves_unrelated_lines_and_plot_units(
     crossing, swap_axes
 ):
     bulk, saved = crossing
-    region = ((800.0, 900.0), (0.5, 1.5))
+    region = ((800.0, 900.0), (0.5e9, 1.5e9))
     resolution = (11, 21)
     if swap_axes:
         region, resolution = region[::-1], resolution[::-1]
@@ -427,8 +427,6 @@ def test_regional_refinement_preserves_unrelated_lines_and_plot_units(
         saved,
         resolution=resolution,
         region=region,
-        temperature_unit="K",
-        pressure_unit="GPa",
         swap_axes=swap_axes,
     )
     assert result.resolved, result.diagnostics
@@ -457,6 +455,8 @@ def test_regional_refinement_preserves_unrelated_lines_and_plot_units(
         saved,
         resolution=resolution,
         region=alternate,
+        temperature_unit="C",
+        pressure_unit="kbar",
         swap_axes=swap_axes,
     )
     assert equivalent.to_dict() == refined
@@ -466,8 +466,6 @@ def test_regional_refinement_preserves_unrelated_lines_and_plot_units(
         result,
         resolution=resolution,
         region=region,
-        temperature_unit="K",
-        pressure_unit="GPa",
         swap_axes=swap_axes,
     )
     assert repeated.to_dict() == refined

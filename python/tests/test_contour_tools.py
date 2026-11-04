@@ -125,19 +125,27 @@ def test_phase_factory_skips_absent_phases_and_active_pure_faces(section):
 
 
 @pytest.mark.parametrize(
-    "variable,value,expected",
-    [("P", 4.0e9, "40"), ("T", 1000, "726.85"), (None, 0.7, "0.7")],
+    "variable,value,expected_si,expected_display",
+    [
+        ("P", 4.0e9, "4e+09", "40"),
+        ("T", 1000, "1000", "726.85"),
+        (None, 0.7, "0.7", "0.7"),
+    ],
+)
+@pytest.mark.parametrize(
+    "display", [{}, dict(pressure_unit="kbar", temperature_unit="C")]
 )
 def test_contour_labels_inherit_units_and_allow_explicit_display_options(
-    section, variable, value, expected
+    section, variable, value, expected_si, expected_display, display
 ):
     import matplotlib.pyplot as plt
 
+    expected = expected_display if display else expected_si
     result, phase = section
     contours = bm.phase_diagram_contours(
         result, [phase], bm.TemperatureConstraint(1000)
     )
-    fig, ax = bm.plot_phase_diagram(result, label_key_path=None)
+    fig, ax = bm.plot_phase_diagram(result, label_key_path=None, **display)
     bm.plot_phase_diagram_contours(
         result,
         contours,
@@ -146,7 +154,7 @@ def test_contour_labels_inherit_units_and_allow_explicit_display_options(
         value=value,
         label_fontsize=8.0,
         label_placement="single",
-        pressure_unit="kbar",
+        **display,
     )
     assert len([t for t in ax.texts if t.get_text() == expected]) == 1
     assert ax.collections[-1].get_label() == expected
