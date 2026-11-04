@@ -31,9 +31,9 @@ namespace solution_models {
  */
 class SymmetricRegularSolution : public AsymmetricRegularSolution {
 public:
-  std::shared_ptr<SolutionModel> clone() const override {
-    return std::make_shared<SymmetricRegularSolution>(*this);
-  }
+  // Define a virtual function out of line so the core and Python bindings
+  // share canonical RTTI even when compiled with different symbol visibility.
+  std::shared_ptr<SolutionModel> clone() const override;
   SymmetricRegularSolution(
       const types::PairedEndmemberList &endmember_list,
       std::vector<std::vector<double>> energy_interaction,

@@ -15,6 +15,10 @@
 
 namespace burnman::solution_models {
 
+std::shared_ptr<SolutionModel> SymmetricRegularSolution::clone() const {
+  return std::make_shared<SymmetricRegularSolution>(*this);
+}
+
 // SymmetricRegularSolution Constructor
 SymmetricRegularSolution::SymmetricRegularSolution(
     const types::PairedEndmemberList &endmember_list,
