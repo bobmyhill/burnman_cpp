@@ -21,11 +21,12 @@ The composition is from Table 1 of Stixrude and Lithgow-Bertelloni (2024),
 https://doi.org/10.1093/gji/ggae126.
 The candidate phases include metallic iron but exclude melts and fluids.
 
-The pyrolite diagram covers 0-140 GPa. Its entropy bounds are calculated from
+The pyrolite diagram covers 0-40 GPa. Its entropy bounds are calculated from
 stable equilibria at (0 GPa, 0 °C) and (140 GPa, 4000 °C).
 Starting from 41x41 pressure-entropy seeds, the example traces and refines
 phase boundaries. Resolved diagrams supply phase amounts and endmember
 compositions on the regular grid.
+An unresolved initial diagram is saved, then the example stops before refinement.
 
 The saved equilibria supply total enthalpy H(P,S) and its relaxed derivatives.
 Missing enthalpies and derivatives are interpolated, then Gaussian smoothing
@@ -73,9 +74,13 @@ PYROLITE_COMPOSITION = bm.Composition(
 PYROLITE_COMPOSITION.renormalize("mass", "total", 0.1)
 
 
-def settings(seeds=41, verbose=False):
+# The pyrolite diagram requires a large number of seeds
+# because the phase boundaries are complex and the diagram
+# covers a wide range of P and S.
+def settings(seeds=(41, 41), verbose=False):
     opts = bm.PhaseDiagramSettings()
-    opts.pressure_seeds = opts.temperature_seeds = seeds
+    opts.pressure_seeds = seeds[0]
+    opts.temperature_seeds = seeds[1]
     # Mask the diagram where the EoS of Mg-Tschermak breaks down.
     opts.required_eos_phases = ["opx"]
     # Mask the diagram where endmembers of cf have negative heat capacities.
@@ -104,7 +109,7 @@ PHASE_DIAGRAMS = [
         diagram="PS",
         lower_corner={"P": 0.0, "T": 273.15},
         upper_corner={"P": 140e9, "T": 4273.15},
-        pressure_range=(0.0, 140e9),
+        pressure_range=(0.0, 40e9),
         temperature_range=(273.15, 4273.15),
         settings=settings(),
         seeds=(41, 41),
@@ -128,6 +133,7 @@ if __name__ == "__main__":
             **parameters,
             # For diagrams only, set make_grid=False.
             make_grid=True,
+            stop_on_unresolved=True,
             plot=True,
             plot_formats=["png", "svg"],  # A single string, e.g. "pdf", also works.
             verbose=True,
