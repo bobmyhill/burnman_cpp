@@ -169,6 +169,20 @@ def test_landau_volume_matches_hefesto_units(
     assert np.isfinite(phase.shear_wave_velocity)
 
 
+def test_slb2011_landau_matches_hefesto_archive():
+    # HeFESTo inv251010, 26 GPa and 1000 K, fort.89.
+    reference = {
+        "quartz": (-421702.9, 16.6340),
+        "nepheline": (-924920.7, 41.0287),
+        "stishovite": (-508263.4, 13.1622),
+    }
+    for name, (gibbs, volume_cm3) in reference.items():
+        phase = getattr(minerals.SLB_2011, name)()
+        phase.set_state(26.0e9, 1000.0)
+        assert phase.molar_gibbs == pytest.approx(gibbs, abs=1.0)
+        assert phase.molar_volume * 1.0e6 == pytest.approx(volume_cm3, abs=0.001)
+
+
 @pytest.mark.parametrize("dataset", DATASETS)
 def test_adapter_retains_metadata_and_undefined_energies(dataset):
     burnman = pytest.importorskip("burnman")
