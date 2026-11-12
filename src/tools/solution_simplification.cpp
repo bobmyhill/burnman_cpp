@@ -292,8 +292,8 @@ std::shared_ptr<Material> transform_solution_to_new_basis(
           interactions(qs, alphas));
     transformed->set_solution_model(model);
     if (solution.endmember_constraints)
-      transformed->set_endmember_constraints(
-          *solution.endmember_constraints * basis.transpose());
+      transformed->set_endmember_constraints(*solution.endmember_constraints *
+                                             basis.transpose());
     Eigen::ArrayXd composition = fractions;
     if (composition.size() == 0) {
       auto previous = solution.get_molar_fractions();

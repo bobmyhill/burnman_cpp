@@ -144,7 +144,8 @@ TEST_CASE("Thermodynamic audit compares only a common EOS phase domain",
   CHECK(result.resolved);
   // The numeric EOS diagnostic changes with state; phase identity determines
   // whether the two minimizations share a domain.
-  result.samples[0].excluded_phases = {"olivine: Fayalite: EOS limit at 1000 K"};
+  result.samples[0].excluded_phases = {
+      "olivine: Fayalite: EOS limit at 1000 K"};
   audit_thermodynamic_samples(result);
   CHECK(result.thermodynamic_validation.checked_pairs == 1);
   CHECK(result.thermodynamic_validation.violations == 1);
