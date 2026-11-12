@@ -38,6 +38,12 @@ parse_modifiers(const py::iterable &modifiers) {
     if (name == "linear") {
       result.emplace_back(
           LinearParams{value("delta_V"), value("delta_S"), value("delta_E")});
+    } else if (name == "volume_ww") {
+      const double pc = value("Pc");
+      if (pc == 0.0)
+        throw std::invalid_argument("volume_ww Pc must be nonzero.");
+      result.emplace_back(VolumeWWParams{value("dV0"), pc,
+                                         p.contains("P0") ? value("P0") : 0.0});
     } else if (name == "bragg_williams") {
       double n = value("n");
       if (n < 1.0 || n > std::numeric_limits<int>::max() ||

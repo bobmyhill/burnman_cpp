@@ -75,6 +75,14 @@ struct LinearParams {
 };
 
 /**
+ * Exponential volume correction of Wu and Wentzcovitch (2008).
+ * P0 is the pressure where the Gibbs correction is zero.
+ */
+struct VolumeWWParams {
+  double dV0, Pc, P0 = 0.0;
+};
+
+/**
  * Parameters for Bragg-Williams type correction (order-disorder)
  * following Holland & Powell (1987)
  */
@@ -125,9 +133,9 @@ struct EinsteinDeltaParams {
 
 using ExcessParamVariant =
     std::variant<LandauParams, LandauSLB2022Params, LandauHPParams,
-                 LinearParams, BraggWilliamsParams, MagneticChsParams,
-                 DebyeParams, DebyeDeltaParams, EinsteinParams,
-                 EinsteinDeltaParams>;
+                 LinearParams, VolumeWWParams, BraggWilliamsParams,
+                 MagneticChsParams, DebyeParams, DebyeDeltaParams,
+                 EinsteinParams, EinsteinDeltaParams>;
 
 using ExcessParamVector = std::vector<ExcessParamVariant>;
 

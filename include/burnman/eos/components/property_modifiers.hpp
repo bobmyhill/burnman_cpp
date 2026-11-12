@@ -28,6 +28,7 @@ namespace eos {
  *   - order-disorder (bragg_williams)
  *   - magnetism (magnetic_chs)
  *   - linear
+ *   - exponential volume correction (volume_ww)
  */
 namespace excesses {
 
@@ -135,6 +136,16 @@ Excesses compute_excesses(double pressure, double temperature,
  */
 Excesses compute_excesses(double pressure, double temperature,
                           LinearParams params);
+
+/**
+ * @brief Computes the Wu-Wentzcovitch exponential volume correction.
+ *
+ * The excess volume is dV0 * exp(-(P - P0) / Pc). Its Gibbs integral is zero
+ * at P0 and independent of temperature. Pressures are in Pa, volume in
+ * m^3/mol, and Pc must be nonzero.
+ */
+Excesses compute_excesses(double pressure, double temperature,
+                          VolumeWWParams params);
 
 /**
  * @brief Computes a Bragg-Williams-type correction for order-disorder.

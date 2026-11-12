@@ -223,6 +223,11 @@ class Exporter:
                     "eos::excesses::LinearParams"
                     + literal([p["delta_V"], p["delta_S"], p["delta_E"]])
                 )
+            elif kind == "volume_ww":
+                modifiers.append(
+                    "eos::excesses::VolumeWWParams"
+                    + literal([p["dV0"], p["Pc"], p.get("P0", 0.0)])
+                )
             elif kind == "landau_hp":
                 modifiers.append(
                     "eos::excesses::LandauHPParams"

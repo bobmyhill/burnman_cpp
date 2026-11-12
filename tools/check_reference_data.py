@@ -509,6 +509,7 @@ MODIFIERS = {
     "LandauHPParams": ("landau_hp_excesses", ["T_0", "P_0", "Tc_0", "V_D", "S_D"]),
     "LandauSLB2022Params": ("landau_slb_2022_excesses", ["Tc_0", "V_D", "S_D"]),
     "LinearParams": ("linear_excesses", ["delta_V", "delta_S", "delta_E"]),
+    "VolumeWWParams": ("volume_ww_excesses", ["dV0", "Pc"]),
     "BraggWilliamsParams": (
         "bragg_williams_excesses",
         ["n", "factor", "Wh", "Wv", "deltaH", "deltaV"],
