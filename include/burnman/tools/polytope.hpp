@@ -65,8 +65,7 @@ private:
 MaterialPolytope solution_polytope_from_endmember_occupancies(
     const Eigen::MatrixXd &endmember_occupancies,
     double rational_tolerance = 1.e-12,
-    const std::optional<Eigen::MatrixXd> &endmember_constraints =
-        std::nullopt);
+    const std::optional<Eigen::MatrixXd> &endmember_constraints = std::nullopt);
 
 MaterialPolytope composite_polytope_at_constrained_composition(
     const Assemblage &composite, const types::FormulaMap &composition,
