@@ -232,4 +232,42 @@ ModelSet slb2024() {
       {"Fe-hcp", "Epsilon (hcp) metallic iron"}};
   return models;
 }
+
+ModelSet hhph2013() {
+  namespace hp = HHPH_2013;
+  ModelSet models{
+      "HHPH2013 dry NCFMAS solids",
+      "authors' archived tc-NCFMAS.txt and tc-ds62.txt",
+      "HHPH_2013",
+      "https://hpxeosandthermocalc.org/wp-content/uploads/2022/06/"
+      "hollandetal2013.zip",
+      "https://doi.org/10.1093/petrology/egt035",
+      30.0e9,
+      std::nullopt,
+      {hp::g_solution(), hp::fp_solution(), hp::mpv_solution(),
+       hp::cpv_solution(), hp::cor_solution(), hp::cf_solution(),
+       hp::nal_solution(), hp::aki_solution(), hp::ol_solution(),
+       hp::wad_solution(), hp::ring_solution(), hp::cpx_solution(),
+       hp::opx_solution(), hp::hpx_solution(), named(hp::coe(), "coe"),
+       named(hp::stv(), "stv")},
+      "Dry, all ferrous iron; no melt or fluid. Pyroxene Ca bounds are not "
+      "intrinsic to these solution models."};
+  models.phase_glossary = {{"g", "Garnet, including majorite and Na-garnet"},
+                           {"fp", "Ferropericlase"},
+                           {"mpv", "Mg-rich silicate perovskite (bridgmanite)"},
+                           {"cpv", "Ca-rich silicate perovskite"},
+                           {"cor", "Corundum solution"},
+                           {"cf", "Calcium-ferrite-structured solution"},
+                           {"nal", "NAL (new aluminous phase)"},
+                           {"aki", "Akimotoite"},
+                           {"ol", "Olivine"},
+                           {"wad", "Wadsleyite"},
+                           {"ring", "Ringwoodite"},
+                           {"cpx", "Clinopyroxene"},
+                           {"opx", "Orthopyroxene"},
+                           {"hpx", "High-pressure clinoenstatite solution"},
+                           {"coe", "Coesite"},
+                           {"stv", "Stishovite"}};
+  return models;
+}
 } // namespace burnman::minerals::model_sets

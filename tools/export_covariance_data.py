@@ -16,6 +16,8 @@
 
 Stored commits record export provenance. Audits compare values with the current
 reference pin; exports preserve matching files and their original provenance.
+Use --dataset HHPH_2013 --allow-current-reference to export the archived
+HHPH2013 covariance from the current Python BurnMan checkout.
 """
 
 import argparse
@@ -33,6 +35,7 @@ DATASETS = {
     "HGP_2018_ds633": "HGP_2018_ds633",
     "HPx_ds636": "HPx_ds636",
 }
+CURRENT_DATASETS = {"HHPH_2013": "HHPH_2013"}
 DATA_DIRECTORY = Path("src/data/input_covariance")
 
 
@@ -47,10 +50,10 @@ def reference_data(dataset):
     return names, matrix
 
 
-def attributes(dataset):
+def attributes(dataset, commit=REFERENCE["commit"]):
     return {
         "source_module": f"burnman.minerals.{dataset}_cov",
-        "burnman_commit": REFERENCE["commit"],
+        "burnman_commit": commit,
         "units": "(J/mol)^2",
         "description": "Covariances of endmember zero-point energies",
         "license": "GPL-3.0-or-later",
@@ -90,10 +93,28 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-root", type=Path, default=ROOT)
     parser.add_argument("--check", action="store_true")
+    parser.add_argument(
+        "--dataset", action="append", choices=sorted(DATASETS | CURRENT_DATASETS)
+    )
+    parser.add_argument(
+        "--allow-current-reference",
+        action="store_true",
+        help="Export from the current Python BurnMan checkout and record its commit.",
+    )
     args = parser.parse_args()
-    verify_reference(burnman)
+    if args.allow_current_reference:
+        import subprocess
+
+        source = Path(burnman.__file__).resolve().parents[1]
+        commit = subprocess.check_output(
+            ["git", "-C", str(source), "rev-parse", "HEAD"], text=True
+        ).strip()
+    else:
+        verify_reference(burnman)
+        commit = REFERENCE["commit"]
+    datasets = args.dataset or list(DATASETS)
     mismatches = []
-    for dataset in DATASETS.values():
+    for dataset in datasets:
         names, matrix = reference_data(dataset)
         filename = DATA_DIRECTORY / f"{dataset}_cov.h5"
         path = args.output_root / filename
@@ -106,7 +127,7 @@ def main():
                 continue
             path.parent.mkdir(parents=True, exist_ok=True)
             with h5py.File(path, "w", libver="earliest") as data:
-                data.attrs.update(attributes(dataset))
+                data.attrs.update(attributes(dataset, commit))
                 data.create_dataset("endmember_names", data=names, track_times=False)
                 data.create_dataset(
                     "covariance_matrix",
@@ -123,7 +144,7 @@ def main():
     if mismatches:
         raise SystemExit("Covariance data differs: " + ", ".join(mismatches))
     print(
-        f"{'Verified' if args.check else 'Exported'} {len(DATASETS)} covariance datasets."
+        f"{'Verified' if args.check else 'Exported'} {len(datasets)} covariance datasets."
     )
 
 

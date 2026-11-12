@@ -1702,6 +1702,22 @@ std::shared_ptr<Solution> wa();
 } // namespace SLB_2022
 
 namespace HHPH_2013 {
+CovarianceData cov();
+std::shared_ptr<Solution> g_solution();
+std::shared_ptr<Solution> fp_solution();
+std::shared_ptr<Solution> mpv_solution();
+std::shared_ptr<Solution> cpv_solution();
+std::shared_ptr<Solution> cor_solution();
+std::shared_ptr<Solution> cf_solution();
+std::shared_ptr<Solution> nal_solution();
+std::shared_ptr<Solution> aki_solution();
+std::shared_ptr<Solution> ol_solution();
+std::shared_ptr<Solution> wad_solution();
+std::shared_ptr<Solution> ring_solution();
+std::shared_ptr<Solution> cpx_solution();
+std::shared_ptr<Solution> opx_solution();
+std::shared_ptr<Solution> hpx_solution();
+std::shared_ptr<Mineral> coe();
 std::shared_ptr<Mineral> fo();
 std::shared_ptr<Mineral> fa();
 std::shared_ptr<Mineral> mwd();

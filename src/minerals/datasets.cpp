@@ -13089,7 +13089,7 @@ Mineral endmember_523() {
       {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
       {"err_grueneisen_0", 0.0},  {"err_q_0", 1.0}};
   m.set_property_modifier_params(
-      {eos::excesses::LinearParams{0.0, 11.525, 0.0}});
+      {eos::excesses::LinearParams{0.0, 11.526305649289219, 0.0}});
   return m;
 }
 
@@ -13277,6 +13277,8 @@ Mineral endmember_529() {
       {"err_K_0", 7000000000.0}, {"err_K_prime_0", 1.0},
       {"err_V_0", 0.0},          {"err_eta_s_0", 1.0},
       {"err_grueneisen_0", 0.3}, {"err_q_0", 1.0}};
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, 15.87683768967153, 0.0}});
   return m;
 }
 
@@ -13956,7 +13958,7 @@ Mineral endmember_551() {
       {"err_V_0", 0.0},           {"err_eta_s_0", 0.6},
       {"err_grueneisen_0", 0.04}, {"err_q_0", 0.6}};
   m.set_property_modifier_params(
-      {eos::excesses::LinearParams{0.0, 43.76, 0.0}});
+      {eos::excesses::LinearParams{0.0, 43.76323890781316, 0.0}});
   return m;
 }
 
@@ -13988,7 +13990,7 @@ Mineral endmember_552() {
       {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
       {"err_grueneisen_0", 0.07}, {"err_q_0", 1.0}};
   m.set_property_modifier_params(
-      {eos::excesses::LinearParams{0.0, 97.28, 0.0}});
+      {eos::excesses::LinearParams{0.0, 97.28974474250028, 0.0}});
   return m;
 }
 
@@ -14112,7 +14114,9 @@ Mineral endmember_556() {
       {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
       {"err_grueneisen_0", 0.05}, {"err_q_0", 1.0}};
   m.set_property_modifier_params(
-      {eos::excesses::LandauParams{847.0, 1.222e-06, 5.164}});
+      {eos::excesses::LandauParams{847.0, 1.222e-06, 5.164},
+       eos::excesses::LinearParams{-1.222e-06, -5.164,
+                                   -2.0 * 5.164 * 847.0 / 3.0}});
   return m;
 }
 
@@ -14174,7 +14178,9 @@ Mineral endmember_558() {
       {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
       {"err_grueneisen_0", 0.17}, {"err_q_0", 2.2}};
   m.set_property_modifier_params(
-      {eos::excesses::LandauParams{-4250.0, 1e-09, 0.012}});
+      {eos::excesses::LandauParams{-4250.0, 1e-09, 0.012},
+       eos::excesses::LinearParams{-1e-09, -0.012,
+                                   -2.0 * 0.012 * -4250.0 / 3.0}});
   return m;
 }
 
@@ -14266,6 +14272,10 @@ Mineral endmember_561() {
       {"err_K_0", 1000000000.0},  {"err_K_prime_0", 1.0},
       {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
       {"err_grueneisen_0", 0.03}, {"err_q_0", 1.0}};
+  m.set_property_modifier_params(
+      {eos::excesses::LandauParams{467.0, 0.8e-06, 10.0},
+       eos::excesses::LinearParams{-0.8e-06, -10.0,
+                                   -2.0 * 10.0 * 467.0 / 3.0}});
   return m;
 }
 
@@ -32233,7 +32243,7 @@ std::shared_ptr<Solution> akimotoite() {
                                         {endmember_531(), "[Fe][Si]O3"},
                                         {endmember_532(), "[Al][Al]O3"}};
   auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
-      members, Interactions{{0.0, 66000.0}, {0.0}},
+      members, Interactions{{0.0, 66000.0}, {66000.0}},
       Interactions{{0.0, 0.0}, {0.0}}, Interactions{{0.0, 0.0}, {0.0}});
   auto solution = std::make_shared<Solution>();
   solution->set_solution_model(model);
@@ -38615,6 +38625,13 @@ std::shared_ptr<Solution> wa() { return wadsleyite(); }
 } // namespace SLB_2022
 
 namespace HHPH_2013 {
+std::shared_ptr<Mineral> coe() {
+  // The authors' tc-ds62.txt uses H_0 = -907.030 kJ/mol for coesite.
+  auto mineral = endmember_143();
+  mineral.params.H_0 = -907030.0;
+  return std::make_shared<Mineral>(mineral);
+}
+
 std::shared_ptr<Mineral> fo() {
   return std::make_shared<Mineral>(endmember_1165());
 }
@@ -38724,7 +38741,10 @@ std::shared_ptr<Mineral> jd() {
 }
 
 std::shared_ptr<Mineral> cats() {
-  return std::make_shared<Mineral>(endmember_1192());
+  auto mineral = endmember_1192();
+  mineral.set_property_modifier_params({eos::excesses::BraggWilliamsParams{
+      1, 0.25, 3800.0, 1.0e-7, 3800.0, 1.0e-7}});
+  return std::make_shared<Mineral>(mineral);
 }
 
 std::shared_ptr<Mineral> stv() {
@@ -38740,7 +38760,9 @@ std::shared_ptr<Mineral> mscf() {
 }
 
 std::shared_ptr<Mineral> fscf() {
-  return std::make_shared<Mineral>(endmember_1196());
+  auto mineral = endmember_1196();
+  mineral.params.H_0 = -1402500.0;
+  return std::make_shared<Mineral>(mineral);
 }
 
 std::shared_ptr<Mineral> nacf() {

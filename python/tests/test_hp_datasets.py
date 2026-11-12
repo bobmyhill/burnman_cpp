@@ -22,7 +22,7 @@ import burnman_cpp as bm
 from burnman_cpp import minerals
 
 DATASETS = {
-    "HHPH_2013": 43,
+    "HHPH_2013": 58,
     "HP_2011_fluids": 7,
     "ig50NCKFMASTOCr": 45,
     "mp50KFMASH": 23,
@@ -65,6 +65,50 @@ def test_high_pressure_endmember_uncertainties():
     modified = phase.uncertainties
     modified["err_H_0"] = 0.0
     assert phase.uncertainties["err_H_0"] == 530.0
+
+
+def test_hhph_archive_coesite():
+    coe = minerals.HHPH_2013.coe()
+    ds62_coe = minerals.HP_2011_ds62.coe()
+    assert coe.params.H_0 == -907030.0
+    assert coe.params.H_0 - ds62_coe.params.H_0 == -30.0
+    for phase in (coe, ds62_coe):
+        phase.set_state(15.0e9, 1800.0)
+    assert coe.molar_gibbs - ds62_coe.molar_gibbs == pytest.approx(-30.0)
+
+
+def test_hhph_archive_cats_ordering_and_fscf_enthalpy():
+    cats = minerals.HHPH_2013.cats()
+    fscf = minerals.HHPH_2013.fscf()
+    assert cats.params.H_0 == -3310110.0
+    assert fscf.params.H_0 == -1402500.0
+    for phase in (cats, fscf):
+        phase.set_state(15.0e9, 1700.0)
+    assert cats.molar_gibbs == pytest.approx(-2946791.5531039154, abs=1.0e-4)
+    assert cats.molar_volume == pytest.approx(5.905536610212505e-05, rel=1.0e-8)
+    assert fscf.molar_gibbs == pytest.approx(-1310702.325405775, abs=1.0e-4)
+
+
+def test_hhph_solution_constructors_and_full_covariance():
+    for name in ("g", "fp", "mpv_solution", "cpx", "opx", "hpx"):
+        assert isinstance(getattr(minerals.HHPH_2013, name)(), bm.Solution)
+    data = minerals.HHPH_2013.cov()
+    names = data["endmember_names"]
+    matrix = data["covariance_matrix"]
+    assert len(names) == 273
+    assert matrix.shape == (273, 273)
+    np.testing.assert_array_equal(matrix, matrix.T)
+    assert matrix[names.index("fo"), names.index("fa")] == 13500.0
+    assert matrix[names.index("cats"), names.index("cats")] == 559100.0
+    assert matrix[names.index("fscf"), names.index("fscf")] == 104855900.0
+
+
+def test_hhph_calcium_ferrite_combined_endmembers_use_archived_fscf():
+    phase = minerals.HHPH_2013.cf()
+    fractions = np.arange(1.0, phase.n_endmembers + 1.0)
+    phase.set_composition(fractions / fractions.sum())
+    phase.set_state(30.0e9, 2200.0)
+    assert phase.molar_gibbs == pytest.approx(-1433633.7408884596, abs=1.0e-4)
 
 
 @pytest.mark.parametrize("name", ["CO2", "CH4", "O2", "H2", "S2", "H2S"])

@@ -43,4 +43,6 @@ ModelSet igneous(const std::string &calibration = "G25");
 /// The 27 active HeFESTo SLB2024 solids: 15 ordinary solution models and
 /// 12 pure phases. Includes metallic iron; excludes the unused lppv endmember.
 ModelSet slb2024();
+/// HHPH2013 dry NCFMAS models, without melt or fluid.
+ModelSet hhph2013();
 } // namespace burnman::minerals::model_sets

@@ -12,6 +12,7 @@
 // ------------------------------------------------------
 
 #include "HGP_2018_ds633_covariance_data.hpp"
+#include "HHPH_2013_covariance_data.hpp"
 #include "HP_2011_ds62_covariance_data.hpp"
 #include "HPx_ds636_covariance_data.hpp"
 #include "burnman/minerals/datasets.hpp"
@@ -122,4 +123,12 @@ CovarianceData cov() {
   return data;
 }
 } // namespace HPx_ds636
+namespace HHPH_2013 {
+CovarianceData cov() {
+  static const auto data = read_covariance(
+      "HHPH_2013-covariance.h5", detail::HHPH_2013_covariance_data,
+      sizeof(detail::HHPH_2013_covariance_data));
+  return data;
+}
+} // namespace HHPH_2013
 } // namespace burnman::minerals

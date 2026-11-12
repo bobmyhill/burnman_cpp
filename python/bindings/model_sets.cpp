@@ -61,5 +61,8 @@ void bind_model_sets(py::module_ &m) {
   module.def("slb2024", &sets::slb2024,
              "The 27 active HeFESTo SLB2024 solids, with ordinary solution "
              "models and metallic iron; no melts, fluids or unused lppv.");
+  module.def("hhph2013", &sets::hhph2013,
+             "Archived HHPH2013 dry NCFMAS solids, including high-pressure "
+             "solutions, coesite and stishovite.");
 }
 } // namespace burnman::python
