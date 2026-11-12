@@ -66,6 +66,21 @@ public:
   std::optional<Eigen::MatrixXd> free_compositional_vectors;
   /// Reference molar fractions for the free compositional coordinates.
   std::optional<Eigen::ArrayXd> baseline_composition;
+  /// Optional additional composition inequalities C*p >= 0 in the endmember
+  /// basis. Used by equilibrium searches; thermodynamic evaluations are
+  /// unchanged. Normalisation sum(p)=1 permits affine bounds, e.g.
+  /// p[3] <= c via C = [c,c,c,c-1,c]. Signed ordering coefficients remain
+  /// valid.
+  std::optional<Eigen::MatrixXd> endmember_constraints;
+  /// Validate and replace the additional inequalities, then clear cached
+  /// properties.
+  void
+  set_endmember_constraints(const std::optional<Eigen::MatrixXd> &constraints);
+  /// Return C*p, or an empty vector when no endmember constraints are set.
+  Eigen::VectorXd
+  evaluate_endmember_constraints(const Eigen::ArrayXd &molar_fractions) const;
+  /// Columns contain physical site bounds and the additional inequalities.
+  Eigen::MatrixXd get_composition_bounds() const;
 
   // Override of reset_cache to include additional solution properties
   void reset_cache() override;
@@ -385,6 +400,9 @@ public:
   Eigen::MatrixXd get_volume_hessian() const;
 
 protected:
+  /// Pseudoinverse of the structural Hessian.
+  Eigen::MatrixXd relaxation_susceptibility(const Eigen::MatrixXd &hessian,
+                                            const Eigen::MatrixXd &dndq) const;
   // Overrides of defaults from Material
   double compute_molar_internal_energy() const override;
   double compute_molar_gibbs() const override;

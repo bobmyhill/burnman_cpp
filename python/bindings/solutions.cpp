@@ -15,6 +15,7 @@
 #include "burnman/core/anisotropic_mineral.hpp"
 #include "burnman/core/relaxed_solution.hpp"
 #include "burnman/core/solution.hpp"
+#include "endmember_warnings.hpp"
 #include <pybind11/numpy.h>
 
 namespace burnman::python {
@@ -324,6 +325,18 @@ void bind_solutions(py::module_ &m) {
                           &Solution::free_compositional_vectors);
   bind_optional_attribute(solution, "baseline_composition",
                           &Solution::baseline_composition);
+  solution.def_property(
+      "endmember_constraints",
+      [](const Solution &self) { return self.endmember_constraints; },
+      [](Solution &self, const std::optional<Eigen::MatrixXd> &constraints) {
+        self.set_endmember_constraints(constraints);
+        warn_if_outside_endmember_constraints(self);
+      });
+  solution.def("evaluate_endmember_constraints",
+               &Solution::evaluate_endmember_constraints,
+               py::arg("molar_fractions"));
+  solution.def_property_readonly("composition_bounds",
+                                 &Solution::get_composition_bounds);
   solution
       .def(
           "evaluate_with_volumes",
@@ -359,8 +372,8 @@ void bind_solutions(py::module_ &m) {
            py::arg("volume"), py::arg("temperature"),
            py::arg("pressure_guesses") = Eigen::Vector2d(0., 1.e10))
       .def(py::init([](const std::shared_ptr<SolutionModel> &model,
-                       const Eigen::ArrayXd &fractions,
-                       const std::string &name) {
+                       const Eigen::ArrayXd &fractions, const std::string &name,
+                       const std::optional<Eigen::MatrixXd> &constraints) {
              if (!model)
                throw std::invalid_argument("solution_model cannot be None.");
              check_model_fractions(fractions, *model);
@@ -369,21 +382,24 @@ void bind_solutions(py::module_ &m) {
              auto owned = model->clone();
              auto self = std::make_shared<Solution>();
              self->set_solution_model(owned);
+             self->set_endmember_constraints(constraints);
              // Incoming endmembers already have validated EOS objects. Combined
              // endmembers must retain their custom EOS when the model is
              // copied.
              self->set_composition(fractions);
              if (!name.empty())
                self->set_name(name);
+             warn_if_outside_endmember_constraints(*self);
              return self;
            }),
            py::arg("solution_model"), py::arg("molar_fractions"),
-           py::arg("name") = "")
+           py::arg("name") = "", py::arg("endmember_constraints") = py::none())
       .def(
           "set_composition",
           [](Solution &self, const Eigen::ArrayXd &fractions) {
             check_model_fractions(fractions, *self.get_solution_model());
             self.set_composition(fractions);
+            warn_if_outside_endmember_constraints(self);
           },
           py::arg("molar_fractions"));
 #define SOLUTION_PROPERTY(name)                                                \
@@ -443,6 +459,7 @@ void bind_solutions(py::module_ &m) {
                 fractions,
                 q.value_or(Eigen::VectorXd::Zero(self.get_dndq().cols())),
                 relaxed);
+            warn_if_outside_endmember_constraints(self);
           },
           py::arg("molar_fractions"), py::arg("q_initial") = py::none(),
           py::arg("relaxed") = true)
@@ -451,9 +468,19 @@ void bind_solutions(py::module_ &m) {
           [](RelaxedSolution &self, double p, double t, bool relaxed) {
             check_pt(p, t);
             self.set_state(p, t, relaxed);
+            warn_if_outside_endmember_constraints(self);
           },
           py::arg("pressure"), py::arg("temperature"),
           py::arg("relaxed") = true)
+      .def(
+          "set_state_with_volume",
+          [](RelaxedSolution &self, double volume, double temperature,
+             const Eigen::Vector2d &guesses) {
+            self.set_state_with_volume(volume, temperature, guesses);
+            warn_if_outside_endmember_constraints(self);
+          },
+          py::arg("volume"), py::arg("temperature"),
+          py::arg("pressure_guesses") = Eigen::Vector2d(0., 1.e10))
       .def_property_readonly("dndq", &RelaxedSolution::get_dndq)
       .def_property_readonly("dndx", &RelaxedSolution::get_dndx)
       .def_property_readonly("unrelaxed_vectors",

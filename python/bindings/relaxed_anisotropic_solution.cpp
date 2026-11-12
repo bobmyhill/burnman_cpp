@@ -13,6 +13,7 @@
 
 #include "burnman/core/relaxed_anisotropic_solution.hpp"
 #include "bindings.hpp"
+#include "endmember_warnings.hpp"
 #include <pybind11/numpy.h>
 
 namespace burnman::python {
@@ -31,8 +32,10 @@ void bind_relaxed_anisotropic_solution(py::module_ &m) {
       .def(
           "set_composition",
           [](RelaxedAnisotropicSolution &self, const Eigen::ArrayXd &fractions,
-             const std::optional<Eigen::VectorXd> &q,
-             bool relaxed) { self.set_composition(fractions, q, relaxed); },
+             const std::optional<Eigen::VectorXd> &q, bool relaxed) {
+            self.set_composition(fractions, q, relaxed);
+            warn_if_outside_endmember_constraints(self);
+          },
           py::arg("molar_fractions"), py::arg("q_initial") = py::none(),
           py::arg("relaxed") = true)
       .def(
@@ -41,13 +44,19 @@ void bind_relaxed_anisotropic_solution(py::module_ &m) {
              bool relaxed) {
             check_pt(p, t);
             self.set_state(p, t, relaxed);
+            warn_if_outside_endmember_constraints(self);
           },
           py::arg("pressure"), py::arg("temperature"),
           py::arg("relaxed") = true)
-      .def("set_state_with_volume",
-           &RelaxedAnisotropicSolution::set_state_with_volume,
-           py::arg("volume"), py::arg("temperature"),
-           py::arg("pressure_guesses") = Eigen::Vector2d(0., 1.e10))
+      .def(
+          "set_state_with_volume",
+          [](RelaxedAnisotropicSolution &self, double volume,
+             double temperature, const Eigen::Vector2d &guesses) {
+            self.set_state_with_volume(volume, temperature, guesses);
+            warn_if_outside_endmember_constraints(self);
+          },
+          py::arg("volume"), py::arg("temperature"),
+          py::arg("pressure_guesses") = Eigen::Vector2d(0., 1.e10))
       .def("_relax_at_PTX", &RelaxedAnisotropicSolution::relax_at_PTX)
       .def_property_readonly("unrelaxed",
                              &RelaxedAnisotropicSolution::get_unrelaxed)

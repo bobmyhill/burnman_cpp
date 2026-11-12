@@ -130,7 +130,7 @@ void Solution::set_state_with_volume(double volume, double T,
   const auto residual = +[](double P, void *context) -> double {
     auto &d = *static_cast<Residual *>(context);
     try {
-      d.solution->set_state(P, d.T);
+      d.solution->Solution::set_state(P, d.T);
       return d.volume - d.solution->get_molar_volume();
     } catch (const std::exception &) {
       return -std::numeric_limits<double>::infinity();
@@ -138,11 +138,11 @@ void Solution::set_state_with_volume(double volume, double T,
   };
   double low = guesses[0], high = guesses[1];
   if (residual(low, &data) == 0.) {
-    set_state(low, T);
+    Solution::set_state(low, T);
     return;
   }
   if (residual(high, &data) == 0.) {
-    set_state(high, T);
+    Solution::set_state(high, T);
     return;
   }
   if (!optim::roots::bracket_root(residual, data, low, high, high - low, 1.618))
@@ -154,7 +154,7 @@ void Solution::set_state_with_volume(double volume, double T,
     const double middle = 0.5 * (low + high);
     const double value = residual(middle, &data);
     if (value == 0.) {
-      set_state(middle, T);
+      Solution::set_state(middle, T);
       return;
     }
     if (value < 0.)
@@ -165,7 +165,7 @@ void Solution::set_state_with_volume(double volume, double T,
   const double P =
       optim::roots::brent(residual, data, low, high, 1.e-8,
                           4. * std::numeric_limits<double>::epsilon());
-  set_state(P, T);
+  Solution::set_state(P, T);
 }
 
 Eigen::MatrixXd
@@ -197,6 +197,58 @@ Eigen::ArrayXd Solution::get_molar_fractions() const {
 
 Eigen::ArrayXXd Solution::get_endmember_occupancies() const {
   return this->solution_model->get_endmember_occupancies();
+}
+
+void Solution::set_endmember_constraints(
+    const std::optional<Eigen::MatrixXd> &constraints) {
+  if (constraints &&
+      (constraints->cols() != get_n_endmembers() || !constraints->allFinite()))
+    throw std::invalid_argument(
+        "Endmember constraints require finite rows with one coefficient "
+        "per endmember.");
+  endmember_constraints = constraints;
+  reset_cache();
+}
+
+Eigen::VectorXd Solution::evaluate_endmember_constraints(
+    const Eigen::ArrayXd &fractions) const {
+  if (fractions.size() != get_n_endmembers())
+    throw std::invalid_argument(
+        "molar_fractions must have one entry per endmember.");
+  if (!endmember_constraints)
+    return Eigen::VectorXd(0);
+  return *endmember_constraints * fractions.matrix();
+}
+
+Eigen::MatrixXd Solution::get_composition_bounds() const {
+  Eigen::MatrixXd bounds = get_endmember_occupancies().matrix();
+  if (endmember_constraints) {
+    const auto &extra = *endmember_constraints;
+    if (extra.cols() != bounds.rows() || !extra.allFinite())
+      throw std::invalid_argument(
+          "Endmember constraints require finite rows with one coefficient "
+          "per endmember.");
+    const auto old_columns = bounds.cols();
+    bounds.conservativeResize(Eigen::NoChange, old_columns + extra.rows());
+    bounds.rightCols(extra.rows()) = extra.transpose();
+  }
+  return bounds;
+}
+
+Eigen::MatrixXd
+Solution::relaxation_susceptibility(const Eigen::MatrixXd &hessian,
+                                    const Eigen::MatrixXd &dndq) const {
+  const Eigen::Index n = dndq.cols();
+  if (hessian.rows() != n || hessian.cols() != n ||
+      dndq.rows() != get_n_endmembers())
+    throw std::invalid_argument("Structural Hessian and relaxation vectors "
+                                "have incompatible dimensions.");
+  if (n == 0)
+    return Eigen::MatrixXd(0, 0);
+  Eigen::JacobiSVD<Eigen::MatrixXd> svd(hessian, Eigen::ComputeFullU |
+                                                     Eigen::ComputeFullV);
+  svd.setThreshold(1.e-15);
+  return svd.solve(Eigen::MatrixXd::Identity(n, n));
 }
 
 Eigen::ArrayXXd Solution::get_endmember_n_occupancies() const {

@@ -218,6 +218,8 @@ void RelaxedAnisotropicSolution::minimize(bool fixed_volume, double volume,
          guesses};
   Eigen::VectorXd delta = Eigen::VectorXd::Zero(dndq_.cols());
   data.offset = data.evaluate(delta);
+  // Keep intrinsic site occupancies physical without applying optional
+  // composition inequalities to the material's relaxed properties.
   const Eigen::MatrixXd sites =
       get_endmember_occupancies().matrix().transpose();
   if (dndq_.cols()) {
@@ -364,7 +366,7 @@ RelaxedAnisotropicSolution::responses() const {
         -v * (d.dPdq * identity.transpose() + e.transpose() * ct * projection);
     d.coupling.col(6) =
         -d.dSdq + v * e.transpose() * ct * utils::contract_strains(d.depsdT);
-    d.susceptibility = pseudoinverse(d.structural);
+    d.susceptibility = relaxation_susceptibility(d.structural, dndq_);
     d.dqdz = -d.susceptibility * d.coupling;
     d.frozen.topLeftCorner<6, 6>() = v * ct;
     d.frozen.topRightCorner<6, 1>() =

@@ -180,9 +180,9 @@ void MaterialPolytope::map_to_site_occupancies(
   occupancies_ = vertices_ * occupancies;
 }
 
-MaterialPolytope
-solution_polytope_from_endmember_occupancies(const Eigen::MatrixXd &occupancies,
-                                             double rational_tolerance) {
+MaterialPolytope solution_polytope_from_endmember_occupancies(
+    const Eigen::MatrixXd &occupancies, double rational_tolerance,
+    const std::optional<Eigen::MatrixXd> &endmember_constraints) {
   if (!occupancies.rows() || !occupancies.cols() || !occupancies.allFinite() ||
       occupancies.minCoeff() < -1.e-12) {
     throw std::invalid_argument(
@@ -190,9 +190,31 @@ solution_polytope_from_endmember_occupancies(const Eigen::MatrixXd &occupancies,
   }
   Eigen::MatrixXd equalities = Eigen::MatrixXd::Ones(1, occupancies.rows() + 1);
   equalities(0, 0) = -1.0;
-  Eigen::MatrixXd inequalities =
-      Eigen::MatrixXd::Zero(occupancies.cols(), occupancies.rows() + 1);
-  inequalities.rightCols(occupancies.rows()) = occupancies.transpose();
+  Eigen::Index n_extra = 0;
+  if (endmember_constraints) {
+    const auto &extra = *endmember_constraints;
+    if (extra.cols() != occupancies.rows() || !extra.allFinite())
+      throw std::invalid_argument("Endmember constraints require finite rows "
+                                  "with one coefficient per endmember.");
+    n_extra = extra.rows();
+    if (n_extra) {
+      const Eigen::MatrixXd site_coefficients =
+          occupancies.completeOrthogonalDecomposition().solve(
+              extra.transpose());
+      if ((occupancies * site_coefficients - extra.transpose())
+              .cwiseAbs()
+              .maxCoeff() > 1.e-12)
+        throw std::invalid_argument(
+            "Endmember constraints cannot be expressed in site occupancies.");
+    }
+  }
+  Eigen::MatrixXd inequalities = Eigen::MatrixXd::Zero(
+      occupancies.cols() + n_extra, occupancies.rows() + 1);
+  inequalities.block(0, 1, occupancies.cols(), occupancies.rows()) =
+      occupancies.transpose();
+  if (n_extra)
+    inequalities.bottomRows(n_extra).rightCols(occupancies.rows()) =
+        endmember_constraints->transpose();
   MaterialPolytope polytope(equalities, inequalities, rational_tolerance);
   if (!polytope.is_bounded()) {
     throw std::invalid_argument(
@@ -224,7 +246,7 @@ MaterialPolytope composite_polytope_at_constrained_composition(
   for (Eigen::Index i = 0; i < composite.get_n_phases(); ++i) {
     auto phase = composite.get_phase(static_cast<std::size_t>(i));
     if (auto solution = std::dynamic_pointer_cast<Solution>(phase))
-      rows += solution->get_endmember_occupancies().cols();
+      rows += solution->get_composition_bounds().cols();
     else if (std::dynamic_pointer_cast<Mineral>(phase))
       ++rows;
     else
@@ -244,7 +266,7 @@ MaterialPolytope composite_polytope_at_constrained_composition(
   for (Eigen::Index i = 0; i < composite.get_n_phases(); ++i) {
     auto phase = composite.get_phase(static_cast<std::size_t>(i));
     if (auto solution = std::dynamic_pointer_cast<Solution>(phase)) {
-      auto occupancies = solution->get_endmember_occupancies();
+      auto occupancies = solution->get_composition_bounds();
       inequalities.block(row, offset + 1, occupancies.cols(),
                          occupancies.rows()) = occupancies.matrix().transpose();
       row += occupancies.cols();
