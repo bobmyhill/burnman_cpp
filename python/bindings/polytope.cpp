@@ -42,6 +42,7 @@ void bind_polytope(py::module_ &m) {
         &solution_polytope_from_endmember_occupancies,
         py::arg("endmember_occupancies"),
         py::arg("rational_tolerance") = 1.e-12,
+        py::arg("endmember_constraints") = py::none(),
         py::call_guard<py::gil_scoped_release>());
   m.def("composite_polytope_at_constrained_composition",
         &composite_polytope_at_constrained_composition, py::arg("composite"),

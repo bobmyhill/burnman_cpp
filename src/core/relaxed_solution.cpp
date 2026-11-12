@@ -81,13 +81,30 @@ void RelaxedSolution::set_state(double new_pressure, double new_temperature,
     relax();
 }
 
-void RelaxedSolution::relax() {
+void RelaxedSolution::set_state_with_volume(double volume, double temperature,
+                                            const Eigen::Vector2d &guesses) {
+  Solution::set_state_with_volume(volume, temperature, guesses);
+  state_set_ = true;
+  relax(true, volume, guesses);
+}
+
+void RelaxedSolution::relax(bool fixed_volume, double volume,
+                            const Eigen::Vector2d &guesses) {
   struct Objective {
     RelaxedSolution *self;
     Eigen::VectorXd base;
     double offset, scale;
-  } data{this, dndx_ * independent_.matrix(), Solution::compute_molar_gibbs(),
-         std::max(1000., 8.314462618 * get_temperature())};
+    bool fixed_volume;
+    double volume, temperature;
+    Eigen::Vector2d guesses;
+  } data{this,
+         dndx_ * independent_.matrix(),
+         0.,
+         std::max(1000., 8.314462618 * get_temperature()),
+         fixed_volume,
+         volume,
+         get_temperature(),
+         guesses};
   nlopt::opt opt(nlopt::LD_SLSQP,
                  static_cast<unsigned int>(utils::checked_int(dndq_.cols())));
   opt.set_min_objective(
@@ -97,13 +114,22 @@ void RelaxedSolution::relax() {
         const Eigen::Map<const Eigen::VectorXd> x(
             q.data(), static_cast<Eigen::Index>(q.size()));
         d.self->Solution::set_composition((d.base + d.self->dndq_ * x).array());
+        if (d.fixed_volume) {
+          d.self->Solution::set_state_with_volume(d.volume, d.temperature,
+                                                  d.guesses);
+          const double pressure = d.self->get_pressure();
+          d.guesses << pressure - 1.e9, pressure + 1.e9;
+        }
         if (!gradient.empty()) {
           Eigen::Map<Eigen::VectorXd> g(
               gradient.data(), static_cast<Eigen::Index>(gradient.size()));
           g = d.self->dndq_.transpose() * d.self->get_partial_gibbs().matrix() /
               d.scale;
         }
-        return (d.self->Solution::compute_molar_gibbs() - d.offset) / d.scale;
+        const double energy = d.fixed_volume
+                                  ? d.self->Solution::compute_molar_helmholtz()
+                                  : d.self->Solution::compute_molar_gibbs();
+        return (energy - d.offset) / d.scale;
       },
       &data);
   // Site inequalities allow signed endmember amounts, as in Solution.
@@ -112,6 +138,8 @@ void RelaxedSolution::relax() {
     double b;
   };
   std::vector<Inequality> inequalities;
+  // Intrinsic site occupancies remain physical; optional composition caps
+  // restrict equilibrium searches, not relaxation of material properties.
   Eigen::MatrixXd sites = get_endmember_occupancies().matrix().transpose();
   for (Eigen::Index i = 0; i < sites.rows(); ++i) {
     auto a = (-sites.row(i) * dndq_).transpose().eval();
@@ -135,8 +163,19 @@ void RelaxedSolution::relax() {
   opt.set_maxeval(1000);
   std::vector<double> q(static_cast<std::size_t>(dndq_.cols()), 0.);
   Solution::set_composition(data.base.array());
+  if (fixed_volume)
+    Solution::set_state_with_volume(volume, data.temperature, data.guesses);
+  data.offset = fixed_volume ? Solution::compute_molar_helmholtz()
+                             : Solution::compute_molar_gibbs();
+  Eigen::MatrixXd structural_hessian = get_gibbs_hessian();
+  if (fixed_volume) {
+    const Eigen::VectorXd partial_v = get_partial_volumes().matrix();
+    structural_hessian += Solution::compute_isothermal_bulk_modulus_reuss() /
+                          get_molar_volume() * partial_v *
+                          partial_v.transpose();
+  }
   Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> modes(
-      dndq_.transpose() * get_gibbs_hessian() * dndq_);
+      dndq_.transpose() * structural_hessian * dndq_);
   if (modes.eigenvalues()[0] < -1.e-8) {
     Eigen::VectorXd seed = 1.e-3 * modes.eigenvectors().col(0);
     seed /= std::max(1., (dndq_ * seed).norm() / 1.e-3);
@@ -160,6 +199,8 @@ void RelaxedSolution::relax() {
     throw std::runtime_error(
         "Solution relaxation returned an infeasible state.");
   Solution::set_composition(n.array());
+  if (fixed_volume)
+    Solution::set_state_with_volume(volume, data.temperature, data.guesses);
 }
 
 Eigen::Matrix2d RelaxedSolution::relaxed_hessian() const {
@@ -172,10 +213,8 @@ Eigen::Matrix2d RelaxedSolution::relaxed_hessian() const {
   coupling.col(0) = dndq_.transpose() * get_partial_volumes().matrix();
   coupling.col(1) = -dndq_.transpose() * get_partial_entropies().matrix();
   Eigen::MatrixXd structural = dndq_.transpose() * get_gibbs_hessian() * dndq_;
-  Eigen::JacobiSVD<Eigen::MatrixXd> svd(structural, Eigen::ComputeFullU |
-                                                        Eigen::ComputeFullV);
-  svd.setThreshold(1.e-15); // numpy.linalg.pinv default in the reference
-  return h - coupling.transpose() * svd.solve(coupling);
+  return h - coupling.transpose() *
+                 relaxation_susceptibility(structural, dndq_) * coupling;
 }
 double RelaxedSolution::compute_isothermal_bulk_modulus_reuss() const {
   return -get_molar_volume() / relaxed_hessian()(0, 0);

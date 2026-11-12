@@ -290,10 +290,29 @@ Matrix get_reaction_matrix(const Assemblage &assemblage, double tolerance) {
         const Matrix occupancies =
             solution->get_endmember_occupancies().matrix();
         const auto poly =
-            polytope::solution_polytope_from_endmember_occupancies(occupancies);
-        const auto selected = greedy_selection(
-            poly.get_endmember_occupancies(),
-            solution->get_site_occupancies().matrix(), tolerance);
+            polytope::solution_polytope_from_endmember_occupancies(
+                occupancies, 1.e-12, solution->endmember_constraints);
+        Matrix selection_occupancies = poly.get_endmember_occupancies();
+        Vector selection_residual = solution->get_site_occupancies().matrix();
+        if (solution->endmember_constraints &&
+            solution->endmember_constraints->rows()) {
+          const Matrix &extra = *solution->endmember_constraints;
+          Vector slacks = solution->evaluate_endmember_constraints(
+              solution->get_molar_fractions());
+          if (slacks.minCoeff() < -1.e-10)
+            throw std::invalid_argument("Solution composition violates its "
+                                        "additional inequalities.");
+          const Matrix vertex_slacks =
+              (poly.get_vertices() * extra.transpose()).cwiseMax(0.);
+          const Eigen::Index old_cols = selection_occupancies.cols();
+          selection_occupancies.conservativeResize(Eigen::NoChange,
+                                                   old_cols + extra.rows());
+          selection_occupancies.rightCols(extra.rows()) = vertex_slacks;
+          selection_residual.conservativeResize(old_cols + extra.rows());
+          selection_residual.tail(extra.rows()) = slacks.cwiseMax(0.);
+        }
+        const auto selected = greedy_selection(selection_occupancies,
+                                               selection_residual, tolerance);
         block.resize(static_cast<Eigen::Index>(selected.size()),
                      solution->get_n_endmembers());
         for (std::size_t i = 0; i < selected.size(); ++i)
@@ -351,12 +370,12 @@ void assemblage_set_state_from_params(Assemblage &assemblage,
                 .array();
         if (!composition.isFinite().all() ||
             std::abs(composition.sum() - 1.) > 1.e-10 ||
-            (solution->get_endmember_occupancies().matrix().transpose() *
+            (solution->get_composition_bounds().transpose() *
              composition.matrix())
                     .minCoeff() < -1.e-10)
           throw std::invalid_argument(
               "Compositional coordinates must give unit-sum fractions and "
-              "nonnegative site occupancies.");
+              "nonnegative composition bounds.");
         compositions.emplace_back(solution, composition);
         offset += n;
       }
@@ -433,6 +452,13 @@ EstimateConditionsResult estimate_conditions(
       const auto n = free_vectors(*solution);
       if (solution->free_compositional_vectors)
         solution->baseline_composition = solution->get_molar_fractions();
+      else if (solution->endmember_constraints &&
+               solution->endmember_constraints->rows() &&
+               solution->evaluate_endmember_constraints(
+                           solution->get_molar_fractions())
+                       .minCoeff() < -1.e-10)
+        throw std::invalid_argument(
+            "Fixed solution composition violates its additional inequalities.");
       n_free += n;
     }
   const auto close = [](const Eigen::Vector2d &bounds) {
@@ -490,7 +516,7 @@ EstimateConditionsResult estimate_conditions(
   for (const auto &phase : assemblage.get_phases())
     if (const auto *solution = dynamic_cast<const Solution *>(phase.get()))
       if (free_vectors(*solution))
-        sites += solution->get_endmember_occupancies().cols();
+        sites += solution->get_composition_bounds().cols();
   Matrix occupancy_matrix = Matrix::Zero(sites, 2 + n_free);
   Vector occupancy_baseline(sites);
   Eigen::Index row = 0, column = 2;
@@ -498,7 +524,7 @@ EstimateConditionsResult estimate_conditions(
     if (const auto *solution = dynamic_cast<const Solution *>(phase.get())) {
       const auto count = free_vectors(*solution);
       if (count) {
-        const Matrix occ = solution->get_endmember_occupancies().matrix();
+        const Matrix occ = solution->get_composition_bounds();
         occupancy_matrix.block(row, column, occ.cols(), count) =
             occ.transpose() * solution->free_compositional_vectors->transpose();
         occupancy_baseline.segment(row, occ.cols()) =

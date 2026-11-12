@@ -132,7 +132,8 @@ calculate_constraints(const Assemblage &assemblage,
   for (std::size_t i = 0; i < embr_per_phase.size(); ++i) {
     std::optional<Eigen::ArrayXXd> bound;
     if (embr_per_phase[i] > 1) {
-      bound = assemblage.get_phase<Solution>(i)->get_endmember_occupancies();
+      bound =
+          assemblage.get_phase<Solution>(i)->get_composition_bounds().array();
       n_constraints += bound->cols(); // n_elements
     }
     bounds.push_back(bound);

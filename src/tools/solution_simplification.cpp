@@ -291,6 +291,9 @@ std::shared_ptr<Material> transform_solution_to_new_basis(
           interactions(qe, alphas), interactions(qv, alphas),
           interactions(qs, alphas));
     transformed->set_solution_model(model);
+    if (solution.endmember_constraints)
+      transformed->set_endmember_constraints(
+          *solution.endmember_constraints * basis.transpose());
     Eigen::ArrayXd composition = fractions;
     if (composition.size() == 0) {
       auto previous = solution.get_molar_fractions();
@@ -360,7 +363,7 @@ std::shared_ptr<Assemblage> simplify_composite_with_composition(
     mean /= mean.sum();
     auto occupancies = solution->get_endmember_occupancies().matrix().eval();
     auto full = solution_polytope_from_endmember_occupancies(
-        occupancies, rational_tolerance);
+        occupancies, rational_tolerance, solution->endmember_constraints);
     Eigen::VectorXd mean_occupancies = occupancies.transpose() * mean;
     std::vector<Eigen::Index> allowed;
     for (Eigen::Index vertex = 0; vertex < full.get_vertices().rows();

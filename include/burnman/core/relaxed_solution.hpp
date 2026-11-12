@@ -27,6 +27,9 @@ public:
                        const Eigen::VectorXd &q_initial, bool relaxed);
   void set_state(double pressure, double temperature) override;
   void set_state(double pressure, double temperature, bool relaxed);
+  void set_state_with_volume(double volume, double temperature,
+                             const Eigen::Vector2d &pressure_guesses =
+                                 Eigen::Vector2d(0., 1.e10)) override;
   Eigen::MatrixXd get_dndq() const { return dndq_; }
   Eigen::MatrixXd get_dndx() const { return dndx_; }
   Eigen::ArrayXd get_unrelaxed_vectors() const { return independent_; }
@@ -40,7 +43,9 @@ private:
   Eigen::MatrixXd dndq_, dndx_;
   Eigen::ArrayXd independent_;
   bool state_set_ = false;
-  void relax();
+  void relax(bool fixed_volume = false, double volume = 0.,
+             const Eigen::Vector2d &pressure_guesses = Eigen::Vector2d(0.,
+                                                                       1.e10));
   Eigen::Matrix2d relaxed_hessian() const;
 };
 } // namespace burnman

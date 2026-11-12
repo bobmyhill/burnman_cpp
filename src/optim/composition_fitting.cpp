@@ -227,8 +227,8 @@ LeastSquaresResult fit_composition_to_solution(
     if (std::abs(variable_values[i]) < 1.e-10)
       zero_amounts.row(n_zero++) = A.row(i);
   const Eigen::MatrixXd S = unique_nonzero_rows(zero_amounts.topRows(n_zero));
-  const Eigen::MatrixXd T = unique_nonzero_rows(
-      -solution.get_endmember_occupancies().matrix().transpose());
+  const Eigen::MatrixXd T =
+      unique_nonzero_rows(-solution.get_composition_bounds().transpose());
   const LinearConstraints equality_constraints{S,
                                                Eigen::VectorXd::Zero(S.rows())};
   const LinearConstraints inequality_constraints{
