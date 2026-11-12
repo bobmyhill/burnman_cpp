@@ -182,6 +182,44 @@ TEST_CASE("Test Linear", "[prop_mod][eos]") {
                                       WithinAbs(d2GdPdT_ref, tol_abs));
 }
 
+TEST_CASE("Wu-Wentzcovitch volume correction follows the Python reference",
+          "[prop_mod][eos]") {
+  using eos::excesses::compute_excesses;
+  using eos::excesses::VolumeWWParams;
+
+  double G_ref = 999.9546000702375;
+  double dGdT_ref = 0.0;
+  double dGdP_ref = 4.539992976248485e-12;
+  double d2GdT2_ref = 0.0;
+  double d2GdP2_ref = -4.539992976248485e-22;
+  double d2GdPdT_ref = 0.0;
+  eos::excesses::VolumeWWParams params = {1.0e-7, 1.0e10};
+  const auto default_reference = compute_excesses(1.0e11, 1000.0, params);
+  CHECK_THAT(default_reference.G, WithinRel(G_ref, 1.0e-12));
+  CHECK(default_reference.dGdT == dGdT_ref);
+  CHECK_THAT(default_reference.dGdP, WithinRel(dGdP_ref, 1.0e-12));
+  CHECK(default_reference.d2GdT2 == d2GdT2_ref);
+  CHECK_THAT(default_reference.d2GdP2, WithinRel(d2GdP2_ref, 1.0e-12));
+  CHECK(default_reference.d2GdPdT == d2GdPdT_ref);
+
+  const VolumeWWParams shifted{1.0e-7, 1.0e10, 2.0e9};
+  const auto at_reference = compute_excesses(shifted.P0, 500.0, shifted);
+  CHECK(at_reference.G == 0.0);
+  CHECK(at_reference.dGdP == shifted.dV0);
+  CHECK(at_reference.d2GdP2 == -shifted.dV0 / shifted.Pc);
+  CHECK(at_reference.dGdT == 0.0);
+  CHECK(at_reference.d2GdT2 == 0.0);
+  CHECK(at_reference.d2GdPdT == 0.0);
+
+  const auto away = compute_excesses(1.2e10, 1500.0, shifted);
+  CHECK_THAT(away.G, WithinRel(632.1205588285577, 1.0e-12));
+  CHECK_THAT(away.dGdP, WithinRel(3.6787944117144234e-8, 1.0e-12));
+  CHECK_THAT(away.d2GdP2, WithinRel(-3.678794411714423e-18, 1.0e-12));
+  CHECK(compute_excesses(1.2e10, 2000.0, shifted).G == away.G);
+  CHECK_THROWS_AS(compute_excesses(1.0e9, 1000.0, VolumeWWParams{1.0e-7, 0.0}),
+                  std::invalid_argument);
+}
+
 TEST_CASE("Test Bragg-Williams", "[prop_mod][eos]") {
   eos::excesses::BraggWilliamsParams params = {1,      0.8,    1000.0,
                                                1.0e-7, 1000.0, 1.0e-7};

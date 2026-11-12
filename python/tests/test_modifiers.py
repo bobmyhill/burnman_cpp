@@ -41,6 +41,34 @@ def test_linear_modifier_and_cache_reset():
         )
 
 
+@pytest.mark.parametrize("reference_pressure", [0.0, 2.0e9])
+def test_volume_ww_modifier_matches_python_reference(reference_pressure):
+    mineral = bm.Mineral(oxide_params())
+    pressure, temperature = reference_pressure + 1.0e10, 1000.0
+    mineral.set_state(pressure, temperature)
+    unmodified_gibbs = mineral.molar_gibbs
+    unmodified_volume = mineral.molar_volume
+    params = dict(dV0=1.0e-7, Pc=1.0e10)
+    if reference_pressure:
+        params["P0"] = reference_pressure
+    mineral.set_property_modifiers([("volume_ww", params)])
+    assert mineral.molar_gibbs - unmodified_gibbs == pytest.approx(632.1205588285577)
+    assert mineral.molar_volume - unmodified_volume == pytest.approx(
+        3.6787944117144234e-8
+    )
+    excess = mineral.get_property_modifiers()
+    assert excess["d2GdP2"] == pytest.approx(
+        -3.678794411714423e-18, rel=1.0e-12, abs=0.0
+    )
+    assert excess["dGdT"] == excess["d2GdT2"] == excess["d2GdPdT"] == 0.0
+
+    mineral.set_state(reference_pressure, temperature)
+    assert mineral.get_property_modifiers()["G"] == 0.0
+    assert mineral.get_property_modifiers()["dGdP"] == params["dV0"]
+    with pytest.raises(ValueError, match="Pc must be nonzero"):
+        mineral.set_property_modifiers([("volume_ww", dict(dV0=1e-7, Pc=0.0))])
+
+
 def test_signed_combined_endmember_survives_solution_copy():
     mg, fe = bm.Mineral(oxide_params("Mg")), bm.Mineral(oxide_params("Fe"))
     mixed = bm.CombinedMineral([mg, fe], [0.5, 0.5], [2500.0, 2.0, 1.0e-7])

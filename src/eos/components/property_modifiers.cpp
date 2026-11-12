@@ -19,6 +19,7 @@
 #include "burnman/utils/constants.hpp"
 #include "burnman/utils/types/simple_types.hpp"
 #include <cmath>
+#include <stdexcept>
 
 namespace burnman::eos {
 
@@ -239,6 +240,20 @@ Excesses compute_excesses(double pressure, double temperature,
   Excesses linear_ex{G, dGdT, dGdP, d2GdT2, d2GdP2, d2GdPdT};
   // No Q return
   return linear_ex;
+}
+
+Excesses compute_excesses(double pressure, double temperature [[maybe_unused]],
+                          VolumeWWParams params) {
+  if (params.Pc == 0.0)
+    throw std::invalid_argument("volume_ww Pc must be nonzero.");
+  const double exponent = -(pressure - params.P0) / params.Pc;
+  const double exponential = std::exp(exponent);
+  return {-(params.dV0 * params.Pc) * std::expm1(exponent),
+          0.0,
+          params.dV0 * exponential,
+          0.0,
+          -(params.dV0 / params.Pc) * exponential,
+          0.0};
 }
 
 Excesses compute_excesses(double pressure, double temperature,
