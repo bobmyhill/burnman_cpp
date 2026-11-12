@@ -1698,6 +1698,7 @@ void bind_minerals(py::module_ &m) {
   SLB_2022.def("ri", &minerals::SLB_2022::ri);
   SLB_2022.def("wa", &minerals::SLB_2022::wa);
   auto HHPH_2013 = catalog.def_submodule("HHPH_2013");
+  HHPH_2013.def("coe", &minerals::HHPH_2013::coe);
   HHPH_2013.def("fo", &minerals::HHPH_2013::fo);
   HHPH_2013.def("fa", &minerals::HHPH_2013::fa);
   HHPH_2013.def("mwd", &minerals::HHPH_2013::mwd);
@@ -1741,6 +1742,24 @@ void bind_minerals(py::module_ &m) {
   HHPH_2013.def("fper", &minerals::HHPH_2013::fper);
   HHPH_2013.def("cor", &minerals::HHPH_2013::cor);
   HHPH_2013.def("mcor", &minerals::HHPH_2013::mcor);
+  HHPH_2013.def("g", &minerals::HHPH_2013::g_solution);
+  HHPH_2013.def("fp", &minerals::HHPH_2013::fp_solution);
+  HHPH_2013.def("mpv_solution", &minerals::HHPH_2013::mpv_solution);
+  HHPH_2013.def("cpv_solution", &minerals::HHPH_2013::cpv_solution);
+  HHPH_2013.def("cor_solution", &minerals::HHPH_2013::cor_solution);
+  HHPH_2013.def("cf", &minerals::HHPH_2013::cf_solution);
+  HHPH_2013.def("nal", &minerals::HHPH_2013::nal_solution);
+  HHPH_2013.def("aki", &minerals::HHPH_2013::aki_solution);
+  HHPH_2013.def("ol", &minerals::HHPH_2013::ol_solution);
+  HHPH_2013.def("wad", &minerals::HHPH_2013::wad_solution);
+  HHPH_2013.def("ring", &minerals::HHPH_2013::ring_solution);
+  HHPH_2013.def("cpx", &minerals::HHPH_2013::cpx_solution);
+  HHPH_2013.def("opx", &minerals::HHPH_2013::opx_solution);
+  HHPH_2013.def("hpx", &minerals::HHPH_2013::hpx_solution);
+  HHPH_2013.def(
+      "cov", []() { return covariance_dict(minerals::HHPH_2013::cov()); },
+      "Return the archived 273-endmember formation-energy covariance in "
+      "(J/mol)².");
   auto HP_2011_fluids = catalog.def_submodule("HP_2011_fluids");
   HP_2011_fluids.def("H2O", &minerals::HP_2011_fluids::H2O);
   HP_2011_fluids.def("CO2", &minerals::HP_2011_fluids::CO2);

@@ -106,7 +106,7 @@ endif
 # Covariance images are generated for this build mode before their reader.
 COVARIANCE_BUILD_DIR := $(MODE_BUILD_DIR)/generated
 COVARIANCE_EMBED_SCRIPT := $(CWD)/cmake/EmbedCovariance.cmake
-COVARIANCE_HEADERS := $(addprefix $(COVARIANCE_BUILD_DIR)/,HP_2011_ds62_covariance_data.hpp HGP_2018_ds633_covariance_data.hpp HPx_ds636_covariance_data.hpp)
+COVARIANCE_HEADERS := $(addprefix $(COVARIANCE_BUILD_DIR)/,HP_2011_ds62_covariance_data.hpp HGP_2018_ds633_covariance_data.hpp HPx_ds636_covariance_data.hpp HHPH_2013_covariance_data.hpp)
 CPPFLAGS += -I$(COVARIANCE_BUILD_DIR)
 
 # Find source files
@@ -133,6 +133,7 @@ all: $(TARGET)
 $(COVARIANCE_BUILD_DIR)/HP_2011_ds62_covariance_data.hpp: $(SRC_DIR)/data/input_covariance/HP_2011_ds62_cov.h5
 $(COVARIANCE_BUILD_DIR)/HGP_2018_ds633_covariance_data.hpp: $(SRC_DIR)/data/input_covariance/HGP_2018_ds633_cov.h5
 $(COVARIANCE_BUILD_DIR)/HPx_ds636_covariance_data.hpp: $(SRC_DIR)/data/input_covariance/HPx_ds636_cov.h5
+$(COVARIANCE_BUILD_DIR)/HHPH_2013_covariance_data.hpp: $(SRC_DIR)/data/input_covariance/HHPH_2013_cov.h5
 
 $(COVARIANCE_HEADERS): $(COVARIANCE_EMBED_SCRIPT)
 	$(CMAKE) "-DNAME=$(patsubst %_covariance_data.hpp,%,$(notdir $@))" "-DINPUT=$(filter %.h5,$^)" "-DOUTPUT=$@" -P "$(COVARIANCE_EMBED_SCRIPT)"

@@ -24,13 +24,14 @@ ICL_2018, KMFBZ_2017, Matas_etal_2007, Murakami_2013 and Murakami_etal_2012
 provide core and mantle models. RS_2014_liquids supplies magnetic fayalite
 liquid; Sundman_1991 provides magnetic iron phases. The other catalogue
 contains additional solid and liquid iron models and ZSB2013 perovskites.
-HHPH_2013 provides high-pressure endmembers; HP_2011_fluids provides water
+HHPH_2013 provides high-pressure endmembers and archived dry NCFMAS solutions;
+model_sets.hhph2013() supplies the matching phase collection. HP_2011_fluids provides water
 and six gases. ig50NCKFMASTOCr provides dry igneous solutions, and mp50KFMASH
 provides metapelite solutions. These catalogues retain their original names.
 The older datasets have no reference free energies; SLB_2011_ZSB_2013 also
 omits chemical formulae. Its elastic and thermal properties remain available.
 Materials created from the same dataset are independent of one another.
-HP_2011_ds62.cov(), HGP_2018_ds633.cov() and HPx_ds636.cov() provide
+HP_2011_ds62.cov(), HGP_2018_ds633.cov(), HPx_ds636.cov() and HHPH_2013.cov() provide
 endmember energy covariances.
 SLB_2024.phase_aliases maps original model names to preferred plot abbreviations.
 model_sets provides matched collections with calibration metadata, including

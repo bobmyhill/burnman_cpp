@@ -49,6 +49,19 @@ def test_model_sets_include_matched_silica_polymorphs(factory, args):
         assert phase.molar_gibbs == pytest.approx(reference.molar_gibbs, abs=1.0e-8)
 
 
+def test_hhph2013_model_set_is_independent_and_contains_archived_solids():
+    first, second = model_sets.hhph2013(), model_sets.hhph2013()
+    assert first.dataset == "HHPH_2013"
+    assert first.water == "none"
+    assert len(first.phases) == 16
+    names = [phase.name for phase in first.phases]
+    assert len(set(names)) == len(names)
+    assert {"g", "mpv", "cpv", "cf", "nal", "opx", "hpx", "coe", "stv"} <= set(names)
+    assert "melt" not in names
+    first.phases[0].set_name("changed")
+    assert second.phases[0].name == "g"
+
+
 @pytest.mark.parametrize("family", ["metapelite", "metabasite"])
 def test_model_sets_have_independent_phases_and_ps94_water(family):
     first, second = getattr(model_sets, family)(), getattr(model_sets, family)()
