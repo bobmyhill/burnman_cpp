@@ -206,7 +206,7 @@ class test_tools(BurnManTest):
             + biotite.free_compositional_vectors.T @ trial[2:]
         )
         self.assertLess(np.min(biotite.endmember_occupancies.T @ composition), 0.0)
-        with self.assertRaisesRegex(ValueError, "site occupancies"):
+        with self.assertRaisesRegex(ValueError, "Compositional coordinates"):
             assemblage_set_state_from_params(assemblage, trial)
         for phase, expected in zip(phases, compositions):
             self.assertArraysAlmostEqual(

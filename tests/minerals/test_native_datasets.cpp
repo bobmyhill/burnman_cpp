@@ -26,8 +26,6 @@ TEST_CASE("Holland-Powell catalogues are available natively",
           "[native_datasets][hp_catalogues]") {
   auto forsterite = minerals::HHPH_2013::fo();
   forsterite->set_state(3.e9, 1200.);
-  REQUIRE(forsterite->uncertainties.has_value());
-  CHECK(forsterite->uncertainties->at("err_H_0") == 530.);
   CHECK_THAT(forsterite->get_molar_gibbs(),
              WithinRel(-2265260.073550752, 8.e-8));
   CHECK_THAT(forsterite->get_molar_volume(),

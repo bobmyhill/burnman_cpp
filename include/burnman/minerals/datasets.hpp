@@ -1702,22 +1702,6 @@ std::shared_ptr<Solution> wa();
 } // namespace SLB_2022
 
 namespace HHPH_2013 {
-CovarianceData cov();
-std::shared_ptr<Solution> g_solution();
-std::shared_ptr<Solution> fp_solution();
-std::shared_ptr<Solution> mpv_solution();
-std::shared_ptr<Solution> cpv_solution();
-std::shared_ptr<Solution> cor_solution();
-std::shared_ptr<Solution> cf_solution();
-std::shared_ptr<Solution> nal_solution();
-std::shared_ptr<Solution> aki_solution();
-std::shared_ptr<Solution> ol_solution();
-std::shared_ptr<Solution> wad_solution();
-std::shared_ptr<Solution> ring_solution();
-std::shared_ptr<Solution> cpx_solution();
-std::shared_ptr<Solution> opx_solution();
-std::shared_ptr<Solution> hpx_solution();
-std::shared_ptr<Mineral> coe();
 std::shared_ptr<Mineral> fo();
 std::shared_ptr<Mineral> fa();
 std::shared_ptr<Mineral> mwd();
@@ -1761,6 +1745,45 @@ std::shared_ptr<Mineral> per();
 std::shared_ptr<Mineral> fper();
 std::shared_ptr<Mineral> cor();
 std::shared_ptr<Mineral> mcor();
+std::shared_ptr<Mineral> coe();
+std::shared_ptr<Mineral> gfm();
+std::shared_ptr<Mineral> fpvm();
+std::shared_ptr<Mineral> cpvm();
+std::shared_ptr<Mineral> npvm();
+std::shared_ptr<Mineral> mpvm();
+std::shared_ptr<Mineral> fpvm_cpv();
+std::shared_ptr<Mineral> apvm();
+std::shared_ptr<Mineral> npvm_cpv();
+std::shared_ptr<Mineral> fcor();
+std::shared_ptr<Mineral> oscf();
+std::shared_ptr<Mineral> nacfm();
+std::shared_ptr<Mineral> o1nal();
+std::shared_ptr<Mineral> o2nal();
+std::shared_ptr<Mineral> aak();
+std::shared_ptr<Mineral> cfs();
+std::shared_ptr<Mineral> cen_cpx();
+std::shared_ptr<Mineral> cfm();
+std::shared_ptr<Mineral> fm();
+std::shared_ptr<Mineral> odi();
+std::shared_ptr<Mineral> en_hpx();
+std::shared_ptr<Mineral> fs_hpx();
+std::shared_ptr<Mineral> fm_hpx();
+std::shared_ptr<Mineral> hmts();
+std::shared_ptr<Solution> g();
+std::shared_ptr<Solution> fp();
+std::shared_ptr<Solution> mpv_solution();
+std::shared_ptr<Solution> cpv_solution();
+std::shared_ptr<Solution> cor_solution();
+std::shared_ptr<Solution> cf();
+std::shared_ptr<Solution> nal();
+std::shared_ptr<Solution> aki();
+std::shared_ptr<Solution> ol();
+std::shared_ptr<Solution> wad();
+std::shared_ptr<Solution> ring();
+std::shared_ptr<Solution> cpx();
+std::shared_ptr<Solution> opx();
+std::shared_ptr<Solution> hpx();
+CovarianceData cov();
 } // namespace HHPH_2013
 
 namespace HP_2011_fluids {

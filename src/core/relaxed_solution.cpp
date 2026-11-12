@@ -81,9 +81,10 @@ void RelaxedSolution::set_state(double new_pressure, double new_temperature,
     relax();
 }
 
-void RelaxedSolution::set_state_with_volume(double volume, double temperature,
+void RelaxedSolution::set_state_with_volume(double volume,
+                                            double new_temperature,
                                             const Eigen::Vector2d &guesses) {
-  Solution::set_state_with_volume(volume, temperature, guesses);
+  Solution::set_state_with_volume(volume, new_temperature, guesses);
   state_set_ = true;
   relax(true, volume, guesses);
 }
@@ -117,8 +118,8 @@ void RelaxedSolution::relax(bool fixed_volume, double volume,
         if (d.fixed_volume) {
           d.self->Solution::set_state_with_volume(d.volume, d.temperature,
                                                   d.guesses);
-          const double pressure = d.self->get_pressure();
-          d.guesses << pressure - 1.e9, pressure + 1.e9;
+          const double current_pressure = d.self->get_pressure();
+          d.guesses << current_pressure - 1.e9, current_pressure + 1.e9;
         }
         if (!gradient.empty()) {
           Eigen::Map<Eigen::VectorXd> g(
