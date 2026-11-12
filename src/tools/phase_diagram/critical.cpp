@@ -98,7 +98,9 @@ CriticalConstraint::CriticalConstraint(const Assemblage &a, int phase,
   Eigen::VectorXd p = a.get_phase<Solution>(static_cast<std::size_t>(phase))
                           ->get_molar_fractions()
                           .matrix();
-  Eigen::MatrixXd occupancies = model->get_endmember_occupancies().matrix();
+  Eigen::MatrixXd occupancies =
+      a.get_phase<Solution>(static_cast<std::size_t>(phase))
+          ->get_composition_bounds();
   // Composition changes must preserve sum(p)=1 and keep empty sites empty
   // along the merging direction. Ordering models may have negative endmember
   // coefficients, so site contents supply the physical bounds.

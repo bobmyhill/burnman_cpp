@@ -12,6 +12,7 @@
 // ------------------------------------------------------
 
 #include "burnman/tools/phase_diagram/consistency.hpp"
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <iostream>
@@ -61,6 +62,15 @@ double affinity_uncertainty(double amount_a, double affinity_a, double amount_b,
   return amount_b * std::max(0., -affinity_a) +
          amount_a * std::max(0., -affinity_b);
 }
+std::vector<std::string> excluded_phase_names(const State &state) {
+  std::vector<std::string> names;
+  names.reserve(state.excluded_phases.size());
+  for (const auto &diagnostic : state.excluded_phases)
+    names.push_back(diagnostic.substr(0, diagnostic.find(':')));
+  std::sort(names.begin(), names.end());
+  names.erase(std::unique(names.begin(), names.end()), names.end());
+  return names;
+}
 } // namespace
 
 double thermodynamic_potential(const State &state,
@@ -101,6 +111,7 @@ ThermodynamicSample thermodynamic_sample(const State &state,
   sample.minimum_affinity = state.minimum_affinity;
   sample.bulk_coordinate = state.composition_coordinate;
   sample.available = state.success && !state.outside_model_domain;
+  sample.excluded_phase_names = excluded_phase_names(state);
   const auto axes = diagram_axes(section.type);
   for (std::size_t axis = 0; axis < 2; ++axis) {
     sample.gradient[static_cast<Eigen::Index>(axis)] =
@@ -116,7 +127,8 @@ double audit_thermodynamic_pair(const ThermodynamicSample &a,
                                 const ThermodynamicSample &b, std::size_t axis,
                                 ThermodynamicValidation &coverage) {
   if (!a.available || !b.available || !a.applicable[axis] ||
-      !b.applicable[axis] || a.bulk_coordinate != b.bulk_coordinate) {
+      !b.applicable[axis] || a.bulk_coordinate != b.bulk_coordinate ||
+      a.excluded_phase_names != b.excluded_phase_names) {
     ++coverage.skipped_pairs;
     return 0.;
   }

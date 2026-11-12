@@ -24,6 +24,9 @@ struct ThermodynamicSample {
   double amount = 0., minimum_affinity = 0.;
   bool available = false;
   std::array<bool, 2> applicable{false, false}, convex{false, false};
+  // Candidate phases excluded by their EOS at this P,T. Tangent bounds only
+  // compare states whose minimization used the same admissible phase set.
+  std::vector<std::string> excluded_phase_names;
 };
 ThermodynamicSample thermodynamic_sample(const State &,
                                          const CompositionSection &);
