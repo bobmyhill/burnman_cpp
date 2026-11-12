@@ -116,6 +116,41 @@ TEST_CASE("Measured solve uncertainty permits unresolved energy differences",
   CHECK(thermodynamic_violation(a, b, section, 1) == 0.);
 }
 
+TEST_CASE("Thermodynamic audit compares only a common EOS phase domain",
+          "[phase_diagram][consistency]") {
+  Result result;
+  result.section.type = DiagramType::PT;
+  result.resolved = true;
+  State a;
+  a.success = true;
+  a.pressure = 0.;
+  a.temperature = 1000.;
+  a.entropy = 100.;
+  a.gibbs = -1.e6;
+  a.phases.resize(1);
+  a.phases[0].amount = 1.;
+  State b = a;
+  b.temperature = 1100.;
+  b.entropy = 110.;
+  // An unchanged Gibbs energy violates the entropy tangent bound when both
+  // equilibria minimize over the same candidate phases.
+  REQUIRE(thermodynamic_violation(a, b, result.section, 1) > 0.);
+  b.excluded_phases = {"olivine: Fayalite: EOS limit at 1100 K"};
+  result.samples = {a, b};
+  audit_thermodynamic_samples(result);
+  CHECK(result.thermodynamic_validation.checked_pairs == 0);
+  CHECK(result.thermodynamic_validation.skipped_pairs == 1);
+  CHECK(result.thermodynamic_validation.violations == 0);
+  CHECK(result.resolved);
+  // The numeric EOS diagnostic changes with state; phase identity determines
+  // whether the two minimizations share a domain.
+  result.samples[0].excluded_phases = {"olivine: Fayalite: EOS limit at 1000 K"};
+  audit_thermodynamic_samples(result);
+  CHECK(result.thermodynamic_validation.checked_pairs == 1);
+  CHECK(result.thermodynamic_validation.violations == 1);
+  CHECK_FALSE(result.resolved);
+}
+
 TEST_CASE("Affinity uncertainty respects changes in reaction mole amounts",
           "[phase_diagram][consistency]") {
   CompositionSection section;

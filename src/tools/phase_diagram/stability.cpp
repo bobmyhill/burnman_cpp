@@ -29,6 +29,18 @@
 #include <stdexcept>
 namespace burnman::phase_diagrams::detail {
 namespace {
+Eigen::MatrixXd composition_vertices(const Eigen::MatrixXd &bounds) {
+  Eigen::MatrixXd equalities = Eigen::MatrixXd::Ones(1, bounds.rows() + 1);
+  equalities(0, 0) = -1.;
+  Eigen::MatrixXd inequalities =
+      Eigen::MatrixXd::Zero(bounds.cols(), bounds.rows() + 1);
+  inequalities.rightCols(bounds.rows()) = bounds.transpose();
+  polytope::MaterialPolytope domain(equalities, inequalities);
+  if (domain.is_empty() || !domain.is_bounded())
+    throw std::invalid_argument("Solution endmember constraints must give a "
+                                "nonempty bounded domain.");
+  return domain.get_vertices();
+}
 enum class MixingTest { Lower, Flat, Barrier };
 bool mixing_test(const Solution &solution, double pressure, double temperature,
                  const Eigen::VectorXd &left, const Eigen::VectorXd &right,
@@ -177,10 +189,8 @@ Engine::Engine(const types::FormulaMap &composition,
       auto m = phase.solution->get_solution_model();
       for (auto &em : m->endmembers)
         formulae.push_back(em.get_formula());
-      phase.occupancies = m->get_endmember_occupancies().matrix();
-      phase.vertices = polytope::solution_polytope_from_endmember_occupancies(
-                           phase.occupancies)
-                           .get_vertices();
+      phase.occupancies = phase.solution->get_composition_bounds();
+      phase.vertices = composition_vertices(phase.occupancies);
     } else {
       formulae.push_back(phase.material->get_formula());
       phase.vertices = Eigen::MatrixXd::Ones(1, 1);
@@ -942,16 +952,10 @@ Minimum Engine::minimize(int index, const Eigen::VectorXd &mu,
     }
   } else
     face.g[0] = face.material->get_molar_gibbs();
-  face.occupancies = face.solution ? face.solution->get_solution_model()
-                                         ->get_endmember_occupancies()
-                                         .matrix()
-                                         .eval()
+  face.occupancies = face.solution ? face.solution->get_composition_bounds()
                                    : Eigen::MatrixXd::Ones(1, 1);
-  face.vertices = face.solution
-                      ? polytope::solution_polytope_from_endmember_occupancies(
-                            face.occupancies)
-                            .get_vertices()
-                      : Eigen::MatrixXd::Ones(1, 1);
+  face.vertices = face.solution ? composition_vertices(face.occupancies)
+                                : Eigen::MatrixXd::Ones(1, 1);
   if (start.size()) {
     auto guess =
         basis.transpose().completeOrthogonalDecomposition().solve(start).eval();
@@ -1842,7 +1846,7 @@ bool Engine::locally_stable(const Assemblage &a) const {
     if (!solution || solution->get_n_endmembers() < 2)
       continue;
     const Eigen::VectorXd p = solution->get_molar_fractions().matrix();
-    const Eigen::MatrixXd occupancies = solution->get_endmember_occupancies();
+    const Eigen::MatrixXd occupancies = solution->get_composition_bounds();
     const Eigen::VectorXd sites = occupancies.transpose() * p;
     Eigen::MatrixXd faces(1 + sites.size(), p.size());
     faces.row(0).setOnes();
