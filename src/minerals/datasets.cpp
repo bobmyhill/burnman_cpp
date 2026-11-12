@@ -14115,8 +14115,7 @@ Mineral endmember_556() {
       {"err_grueneisen_0", 0.05}, {"err_q_0", 1.0}};
   m.set_property_modifier_params(
       {eos::excesses::LandauParams{847.0, 1.222e-06, 5.164},
-       eos::excesses::LinearParams{-1.222e-06, -5.164,
-                                   -2.0 * 5.164 * 847.0 / 3.0}});
+       eos::excesses::LinearParams{-1.222e-06, -5.164, -2915.9386666666664}});
   return m;
 }
 
@@ -14179,8 +14178,7 @@ Mineral endmember_558() {
       {"err_grueneisen_0", 0.17}, {"err_q_0", 2.2}};
   m.set_property_modifier_params(
       {eos::excesses::LandauParams{-4250.0, 1e-09, 0.012},
-       eos::excesses::LinearParams{-1e-09, -0.012,
-                                   -2.0 * 0.012 * -4250.0 / 3.0}});
+       eos::excesses::LinearParams{-1e-09, -0.012, 34.0}});
   return m;
 }
 
@@ -14273,9 +14271,8 @@ Mineral endmember_561() {
       {"err_V_0", 0.0},           {"err_eta_s_0", 1.0},
       {"err_grueneisen_0", 0.03}, {"err_q_0", 1.0}};
   m.set_property_modifier_params(
-      {eos::excesses::LandauParams{467.0, 0.8e-06, 10.0},
-       eos::excesses::LinearParams{-0.8e-06, -10.0,
-                                   -2.0 * 10.0 * 467.0 / 3.0}});
+      {eos::excesses::LandauParams{467.0, 8e-07, 10.0},
+       eos::excesses::LinearParams{-8e-07, -10.0, -3113.3333333333335}});
   return m;
 }
 
@@ -27172,7 +27169,6 @@ Mineral endmember_1165() {
   m.params.name = "fo";
   m.set_method(types::EOSType::Auto);
   m.set_name("fo");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 530.0}};
   return m;
 }
 
@@ -27199,7 +27195,6 @@ Mineral endmember_1166() {
   m.params.name = "fa";
   m.set_method(types::EOSType::Auto);
   m.set_name("fa");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 640.0}};
   return m;
 }
 
@@ -27226,7 +27221,6 @@ Mineral endmember_1167() {
   m.params.name = "mwd";
   m.set_method(types::EOSType::Auto);
   m.set_name("mwd");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 620.0}};
   return m;
 }
 
@@ -27253,7 +27247,6 @@ Mineral endmember_1168() {
   m.params.name = "fwd";
   m.set_method(types::EOSType::Auto);
   m.set_name("fwd");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 900.0}};
   return m;
 }
 
@@ -27280,7 +27273,6 @@ Mineral endmember_1169() {
   m.params.name = "mrw";
   m.set_method(types::EOSType::Auto);
   m.set_name("mrw");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 630.0}};
   return m;
 }
 
@@ -27307,7 +27299,6 @@ Mineral endmember_1170() {
   m.params.name = "frw";
   m.set_method(types::EOSType::Auto);
   m.set_name("frw");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 710.0}};
   return m;
 }
 
@@ -27334,7 +27325,6 @@ Mineral endmember_1171() {
   m.params.name = "mpv";
   m.set_method(types::EOSType::Auto);
   m.set_name("mpv");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 470.0}};
   return m;
 }
 
@@ -27361,7 +27351,6 @@ Mineral endmember_1172() {
   m.params.name = "fpv";
   m.set_method(types::EOSType::Auto);
   m.set_name("fpv");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 760.0}};
   return m;
 }
 
@@ -27388,40 +27377,10 @@ Mineral endmember_1173() {
   m.params.name = "apv";
   m.set_method(types::EOSType::Auto);
   m.set_name("apv");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 770.0}};
   return m;
 }
 
 Mineral endmember_1174() {
-  Mineral m;
-  m.params.Cp = types::CpParams{135.0, 0.00846, -1850300.0, -600.8};
-  m.params.F_0 = 0.0;
-  m.params.G_0 = std::numeric_limits<double>::quiet_NaN();
-  m.params.Gprime_0 = std::numeric_limits<double>::quiet_NaN();
-  m.params.H_0 = -1365000.0;
-  m.params.K_0 = 203000000000.0;
-  m.params.Kdprime_0 = -2e-11;
-  m.params.Kprime_0 = 4.0;
-  m.params.P_0 = 100000.0;
-  m.params.S_0 = 63.0;
-  m.params.T_0 = 298.15;
-  m.params.T_einstein = 558.6134453781513;
-  m.params.V_0 = 2.334e-05;
-  m.params.a_0 = 1.8e-05;
-  m.params.equation_of_state = types::EOSType::HPTMT;
-  m.params.formula =
-      types::FormulaMap{{"Al", 0.5}, {"Na", 0.5}, {"O", 3.0}, {"Si", 1.0}};
-  m.params.molar_mass = 0.10106935;
-  m.params.napfu = 5.0;
-  m.params.name = "npv";
-  m.set_method(types::EOSType::Auto);
-  m.set_name("npv");
-  m.uncertainties =
-      std::unordered_map<std::string, double>{{"err_H_0", 10240.0}};
-  return m;
-}
-
-Mineral endmember_1175() {
   Mineral m;
   m.params.Cp = types::CpParams{159.3, 0.0, -967300.0, -1075.4};
   m.params.F_0 = 0.0;
@@ -27444,12 +27403,10 @@ Mineral endmember_1175() {
   m.params.name = "cpv";
   m.set_method(types::EOSType::Auto);
   m.set_name("cpv");
-  m.uncertainties =
-      std::unordered_map<std::string, double>{{"err_H_0", 1090.0}};
   return m;
 }
 
-Mineral endmember_1176() {
+Mineral endmember_1175() {
   Mineral m;
   m.params.Cp = types::CpParams{147.8, 0.002015, -2395000.0, -801.8};
   m.params.F_0 = 0.0;
@@ -27472,11 +27429,10 @@ Mineral endmember_1176() {
   m.params.name = "mak";
   m.set_method(types::EOSType::Auto);
   m.set_name("mak");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 420.0}};
   return m;
 }
 
-Mineral endmember_1177() {
+Mineral endmember_1176() {
   Mineral m;
   m.params.Cp = types::CpParams{100.3, 0.013328, -4364900.0, 419.8};
   m.params.F_0 = 0.0;
@@ -27499,12 +27455,10 @@ Mineral endmember_1177() {
   m.params.name = "fak";
   m.set_method(types::EOSType::Auto);
   m.set_name("fak");
-  m.uncertainties =
-      std::unordered_map<std::string, double>{{"err_H_0", 9630.0}};
   return m;
 }
 
-Mineral endmember_1178() {
+Mineral endmember_1177() {
   Mineral m;
   m.params.Cp = types::CpParams{713.6, -0.000997, -1158200.0, -6622.3};
   m.params.F_0 = 0.0;
@@ -27527,41 +27481,10 @@ Mineral endmember_1178() {
   m.params.name = "maj";
   m.set_method(types::EOSType::Auto);
   m.set_name("maj");
-  m.uncertainties =
-      std::unordered_map<std::string, double>{{"err_H_0", 2260.0}};
   return m;
 }
 
-Mineral endmember_1179() {
-  Mineral m;
-  m.params.Cp = types::CpParams{620.8, 0.0112, -3755900.0, -4421.3};
-  m.params.F_0 = 0.0;
-  m.params.G_0 = std::numeric_limits<double>::quiet_NaN();
-  m.params.Gprime_0 = std::numeric_limits<double>::quiet_NaN();
-  m.params.H_0 = -5985000.0;
-  m.params.K_0 = 170000000000.0;
-  m.params.Kdprime_0 = -2.3e-11;
-  m.params.Kprime_0 = 4.0;
-  m.params.P_0 = 100000.0;
-  m.params.S_0 = 260.6;
-  m.params.T_0 = 298.15;
-  m.params.T_einstein = 546.2763225475089;
-  m.params.V_0 = 0.0001109;
-  m.params.a_0 = 2.1e-05;
-  m.params.equation_of_state = types::EOSType::HPTMT;
-  m.params.formula = types::FormulaMap{
-      {"Al", 1.0}, {"Mg", 2.0}, {"Na", 1.0}, {"O", 12.0}, {"Si", 4.0}};
-  m.params.molar_mass = 0.4029161;
-  m.params.napfu = 20.0;
-  m.params.name = "nagt";
-  m.set_method(types::EOSType::Auto);
-  m.set_name("nagt");
-  m.uncertainties =
-      std::unordered_map<std::string, double>{{"err_H_0", 5120.0}};
-  return m;
-}
-
-Mineral endmember_1180() {
+Mineral endmember_1178() {
   Mineral m;
   m.params.Cp = types::CpParams{633.5, 0.0, -5196100.0, -4315.2};
   m.params.F_0 = 0.0;
@@ -27585,11 +27508,10 @@ Mineral endmember_1180() {
   m.params.name = "py";
   m.set_method(types::EOSType::Auto);
   m.set_name("py");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 990.0}};
   return m;
 }
 
-Mineral endmember_1181() {
+Mineral endmember_1179() {
   Mineral m;
   m.params.Cp = types::CpParams{677.3, 0.0, -3772700.0, -5044.0};
   m.params.F_0 = 0.0;
@@ -27613,12 +27535,10 @@ Mineral endmember_1181() {
   m.params.name = "alm";
   m.set_method(types::EOSType::Auto);
   m.set_name("alm");
-  m.uncertainties =
-      std::unordered_map<std::string, double>{{"err_H_0", 1200.0}};
   return m;
 }
 
-Mineral endmember_1182() {
+Mineral endmember_1180() {
   Mineral m;
   m.params.Cp = types::CpParams{626.0, 0.0, -5779200.0, -4002.9};
   m.params.F_0 = 0.0;
@@ -27642,12 +27562,10 @@ Mineral endmember_1182() {
   m.params.name = "gr";
   m.set_method(types::EOSType::Auto);
   m.set_name("gr");
-  m.uncertainties =
-      std::unordered_map<std::string, double>{{"err_H_0", 1370.0}};
   return m;
 }
 
-Mineral endmember_1183() {
+Mineral endmember_1181() {
   Mineral m;
   m.params.Cp = types::CpParams{356.2, -0.00299, -596900.0, -3185.3};
   m.params.F_0 = 0.0;
@@ -27670,11 +27588,10 @@ Mineral endmember_1183() {
   m.params.name = "en";
   m.set_method(types::EOSType::Auto);
   m.set_name("en");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 620.0}};
   return m;
 }
 
-Mineral endmember_1184() {
+Mineral endmember_1182() {
   Mineral m;
   m.params.Cp = types::CpParams{306.0, -0.003793, -3041700.0, -1852.1};
   m.params.F_0 = 0.0;
@@ -27697,11 +27614,10 @@ Mineral endmember_1184() {
   m.params.name = "cen";
   m.set_method(types::EOSType::Auto);
   m.set_name("cen");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 620.0}};
   return m;
 }
 
-Mineral endmember_1185() {
+Mineral endmember_1183() {
   Mineral m;
   m.params.Cp = types::CpParams{356.2, -0.00299, -596900.0, -3185.3};
   m.params.F_0 = 0.0;
@@ -27724,11 +27640,10 @@ Mineral endmember_1185() {
   m.params.name = "hen";
   m.set_method(types::EOSType::Auto);
   m.set_name("hen");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 620.0}};
   return m;
 }
 
-Mineral endmember_1186() {
+Mineral endmember_1184() {
   Mineral m;
   m.params.Cp = types::CpParams{398.7, -0.006579, 1290100.0, -4058.0};
   m.params.F_0 = 0.0;
@@ -27751,11 +27666,10 @@ Mineral endmember_1186() {
   m.params.name = "hfs";
   m.set_method(types::EOSType::Auto);
   m.set_name("hfs");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 790.0}};
   return m;
 }
 
-Mineral endmember_1187() {
+Mineral endmember_1185() {
   Mineral m;
   m.params.Cp = types::CpParams{398.7, -0.006579, 1290100.0, -4058.0};
   m.params.F_0 = 0.0;
@@ -27778,11 +27692,10 @@ Mineral endmember_1187() {
   m.params.name = "fs";
   m.set_method(types::EOSType::Auto);
   m.set_name("fs");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 750.0}};
   return m;
 }
 
-Mineral endmember_1188() {
+Mineral endmember_1186() {
   Mineral m;
   m.params.Cp = types::CpParams{371.4, -0.004082, -398400.0, -3547.1};
   m.params.F_0 = 0.0;
@@ -27806,11 +27719,10 @@ Mineral endmember_1188() {
   m.params.name = "mgts";
   m.set_method(types::EOSType::Auto);
   m.set_name("mgts");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 690.0}};
   return m;
 }
 
-Mineral endmember_1189() {
+Mineral endmember_1187() {
   Mineral m;
   m.params.Cp = types::CpParams{314.5, 4.1e-05, -2745900.0, -2020.1};
   m.params.F_0 = 0.0;
@@ -27834,11 +27746,10 @@ Mineral endmember_1189() {
   m.params.name = "di";
   m.set_method(types::EOSType::Auto);
   m.set_name("di");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 580.0}};
   return m;
 }
 
-Mineral endmember_1190() {
+Mineral endmember_1188() {
   Mineral m;
   m.params.Cp = types::CpParams{340.2, 0.000812, -1047800.0, -2646.7};
   m.params.F_0 = 0.0;
@@ -27862,11 +27773,10 @@ Mineral endmember_1190() {
   m.params.name = "hed";
   m.set_method(types::EOSType::Auto);
   m.set_name("hed");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 880.0}};
   return m;
 }
 
-Mineral endmember_1191() {
+Mineral endmember_1189() {
   Mineral m;
   m.params.Cp = types::CpParams{319.4, 0.003616, -1173900.0, -2469.5};
   m.params.F_0 = 0.0;
@@ -27890,40 +27800,10 @@ Mineral endmember_1191() {
   m.params.name = "jd";
   m.set_method(types::EOSType::Auto);
   m.set_name("jd");
-  m.uncertainties =
-      std::unordered_map<std::string, double>{{"err_H_0", 1520.0}};
   return m;
 }
 
-Mineral endmember_1192() {
-  Mineral m;
-  m.params.Cp = types::CpParams{347.6, -0.006974, -1781600.0, -2757.5};
-  m.params.F_0 = 0.0;
-  m.params.G_0 = std::numeric_limits<double>::quiet_NaN();
-  m.params.Gprime_0 = std::numeric_limits<double>::quiet_NaN();
-  m.params.H_0 = -3310110.0;
-  m.params.K_0 = 119200000000.0;
-  m.params.Kdprime_0 = -4.4e-11;
-  m.params.Kprime_0 = 5.19;
-  m.params.P_0 = 100000.0;
-  m.params.S_0 = 135.0;
-  m.params.T_0 = 298.15;
-  m.params.T_einstein = 533.4002006018054;
-  m.params.V_0 = 6.356e-05;
-  m.params.a_0 = 2.08e-05;
-  m.params.equation_of_state = types::EOSType::HPTMT;
-  m.params.formula =
-      types::FormulaMap{{"Al", 2.0}, {"Ca", 1.0}, {"O", 6.0}, {"Si", 1.0}};
-  m.params.molar_mass = 0.2181229;
-  m.params.napfu = 10.0;
-  m.params.name = "cats";
-  m.set_method(types::EOSType::Auto);
-  m.set_name("cats");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 750.0}};
-  return m;
-}
-
-Mineral endmember_1193() {
+Mineral endmember_1190() {
   Mineral m;
   m.params.Cp = types::CpParams{68.1, 0.00601, -1978200.0, -82.1};
   m.params.F_0 = 0.0;
@@ -27946,11 +27826,10 @@ Mineral endmember_1193() {
   m.params.name = "stv";
   m.set_method(types::EOSType::Auto);
   m.set_name("stv");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 420.0}};
   return m;
 }
 
-Mineral endmember_1194() {
+Mineral endmember_1191() {
   Mineral m;
   m.params.Cp = types::CpParams{200.0, 0.006252, -2996400.0, -888.4};
   m.params.F_0 = 0.0;
@@ -27973,12 +27852,10 @@ Mineral endmember_1194() {
   m.params.name = "macf";
   m.set_method(types::EOSType::Auto);
   m.set_name("macf");
-  m.uncertainties =
-      std::unordered_map<std::string, double>{{"err_H_0", 1080.0}};
   return m;
 }
 
-Mineral endmember_1195() {
+Mineral endmember_1192() {
   Mineral m;
   m.params.Cp = types::CpParams{213.3, 0.00269, -1410400.0, -1495.9};
   m.params.F_0 = 0.0;
@@ -28001,18 +27878,16 @@ Mineral endmember_1195() {
   m.params.name = "mscf";
   m.set_method(types::EOSType::Auto);
   m.set_name("mscf");
-  m.uncertainties =
-      std::unordered_map<std::string, double>{{"err_H_0", 1340.0}};
   return m;
 }
 
-Mineral endmember_1196() {
+Mineral endmember_1193() {
   Mineral m;
   m.params.Cp = types::CpParams{181.1, 0.018526, -2767200.0, -527.1};
   m.params.F_0 = 0.0;
   m.params.G_0 = std::numeric_limits<double>::quiet_NaN();
   m.params.Gprime_0 = std::numeric_limits<double>::quiet_NaN();
-  m.params.H_0 = -1405500.0;
+  m.params.H_0 = -1402500.0;
   m.params.K_0 = 185000000000.0;
   m.params.Kdprime_0 = -1.7e-11;
   m.params.Kprime_0 = 4.0;
@@ -28029,12 +27904,10 @@ Mineral endmember_1196() {
   m.params.name = "fscf";
   m.set_method(types::EOSType::Auto);
   m.set_name("fscf");
-  m.uncertainties =
-      std::unordered_map<std::string, double>{{"err_H_0", 10240.0}};
   return m;
 }
 
-Mineral endmember_1197() {
+Mineral endmember_1194() {
   Mineral m;
   m.params.Cp = types::CpParams{272.7, -0.012398, 0.0, -2763.1};
   m.params.F_0 = 0.0;
@@ -28058,40 +27931,10 @@ Mineral endmember_1197() {
   m.params.name = "nacf";
   m.set_method(types::EOSType::Auto);
   m.set_name("nacf");
-  m.uncertainties =
-      std::unordered_map<std::string, double>{{"err_H_0", 3440.0}};
   return m;
 }
 
-Mineral endmember_1198() {
-  Mineral m;
-  m.params.Cp = types::CpParams{191.9, 0.009563, -3211300.0, -640.2};
-  m.params.F_0 = 0.0;
-  m.params.G_0 = std::numeric_limits<double>::quiet_NaN();
-  m.params.Gprime_0 = std::numeric_limits<double>::quiet_NaN();
-  m.params.H_0 = -2325600.0;
-  m.params.K_0 = 190000000000.0;
-  m.params.Kdprime_0 = -2.1e-11;
-  m.params.Kprime_0 = 4.0;
-  m.params.P_0 = 100000.0;
-  m.params.S_0 = 87.6;
-  m.params.T_0 = 298.15;
-  m.params.T_einstein = 561.139583961411;
-  m.params.V_0 = 3.976e-05;
-  m.params.a_0 = 1.93e-05;
-  m.params.equation_of_state = types::EOSType::HPTMT;
-  m.params.formula = types::FormulaMap{{"Al", 2.0}, {"Ca", 1.0}, {"O", 4.0}};
-  m.params.molar_mass = 0.1580386;
-  m.params.napfu = 7.0;
-  m.params.name = "cacf";
-  m.set_method(types::EOSType::Auto);
-  m.set_name("cacf");
-  m.uncertainties =
-      std::unordered_map<std::string, double>{{"err_H_0", 10240.0}};
-  return m;
-}
-
-Mineral endmember_1199() {
+Mineral endmember_1195() {
   Mineral m;
   m.params.Cp = types::CpParams{600.0, 0.018756, -8989200.0, -2665.2};
   m.params.F_0 = 0.0;
@@ -28114,41 +27957,10 @@ Mineral endmember_1199() {
   m.params.name = "manal";
   m.set_method(types::EOSType::Auto);
   m.set_name("manal");
-  m.uncertainties =
-      std::unordered_map<std::string, double>{{"err_H_0", 5120.0}};
   return m;
 }
 
-Mineral endmember_1200() {
-  Mineral m;
-  m.params.Cp = types::CpParams{672.7, 0.000106, -5992800.0, -4539.9};
-  m.params.F_0 = 0.0;
-  m.params.G_0 = std::numeric_limits<double>::quiet_NaN();
-  m.params.Gprime_0 = std::numeric_limits<double>::quiet_NaN();
-  m.params.H_0 = -6610270.0;
-  m.params.K_0 = 184000000000.0;
-  m.params.Kdprime_0 = -2.2e-11;
-  m.params.Kprime_0 = 4.0;
-  m.params.P_0 = 100000.0;
-  m.params.S_0 = 280.0;
-  m.params.T_0 = 298.15;
-  m.params.T_einstein = 537.8961564396493;
-  m.params.V_0 = 0.00011322;
-  m.params.a_0 = 2.01e-05;
-  m.params.equation_of_state = types::EOSType::HPTMT;
-  m.params.formula = types::FormulaMap{
-      {"Al", 5.0}, {"Mg", 2.0}, {"Na", 1.0}, {"O", 12.0}, {"Si", 1.0}};
-  m.params.molar_mass = 0.4265856;
-  m.params.napfu = 21.0;
-  m.params.name = "nanal";
-  m.set_method(types::EOSType::Auto);
-  m.set_name("nanal");
-  m.uncertainties =
-      std::unordered_map<std::string, double>{{"err_H_0", 5120.0}};
-  return m;
-}
-
-Mineral endmember_1201() {
+Mineral endmember_1196() {
   Mineral m;
   m.params.Cp = types::CpParams{639.9, 0.00807, -4231200.0, -4487.7};
   m.params.F_0 = 0.0;
@@ -28171,69 +27983,10 @@ Mineral endmember_1201() {
   m.params.name = "msnal";
   m.set_method(types::EOSType::Auto);
   m.set_name("msnal");
-  m.uncertainties =
-      std::unordered_map<std::string, double>{{"err_H_0", 5120.0}};
   return m;
 }
 
-Mineral endmember_1202() {
-  Mineral m;
-  m.params.Cp = types::CpParams{543.3, 0.055578, -8301600.0, -1581.3};
-  m.params.F_0 = 0.0;
-  m.params.G_0 = std::numeric_limits<double>::quiet_NaN();
-  m.params.Gprime_0 = std::numeric_limits<double>::quiet_NaN();
-  m.params.H_0 = -4146000.0;
-  m.params.K_0 = 185000000000.0;
-  m.params.Kdprime_0 = -2.2e-11;
-  m.params.Kprime_0 = 4.0;
-  m.params.P_0 = 100000.0;
-  m.params.S_0 = 440.2;
-  m.params.T_0 = 298.15;
-  m.params.T_einstein = 388.14819963853745;
-  m.params.V_0 = 0.00011856;
-  m.params.a_0 = 2.1e-05;
-  m.params.equation_of_state = types::EOSType::HPTMT;
-  m.params.formula = types::FormulaMap{{"Fe", 6.0}, {"O", 12.0}, {"Si", 3.0}};
-  m.params.molar_mass = 0.6113193;
-  m.params.napfu = 21.0;
-  m.params.name = "fsnal";
-  m.set_method(types::EOSType::Auto);
-  m.set_name("fsnal");
-  m.uncertainties =
-      std::unordered_map<std::string, double>{{"err_H_0", 10240.0}};
-  return m;
-}
-
-Mineral endmember_1203() {
-  Mineral m;
-  m.params.Cp = types::CpParams{591.9, 0.022067, -9204100.0, -2417.0};
-  m.params.F_0 = 0.0;
-  m.params.G_0 = std::numeric_limits<double>::quiet_NaN();
-  m.params.Gprime_0 = std::numeric_limits<double>::quiet_NaN();
-  m.params.H_0 = -6840000.0;
-  m.params.K_0 = 177000000000.0;
-  m.params.Kdprime_0 = -2.2e-11;
-  m.params.Kprime_0 = 4.0;
-  m.params.P_0 = 100000.0;
-  m.params.S_0 = 257.6;
-  m.params.T_0 = 298.15;
-  m.params.T_einstein = 568.5673556664291;
-  m.params.V_0 = 0.00011159;
-  m.params.a_0 = 1.93e-05;
-  m.params.equation_of_state = types::EOSType::HPTMT;
-  m.params.formula =
-      types::FormulaMap{{"Al", 6.0}, {"Ca", 1.0}, {"Mg", 2.0}, {"O", 12.0}};
-  m.params.molar_mass = 0.4425698;
-  m.params.napfu = 21.0;
-  m.params.name = "canal";
-  m.set_method(types::EOSType::Auto);
-  m.set_name("canal");
-  m.uncertainties =
-      std::unordered_map<std::string, double>{{"err_H_0", 5120.0}};
-  return m;
-}
-
-Mineral endmember_1204() {
+Mineral endmember_1197() {
   Mineral m;
   m.params.Cp = types::CpParams{60.5, 0.000362, -535800.0, -299.2};
   m.params.F_0 = 0.0;
@@ -28256,11 +28009,10 @@ Mineral endmember_1204() {
   m.params.name = "per";
   m.set_method(types::EOSType::Auto);
   m.set_name("per");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 260.0}};
   return m;
 }
 
-Mineral endmember_1205() {
+Mineral endmember_1198() {
   Mineral m;
   m.params.Cp = types::CpParams{44.4, 0.00828, -1214200.0, 185.2};
   m.params.F_0 = 0.0;
@@ -28283,11 +28035,10 @@ Mineral endmember_1205() {
   m.params.name = "fper";
   m.set_method(types::EOSType::Auto);
   m.set_name("fper");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 680.0}};
   return m;
 }
 
-Mineral endmember_1206() {
+Mineral endmember_1199() {
   Mineral m;
   m.params.Cp = types::CpParams{139.5, 0.00589, -2460600.0, -589.2};
   m.params.F_0 = 0.0;
@@ -28310,11 +28061,10 @@ Mineral endmember_1206() {
   m.params.name = "cor";
   m.set_method(types::EOSType::Auto);
   m.set_name("cor");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 700.0}};
   return m;
 }
 
-Mineral endmember_1207() {
+Mineral endmember_1200() {
   Mineral m;
   m.params.Cp = types::CpParams{147.8, 0.002015, -2395000.0, -801.8};
   m.params.F_0 = 0.0;
@@ -28337,11 +28087,228 @@ Mineral endmember_1207() {
   m.params.name = "mcor";
   m.set_method(types::EOSType::Auto);
   m.set_name("mcor");
-  m.uncertainties = std::unordered_map<std::string, double>{{"err_H_0", 880.0}};
+  return m;
+}
+
+Mineral endmember_1201() {
+  Mineral m;
+  m.params.Cp = types::CpParams{107.8, -0.003279, -190300.0, -1041.6};
+  m.params.F_0 = 0.0;
+  m.params.G_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.Gprime_0 = std::numeric_limits<double>::quiet_NaN();
+  m.params.H_0 = -907030.0;
+  m.params.K_0 = 97900000000.0;
+  m.params.Kdprime_0 = -4.3e-11;
+  m.params.Kprime_0 = 4.19;
+  m.params.P_0 = 100000.0;
+  m.params.S_0 = 39.6;
+  m.params.T_0 = 298.15;
+  m.params.T_einstein = 541.5478615071283;
+  m.params.V_0 = 2.064e-05;
+  m.params.a_0 = 1.23e-05;
+  m.params.equation_of_state = types::EOSType::HPTMT;
+  m.params.formula = types::FormulaMap{{"O", 2.0}, {"Si", 1.0}};
+  m.params.molar_mass = 0.0600843;
+  m.params.napfu = 3.0;
+  m.params.name = "coe";
+  m.set_method(types::EOSType::Auto);
+  m.set_name("coe");
+  return m;
+}
+
+Mineral endmember_1202() {
+  Mineral m = make_combined_mineral(
+      {endmember_1179(), endmember_1177(), endmember_1178()},
+      array({0.3333333333333333, 1.0, -0.3333333333333333}),
+      Eigen::Vector3d::Zero(), "gfm");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, -10000.0}});
+  return m;
+}
+
+Mineral endmember_1203() {
+  Mineral m = make_combined_mineral({endmember_1172()}, array({1.0}),
+                                    Eigen::Vector3d::Zero(), "fpvm");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, -9500.0}});
+  return m;
+}
+
+Mineral endmember_1204() {
+  Mineral m = make_combined_mineral({endmember_1174()}, array({1.0}),
+                                    Eigen::Vector3d::Zero(), "cpvm");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, 60000.0}});
+  return m;
+}
+
+Mineral endmember_1205() {
+  Mineral m = make_combined_mineral({endmember_236()}, array({1.0}),
+                                    Eigen::Vector3d::Zero(), "npvm");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, 16000.0}});
+  return m;
+}
+
+Mineral endmember_1206() {
+  Mineral m = make_combined_mineral({endmember_1171()}, array({1.0}),
+                                    Eigen::Vector3d::Zero(), "mpvm");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, 35000.0}});
+  return m;
+}
+
+Mineral endmember_1207() {
+  Mineral m = make_combined_mineral({endmember_1172()}, array({1.0}),
+                                    Eigen::Vector3d::Zero(), "fpvm");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, 24000.0}});
   return m;
 }
 
 Mineral endmember_1208() {
+  Mineral m = make_combined_mineral({endmember_1173()}, array({1.0}),
+                                    Eigen::Vector3d::Zero(), "apvm");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, 45000.0}});
+  return m;
+}
+
+Mineral endmember_1209() {
+  Mineral m = make_combined_mineral({endmember_236()}, array({1.0}),
+                                    Eigen::Vector3d::Zero(), "npvm");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, 25000.0}});
+  return m;
+}
+
+Mineral endmember_1210() {
+  Mineral m = make_combined_mineral(
+      {endmember_1200(), endmember_1176(), endmember_1175()},
+      array({1.0, 1.0, -1.0}), Eigen::Vector3d::Zero(), "fcor");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, -15000.0}});
+  return m;
+}
+
+Mineral endmember_1211() {
+  Mineral m =
+      make_combined_mineral({endmember_1193(), endmember_1192()},
+                            array({0.5, 0.5}), Eigen::Vector3d::Zero(), "oscf");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, -3500.0}});
+  return m;
+}
+
+Mineral endmember_1212() {
+  Mineral m = make_combined_mineral({endmember_1194()}, array({1.0}),
+                                    Eigen::Vector3d::Zero(), "nacfm");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, -9000.0}});
+  return m;
+}
+
+Mineral endmember_1213() {
+  Mineral m =
+      make_combined_mineral({endmember_389(), endmember_1196()},
+                            array({0.16666666666666666, 0.8333333333333334}),
+                            Eigen::Vector3d::Zero(), "o1nal");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, 2000.0}});
+  return m;
+}
+
+Mineral endmember_1214() {
+  Mineral m = make_combined_mineral({endmember_389(), endmember_1196()},
+                                    array({0.5, 0.5}), Eigen::Vector3d::Zero(),
+                                    "o2nal");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, 6500.0}});
+  return m;
+}
+
+Mineral endmember_1215() {
+  Mineral m = make_combined_mineral({endmember_1199()}, array({1.0}),
+                                    Eigen::Vector3d::Zero(), "aak");
+  m.set_property_modifier_params({eos::excesses::LinearParams{0.0, -0.0, 0.0}});
+  return m;
+}
+
+Mineral endmember_1216() {
+  Mineral m = make_combined_mineral({endmember_1185()}, array({1.0}),
+                                    Eigen::Vector3d::Zero(), "cfs");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{3.0000000000000004e-07, 3.0, 3800.0}});
+  return m;
+}
+
+Mineral endmember_1217() {
+  Mineral m = make_combined_mineral({endmember_1181()}, array({1.0}),
+                                    Eigen::Vector3d::Zero(), "cen");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{4.800000000000001e-07, 2.0, 3500.0}});
+  return m;
+}
+
+Mineral endmember_1218() {
+  Mineral m =
+      make_combined_mineral({endmember_1181(), endmember_1185()},
+                            array({0.5, 0.5}), Eigen::Vector3d::Zero(), "cfm");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, -3000.0}});
+  return m;
+}
+
+Mineral endmember_1219() {
+  Mineral m =
+      make_combined_mineral({endmember_1181(), endmember_1185()},
+                            array({0.5, 0.5}), Eigen::Vector3d::Zero(), "fm");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, -6000.0}});
+  return m;
+}
+
+Mineral endmember_1220() {
+  Mineral m = make_combined_mineral({endmember_1187()}, array({1.0}),
+                                    Eigen::Vector3d::Zero(), "odi");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{5.0000000000000004e-08, -0.211, -100.0}});
+  return m;
+}
+
+Mineral endmember_1221() {
+  Mineral m = make_combined_mineral({endmember_1183()}, array({1.0}),
+                                    Eigen::Vector3d::Zero(), "en");
+  m.set_property_modifier_params({eos::excesses::LinearParams{0.0, -0.0, 0.0}});
+  return m;
+}
+
+Mineral endmember_1222() {
+  Mineral m = make_combined_mineral({endmember_1184()}, array({1.0}),
+                                    Eigen::Vector3d::Zero(), "fs");
+  m.set_property_modifier_params({eos::excesses::LinearParams{0.0, -0.0, 0.0}});
+  return m;
+}
+
+Mineral endmember_1223() {
+  Mineral m =
+      make_combined_mineral({endmember_1183(), endmember_1184()},
+                            array({0.5, 0.5}), Eigen::Vector3d::Zero(), "fm");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, -6000.0}});
+  return m;
+}
+
+Mineral endmember_1224() {
+  Mineral m = make_combined_mineral(
+      {endmember_1186(), endmember_1183(), endmember_1181()},
+      array({1.0, 1.0, -1.0}), Eigen::Vector3d::Zero(), "hmts");
+  m.set_property_modifier_params(
+      {eos::excesses::LinearParams{0.0, -0.0, -1000.0}});
+  return m;
+}
+
+Mineral endmember_1225() {
   Mineral m;
   m.params.Cp = types::CpParams{87.8, -0.002644, 706400.0, -998.9};
   m.params.H_0 = -393510.0;
@@ -28366,7 +28333,7 @@ Mineral endmember_1208() {
   return m;
 }
 
-Mineral endmember_1209() {
+Mineral endmember_1226() {
   Mineral m;
   m.params.Cp = types::CpParams{150.1, 0.002063, 3427700.0, -2650.4};
   m.params.H_0 = -74810.0;
@@ -28391,7 +28358,7 @@ Mineral endmember_1209() {
   return m;
 }
 
-Mineral endmember_1210() {
+Mineral endmember_1227() {
   Mineral m;
   m.params.Cp = types::CpParams{48.3, -0.000691, 499200.0, -420.7};
   m.params.H_0 = 0.0;
@@ -28415,7 +28382,7 @@ Mineral endmember_1210() {
   return m;
 }
 
-Mineral endmember_1211() {
+Mineral endmember_1228() {
   Mineral m;
   m.params.Cp = types::CpParams{23.3, 0.004627, 0.0, 76.3};
   m.params.H_0 = 0.0;
@@ -28440,7 +28407,7 @@ Mineral endmember_1211() {
   return m;
 }
 
-Mineral endmember_1212() {
+Mineral endmember_1229() {
   Mineral m;
   m.params.Cp = types::CpParams{37.1, 0.002398, -161000.0, -65.0};
   m.params.H_0 = 128540.0;
@@ -28465,7 +28432,7 @@ Mineral endmember_1212() {
   return m;
 }
 
-Mineral endmember_1213() {
+Mineral endmember_1230() {
   Mineral m;
   m.params.Cp = types::CpParams{47.4, 0.01024, 615900.0, -397.8};
   m.params.H_0 = 128540.0;
@@ -28490,7 +28457,7 @@ Mineral endmember_1213() {
   return m;
 }
 
-Mineral endmember_1214() {
+Mineral endmember_1231() {
   Mineral m = make_combined_mineral({endmember_106()}, array({1.0}),
                                     Eigen::Vector3d::Zero(), "mmbi");
   m.set_property_modifier_params(
@@ -28498,7 +28465,7 @@ Mineral endmember_1214() {
   return m;
 }
 
-Mineral endmember_1215() {
+Mineral endmember_1232() {
   Mineral m = make_combined_mineral({endmember_77()}, array({2.0}),
                                     Eigen::Vector3d::Zero(), "mnopx");
   m.set_property_modifier_params(
@@ -28506,7 +28473,7 @@ Mineral endmember_1215() {
   return m;
 }
 
-Mineral endmember_1216() {
+Mineral endmember_1233() {
   Mineral m = make_combined_mineral({endmember_58()}, array({1.0}),
                                     Eigen::Vector3d::Zero(), "mncd");
   m.set_property_modifier_params(
@@ -28514,7 +28481,7 @@ Mineral endmember_1216() {
   return m;
 }
 
-Mineral endmember_1217() {
+Mineral endmember_1234() {
   Mineral m = make_combined_mineral({endmember_36()}, array({1.0}),
                                     Eigen::Vector3d::Zero(), "mnstm");
   m.set_property_modifier_params(
@@ -28522,7 +28489,7 @@ Mineral endmember_1217() {
   return m;
 }
 
-Mineral endmember_1218() {
+Mineral endmember_1235() {
   Mineral m = make_combined_mineral(
       {endmember_34(), endmember_21(), endmember_22()}, array({1.0, -1.0, 1.0}),
       Eigen::Vector3d::Zero(), "msto");
@@ -28531,7 +28498,7 @@ Mineral endmember_1218() {
   return m;
 }
 
-Mineral endmember_1219() {
+Mineral endmember_1236() {
   Mineral m = make_combined_mineral(
       {endmember_34(), endmember_162(), endmember_158()},
       array({1.0, -1.0, 1.5}), Eigen::Vector3d::Zero(), "mstt");
@@ -28540,7 +28507,7 @@ Mineral endmember_1219() {
   return m;
 }
 
-Mineral endmember_1220() {
+Mineral endmember_1237() {
   Mineral m = make_combined_mineral({endmember_113()}, array({1.0}),
                                     Eigen::Vector3d::Zero(), "mmchl");
   m.set_property_modifier_params(
@@ -28548,7 +28515,7 @@ Mineral endmember_1220() {
   return m;
 }
 
-Mineral endmember_1221() {
+Mineral endmember_1238() {
   Mineral m = make_combined_mineral({endmember_39()}, array({1.0}),
                                     Eigen::Vector3d::Zero(), "mnct");
   m.set_property_modifier_params(
@@ -28556,7 +28523,7 @@ Mineral endmember_1221() {
   return m;
 }
 
-Mineral endmember_1222() {
+Mineral endmember_1239() {
   Mineral m = make_combined_mineral(
       {endmember_37(), endmember_22(), endmember_21()},
       array({1.0, 0.25, -0.25}), Eigen::Vector3d::Zero(), "ctdo");
@@ -28565,7 +28532,7 @@ Mineral endmember_1222() {
   return m;
 }
 
-Mineral endmember_1223() {
+Mineral endmember_1240() {
   Mineral m;
   m.params.F_0 = 0.0;
   m.params.G_0 = std::numeric_limits<double>::quiet_NaN();
@@ -28581,7 +28548,7 @@ Mineral endmember_1223() {
   return m;
 }
 
-Mineral endmember_1224() {
+Mineral endmember_1241() {
   Mineral m;
   m.params.F_0 = 0.0;
   m.params.G_0 = std::numeric_limits<double>::quiet_NaN();
@@ -28597,7 +28564,7 @@ Mineral endmember_1224() {
   return m;
 }
 
-Mineral endmember_1225() {
+Mineral endmember_1242() {
   Mineral m;
   m.params.debye_0 = 905.0;
   m.params.F_0 = -1368000.0;
@@ -28621,7 +28588,7 @@ Mineral endmember_1225() {
   return m;
 }
 
-Mineral endmember_1226() {
+Mineral endmember_1243() {
   Mineral m;
   m.params.debye_0 = 871.0;
   m.params.F_0 = -1043000.0;
@@ -28645,7 +28612,7 @@ Mineral endmember_1226() {
   return m;
 }
 
-Mineral endmember_1227() {
+Mineral endmember_1244() {
   Mineral m;
   m.params.debye_0 = 886.0;
   m.params.F_0 = -1533878.0;
@@ -28669,7 +28636,7 @@ Mineral endmember_1227() {
   return m;
 }
 
-Mineral endmember_1228() {
+Mineral endmember_1245() {
   Mineral m;
   m.params.debye_0 = 886.0;
   m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
@@ -28693,7 +28660,7 @@ Mineral endmember_1228() {
   return m;
 }
 
-Mineral endmember_1229() {
+Mineral endmember_1246() {
   Mineral m;
   m.params.debye_0 = 767.0;
   m.params.F_0 = -569000.0;
@@ -28717,7 +28684,7 @@ Mineral endmember_1229() {
   return m;
 }
 
-Mineral endmember_1230() {
+Mineral endmember_1247() {
   Mineral m;
   m.params.debye_0 = 454.0;
   m.params.F_0 = -242000.0;
@@ -28741,7 +28708,7 @@ Mineral endmember_1230() {
   return m;
 }
 
-Mineral endmember_1231() {
+Mineral endmember_1248() {
   Mineral m;
   m.params.debye_0 = 802.0;
   m.params.F_0 = -1463358.0;
@@ -28765,7 +28732,7 @@ Mineral endmember_1231() {
   return m;
 }
 
-Mineral endmember_1232() {
+Mineral endmember_1249() {
   Mineral m;
   m.params.debye_0 = 422.0;
   m.params.F_0 = -1463358.0;
@@ -28789,7 +28756,7 @@ Mineral endmember_1232() {
   return m;
 }
 
-Mineral endmember_1233() {
+Mineral endmember_1250() {
   Mineral m;
   m.params.debye_0 = 1070.0;
   m.params.F_0 = 0.0;
@@ -28810,7 +28777,7 @@ Mineral endmember_1233() {
   return m;
 }
 
-Mineral endmember_1234() {
+Mineral endmember_1251() {
   Mineral m;
   m.params.debye_0 = 841.0;
   m.params.F_0 = 0.0;
@@ -28831,7 +28798,7 @@ Mineral endmember_1234() {
   return m;
 }
 
-Mineral endmember_1235() {
+Mineral endmember_1252() {
   Mineral m;
   m.params.debye_0 = 1021.0;
   m.params.F_0 = 0.0;
@@ -28852,7 +28819,7 @@ Mineral endmember_1235() {
   return m;
 }
 
-Mineral endmember_1236() {
+Mineral endmember_1253() {
   Mineral m;
   m.params.debye_0 = 984.0;
   m.params.F_0 = 0.0;
@@ -28873,7 +28840,7 @@ Mineral endmember_1236() {
   return m;
 }
 
-Mineral endmember_1237() {
+Mineral endmember_1254() {
   Mineral m;
   m.params.debye_0 = 673.0;
   m.params.F_0 = 0.0;
@@ -28894,7 +28861,7 @@ Mineral endmember_1237() {
   return m;
 }
 
-Mineral endmember_1238() {
+Mineral endmember_1255() {
   Mineral m;
   m.params.debye_0 = 673.0;
   m.params.F_0 = 0.0;
@@ -28915,7 +28882,7 @@ Mineral endmember_1238() {
   return m;
 }
 
-Mineral endmember_1239() {
+Mineral endmember_1256() {
   Mineral m;
   m.params.debye_0 = 773.0;
   m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
@@ -28937,7 +28904,7 @@ Mineral endmember_1239() {
   return m;
 }
 
-Mineral endmember_1240() {
+Mineral endmember_1257() {
   Mineral m;
   m.params.debye_0 = 455.0;
   m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
@@ -28959,7 +28926,7 @@ Mineral endmember_1240() {
   return m;
 }
 
-Mineral endmember_1241() {
+Mineral endmember_1258() {
   Mineral m;
   m.params.debye_0 = 1100.0;
   m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
@@ -28981,7 +28948,7 @@ Mineral endmember_1241() {
   return m;
 }
 
-Mineral endmember_1242() {
+Mineral endmember_1259() {
   Mineral m;
   m.params.debye_0 = 841.0;
   m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
@@ -29003,7 +28970,7 @@ Mineral endmember_1242() {
   return m;
 }
 
-Mineral endmember_1243() {
+Mineral endmember_1260() {
   Mineral m;
   m.params.debye_0 = 1070.0;
   m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
@@ -29025,7 +28992,7 @@ Mineral endmember_1243() {
   return m;
 }
 
-Mineral endmember_1244() {
+Mineral endmember_1261() {
   Mineral m;
   m.params.debye_0 = 1070.0;
   m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
@@ -29047,7 +29014,7 @@ Mineral endmember_1244() {
   return m;
 }
 
-Mineral endmember_1245() {
+Mineral endmember_1262() {
   Mineral m;
   m.params.debye_0 = 1054.0;
   m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
@@ -29069,7 +29036,7 @@ Mineral endmember_1245() {
   return m;
 }
 
-Mineral endmember_1246() {
+Mineral endmember_1263() {
   Mineral m;
   m.params.debye_0 = 773.0;
   m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
@@ -29091,7 +29058,7 @@ Mineral endmember_1246() {
   return m;
 }
 
-Mineral endmember_1247() {
+Mineral endmember_1264() {
   Mineral m;
   m.params.debye_0 = 706.0;
   m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
@@ -29113,7 +29080,7 @@ Mineral endmember_1247() {
   return m;
 }
 
-Mineral endmember_1248() {
+Mineral endmember_1265() {
   Mineral m;
   m.params.debye_0 = 706.0;
   m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
@@ -29135,7 +29102,7 @@ Mineral endmember_1248() {
   return m;
 }
 
-Mineral endmember_1249() {
+Mineral endmember_1266() {
   Mineral m;
   m.params.debye_0 = 706.0;
   m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
@@ -29157,7 +29124,7 @@ Mineral endmember_1249() {
   return m;
 }
 
-Mineral endmember_1250() {
+Mineral endmember_1267() {
   Mineral m;
   m.params.debye_0 = 706.0;
   m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
@@ -29179,7 +29146,7 @@ Mineral endmember_1250() {
   return m;
 }
 
-Mineral endmember_1251() {
+Mineral endmember_1268() {
   Mineral m;
   m.params.order_f = 4;
   m.params.order_theta = 1;
@@ -29208,7 +29175,7 @@ Mineral endmember_1251() {
   return m;
 }
 
-Mineral endmember_1252() {
+Mineral endmember_1269() {
   Mineral m;
   m.params.Cp = types::CpParams{21.09, 0.0101455, -221508.0, 47.1947};
   m.params.F_0 = 0.0;
@@ -29236,7 +29203,7 @@ Mineral endmember_1252() {
   return m;
 }
 
-Mineral endmember_1253() {
+Mineral endmember_1270() {
   Mineral m;
   m.params.Cp = types::CpParams{22.24, 0.0088656, -221517.0, 47.1998};
   m.params.F_0 = 0.0;
@@ -29264,7 +29231,7 @@ Mineral endmember_1253() {
   return m;
 }
 
-Mineral endmember_1254() {
+Mineral endmember_1271() {
   Mineral m;
   m.params.debye_0 = 905.9;
   m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
@@ -29291,7 +29258,7 @@ Mineral endmember_1254() {
   return m;
 }
 
-Mineral endmember_1255() {
+Mineral endmember_1272() {
   Mineral m;
   m.params.debye_0 = 871.0;
   m.params.F_0 = std::numeric_limits<double>::quiet_NaN();
@@ -29318,7 +29285,7 @@ Mineral endmember_1255() {
   return m;
 }
 
-Mineral endmember_1256() {
+Mineral endmember_1273() {
   Mineral m;
   m.params.debye_0 = 587.0;
   m.params.F_0 = 0.0;
@@ -29339,7 +29306,7 @@ Mineral endmember_1256() {
   return m;
 }
 
-Mineral endmember_1257() {
+Mineral endmember_1274() {
   Mineral m;
   m.params.debye_0 = 587.0;
   m.params.F_0 = 0.0;
@@ -29360,7 +29327,7 @@ Mineral endmember_1257() {
   return m;
 }
 
-Mineral endmember_1258() {
+Mineral endmember_1275() {
   Mineral m;
   m.params.F_0 = 0.0;
   m.params.G_0 = std::numeric_limits<double>::quiet_NaN();
@@ -29377,7 +29344,7 @@ Mineral endmember_1258() {
   return m;
 }
 
-Mineral endmember_1259() {
+Mineral endmember_1276() {
   Mineral m;
   m.params.F_0 = 0.0;
   m.params.G_0 = std::numeric_limits<double>::quiet_NaN();
@@ -38625,13 +38592,6 @@ std::shared_ptr<Solution> wa() { return wadsleyite(); }
 } // namespace SLB_2022
 
 namespace HHPH_2013 {
-std::shared_ptr<Mineral> coe() {
-  // The authors' tc-ds62.txt uses H_0 = -907.030 kJ/mol for coesite.
-  auto mineral = endmember_143();
-  mineral.params.H_0 = -907030.0;
-  return std::make_shared<Mineral>(mineral);
-}
-
 std::shared_ptr<Mineral> fo() {
   return std::make_shared<Mineral>(endmember_1165());
 }
@@ -38669,144 +38629,542 @@ std::shared_ptr<Mineral> apv() {
 }
 
 std::shared_ptr<Mineral> npv() {
-  return std::make_shared<Mineral>(endmember_1174());
+  return std::make_shared<Mineral>(endmember_236());
 }
 
 std::shared_ptr<Mineral> cpv() {
-  return std::make_shared<Mineral>(endmember_1175());
+  return std::make_shared<Mineral>(endmember_1174());
 }
 
 std::shared_ptr<Mineral> mak() {
-  return std::make_shared<Mineral>(endmember_1176());
+  return std::make_shared<Mineral>(endmember_1175());
 }
 
 std::shared_ptr<Mineral> fak() {
-  return std::make_shared<Mineral>(endmember_1177());
+  return std::make_shared<Mineral>(endmember_1176());
 }
 
 std::shared_ptr<Mineral> maj() {
-  return std::make_shared<Mineral>(endmember_1178());
+  return std::make_shared<Mineral>(endmember_1177());
 }
 
 std::shared_ptr<Mineral> nagt() {
-  return std::make_shared<Mineral>(endmember_1179());
+  return std::make_shared<Mineral>(endmember_242());
 }
 
 std::shared_ptr<Mineral> py() {
-  return std::make_shared<Mineral>(endmember_1180());
+  return std::make_shared<Mineral>(endmember_1178());
 }
 
 std::shared_ptr<Mineral> alm() {
-  return std::make_shared<Mineral>(endmember_1181());
+  return std::make_shared<Mineral>(endmember_1179());
 }
 
 std::shared_ptr<Mineral> gr() {
-  return std::make_shared<Mineral>(endmember_1182());
+  return std::make_shared<Mineral>(endmember_1180());
 }
 
 std::shared_ptr<Mineral> en() {
-  return std::make_shared<Mineral>(endmember_1183());
+  return std::make_shared<Mineral>(endmember_1181());
 }
 
 std::shared_ptr<Mineral> cen() {
-  return std::make_shared<Mineral>(endmember_1184());
+  return std::make_shared<Mineral>(endmember_1182());
 }
 
 std::shared_ptr<Mineral> hen() {
-  return std::make_shared<Mineral>(endmember_1185());
+  return std::make_shared<Mineral>(endmember_1183());
 }
 
 std::shared_ptr<Mineral> hfs() {
-  return std::make_shared<Mineral>(endmember_1186());
+  return std::make_shared<Mineral>(endmember_1184());
 }
 
 std::shared_ptr<Mineral> fs() {
-  return std::make_shared<Mineral>(endmember_1187());
+  return std::make_shared<Mineral>(endmember_1185());
 }
 
 std::shared_ptr<Mineral> mgts() {
-  return std::make_shared<Mineral>(endmember_1188());
+  return std::make_shared<Mineral>(endmember_1186());
 }
 
 std::shared_ptr<Mineral> di() {
-  return std::make_shared<Mineral>(endmember_1189());
+  return std::make_shared<Mineral>(endmember_1187());
 }
 
 std::shared_ptr<Mineral> hed() {
-  return std::make_shared<Mineral>(endmember_1190());
+  return std::make_shared<Mineral>(endmember_1188());
 }
 
 std::shared_ptr<Mineral> jd() {
-  return std::make_shared<Mineral>(endmember_1191());
+  return std::make_shared<Mineral>(endmember_1189());
 }
 
 std::shared_ptr<Mineral> cats() {
-  auto mineral = endmember_1192();
-  mineral.set_property_modifier_params({eos::excesses::BraggWilliamsParams{
-      1, 0.25, 3800.0, 1.0e-7, 3800.0, 1.0e-7}});
-  return std::make_shared<Mineral>(mineral);
+  return std::make_shared<Mineral>(endmember_74());
 }
 
 std::shared_ptr<Mineral> stv() {
-  return std::make_shared<Mineral>(endmember_1193());
+  return std::make_shared<Mineral>(endmember_1190());
 }
 
 std::shared_ptr<Mineral> macf() {
-  return std::make_shared<Mineral>(endmember_1194());
+  return std::make_shared<Mineral>(endmember_1191());
 }
 
 std::shared_ptr<Mineral> mscf() {
-  return std::make_shared<Mineral>(endmember_1195());
+  return std::make_shared<Mineral>(endmember_1192());
 }
 
 std::shared_ptr<Mineral> fscf() {
-  auto mineral = endmember_1196();
-  mineral.params.H_0 = -1402500.0;
-  return std::make_shared<Mineral>(mineral);
+  return std::make_shared<Mineral>(endmember_1193());
 }
 
 std::shared_ptr<Mineral> nacf() {
-  return std::make_shared<Mineral>(endmember_1197());
+  return std::make_shared<Mineral>(endmember_1194());
 }
 
 std::shared_ptr<Mineral> cacf() {
-  return std::make_shared<Mineral>(endmember_1198());
+  return std::make_shared<Mineral>(endmember_385());
 }
 
 std::shared_ptr<Mineral> manal() {
-  return std::make_shared<Mineral>(endmember_1199());
+  return std::make_shared<Mineral>(endmember_1195());
 }
 
 std::shared_ptr<Mineral> nanal() {
-  return std::make_shared<Mineral>(endmember_1200());
+  return std::make_shared<Mineral>(endmember_387());
 }
 
 std::shared_ptr<Mineral> msnal() {
-  return std::make_shared<Mineral>(endmember_1201());
+  return std::make_shared<Mineral>(endmember_1196());
 }
 
 std::shared_ptr<Mineral> fsnal() {
-  return std::make_shared<Mineral>(endmember_1202());
+  return std::make_shared<Mineral>(endmember_389());
 }
 
 std::shared_ptr<Mineral> canal() {
-  return std::make_shared<Mineral>(endmember_1203());
+  return std::make_shared<Mineral>(endmember_390());
 }
 
 std::shared_ptr<Mineral> per() {
-  return std::make_shared<Mineral>(endmember_1204());
+  return std::make_shared<Mineral>(endmember_1197());
 }
 
 std::shared_ptr<Mineral> fper() {
-  return std::make_shared<Mineral>(endmember_1205());
+  return std::make_shared<Mineral>(endmember_1198());
 }
 
 std::shared_ptr<Mineral> cor() {
-  return std::make_shared<Mineral>(endmember_1206());
+  return std::make_shared<Mineral>(endmember_1199());
 }
 
 std::shared_ptr<Mineral> mcor() {
+  return std::make_shared<Mineral>(endmember_1200());
+}
+
+std::shared_ptr<Mineral> coe() {
+  return std::make_shared<Mineral>(endmember_1201());
+}
+
+std::shared_ptr<Mineral> gfm() {
+  return std::make_shared<Mineral>(endmember_1202());
+}
+
+std::shared_ptr<Mineral> fpvm() {
+  return std::make_shared<Mineral>(endmember_1203());
+}
+
+std::shared_ptr<Mineral> cpvm() {
+  return std::make_shared<Mineral>(endmember_1204());
+}
+
+std::shared_ptr<Mineral> npvm() {
+  return std::make_shared<Mineral>(endmember_1205());
+}
+
+std::shared_ptr<Mineral> mpvm() {
+  return std::make_shared<Mineral>(endmember_1206());
+}
+
+std::shared_ptr<Mineral> fpvm_cpv() {
   return std::make_shared<Mineral>(endmember_1207());
+}
+
+std::shared_ptr<Mineral> apvm() {
+  return std::make_shared<Mineral>(endmember_1208());
+}
+
+std::shared_ptr<Mineral> npvm_cpv() {
+  return std::make_shared<Mineral>(endmember_1209());
+}
+
+std::shared_ptr<Mineral> fcor() {
+  return std::make_shared<Mineral>(endmember_1210());
+}
+
+std::shared_ptr<Mineral> oscf() {
+  return std::make_shared<Mineral>(endmember_1211());
+}
+
+std::shared_ptr<Mineral> nacfm() {
+  return std::make_shared<Mineral>(endmember_1212());
+}
+
+std::shared_ptr<Mineral> o1nal() {
+  return std::make_shared<Mineral>(endmember_1213());
+}
+
+std::shared_ptr<Mineral> o2nal() {
+  return std::make_shared<Mineral>(endmember_1214());
+}
+
+std::shared_ptr<Mineral> aak() {
+  return std::make_shared<Mineral>(endmember_1215());
+}
+
+std::shared_ptr<Mineral> cfs() {
+  return std::make_shared<Mineral>(endmember_1216());
+}
+
+std::shared_ptr<Mineral> cen_cpx() {
+  return std::make_shared<Mineral>(endmember_1217());
+}
+
+std::shared_ptr<Mineral> cfm() {
+  return std::make_shared<Mineral>(endmember_1218());
+}
+
+std::shared_ptr<Mineral> fm() {
+  return std::make_shared<Mineral>(endmember_1219());
+}
+
+std::shared_ptr<Mineral> odi() {
+  return std::make_shared<Mineral>(endmember_1220());
+}
+
+std::shared_ptr<Mineral> en_hpx() {
+  return std::make_shared<Mineral>(endmember_1221());
+}
+
+std::shared_ptr<Mineral> fs_hpx() {
+  return std::make_shared<Mineral>(endmember_1222());
+}
+
+std::shared_ptr<Mineral> fm_hpx() {
+  return std::make_shared<Mineral>(endmember_1223());
+}
+
+std::shared_ptr<Mineral> hmts() {
+  return std::make_shared<Mineral>(endmember_1224());
+}
+
+std::shared_ptr<Solution> g() {
+  types::PairedEndmemberList members = {
+      {endmember_1178(), "[Mgmone]3[Almtwo]2"},
+      {endmember_1179(), "[Femone]3[Almtwo]2"},
+      {endmember_1180(), "[Camone]3[Almtwo]2"},
+      {endmember_1177(), "[Mgmone]3[Mgmtwo1/2Simtwo1/2]2"},
+      {endmember_1202(), "[Mgmone]3[Femtwo1/2Simtwo1/2]2"},
+      {endmember_242(), "[Mgmone2/3Namone1/3]3[Almtwo1/2Simtwo1/2]2"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members,
+      Interactions{{3000.0, 33000.0, 15000.0, 13500.0, 14000.0},
+                   {5000.0, 18000.0, 16500.0, 11200.0},
+                   {48000.0, 46500.0, 30000.0},
+                   {500.0, 8500.0},
+                   {7000.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0},
+                   {0.0, 0.0},
+                   {0.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0},
+                   {0.0, 0.0},
+                   {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("g");
+  solution->set_composition(Eigen::ArrayXd::Constant(6, 1.0 / 6.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> fp() {
+  types::PairedEndmemberList members = {{endmember_1197(), "[Mgmone]"},
+                                        {endmember_1198(), "[Femone]"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members, Interactions{{18000.0}}, Interactions{{0.0}},
+      Interactions{{0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("fp");
+  solution->set_composition(Eigen::ArrayXd::Constant(2, 1.0 / 2.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> mpv_solution() {
+  types::PairedEndmemberList members = {
+      {endmember_1171(), "[Mgmone][Simtwo]"},
+      {endmember_1203(), "[Femone][Simtwo]"},
+      {endmember_1204(), "[Camone][Simtwo]"},
+      {endmember_1173(), "[Almone][Almtwo]"},
+      {endmember_1205(), "[Namone1/2Almone1/2][Simtwo]"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members,
+      Interactions{{12000.0, 15000.0, 20000.0, 22000.0},
+                   {10500.0, 14000.0, 15400.0},
+                   {5000.0, 7500.0},
+                   {2500.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("mpv");
+  solution->set_composition(Eigen::ArrayXd::Constant(5, 1.0 / 5.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> cpv_solution() {
+  types::PairedEndmemberList members = {
+      {endmember_1206(), "[Mgmone][Simtwo]"},
+      {endmember_1207(), "[Femone][Simtwo]"},
+      {endmember_1174(), "[Camone][Simtwo]"},
+      {endmember_1208(), "[Almone][Almtwo]"},
+      {endmember_1209(), "[Namone1/2Almone1/2][Simtwo]"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members,
+      Interactions{{12000.0, 15000.0, 20000.0, 22000.0},
+                   {10500.0, 14000.0, 15400.0},
+                   {5000.0, 7500.0},
+                   {2500.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("cpv");
+  solution->set_composition(Eigen::ArrayXd::Constant(5, 1.0 / 5.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> cor_solution() {
+  types::PairedEndmemberList members = {{endmember_1199(), "[Almone][Almtwo]"},
+                                        {endmember_1200(), "[Mgmone][Simtwo]"},
+                                        {endmember_1210(), "[Femone][Simtwo]"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members, Interactions{{12000.0, 10000.0}, {4000.0}},
+      Interactions{{0.0, 0.0}, {0.0}}, Interactions{{0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("cor");
+  solution->set_composition(Eigen::ArrayXd::Constant(3, 1.0 / 3.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> cf() {
+  types::PairedEndmemberList members = {
+      {endmember_1191(), "[Mgmone][Almtwo]"},
+      {endmember_385(), "[Camone][Almtwo]"},
+      {endmember_1192(), "[Mgmone][Mgmtwo1/2Simtwo1/2]"},
+      {endmember_1193(), "[Femone][Femtwo1/2Simtwo1/2]"},
+      {endmember_1211(), "[Femone][Mgmtwo1/2Simtwo1/2]"},
+      {endmember_1212(), "[Namone][Almtwo1/2Simtwo1/2]"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members,
+      Interactions{{11000.0, 7500.0, 10750.0, 11500.0, 24500.0},
+                   {18500.0, 14450.0, 15200.0, 18500.0},
+                   {5000.0, 4000.0, 15500.0},
+                   {1000.0, 9950.0},
+                   {10700.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0},
+                   {0.0, 0.0},
+                   {0.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0},
+                   {0.0, 0.0},
+                   {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("cf");
+  solution->set_composition(Eigen::ArrayXd::Constant(6, 1.0 / 6.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> nal() {
+  types::PairedEndmemberList members = {
+      {endmember_387(), "[Namthree][Mgmtwo]2[Almone5/6Simone1/6]3"},
+      {endmember_390(), "[Camthree][Mgmtwo]2[Almone]3"},
+      {endmember_1195(), "[Mgmthree][Mgmtwo]2[Almone]3"},
+      {endmember_1196(), "[Mgmthree][Mgmtwo]2[Mgmone1/2Simone1/2]3"},
+      {endmember_389(), "[Femthree][Femtwo]2[Femone1/2Simone1/2]3"},
+      {endmember_1213(), "[Femthree][Mgmtwo]2[Mgmone1/2Simone1/2]3"},
+      {endmember_1214(), "[Femthree][Femtwo]2[Mgmone1/2Simone1/2]3"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members,
+      Interactions{{14200.0, 20200.0, 20200.0, 21200.0, 15400.0, 23400.0},
+                   {11000.0, 33500.0, 36000.0, 30200.0, 38200.0},
+                   {22500.0, 32200.000000000004, 26500.0, 34500.0},
+                   {15000.0, 4000.0, 12000.0},
+                   {11000.0, 3000.0},
+                   {8000.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0},
+                   {0.0, 0.0},
+                   {0.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0},
+                   {0.0, 0.0},
+                   {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("nal");
+  solution->set_composition(Eigen::ArrayXd::Constant(7, 1.0 / 7.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> aki() {
+  types::PairedEndmemberList members = {{endmember_1215(), "[Ala]1/2[Alb]1/2"},
+                                        {endmember_1175(), "[Mga]1/2[Sib]1/2"},
+                                        {endmember_1176(), "[Fea]1/2[Sib]1/2"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members, Interactions{{8000.0, 6000.0}, {4000.0}},
+      Interactions{{0.0, 0.0}, {0.0}}, Interactions{{0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("aki");
+  solution->set_composition(Eigen::ArrayXd::Constant(3, 1.0 / 3.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> ol() {
+  types::PairedEndmemberList members = {{endmember_1165(), "[Pfo]2"},
+                                        {endmember_1166(), "[Pfa]2"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members, Interactions{{9000.0}}, Interactions{{0.0}},
+      Interactions{{0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("ol");
+  solution->set_composition(Eigen::ArrayXd::Constant(2, 1.0 / 2.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> wad() {
+  types::PairedEndmemberList members = {{endmember_1167(), "[Pmwd]2"},
+                                        {endmember_1168(), "[Pfwd]2"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members, Interactions{{13000.0}}, Interactions{{0.0}},
+      Interactions{{0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("wad");
+  solution->set_composition(Eigen::ArrayXd::Constant(2, 1.0 / 2.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> ring() {
+  types::PairedEndmemberList members = {{endmember_1169(), "[Pmrw]2"},
+                                        {endmember_1170(), "[Pfrw]2"}};
+  auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
+      members, Interactions{{4000.0}}, Interactions{{0.0}},
+      Interactions{{0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("ring");
+  solution->set_composition(Eigen::ArrayXd::Constant(2, 1.0 / 2.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> cpx() {
+  types::PairedEndmemberList members = {
+      {endmember_1187(), "[Mgmone][Camtwo][Sit]1/2"},
+      {endmember_1216(), "[Femone][Femtwo][Sit]1/2"},
+      {endmember_74(), "[Almone][Camtwo][Sit1/2Alt1/2]1/2"},
+      {endmember_1189(), "[Almone][Namtwo][Sit]1/2"},
+      {endmember_1217(), "[Mgmone][Mgmtwo][Sit]1/2"},
+      {endmember_1218(), "[Mgmone][Femtwo][Sit]1/2"}};
+  auto model = std::make_shared<solution_models::AsymmetricRegularSolution>(
+      members, std::vector<double>{1.2, 1.0, 1.9, 1.2, 1.0, 1.0},
+      Interactions{{20000.0, 12300.0, 26000.0, 29800.0, 18000.0},
+                   {25000.000000000004, 36000.0, 7000.0, 4000.0},
+                   {6000.0, 45700.0, 27000.000000000004},
+                   {40000.0, 40000.0},
+                   {4000.0}},
+      Interactions{
+          {0.0, -1.0000000000000002e-06, 0.0, -3.0000000000000004e-07, 0.0},
+          {-1.0000000000000002e-06, 0.0, 0.0, 0.0},
+          {0.0, -2.9e-06, -1.0000000000000002e-06},
+          {0.0, 0.0},
+          {0.0}},
+      Interactions{{0.0, 0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0, 0.0},
+                   {0.0, 0.0, 0.0},
+                   {0.0, 0.0},
+                   {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("cpx");
+  solution->set_composition(Eigen::ArrayXd::Constant(6, 1.0 / 6.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> opx() {
+  types::PairedEndmemberList members = {
+      {endmember_1181(), "[Mgmone][Mgmtwo][Sit]1/2"},
+      {endmember_1185(), "[Femone][Femtwo][Sit]1/2"},
+      {endmember_1219(), "[Mgmone][Femtwo][Sit]1/2"},
+      {endmember_1220(), "[Mgmone][Camtwo][Sit]1/2"},
+      {endmember_1186(), "[Almone][Mgmtwo][Sit1/2Alt1/2]1/2"}};
+  auto model = std::make_shared<solution_models::AsymmetricRegularSolution>(
+      members, std::vector<double>{1.0, 1.0, 1.0, 1.2, 1.0},
+      Interactions{{5200.0, 4000.0, 32200.000000000007, 13000.0},
+                   {4000.0, 24000.0, 7000.0},
+                   {18000.0, 2000.0},
+                   {75400.0}},
+      Interactions{{0.0, 0.0, 1.2000000000000002e-06, -1.5e-06},
+                   {0.0, 0.0, -1.5e-06},
+                   {0.0, -1.5e-06},
+                   {-9.4e-06}},
+      Interactions{{0.0, 0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("opx");
+  solution->set_composition(Eigen::ArrayXd::Constant(5, 1.0 / 5.0));
+  return solution;
+}
+
+std::shared_ptr<Solution> hpx() {
+  types::PairedEndmemberList members = {
+      {endmember_1221(), "[Mgmone][Mgmtwo][Sit]1/2"},
+      {endmember_1222(), "[Femone][Femtwo][Sit]1/2"},
+      {endmember_1223(), "[Mgmone][Femtwo][Sit]1/2"},
+      {endmember_1220(), "[Mgmone][Camtwo][Sit]1/2"},
+      {endmember_1224(), "[Almone][Mgmtwo][Sit1/2Alt1/2]1/2"}};
+  auto model = std::make_shared<solution_models::AsymmetricRegularSolution>(
+      members, std::vector<double>{1.0, 1.0, 1.0, 1.2, 1.0},
+      Interactions{{5200.0, 4000.0, 32200.000000000007, 13000.0},
+                   {4000.0, 24000.0, 7000.0},
+                   {18000.0, 2000.0},
+                   {75400.0}},
+      Interactions{{0.0, 0.0, 1.2000000000000002e-06, -1.5e-06},
+                   {0.0, 0.0, -1.5e-06},
+                   {0.0, -1.5e-06},
+                   {-9.4e-06}},
+      Interactions{{0.0, 0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}});
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(model);
+  solution->set_name("hpx");
+  solution->set_composition(Eigen::ArrayXd::Constant(5, 1.0 / 5.0));
+  return solution;
 }
 } // namespace HHPH_2013
 
@@ -38816,27 +39174,27 @@ std::shared_ptr<Mineral> H2O() {
 }
 
 std::shared_ptr<Mineral> CO2() {
-  return std::make_shared<Mineral>(endmember_1208());
+  return std::make_shared<Mineral>(endmember_1225());
 }
 
 std::shared_ptr<Mineral> CH4() {
-  return std::make_shared<Mineral>(endmember_1209());
+  return std::make_shared<Mineral>(endmember_1226());
 }
 
 std::shared_ptr<Mineral> O2() {
-  return std::make_shared<Mineral>(endmember_1210());
+  return std::make_shared<Mineral>(endmember_1227());
 }
 
 std::shared_ptr<Mineral> H2() {
-  return std::make_shared<Mineral>(endmember_1211());
+  return std::make_shared<Mineral>(endmember_1228());
 }
 
 std::shared_ptr<Mineral> S2() {
-  return std::make_shared<Mineral>(endmember_1212());
+  return std::make_shared<Mineral>(endmember_1229());
 }
 
 std::shared_ptr<Mineral> H2S() {
-  return std::make_shared<Mineral>(endmember_1213());
+  return std::make_shared<Mineral>(endmember_1230());
 }
 } // namespace HP_2011_fluids
 
@@ -39599,7 +39957,7 @@ std::shared_ptr<Mineral> fbi() {
 }
 
 std::shared_ptr<Mineral> mmbi() {
-  return std::make_shared<Mineral>(endmember_1214());
+  return std::make_shared<Mineral>(endmember_1231());
 }
 
 std::shared_ptr<Mineral> fm() {
@@ -39611,7 +39969,7 @@ std::shared_ptr<Mineral> fopx() {
 }
 
 std::shared_ptr<Mineral> mnopx() {
-  return std::make_shared<Mineral>(endmember_1215());
+  return std::make_shared<Mineral>(endmember_1232());
 }
 
 std::shared_ptr<Mineral> odi() {
@@ -39631,7 +39989,7 @@ std::shared_ptr<Mineral> ospr() {
 }
 
 std::shared_ptr<Mineral> mncd() {
-  return std::make_shared<Mineral>(endmember_1216());
+  return std::make_shared<Mineral>(endmember_1233());
 }
 
 std::shared_ptr<Mineral> mstm() {
@@ -39639,15 +39997,15 @@ std::shared_ptr<Mineral> mstm() {
 }
 
 std::shared_ptr<Mineral> mnstm() {
-  return std::make_shared<Mineral>(endmember_1217());
+  return std::make_shared<Mineral>(endmember_1234());
 }
 
 std::shared_ptr<Mineral> msto() {
-  return std::make_shared<Mineral>(endmember_1218());
+  return std::make_shared<Mineral>(endmember_1235());
 }
 
 std::shared_ptr<Mineral> mstt() {
-  return std::make_shared<Mineral>(endmember_1219());
+  return std::make_shared<Mineral>(endmember_1236());
 }
 
 std::shared_ptr<Mineral> ochl1() {
@@ -39663,15 +40021,15 @@ std::shared_ptr<Mineral> f3clin() {
 }
 
 std::shared_ptr<Mineral> mmchl() {
-  return std::make_shared<Mineral>(endmember_1220());
+  return std::make_shared<Mineral>(endmember_1237());
 }
 
 std::shared_ptr<Mineral> mnct() {
-  return std::make_shared<Mineral>(endmember_1221());
+  return std::make_shared<Mineral>(endmember_1238());
 }
 
 std::shared_ptr<Mineral> ctdo() {
-  return std::make_shared<Mineral>(endmember_1222());
+  return std::make_shared<Mineral>(endmember_1239());
 }
 
 std::shared_ptr<Mineral> oilm() {
@@ -39913,7 +40271,7 @@ std::shared_ptr<Solution> bi() {
       {endmember_107(), "[Almthree][Mgmonetwo]2[Alt]2[Ohv]2"},
       {endmember_508(), "[Timthree][Mgmonetwo]2[Sit1/2Alt1/2]2[Ov]2"},
       {endmember_509(), "[Fethreemthree][Mgmonetwo]2[Alt]2[Ohv]2"},
-      {endmember_1214(), "[Mnmthree][Mnmonetwo]2[Sit1/2Alt1/2]2[Ohv]2"}};
+      {endmember_1231(), "[Mnmthree][Mnmonetwo]2[Sit1/2Alt1/2]2[Ohv]2"}};
   auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
       members,
       Interactions{{12000.0, 4000.0, 10000.0, 30000.0, 8000.0, 9000.0},
@@ -39948,7 +40306,7 @@ std::shared_ptr<Solution> opx() {
       {endmember_495(), "[Mgmone][Femtwo][Sit]1/2"},
       {endmember_68(), "[Almone][Mgmtwo][Sit1/2Alt1/2]1/2"},
       {endmember_496(), "[Fethreemone][Mgmtwo][Sit1/2Alt1/2]1/2"},
-      {endmember_1215(), "[Mnmone][Mnmtwo][Sit]1/2"},
+      {endmember_1232(), "[Mnmone][Mnmtwo][Sit]1/2"},
       {endmember_497(), "[Mgmone][Camtwo][Sit]1/2"}};
   auto model = std::make_shared<solution_models::AsymmetricRegularSolution>(
       members, std::vector<double>{1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.2},
@@ -40007,7 +40365,7 @@ std::shared_ptr<Solution> cd() {
   types::PairedEndmemberList members = {{endmember_55(), "[Mgx]2[Vh]"},
                                         {endmember_57(), "[Fex]2[Vh]"},
                                         {endmember_56(), "[Mgx]2[Htwooh]"},
-                                        {endmember_1216(), "[Mnx]2[Vh]"}};
+                                        {endmember_1233(), "[Mnx]2[Vh]"}};
   auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
       members, Interactions{{8000.0, 0.0, 6000.0}, {9000.0, 4000.0}, {6000.0}},
       Interactions{{0.0, 0.0, 0.0}, {0.0, 0.0}, {0.0}},
@@ -40023,9 +40381,9 @@ std::shared_ptr<Solution> st() {
   types::PairedEndmemberList members = {
       {endmember_589(), "[Mgx]4[Aly]2"},
       {endmember_35(), "[Fex]4[Aly]2"},
-      {endmember_1217(), "[Mnx]4[Aly]2"},
-      {endmember_1218(), "[Mgx]4[Fethreey]2"},
-      {endmember_1219(), "[Mgx]4[Tiy3/4Vy1/4]2"}};
+      {endmember_1234(), "[Mnx]4[Aly]2"},
+      {endmember_1235(), "[Mgx]4[Fethreey]2"},
+      {endmember_1236(), "[Mgx]4[Tiy3/4Vy1/4]2"}};
   auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
       members,
       Interactions{{16000.0, 12000.0, 2000.0, 20000.0},
@@ -40051,7 +40409,7 @@ std::shared_ptr<Solution> chl() {
       {endmember_513(), "[Femone][Mgmtwothree]4[Mgmfour][Sittwo]2"},
       {endmember_514(),
        "[Mgmone][Mgmtwothree]4[Fethreemfour][Sittwo1/2Alttwo1/2]2"},
-      {endmember_1220(),
+      {endmember_1237(),
        "[Mnmone][Mnmtwothree]4[Almfour][Sittwo1/2Alttwo1/2]2"}};
   auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
       members,
@@ -40088,8 +40446,8 @@ std::shared_ptr<Solution> ctd() {
   types::PairedEndmemberList members = {
       {endmember_37(), "[Almonea]1/2[Mgmoneb]"},
       {endmember_38(), "[Almonea]1/2[Femoneb]"},
-      {endmember_1221(), "[Almonea]1/2[Mnmoneb]"},
-      {endmember_1222(), "[Fethreemonea]1/2[Mgmoneb]"}};
+      {endmember_1238(), "[Almonea]1/2[Mnmoneb]"},
+      {endmember_1239(), "[Fethreemonea]1/2[Mgmoneb]"}};
   auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
       members,
       Interactions{{4000.0, 3000.0, 1000.0}, {3000.0, 5000.0}, {4000.0}},
@@ -40173,20 +40531,20 @@ std::shared_ptr<Solution> mt1() {
 
 namespace ICL_2018 {
 std::shared_ptr<Mineral> EPOC_vinet() {
-  return std::make_shared<Mineral>(endmember_1223());
+  return std::make_shared<Mineral>(endmember_1240());
 }
 
 std::shared_ptr<Mineral> EPOC_bm() {
-  return std::make_shared<Mineral>(endmember_1224());
+  return std::make_shared<Mineral>(endmember_1241());
 }
 } // namespace ICL_2018
 
 namespace KMFBZ_2017 {
 std::shared_ptr<Solution> bridgmanite() {
-  types::PairedEndmemberList members = {{endmember_1225(), "[Mg][Si]O3"},
-                                        {endmember_1226(), "[Fe][Si]O3"},
-                                        {endmember_1227(), "[Al][Al]O3"},
-                                        {endmember_1228(), "[Fe][Al]O3"}};
+  types::PairedEndmemberList members = {{endmember_1242(), "[Mg][Si]O3"},
+                                        {endmember_1243(), "[Fe][Si]O3"},
+                                        {endmember_1244(), "[Al][Al]O3"},
+                                        {endmember_1245(), "[Fe][Al]O3"}};
   auto model = std::make_shared<solution_models::IdealSolution>(members);
   auto solution = std::make_shared<Solution>();
   solution->set_solution_model(model);
@@ -40196,8 +40554,8 @@ std::shared_ptr<Solution> bridgmanite() {
 }
 
 std::shared_ptr<Solution> ferropericlase() {
-  types::PairedEndmemberList members = {{endmember_1229(), "[Mg]O"},
-                                        {endmember_1230(), "[Fe]O"}};
+  types::PairedEndmemberList members = {{endmember_1246(), "[Mg]O"},
+                                        {endmember_1247(), "[Fe]O"}};
   auto model = std::make_shared<solution_models::SymmetricRegularSolution>(
       members, Interactions{{13000.0}}, Interactions{{0.0}},
       Interactions{{0.0}});
@@ -40209,35 +40567,35 @@ std::shared_ptr<Solution> ferropericlase() {
 }
 
 std::shared_ptr<Mineral> mg_si_perovskite() {
-  return std::make_shared<Mineral>(endmember_1225());
+  return std::make_shared<Mineral>(endmember_1242());
 }
 
 std::shared_ptr<Mineral> fe_si_perovskite() {
-  return std::make_shared<Mineral>(endmember_1226());
+  return std::make_shared<Mineral>(endmember_1243());
 }
 
 std::shared_ptr<Mineral> fe_al_perovskite() {
-  return std::make_shared<Mineral>(endmember_1228());
+  return std::make_shared<Mineral>(endmember_1245());
 }
 
 std::shared_ptr<Mineral> al_al_perovskite() {
-  return std::make_shared<Mineral>(endmember_1227());
+  return std::make_shared<Mineral>(endmember_1244());
 }
 
 std::shared_ptr<Mineral> periclase() {
-  return std::make_shared<Mineral>(endmember_1229());
+  return std::make_shared<Mineral>(endmember_1246());
 }
 
 std::shared_ptr<Mineral> wuestite() {
-  return std::make_shared<Mineral>(endmember_1230());
+  return std::make_shared<Mineral>(endmember_1247());
 }
 
 std::shared_ptr<Mineral> ca_perovskite() {
-  return std::make_shared<Mineral>(endmember_1231());
+  return std::make_shared<Mineral>(endmember_1248());
 }
 
 std::shared_ptr<Mineral> hcp_iron() {
-  return std::make_shared<Mineral>(endmember_1232());
+  return std::make_shared<Mineral>(endmember_1249());
 }
 
 std::shared_ptr<Solution> perovskite() { return bridgmanite(); }
@@ -40245,157 +40603,157 @@ std::shared_ptr<Solution> perovskite() { return bridgmanite(); }
 
 namespace Matas_etal_2007 {
 std::shared_ptr<Mineral> mg_perovskite() {
-  return std::make_shared<Mineral>(endmember_1233());
+  return std::make_shared<Mineral>(endmember_1250());
 }
 
 std::shared_ptr<Mineral> fe_perovskite() {
-  return std::make_shared<Mineral>(endmember_1234());
+  return std::make_shared<Mineral>(endmember_1251());
 }
 
 std::shared_ptr<Mineral> al_perovskite() {
-  return std::make_shared<Mineral>(endmember_1235());
+  return std::make_shared<Mineral>(endmember_1252());
 }
 
 std::shared_ptr<Mineral> ca_perovskite() {
-  return std::make_shared<Mineral>(endmember_1236());
+  return std::make_shared<Mineral>(endmember_1253());
 }
 
 std::shared_ptr<Mineral> periclase() {
-  return std::make_shared<Mineral>(endmember_1237());
+  return std::make_shared<Mineral>(endmember_1254());
 }
 
 std::shared_ptr<Mineral> wuestite() {
-  return std::make_shared<Mineral>(endmember_1238());
+  return std::make_shared<Mineral>(endmember_1255());
 }
 
 std::shared_ptr<Mineral> ca_bridgmanite() {
-  return std::make_shared<Mineral>(endmember_1236());
+  return std::make_shared<Mineral>(endmember_1253());
 }
 
 std::shared_ptr<Mineral> mg_bridgmanite() {
-  return std::make_shared<Mineral>(endmember_1233());
+  return std::make_shared<Mineral>(endmember_1250());
 }
 
 std::shared_ptr<Mineral> fe_bridgmanite() {
-  return std::make_shared<Mineral>(endmember_1234());
+  return std::make_shared<Mineral>(endmember_1251());
 }
 
 std::shared_ptr<Mineral> al_bridgmanite() {
-  return std::make_shared<Mineral>(endmember_1235());
+  return std::make_shared<Mineral>(endmember_1252());
 }
 } // namespace Matas_etal_2007
 
 namespace Murakami_2013 {
 std::shared_ptr<Mineral> periclase() {
-  return std::make_shared<Mineral>(endmember_1239());
+  return std::make_shared<Mineral>(endmember_1256());
 }
 
 std::shared_ptr<Mineral> wuestite() {
-  return std::make_shared<Mineral>(endmember_1240());
+  return std::make_shared<Mineral>(endmember_1257());
 }
 
 std::shared_ptr<Mineral> mg_perovskite() {
-  return std::make_shared<Mineral>(endmember_1241());
+  return std::make_shared<Mineral>(endmember_1258());
 }
 
 std::shared_ptr<Mineral> fe_perovskite() {
-  return std::make_shared<Mineral>(endmember_1242());
+  return std::make_shared<Mineral>(endmember_1259());
 }
 
 std::shared_ptr<Mineral> mg_bridgmanite() {
-  return std::make_shared<Mineral>(endmember_1241());
+  return std::make_shared<Mineral>(endmember_1258());
 }
 
 std::shared_ptr<Mineral> fe_bridgmanite() {
-  return std::make_shared<Mineral>(endmember_1242());
+  return std::make_shared<Mineral>(endmember_1259());
 }
 } // namespace Murakami_2013
 
 namespace Murakami_etal_2012 {
 std::shared_ptr<Mineral> mg_perovskite() {
-  return std::make_shared<Mineral>(endmember_1243());
+  return std::make_shared<Mineral>(endmember_1260());
 }
 
 std::shared_ptr<Mineral> mg_perovskite_3rdorder() {
-  return std::make_shared<Mineral>(endmember_1244());
+  return std::make_shared<Mineral>(endmember_1261());
 }
 
 std::shared_ptr<Mineral> fe_perovskite() {
-  return std::make_shared<Mineral>(endmember_1245());
+  return std::make_shared<Mineral>(endmember_1262());
 }
 
 std::shared_ptr<Mineral> mg_periclase() {
-  return std::make_shared<Mineral>(endmember_1246());
+  return std::make_shared<Mineral>(endmember_1263());
 }
 
 std::shared_ptr<Mineral> fe_periclase_HS() {
-  return std::make_shared<Mineral>(endmember_1247());
+  return std::make_shared<Mineral>(endmember_1264());
 }
 
 std::shared_ptr<Mineral> fe_periclase_LS() {
-  return std::make_shared<Mineral>(endmember_1248());
+  return std::make_shared<Mineral>(endmember_1265());
 }
 
 std::shared_ptr<Mineral> fe_periclase_HS_3rd() {
-  return std::make_shared<Mineral>(endmember_1249());
+  return std::make_shared<Mineral>(endmember_1266());
 }
 
 std::shared_ptr<Mineral> fe_periclase_LS_3rd() {
-  return std::make_shared<Mineral>(endmember_1250());
+  return std::make_shared<Mineral>(endmember_1267());
 }
 
 std::shared_ptr<Mineral> mg_bridgmanite() {
-  return std::make_shared<Mineral>(endmember_1243());
+  return std::make_shared<Mineral>(endmember_1260());
 }
 
 std::shared_ptr<Mineral> fe_bridgmanite() {
-  return std::make_shared<Mineral>(endmember_1245());
+  return std::make_shared<Mineral>(endmember_1262());
 }
 
 std::shared_ptr<Mineral> mg_bridgmanite_3rdorder() {
-  return std::make_shared<Mineral>(endmember_1244());
+  return std::make_shared<Mineral>(endmember_1261());
 }
 } // namespace Murakami_etal_2012
 
 namespace RS_2014_liquids {
 std::shared_ptr<Mineral> Fe2SiO4_liquid() {
-  return std::make_shared<Mineral>(endmember_1251());
+  return std::make_shared<Mineral>(endmember_1268());
 }
 } // namespace RS_2014_liquids
 
 namespace Sundman_1991 {
 std::shared_ptr<Mineral> bcc_iron() {
-  return std::make_shared<Mineral>(endmember_1252());
+  return std::make_shared<Mineral>(endmember_1269());
 }
 
 std::shared_ptr<Mineral> fcc_iron() {
-  return std::make_shared<Mineral>(endmember_1253());
+  return std::make_shared<Mineral>(endmember_1270());
 }
 } // namespace Sundman_1991
 
 namespace other {
 std::shared_ptr<Mineral> ZSB_2013_mg_perovskite() {
-  return std::make_shared<Mineral>(endmember_1254());
+  return std::make_shared<Mineral>(endmember_1271());
 }
 
 std::shared_ptr<Mineral> ZSB_2013_fe_perovskite() {
-  return std::make_shared<Mineral>(endmember_1255());
+  return std::make_shared<Mineral>(endmember_1272());
 }
 
 std::shared_ptr<Mineral> Speziale_fe_periclase_HS() {
-  return std::make_shared<Mineral>(endmember_1256());
+  return std::make_shared<Mineral>(endmember_1273());
 }
 
 std::shared_ptr<Mineral> Speziale_fe_periclase_LS() {
-  return std::make_shared<Mineral>(endmember_1257());
+  return std::make_shared<Mineral>(endmember_1274());
 }
 
 std::shared_ptr<Mineral> Liquid_Fe_Anderson() {
-  return std::make_shared<Mineral>(endmember_1258());
+  return std::make_shared<Mineral>(endmember_1275());
 }
 
 std::shared_ptr<Mineral> Fe_Dewaele() {
-  return std::make_shared<Mineral>(endmember_1259());
+  return std::make_shared<Mineral>(endmember_1276());
 }
 } // namespace other
 } // namespace burnman::minerals

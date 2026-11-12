@@ -62,7 +62,7 @@ from burnman.tools.solution import transform_solution_to_new_basis
 from burnman_reference import ROOT, verify_reference
 
 CPP_HEADER = (ROOT / "contrib/utilities/cpp_header.txt").read_text() + "\n"
-COVARIANCE_DATASETS = {"HP_2011_ds62", "HGP_2018_ds633", "HPx_ds636"}
+COVARIANCE_DATASETS = {"HP_2011_ds62", "HGP_2018_ds633", "HPx_ds636", "HHPH_2013"}
 
 
 def literal(value):

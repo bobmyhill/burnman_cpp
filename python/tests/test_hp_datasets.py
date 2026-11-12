@@ -22,7 +22,7 @@ import burnman_cpp as bm
 from burnman_cpp import minerals
 
 DATASETS = {
-    "HHPH_2013": 58,
+    "HHPH_2013": 81,
     "HP_2011_fluids": 7,
     "ig50NCKFMASTOCr": 45,
     "mp50KFMASH": 23,
@@ -57,14 +57,10 @@ def test_public_names_and_independent_materials(dataset, count):
         ).all(), f"{dataset}.{name}"
 
 
-def test_high_pressure_endmember_uncertainties():
+def test_high_pressure_endmember_parameters():
     phase = minerals.HHPH_2013.fo()
     assert phase.formula == {"Mg": 2.0, "Si": 1.0, "O": 4.0}
     assert phase.params.H_0 == -2172450.0
-    assert phase.uncertainties == {"err_H_0": 530.0}
-    modified = phase.uncertainties
-    modified["err_H_0"] = 0.0
-    assert phase.uncertainties["err_H_0"] == 530.0
 
 
 def test_hhph_archive_coesite():

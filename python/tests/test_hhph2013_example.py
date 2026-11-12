@@ -143,8 +143,6 @@ def test_requested_bulk_equilibria_conserve_each_element(
 def test_ca_limit_preserves_mg_rich_branch_and_does_not_pin_compositions(
     example, pressure
 ):
-    from benchmark_hhph2013 import benchmark_phases
-
     bulk = bm.Composition(
         dict(SiO2=39.4, Al2O3=2.0, CaO=3.3, MgO=49.5, FeO=5.2, Na2O=0.26), "molar"
     )
@@ -152,7 +150,12 @@ def test_ca_limit_preserves_mg_rich_branch_and_does_not_pin_compositions(
     temperature = 1357.0 + 11.6 * pressure + 273.15
     states = []
     for cap in [0.1, 0.5]:
-        phases = benchmark_phases(max_pyroxene_ca=cap)
+        phases = model_sets.hhph2013().phases
+        for phase in phases:
+            if phase.name in ("opx", "hpx"):
+                coefficients = [cap] * phase.n_endmembers
+                coefficients[3] -= 1.0
+                phase.endmember_constraints = [coefficients]
         assert {"opx", "hpx"} <= {p.name for p in phases}
         state = bm.stable_equilibrium(
             bulk.atomic_composition, phases, pressure * 1e9, temperature

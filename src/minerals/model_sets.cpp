@@ -244,11 +244,9 @@ ModelSet hhph2013() {
       "https://doi.org/10.1093/petrology/egt035",
       30.0e9,
       std::nullopt,
-      {hp::g_solution(), hp::fp_solution(), hp::mpv_solution(),
-       hp::cpv_solution(), hp::cor_solution(), hp::cf_solution(),
-       hp::nal_solution(), hp::aki_solution(), hp::ol_solution(),
-       hp::wad_solution(), hp::ring_solution(), hp::cpx_solution(),
-       hp::opx_solution(), hp::hpx_solution(), named(hp::coe(), "coe"),
+      {hp::g(), hp::fp(), hp::mpv_solution(), hp::cpv_solution(),
+       hp::cor_solution(), hp::cf(), hp::nal(), hp::aki(), hp::ol(), hp::wad(),
+       hp::ring(), hp::cpx(), hp::opx(), hp::hpx(), named(hp::coe(), "coe"),
        named(hp::stv(), "stv")},
       "Dry, all ferrous iron; no melt or fluid. Pyroxene Ca bounds are not "
       "intrinsic to these solution models."};
