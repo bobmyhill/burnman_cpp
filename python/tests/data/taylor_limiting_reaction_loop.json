@@ -1,0 +1,208 @@
+{
+  "pressure_range": [0.0, 23000000000.0],
+  "temperature_range": [200.0, 2300.0],
+  "settings": {"max_phase_instances": 3, "amount_tolerance": 1e-07, "node_tolerance": 0.0002},
+  "nodes": [
+    {
+      "id": 153,
+      "pressure": 22769420743.270695,
+      "temperature": 316.22337664868814,
+      "kind": "junction",
+      "zero_phases": [6, 27],
+      "assemblage": [6, 27, 30, 31, 39, 42, 45, 60, 78],
+      "gibbs_variance": 1,
+      "pt_nullity": 0,
+      "incident_lines": [133, 300],
+      "is_verified_critical_endpoint": false
+    },
+    {
+      "id": 155,
+      "pressure": 22769428046.315216,
+      "temperature": 316.22771248871305,
+      "kind": "junction",
+      "zero_phases": [31, 27],
+      "assemblage": [6, 27, 30, 31, 39, 42, 45, 60, 78],
+      "gibbs_variance": 1,
+      "pt_nullity": 0,
+      "incident_lines": [133, 301, 302],
+      "is_verified_critical_endpoint": false
+    },
+    {
+      "id": 187,
+      "pressure": 22860796722.084137,
+      "temperature": 366.2906438245441,
+      "kind": "junction",
+      "zero_phases": [30, 6],
+      "assemblage": [6, 30, 31, 39, 42, 45, 60, 78],
+      "gibbs_variance": 2,
+      "pt_nullity": 0,
+      "incident_lines": [300, 333],
+      "is_verified_critical_endpoint": false
+    },
+    {
+      "id": 190,
+      "pressure": 22919115500.697205,
+      "temperature": 395.14216946960045,
+      "kind": "junction",
+      "zero_phases": [30, 39],
+      "assemblage": [6, 30, 39, 40, 42, 45, 60, 78],
+      "gibbs_variance": 2,
+      "pt_nullity": 0,
+      "incident_lines": [337],
+      "is_verified_critical_endpoint": false
+    },
+    {
+      "id": 225,
+      "pressure": 22099327683.84865,
+      "temperature": 362.4731025968215,
+      "kind": "junction",
+      "zero_phases": [30, 27],
+      "assemblage": [6, 27, 30, 39, 42, 45, 60, 78],
+      "gibbs_variance": 2,
+      "pt_nullity": 0,
+      "incident_lines": [302, 364],
+      "is_verified_critical_endpoint": false
+    },
+    {
+      "id": 226,
+      "pressure": 22861240006.041046,
+      "temperature": 366.517345844646,
+      "kind": "junction",
+      "zero_phases": [31, 30],
+      "assemblage": [6, 30, 31, 39, 42, 45, 60, 78],
+      "gibbs_variance": 2,
+      "pt_nullity": 0,
+      "incident_lines": [301, 333, 337, 364],
+      "is_verified_critical_endpoint": false
+    }
+  ],
+  "boundaries": [
+    {
+      "id": 133,
+      "zero_phase": 27,
+      "reaction_kind": "replacement",
+      "assemblage": [6, 27, 30, 31, 39, 42, 45, 60, 78],
+      "side_a": [6, 30, 31, 39, 42, 45, 60, 78],
+      "side_b": [6, 27, 30, 39, 42, 45, 60, 78],
+      "start_node": 153,
+      "end_node": 155,
+      "is_solution_replacement": false,
+      "points": [
+        {"pressure": 22769420743.270935, "temperature": 316.2233766486799},
+        {"pressure": 22769424394.77922, "temperature": 316.2255445688875},
+        {"pressure": 22769428046.3152, "temperature": 316.2277124887144}
+      ]
+    },
+    {
+      "id": 300,
+      "zero_phase": 6,
+      "reaction_kind": "phase_out",
+      "assemblage": [6, 30, 31, 39, 42, 45, 60, 78],
+      "side_a": [30, 31, 39, 42, 45, 60, 78],
+      "side_b": [6, 30, 31, 39, 42, 45, 60, 78],
+      "start_node": 153,
+      "end_node": 187,
+      "is_solution_replacement": false,
+      "points": [
+        {"pressure": 22769420744.490158, "temperature": 316.223377371764},
+        {"pressure": 22813463535.686626, "temperature": 341.2821301645334},
+        {"pressure": 22815036339.109478, "temperature": 342.14146672588544},
+        {"pressure": 22849079680.743702, "temperature": 360.251822663959},
+        {"pressure": 22860796904.29414, "temperature": 366.2907370154517}
+      ]
+    },
+    {
+      "id": 301,
+      "zero_phase": 31,
+      "reaction_kind": "phase_out",
+      "assemblage": [6, 30, 31, 39, 42, 45, 60, 78],
+      "side_a": [6, 30, 31, 39, 42, 45, 60, 78],
+      "side_b": [6, 30, 39, 42, 45, 60, 78],
+      "start_node": 155,
+      "end_node": 226,
+      "is_solution_replacement": false,
+      "points": [
+        {"pressure": 22769428047.535145, "temperature": 316.22771321218426},
+        {"pressure": 22861240006.041046, "temperature": 366.517345844646}
+      ]
+    },
+    {
+      "id": 302,
+      "zero_phase": 27,
+      "reaction_kind": "phase_out",
+      "assemblage": [6, 27, 30, 39, 42, 45, 60, 78],
+      "side_a": [6, 27, 30, 39, 42, 45, 60, 78],
+      "side_b": [6, 30, 39, 42, 45, 60, 78],
+      "start_node": 225,
+      "end_node": 155,
+      "is_solution_replacement": false,
+      "points": [
+        {"pressure": 22099327683.848465, "temperature": 362.47310259683843},
+        {"pressure": 22769428047.534904, "temperature": 316.22771321219176}
+      ]
+    },
+    {
+      "id": 333,
+      "zero_phase": 30,
+      "reaction_kind": "phase_out",
+      "assemblage": [6, 30, 31, 39, 42, 45, 60, 78],
+      "side_a": [6, 30, 31, 39, 42, 45, 60, 78],
+      "side_b": [6, 30, 39, 42, 45, 60, 78],
+      "start_node": 226,
+      "end_node": 187,
+      "is_solution_replacement": false,
+      "points": [
+        {"pressure": 22861239821.341347, "temperature": 366.5172514326505},
+        {"pressure": 22860796722.08417, "temperature": 366.29064382454914}
+      ]
+    },
+    {
+      "id": 337,
+      "zero_phase": 30,
+      "reaction_kind": "phase_out",
+      "assemblage": [6, 30, 39, 42, 45, 60, 78],
+      "side_a": [6, 39, 42, 45, 60, 78],
+      "side_b": [6, 30, 39, 42, 45, 60, 78],
+      "start_node": 190,
+      "end_node": 226,
+      "is_solution_replacement": false,
+      "points": [
+        {"pressure": 22919115548.512173, "temperature": 395.1421692028357},
+        {"pressure": 22861240006.04072, "temperature": 366.5173458446636}
+      ]
+    },
+    {
+      "id": 364,
+      "zero_phase": 30,
+      "reaction_kind": "phase_out",
+      "assemblage": [6, 30, 39, 42, 45, 60, 78],
+      "side_a": [6, 30, 39, 42, 45, 60, 78],
+      "side_b": [6, 39, 42, 45, 60, 78],
+      "start_node": 225,
+      "end_node": 226,
+      "is_solution_replacement": false,
+      "points": [
+        {"pressure": 22099328083.645294, "temperature": 362.4731046136876},
+        {"pressure": 22861239821.341316, "temperature": 366.517251432607}
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "pressure": 22769424394.779037,
+      "temperature": 316.2255445688969,
+      "success": true,
+      "is_field_verification": false,
+      "phases": [
+        {"id": 6, "amount": 0.1626998932198458},
+        {"id": 30, "amount": 0.0008835132565724907},
+        {"id": 31, "amount": 0.08133249372547285},
+        {"id": 39, "amount": 0.09488934585055635},
+        {"id": 42, "amount": 0.010877890509063286},
+        {"id": 45, "amount": 0.043678021162268696},
+        {"id": 60, "amount": 0.5112551169147204},
+        {"id": 78, "amount": 0.08464241916219875}
+      ]
+    }
+  ]
+}
