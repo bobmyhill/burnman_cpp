@@ -72,7 +72,7 @@ void validate_properties(const std::vector<std::string> &names) {
 }
 
 struct ReactionCurvature {
-  Eigen::MatrixXd basis, scaled;
+  Eigen::MatrixXd basis;
   Eigen::VectorXd scale, eigenvalues;
   Eigen::MatrixXd eigenvectors;
   explicit ReactionCurvature(const Assemblage &a)
@@ -96,7 +96,7 @@ struct ReactionCurvature {
       }
       offset += n;
     }
-    scaled = basis * h * basis.transpose();
+    Eigen::MatrixXd scaled = basis * h * basis.transpose();
     if (!scaled.allFinite())
       throw std::runtime_error("Non-finite reaction Hessian.");
     scale =
@@ -359,11 +359,7 @@ std::optional<State> field_seed(const Result &source, const FieldPolygon &field,
     if (next >= distance)
       return;
     State seed;
-    seed.pressure = state.pressure;
-    seed.temperature = state.temperature;
-    seed.entropy = state.entropy;
-    seed.volume = state.volume;
-    seed.composition_coordinate = state.composition_coordinate;
+    detail::copy_coordinates(seed, state);
     for (int id : field.phases)
       seed.phases.push_back(*detail::find_phase(state.phases, id));
     best = std::move(seed);

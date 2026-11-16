@@ -321,6 +321,21 @@ def test_problem_regions_include_boundary_diagnostics_without_problem_fields(tmp
     assert base == original
 
 
+def test_problem_regions_include_missing_sampled_assemblage():
+    base = diagram([(0.5, 0), (0.5, 1)])
+    base["diagnostics"] = [
+        "No closed region resolved for sampled assemblage 4; increase seed density."
+    ]
+    base["samples"] = [
+        dict(pressure=p, temperature=t, success=True, phases=[dict(id=0, amount=1)])
+        for p, t in ((0.51, 0.50), (0.52, 0.51))
+    ]
+    base["fields"] = [dict(id=4, phases=[0], sample_indices=[0, 1])]
+    regions = bm.phase_diagram_problem_regions(base, padding=0)
+    assert regions["Sampled assemblage 4"][0] == pytest.approx((0.4925, 0.5175))
+    assert regions["Sampled assemblage 4"][1] == pytest.approx((0.5025, 0.5275))
+
+
 def test_problem_regions_keep_fields_and_boundary_ids_separate_and_include_nodes():
     base = diagram([(0.5, 0.2), (0.5, 0.8)])
     line = base["boundaries"][0]

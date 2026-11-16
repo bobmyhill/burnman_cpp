@@ -183,6 +183,10 @@ struct Engine {
                               const Eigen::VectorXd &start = Eigen::VectorXd());
   /// Discover stable phases at physical P,T (Pa, K), including solution copies.
   WorkState stable(double, double);
+  /// Try weak negative-affinity phases/compositions inside the ordinary
+  /// discovery tolerance. Retain an entry only after equilibrium validation
+  /// and a resolved decrease in total Gibbs energy.
+  WorkState resolve_weak_phases(WorkState);
   /// Refine a specified assemblage at P,T, or at requested diagram coordinates.
   /// Remove phases driven to zero amount and check against other candidates.
   WorkState equilibrate_phase_set(const std::vector<int> &, const PhaseStates &,

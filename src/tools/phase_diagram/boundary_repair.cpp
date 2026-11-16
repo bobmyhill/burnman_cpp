@@ -13,61 +13,484 @@
 
 #include "burnman/tools/phase_diagram/boundary_repair.hpp"
 #include "burnman/tools/phase_diagram/continuation.hpp"
+#include "burnman/tools/phase_diagram/diagram_verification.hpp"
 #include "burnman/tools/phase_diagram/domain.hpp"
 #include "burnman/tools/phase_diagram/polygons.hpp"
 #include "burnman/tools/phase_diagram/refinement.hpp"
 #include "burnman/tools/phase_diagram/stability.hpp"
-#include "burnman/tools/phase_diagram/verification.hpp"
 #include "burnman/utils/index_utils.hpp"
+#include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <iterator>
+#include <map>
 #include <set>
 
 namespace burnman::phase_diagrams::detail {
-namespace {
-PhaseStates junction_states(const std::vector<Boundary> &lines,
-                            const Node &event) {
-  PhaseStates phases;
-  std::pair<std::size_t, std::size_t> best{};
-  for (const auto &peer : lines)
-    if (!peer.points.empty() &&
-        (peer.start_node == event.id || peer.end_node == event.id)) {
-      const auto &states = (peer.start_node == event.id ? peer.points.front()
-                                                        : peer.points.back())
-                               .phases;
-      std::map<int, std::size_t> counts;
-      std::size_t size = 0, copies = 0;
-      for (const auto &state : states)
-        if (std::find(event.assemblage.begin(), event.assemblage.end(),
-                      state.id) != event.assemblage.end()) {
-          ++size;
-          copies += counts[state.candidate_index]++;
-        }
-      const auto score = std::make_pair(size, copies);
-      if (score > best) {
-        best = score;
-        phases = states;
-      }
+std::set<int> reaction_overtraces(const Result &result) {
+  std::set<int> redundant;
+  if (result.section.type != DiagramType::PT)
+    return redundant;
+  const auto ranges = result.coordinate_ranges();
+  const Eigen::Vector2d origin(ranges[0][0], ranges[1][0]);
+  const Eigen::Vector2d scale(ranges[0][1] - origin[0],
+                              ranges[1][1] - origin[1]);
+  auto coordinate = [&](const Eigen::Vector2d &point) {
+    return (point - origin).cwiseQuotient(scale).eval();
+  };
+  std::map<int, const Node *> nodes;
+  for (const auto &node : result.nodes)
+    nodes.emplace(node.id, &node);
+  std::map<int, std::vector<const Boundary *>> incident;
+  for (const auto &line : result.boundaries)
+    if (line.points.size() >= 2) {
+      incident[line.start_node].push_back(&line);
+      if (line.end_node != line.start_node)
+        incident[line.end_node].push_back(&line);
     }
-  // Keep coexisting copies together. A single-copy arm may reuse the other
-  // copy's ID after canonicalisation; combining that arm first can otherwise
-  // reconstruct two identical compositions and lose the absent solution.
-  for (const auto &peer : lines)
-    if (!peer.points.empty() &&
-        (peer.start_node == event.id || peer.end_node == event.id))
-      for (const auto &p : (peer.start_node == event.id ? peer.points.front()
-                                                        : peer.points.back())
-                               .phases)
-        if (std::none_of(phases.begin(), phases.end(),
-                         [&](const auto &q) { return p.id == q.id; }))
-          phases.push_back(p);
-  erase_if(phases, [&](const auto &p) {
-    return std::find(event.assemblage.begin(), event.assemblage.end(), p.id) ==
-           event.assemblage.end();
-  });
-  return phases;
+  auto same_assemblage = [&](const Boundary &a, const Boundary &b) {
+    return canonical_phase_ids(a.assemblage,
+                               result.settings.max_phase_instances) ==
+           canonical_phase_ids(b.assemblage,
+                               result.settings.max_phase_instances);
+  };
+  auto valid_sides = [&](const Boundary &line) {
+    if (line.side_a.empty() || line.side_b.empty() ||
+        line.side_a == line.side_b)
+      return false;
+    const auto full = canonical_phase_ids(line.assemblage,
+                                          result.settings.max_phase_instances);
+    for (const auto *side : {&line.side_a, &line.side_b}) {
+      const auto phases =
+          canonical_phase_ids(*side, result.settings.max_phase_instances);
+      if (!std::includes(full.begin(), full.end(), phases.begin(),
+                         phases.end()))
+        return false;
+    }
+    return true;
+  };
+  auto at = [&](const Boundary &line, int node) {
+    std::vector<Eigen::Vector2d> points;
+    points.reserve(line.points.size());
+    for (const auto &point : line.points)
+      points.push_back(diagram_coordinates(point, result.section.type));
+    if (line.end_node == node)
+      std::reverse(points.begin(), points.end());
+    return points;
+  };
+  for (const auto &long_line : result.boundaries) {
+    if (long_line.points.size() < 2 || long_line.start_node < 0 ||
+        long_line.end_node < 0 || long_line.start_node == long_line.end_node ||
+        long_line.reaction_kind != ReactionKind::replacement ||
+        !valid_sides(long_line))
+      continue;
+    const auto start = nodes.find(long_line.start_node);
+    const auto end = nodes.find(long_line.end_node);
+    if ((start == nodes.end() || start->second->kind != "domain_edge") &&
+        (end == nodes.end() || end->second->kind != "domain_edge"))
+      continue;
+    std::vector<Eigen::Vector2d> long_points;
+    for (const auto *first : incident[long_line.start_node]) {
+      if (first->id == long_line.id ||
+          first->reaction_kind != ReactionKind::replacement ||
+          !valid_sides(*first) || !same_assemblage(long_line, *first))
+        continue;
+      const int middle = first->start_node == long_line.start_node
+                             ? first->end_node
+                             : first->start_node;
+      const auto junction = nodes.find(middle);
+      if (middle < 0 || middle == long_line.end_node ||
+          junction == nodes.end() || junction->second->kind != "junction")
+        continue;
+      for (const auto *second : incident[middle]) {
+        if (second->id == long_line.id || second->id == first->id ||
+            (second->start_node != long_line.end_node &&
+             second->end_node != long_line.end_node) ||
+            second->reaction_kind != ReactionKind::replacement ||
+            !valid_sides(*second) || !same_assemblage(long_line, *second) ||
+            same_boundary_sides(*first, *second) ||
+            (same_boundary_sides(long_line, *first) ==
+             same_boundary_sides(long_line, *second)))
+          continue;
+        // Both branches must be certified by the saved junction's distinct
+        // zero-phase conditions. The common limiting assemblage connects them.
+        const auto &zeros = junction->second->zero_phases;
+        if (first->zero_phase == second->zero_phase ||
+            std::find(zeros.begin(), zeros.end(), first->zero_phase) ==
+                zeros.end() ||
+            std::find(zeros.begin(), zeros.end(), second->zero_phase) ==
+                zeros.end())
+          continue;
+        const auto shared = [&](const std::vector<int> &a,
+                                const std::vector<int> &b) {
+          return canonical_phase_ids(a, result.settings.max_phase_instances) ==
+                 canonical_phase_ids(b, result.settings.max_phase_instances);
+        };
+        if (!(shared(first->side_a, second->side_a) ||
+              shared(first->side_a, second->side_b) ||
+              shared(first->side_b, second->side_a) ||
+              shared(first->side_b, second->side_b)))
+          continue;
+        auto chain = at(*first, long_line.start_node);
+        auto tail = at(*second, middle);
+        chain.insert(chain.end(), tail.begin() + 1, tail.end());
+        if (long_points.empty())
+          long_points = at(long_line, long_line.start_node);
+        const double tolerance = result.settings.node_tolerance;
+        if (follows_polyline(long_points, chain, coordinate, tolerance) &&
+            follows_polyline(chain, long_points, coordinate, tolerance)) {
+          redundant.insert(long_line.id);
+          break;
+        }
+      }
+      if (redundant.count(long_line.id))
+        break;
+    }
+  }
+  return redundant;
 }
 
+namespace {
+BoundaryPoint boundary_point_from_state(const State &state) {
+  BoundaryPoint point;
+  copy_coordinates(point, state);
+  point.phases = state.phases;
+  point.mass_balance_error = state.mass_balance_error;
+  point.minimum_affinity = state.minimum_affinity;
+  point.residual = state.equilibrium_error;
+  return point;
+}
+
+void mark_continued_boundary(Result &result, int line_id, int node_id) {
+  for (auto &line : result.boundaries)
+    if (line.id == line_id) {
+      auto [back, forward] = boundary_statuses(line);
+      if (line.start_node == node_id && back == "solution critical point")
+        back = "boundary continuation";
+      if (line.end_node == node_id && forward == "solution critical point")
+        forward = "boundary continuation";
+      line.termination = back + "; " + forward;
+      return;
+    }
+}
+} // namespace
+
+std::size_t recover_solvus_branch_gaps(Result &result, Engine &engine) {
+  if (result.section.type != DiagramType::PT)
+    return 0;
+  const auto ranges = result.coordinate_ranges();
+  const Eigen::Vector2d origin(ranges[0][0], ranges[1][0]);
+  const Eigen::Vector2d span(ranges[0][1] - origin[0],
+                             ranges[1][1] - origin[1]);
+  auto position = [&](const Node &node) {
+    return (diagram_coordinates(node, DiagramType::PT) - origin)
+        .cwiseQuotient(span)
+        .eval();
+  };
+  auto phases = [&](const WorkState &work) {
+    return engine.active_phases(work.state);
+  };
+  std::size_t added = 0;
+  for (std::size_t i = 0; i < result.nodes.size(); ++i) {
+    const auto &first = result.nodes[i];
+    if (first.kind != "critical_point" ||
+        !first.is_verified_critical_endpoint ||
+        first.incident_lines.size() != 1)
+      continue;
+    for (std::size_t j = i + 1; j < result.nodes.size(); ++j) {
+      const auto &second = result.nodes[j];
+      if (second.kind != "critical_point" ||
+          !second.is_verified_critical_endpoint ||
+          second.incident_lines.size() != 1 ||
+          first.temperature == second.temperature)
+        continue;
+      const auto *arm_a = [&]() -> const Boundary * {
+        for (const auto &line : result.boundaries)
+          if (line.id == first.incident_lines.front())
+            return &line;
+        return nullptr;
+      }();
+      const auto *arm_b = [&]() -> const Boundary * {
+        for (const auto &line : result.boundaries)
+          if (line.id == second.incident_lines.front())
+            return &line;
+        return nullptr;
+      }();
+      if (!arm_a || !arm_b || arm_a == arm_b ||
+          arm_a->reaction_kind != ReactionKind::phase_out ||
+          arm_b->reaction_kind != ReactionKind::phase_out ||
+          arm_a->zero_phase < 0 || arm_b->zero_phase < 0 ||
+          arm_a->zero_phase / engine.settings.max_phase_instances !=
+              arm_b->zero_phase / engine.settings.max_phase_instances ||
+          engine.canonical_ids(arm_a->assemblage) !=
+              engine.canonical_ids(arm_b->assemblage) ||
+          !same_boundary_sides(*arm_a, *arm_b))
+        continue;
+      const Node &start =
+          first.temperature < second.temperature ? first : second;
+      const Node &end = first.temperature < second.temperature ? second : first;
+      const Boundary &start_arm =
+          first.temperature < second.temperature ? *arm_a : *arm_b;
+      const Boundary &end_arm =
+          first.temperature < second.temperature ? *arm_b : *arm_a;
+      const auto low = engine.canonical_ids(
+          start_arm.side_a.size() < start_arm.side_b.size() ? start_arm.side_a
+                                                            : start_arm.side_b);
+      const auto high = engine.canonical_ids(
+          start_arm.side_a.size() < start_arm.side_b.size() ? start_arm.side_b
+                                                            : start_arm.side_a);
+      if (low.empty() || high.size() != low.size() + 1 ||
+          !std::includes(high.begin(), high.end(), low.begin(), low.end()))
+        continue;
+      const Eigen::Vector2d a = position(start), b = position(end);
+      const Eigen::Vector2d tangent = b - a;
+      const double length = tangent.norm();
+      if (length <= 0.)
+        continue;
+      const Eigen::Vector2d right(tangent.y() / length, -tangent.x() / length);
+      Boundary line;
+      line.id = burnman::utils::checked_int(result.boundaries.size());
+      // Copy numbers can exchange along this segment. Its stable two- and
+      // three-copy sides are identified by equilibria, not by a fixed zero ID.
+      line.zero_phase = -1;
+      line.start_node = start.id;
+      line.end_node = end.id;
+      line.assemblage = high;
+      line.reaction_kind = ReactionKind::phase_out;
+      line.termination = "boundary continuation; boundary continuation";
+      line.points.push_back(start_arm.start_node == start.id
+                                ? start_arm.points.front()
+                                : start_arm.points.back());
+      bool accepted = true;
+      int right_side = 0;
+      // Locate the stable phase front on each cross-section. These points
+      // approach the front from the high-phase side; they are not exact
+      // coexistence solves, so retain the explicit phase labels on each side.
+      for (int step = 1; step < 12 && accepted; ++step) {
+        const auto centre =
+            (a + (static_cast<double>(step) / 12.) * tangent).eval();
+        const double offset = .1 * length;
+        auto at = [&](double distance) {
+          return engine.stable_at(
+              origin + (centre + distance * right).cwiseProduct(span));
+        };
+        try {
+          auto left = at(-offset), right_state = at(offset);
+          const auto left_ids = phases(left), right_ids = phases(right_state);
+          if (!left.state.success || !right_state.state.success ||
+              !((left_ids == low && right_ids == high) ||
+                (left_ids == high && right_ids == low)) ||
+              (right_side && right_side != (right_ids == high ? 1 : -1))) {
+            accepted = false;
+            break;
+          }
+          right_side = right_ids == high ? 1 : -1;
+          double lower = -offset, upper = offset;
+          for (int iteration = 0; iteration < 18; ++iteration) {
+            const double middle = .5 * (lower + upper);
+            auto trial = at(middle);
+            if (!trial.state.success) {
+              accepted = false;
+              break;
+            }
+            const auto ids = phases(trial);
+            if (ids == left_ids) {
+              lower = middle;
+              left = std::move(trial);
+            } else if (ids == right_ids) {
+              upper = middle;
+              right_state = std::move(trial);
+            } else {
+              accepted = false;
+              break;
+            }
+          }
+          if (!accepted)
+            break;
+          const auto &state = (left_ids == high ? left : right_state).state;
+          line.points.push_back(boundary_point_from_state(state));
+        } catch (const std::exception &) {
+          accepted = false;
+        }
+      }
+      if (!accepted)
+        continue;
+      line.points.push_back(end_arm.start_node == end.id
+                                ? end_arm.points.front()
+                                : end_arm.points.back());
+      line.side_a = right_side > 0 ? high : low;
+      line.side_b = right_side > 0 ? low : high;
+      const int start_arm_id = start_arm.id, end_arm_id = end_arm.id;
+      result.boundaries.push_back(std::move(line));
+      rebuild_boundary_incidence(result);
+      // A verified phase front is physical even when another unfinished edge
+      // leaves the field graph provisional. Field-count changes cannot decide
+      // whether this reaction continues.
+      result.nodes[i].kind = "boundary_continuation";
+      result.nodes[j].kind = "boundary_continuation";
+      mark_continued_boundary(result, start_arm_id, start.id);
+      mark_continued_boundary(result, end_arm_id, end.id);
+      ++added;
+      break;
+    }
+  }
+  return added;
+}
+
+std::size_t continue_boundary_past_coalescence(Result &result, Engine &engine) {
+  if (result.section.type != DiagramType::PT)
+    return 0;
+  const double p_min = result.pressure_range[0];
+  const double p_max = result.pressure_range[1];
+  const double p_span = p_max - p_min;
+  const double t_min = result.temperature_range[0];
+  const double t_max = result.temperature_range[1];
+  auto phases = [&](const WorkState &work) {
+    return engine.active_phases(work.state);
+  };
+  std::size_t added = 0;
+  const auto original_nodes = result.nodes.size();
+  for (std::size_t i = 0; i < original_nodes; ++i) {
+    const Node start = result.nodes[i];
+    if (start.kind != "critical_point" ||
+        !start.is_verified_critical_endpoint ||
+        start.incident_lines.size() != 1 || start.gibbs_variance != 2)
+      continue;
+    const auto found =
+        std::find_if(result.boundaries.begin(), result.boundaries.end(),
+                     [&](const Boundary &line) {
+                       return line.id == start.incident_lines[0];
+                     });
+    if (found == result.boundaries.end())
+      continue;
+    const Boundary arm = *found;
+    if (arm.reaction_kind != ReactionKind::phase_out || arm.points.size() < 2 ||
+        arm.side_a.empty() || arm.side_b.empty())
+      continue;
+    const bool arm_starts_here = arm.start_node == start.id;
+    const auto &next =
+        arm_starts_here ? arm.points[1] : arm.points[arm.points.size() - 2];
+    const double dt = start.temperature - next.temperature;
+    if (std::abs(dt) < 1.e-8)
+      continue;
+    const double frame = dt < 0. ? t_min : t_max;
+    if ((frame - start.temperature) * dt <= 0.)
+      continue;
+    const auto low = engine.canonical_ids(
+        arm.side_a.size() < arm.side_b.size() ? arm.side_a : arm.side_b);
+    const auto high = engine.canonical_ids(
+        arm.side_a.size() < arm.side_b.size() ? arm.side_b : arm.side_a);
+    if (high.size() != low.size() + 1 ||
+        !std::includes(high.begin(), high.end(), low.begin(), low.end()))
+      continue;
+    const int steps = std::clamp(
+        static_cast<int>(std::ceil(std::abs(frame - start.temperature) /
+                                   std::max(10., (t_max - t_min) / 80.))),
+        4, 40);
+    double previous_t = start.temperature;
+    double previous_p = start.pressure;
+    double slope = (start.pressure - next.pressure) / dt;
+    Boundary line;
+    line.id = burnman::utils::checked_int(result.boundaries.size());
+    line.start_node = start.id;
+    line.zero_phase = -1;
+    line.assemblage = high;
+    line.reaction_kind = ReactionKind::phase_out;
+    line.side_a = arm_starts_here ? arm.side_b : arm.side_a;
+    line.side_b = arm_starts_here ? arm.side_a : arm.side_b;
+    line.termination = "boundary continuation; domain edge";
+    line.points.push_back(arm_starts_here ? arm.points.front()
+                                          : arm.points.back());
+    // The saved reaction corrector becomes singular as solution copies merge.
+    // Bracket the stable assemblage change at each temperature instead of
+    // assuming that this coalescence ends the geometric phase boundary.
+    bool accepted = true;
+    int high_pressure_side = 0;
+    for (int step = 1; step <= steps && accepted; ++step) {
+      const double t =
+          start.temperature +
+          (frame - start.temperature) * (static_cast<double>(step) / steps);
+      const double predicted = previous_p + slope * (t - previous_t);
+      WorkState below, above;
+      bool bracketed = false;
+      for (int trial = 0; trial < 7; ++trial) {
+        const double offset = std::ldexp(p_span * .001, trial);
+        const double left = std::max(p_min, predicted - offset);
+        const double right = std::min(p_max, predicted + offset);
+        if (left >= right)
+          continue;
+        try {
+          below = engine.stable_at({left, t});
+          above = engine.stable_at({right, t});
+          const auto a = phases(below), b = phases(above);
+          if (below.state.success && above.state.success &&
+              ((a == low && b == high) || (a == high && b == low)) &&
+              (!high_pressure_side ||
+               high_pressure_side == (b == high ? 1 : -1))) {
+            high_pressure_side = b == high ? 1 : -1;
+            bracketed = true;
+            break;
+          }
+        } catch (const std::exception &) {
+        }
+      }
+      if (!bracketed) {
+        accepted = false;
+        break;
+      }
+      for (int iteration = 0; iteration < 24; ++iteration) {
+        const double middle =
+            .5 * (below.state.pressure + above.state.pressure);
+        try {
+          auto trial = engine.stable_at({middle, t});
+          if (!trial.state.success) {
+            accepted = false;
+            break;
+          }
+          if (phases(trial) == phases(below))
+            below = std::move(trial);
+          else if (phases(trial) == phases(above))
+            above = std::move(trial);
+          else {
+            accepted = false;
+            break;
+          }
+        } catch (const std::exception &) {
+          accepted = false;
+          break;
+        }
+      }
+      if (!accepted)
+        break;
+      const auto &state = (high_pressure_side > 0 ? above : below).state;
+      line.points.push_back(boundary_point_from_state(state));
+      slope = (state.pressure - previous_p) / (t - previous_t);
+      previous_p = state.pressure;
+      previous_t = t;
+    }
+    if (!accepted)
+      continue;
+    Node end;
+    end.id = burnman::utils::checked_int(result.nodes.size());
+    end.kind = "domain_edge";
+    copy_coordinates(end, line.points.back());
+    end.temperature = frame;
+    end.assemblage = high;
+    line.end_node = end.id;
+    result.nodes.push_back(std::move(end));
+    result.boundaries.push_back(std::move(line));
+    rebuild_boundary_incidence(result);
+    // The physical side-change checks above establish the reaction front.
+    // Ring reconstruction must not decide whether to discard it: a missing
+    // neighbouring trace can leave even a correct front unenclosed.
+    result.nodes[i].kind = "boundary_continuation";
+    mark_continued_boundary(result, arm.id, start.id);
+    ++added;
+  }
+  return added;
+}
+
+namespace {
 // Proximity proposes duplicate junctions; their independently constrained
 // equilibria must agree at the native solver's accuracy before joining them.
 void join_duplicate_junctions(Result &result, Engine &engine) {
@@ -216,7 +639,8 @@ std::set<int> split_at_stable_nodes(Result &result, Engine &engine) {
       for (const auto &node : result.nodes) {
         if (!active.count(node.id) || node.id == arc.start_node ||
             node.id == line.start_node || node.id == line.end_node ||
-            node.kind != "junction" || node.pt_nullity != 0 ||
+            node.kind != "junction" ||
+            (node.pt_nullity != 0 && result.section.type != DiagramType::PT) ||
             delta.squaredNorm() == 0.)
           continue;
         const auto event = engine.canonical_ids(node.assemblage);
@@ -506,14 +930,6 @@ void repair_field_boundaries(
         label(line);
   };
   refresh_conflicting_labels();
-  // A certified connection/label correction can finish the repair without
-  // splitting or subdividing unrelated accepted curves. Rebuild incidence
-  // first so an obsolete junction record cannot supply a stale certificate.
-  if (result.section.type == DiagramType::PT) {
-    rebuild_boundary_incidence(result);
-    if (field_diagnostics(result, engine, field_polygons(result)).empty())
-      return;
-  }
   auto selected = split_at_stable_nodes(result, engine);
   if (!selected.empty()) {
     // Splitting a recovered arc can expose a short bridge between two
@@ -529,6 +945,17 @@ void repair_field_boundaries(
       line.id = id;
     }
     selected = std::move(renumbered);
+  }
+  // A curve can pass through a verified junction and change limiting states
+  // without creating a conflicting polygon label. Split and relabel those
+  // segments before declaring the graph consistent.
+  if (result.section.type == DiagramType::PT) {
+    for (auto &line : result.boundaries)
+      if (selected.count(line.id))
+        label(line);
+    rebuild_boundary_incidence(result);
+    if (field_diagnostics(result, engine, field_polygons(result)).empty())
+      return;
   }
   // A missing side label can itself reverse a thin field's graph fan. Recover
   // that thermodynamic evidence before treating its drawing as inconsistent.

@@ -15,11 +15,25 @@
 #include "burnman/tools/phase_diagram/types.hpp"
 #include <algorithm>
 #include <limits>
+#include <set>
 
 namespace burnman::phase_diagrams::detail {
 using namespace equilibration;
 using PhaseStates = std::vector<PhaseState>;
 using EquilibriumSolve = optim::roots::DampedNewtonResult;
+/// Diagnostic for a failed equilibrium sample, shared by tracing and status
+/// reclassification after independent field verification.
+std::string failed_sample_diagnostic(const State &);
+/// Copy all physical and composition coordinates between saved point types.
+/// Coordinate uncertainty does not affect the phase or reaction metadata.
+template <typename Target, typename Source>
+void copy_coordinates(Target &target, const Source &source) {
+  target.pressure = source.pressure;
+  target.temperature = source.temperature;
+  target.entropy = source.entropy;
+  target.volume = source.volume;
+  target.composition_coordinate = source.composition_coordinate;
+}
 // C++17 equivalent of std::erase_if, shared by graph and phase-state updates.
 template <typename Container, typename Predicate>
 void erase_if(Container &values, Predicate predicate) {
@@ -62,6 +76,10 @@ inline std::vector<int> present_phase_ids(const PhaseStates &phases,
 /// vanish. This is a trial state, not a new equilibrium; the caller must
 /// re-equilibrate it.
 PhaseStates average_phase_states(PhaseStates, const PhaseStates &);
+/// Assemble a junction warm start from incident endpoint states. Prefer the
+/// most complete matching inventory, retaining coexisting solution copies
+/// together, then fill missing IDs and discard phases outside the event.
+PhaseStates junction_states(const std::vector<Boundary> &, const Node &);
 /// Largest absolute reaction affinity (J/mol), or zero if there are no
 /// reactions.
 inline double reaction_residual(const Assemblage &a) {
@@ -134,6 +152,19 @@ inline void rebuild_boundary_incidence(Result &result) {
 inline double cross(const Eigen::Vector2d &a, const Eigen::Vector2d &b) {
   return a.x() * b.y() - a.y() * b.x();
 }
+/// Intersection of two straight segments, expressed along the first segment.
+/// first == last describes a single crossing; first < last is an overlap.
+struct SegmentIntersection {
+  double first, last;
+};
+/// The first segment runs from 0 to direction; the second from offset to
+/// offset + other_direction, all in the same rescaled diagram coordinates.
+/// Include endpoint crossings within arithmetic tolerance. Collinear touching
+/// endpoints and zero-length segments do not establish a separating crossing.
+std::optional<SegmentIntersection>
+segment_intersection(const Eigen::Vector2d &direction,
+                      const Eigen::Vector2d &other_direction,
+                      const Eigen::Vector2d &offset);
 /// Test whether a straight segment meets a rectangular refinement/label window.
 /// Contact counts as intersection. parallel_tolerance treats a small coordinate
 /// change as zero; it uses coordinate units and does not expand the rectangle.
@@ -198,6 +229,9 @@ inline Eigen::Vector2d equilibrium_pt_tolerance() { return {.2, 1.e-6}; }
 /// Thus two feldspars still count as two phases, but exchanging their local
 /// copy numbers does not change the assemblage identity.
 std::vector<int> canonical_phase_ids(const std::vector<int> &, int copies);
+/// Canonical finite-field assemblages permitted by a known phase-out or
+/// replacement reaction. Unknown reactions provide no label constraint.
+std::set<std::vector<int>> boundary_assemblages(const Boundary &, const Result &);
 
 /// Smallest endmember-composition distance between copies of one solution.
 /// Infinity means there is no same-model pair; a small value suggests copies

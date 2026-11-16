@@ -98,23 +98,40 @@ def example_parser(
     return parser
 
 
-def report_phase_diagram(result, output_dir):
-    """Print the same field, line, junction and solve counts for every example."""
-    print(
+def report_phase_diagram(result, output_dir, *, diagnostics_path=None):
+    """Report status and blocking problems; retain informational notes on disk."""
+    summary = (
         f"{len(_value(result, 'fields', []))} fields, "
         f"{len(_value(result, 'boundaries', []))} edges, "
         f"{sum(_value(n, 'kind') == 'junction' for n in _value(result, 'nodes', []))} junctions; "
-        f"{_value(result, 'equilibrium_solves', 0)} native equilibrium solves.",
-        flush=True,
+        f"{_value(result, 'equilibrium_solves', 0)} native equilibrium solves."
     )
-    print(f"Resolved: {_value(result, 'resolved')}. Outputs: {output_dir}", flush=True)
-    for message in _value(result, "diagnostics", []):
+    status = f"Resolved: {_value(result, 'resolved')}. Outputs: {output_dir}"
+    print(status, flush=True)
+    blocking = _value(result, "diagnostics", [])
+    for message in blocking:
         print(message, flush=True)
-    spacing = _value(result, "spacing_diagnostics", [])
-    if spacing:
-        print("Requested line spacing was not reached:", flush=True)
-        for message in spacing:
-            print(message, flush=True)
+    lines = [summary, status]
+    for title, messages in (
+        ("Blocking diagnostics:", blocking),
+        (
+            "Coordinate precision notes (informational):",
+            _value(result, "coordinate_diagnostics", []),
+        ),
+        (
+            "Requested line spacing was not reached (informational):",
+            _value(result, "spacing_diagnostics", []),
+        ),
+    ):
+        if messages:
+            lines.extend(["", title, *messages])
+    path = (
+        Path(diagnostics_path)
+        if diagnostics_path is not None
+        else Path(output_dir) / "diagnostics.txt"
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _figure_formats(formats):
@@ -193,9 +210,13 @@ def plot_phase_diagram_example(
         ]
         status = (
             f"{sum(p.has_open_boundary for p in fields)} open fields; "
+            f"{sum(p.is_provisional for p in fields)} provisional labels; "
             f"{sum(p.n_phases <= 0 or not p.phases for p in fields)} unidentified fields; "
             f"{len(_value(result, 'diagnostics', []))} numerical diagnostics in JSON"
         )
+        hidden = len(ax.phase_diagram_hidden_labels)
+        if hidden:
+            status += f"; {hidden} small fields listed in key"
         figure.text(
             0.1,
             0.015,
@@ -254,7 +275,11 @@ def write_phase_diagram(
         save_json(result, stem.with_suffix(".json"))
     if plot is not None:
         plot(result, stem.with_suffix(".png"), label_fontsize)
-    report_phase_diagram(result, stem.parent)
+    report_phase_diagram(
+        result,
+        stem.parent,
+        diagnostics_path=stem.with_name(stem.name + "_diagnostics.txt"),
+    )
     return result
 
 

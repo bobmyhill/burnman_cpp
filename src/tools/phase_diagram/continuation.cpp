@@ -150,6 +150,18 @@ int phase_entry_side(Engine &engine, Assemblage &a, const std::vector<int> &ids,
   for (const auto &state : states)
     if (state.id != zero && state.amount > total * 1.e-10)
       absent.push_back(state.id);
+  // In P-T, a mass-conserving exchange of the coexisting compositions has
+  // no finite full-assemblage field. Roundoff in a nearly critical Jacobian
+  // can otherwise produce an apparently invertible normal response and
+  // misidentify this solution replacement as phase appearance. Other
+  // sections can give a finite area to a latent reaction extent.
+  if (engine.section.type == DiagramType::PT) {
+    const auto formulae = engine.phase_formulae(ids, states);
+    Eigen::FullPivLU<Eigen::MatrixXd> rank(formulae);
+    rank.setThreshold(1.e-9);
+    if (rank.rank() < formulae.rows())
+      return 0;
+  }
   auto response = field_response(engine, a, s.J, range, normal);
   int response_sign = 0;
   if (response.size()) {
@@ -436,15 +448,10 @@ boundary_sides(Engine &engine, Assemblage &a, const std::vector<int> &ids,
       kind(ReactionKind::replacement);
     return partial;
   }
-  if (field_rank == 2)
-    return {};
   // A compound reaction has dependent phase amounts. Its two limiting
   // assemblages follow the reaction extent, and dG = dV dP - dS dT orients
   // them even though the full assemblage is singular at fixed P,T.
   auto states = engine.snapshot(a, ids);
-  for (const auto &state : states)
-    if (state.id != zero && state.amount <= a.get_n_moles() * 1.e-10)
-      return {};
   const auto extent_direction = reaction_vector(engine, a, ids, states, zero);
   if (!extent_direction)
     return {};
@@ -549,11 +556,7 @@ void record_limiting_curves(Result &result, Engine &engine) {
       const auto &point = line.points[i];
       std::array<State, 2> limits;
       for (auto &state : limits) {
-        state.pressure = point.pressure;
-        state.temperature = point.temperature;
-        state.entropy = point.entropy;
-        state.volume = point.volume;
-        state.composition_coordinate = point.composition_coordinate;
+        copy_coordinates(state, point);
         state.message = "No verified limiting state at this reaction point";
       }
       for (std::size_t side = 0; side < 2; ++side)
@@ -659,10 +662,24 @@ Eigen::VectorXd continuation_tangent(const Engine &engine,
   j.topRows(1) = s.J.topRows(1);
   j.bottomRows(s.J.rows() - 2) = s.J.bottomRows(s.J.rows() - 2);
   j = j * scales.asDiagonal();
-  for (int k = 0; k < j.rows(); ++k) {
-    double norm = j.row(k).norm();
-    if (norm > 0)
-      j.row(k) /= norm;
+  // Trace-site chemical derivatives can dwarf their P,T coupling. Row
+  // normalization alone then makes a regular boundary appear to gain a
+  // second null direction, especially in a small drawing frame. Equilibrate
+  // columns as well, retaining their scale factors for the physical tangent.
+  // This changes neither the equations nor the rank acceptance threshold.
+  for (int iteration = 0; iteration < 16; ++iteration) {
+    for (Eigen::Index k = 0; k < j.rows(); ++k) {
+      const double norm = j.row(k).stableNorm();
+      if (norm > 0.)
+        j.row(k) /= norm;
+    }
+    for (Eigen::Index k = 0; k < j.cols(); ++k) {
+      const double norm = j.col(k).stableNorm();
+      if (norm > 0.) {
+        j.col(k) /= norm;
+        scales[k] /= norm;
+      }
+    }
   }
   // Very small phase amounts make some equation directions hard to distinguish.
   // A tighter rank threshold retains their coupling to P,T at empty sites.

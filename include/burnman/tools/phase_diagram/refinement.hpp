@@ -43,20 +43,6 @@ std::vector<std::string> refine_line_spacing(
 /// windows.
 void validate_line_resolution(const Result &, const LineResolution &);
 
-/// Local continuation tolerances/steps scaled to a requested refinement window.
-Settings refinement_settings(const Result &, const LineResolution &,
-                             const Settings &);
-
-/// Choose the ordinary or locally reduced trace step for a proposed segment.
-double refinement_step(const Result &, const LineResolution &,
-                       const Eigen::Vector2d &, const Eigen::Vector2d &,
-                       const Settings &);
-
-/// Reaction IDs near provisional fields that intersect the refinement window.
-/// Include incident branches because the missing connection can start at a
-/// node.
-std::vector<int> regional_retrace_lines(const Result &, const LineResolution &);
-
 /// Find drawn reaction segments crossing a polygon's interior. Such crossings
 /// nominate lines for thermodynamic checks; they do not create junctions.
 std::vector<int> interior_boundaries(const Result &, const FieldPolygon &);

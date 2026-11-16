@@ -204,6 +204,7 @@ py::dict result_dict(const phase_diagrams::Result &result) {
   SAVE(temperature_range)
   SAVE(phase_names)
   SAVE(diagnostics)
+  SAVE(coordinate_diagnostics)
   SAVE(spacing_diagnostics)
   data["spacing_resolved"] = result.spacing_diagnostics.empty();
   SAVE(resolved)
@@ -214,6 +215,26 @@ py::dict result_dict(const phase_diagrams::Result &result) {
     data["thermodynamic_validation"] =
         validation_dict(result.thermodynamic_validation);
   data["settings"] = settings_dict(result.settings);
+  py::list verifications;
+  for (const auto &verification : result.field_verifications) {
+    py::dict record;
+#define SAVE(name) record[#name] = py::cast(verification.name);
+    SAVE(phases)
+    SAVE(boundary_ids)
+    SAVE(node_ids)
+    SAVE(success)
+    SAVE(graph_signature)
+    SAVE(message)
+    SAVE(checked_junctions)
+    SAVE(checked_boundary_points)
+    SAVE(checked_crossings)
+    SAVE(maximum_mass_balance_error)
+    SAVE(maximum_reaction_error)
+    SAVE(minimum_affinity)
+#undef SAVE
+    verifications.append(record);
+  }
+  data["field_verifications"] = verifications;
   py::list excluded;
   for (auto &ring : result.excluded_regions)
     excluded.append(matrix_list(ring));
@@ -297,6 +318,26 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
   using namespace phase_diagrams;
   Result result;
   result.thermodynamic_validation = saved_validation(data);
+  if (data.contains("field_verifications"))
+    for (auto item : data["field_verifications"].cast<py::list>()) {
+      const auto record = item.cast<py::dict>();
+      FieldVerification verification;
+#define READ(name) verification.name = record[#name].cast<decltype(verification.name)>();
+      READ(phases)
+      READ(boundary_ids)
+      READ(node_ids)
+      READ(success)
+      READ(graph_signature)
+      READ(message)
+      READ(checked_junctions)
+      READ(checked_boundary_points)
+      READ(checked_crossings)
+      READ(maximum_mass_balance_error)
+      READ(maximum_reaction_error)
+      READ(minimum_affinity)
+#undef READ
+      result.field_verifications.push_back(std::move(verification));
+    }
   if (data.contains("diagram_type"))
     result.section.type =
         diagram_type(data["diagram_type"].cast<std::string>());
@@ -343,6 +384,9 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
     result.resolved = data["resolved"].cast<bool>();
   if (data.contains("diagnostics"))
     result.diagnostics = data["diagnostics"].cast<std::vector<std::string>>();
+  if (data.contains("coordinate_diagnostics"))
+    result.coordinate_diagnostics =
+        data["coordinate_diagnostics"].cast<std::vector<std::string>>();
   if (data.contains("spacing_diagnostics"))
     result.spacing_diagnostics =
         data["spacing_diagnostics"].cast<std::vector<std::string>>();
@@ -449,7 +493,7 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
       line.id = value["id"].cast<int>();
     if (full || value.contains("zero_phase"))
       line.zero_phase = value["zero_phase"].cast<int>();
-    if (full) {
+    if (full || value.contains("termination")) {
       line.termination = value["termination"].cast<std::string>();
     }
     if (value.contains("start_node"))
@@ -802,9 +846,10 @@ void bind_phase_diagram(py::module_ &m) {
   py::class_<Result>(
       m, "PhaseDiagramResult",
       "Equilibrium samples, traced reaction boundaries, junctions "
-      "and diagnostics. resolved means no outstanding diagnostics "
+      "and diagnostics. resolved means no outstanding blocking diagnostics "
       "from implemented checks; finite sampling cannot guarantee "
-      "field discovery.")
+      "field discovery. coordinate_diagnostics are informational precision "
+      "limits and do not block resolution.")
       .def("to_dict", &result_dict,
            "Return a complete JSON-compatible result, including continuation "
            "states, settings and EOS-domain diagnostics.")
@@ -847,7 +892,7 @@ void bind_phase_diagram(py::module_ &m) {
               PROPERTY(composition_start) PROPERTY(phase_names)
                   PROPERTY(samples) PROPERTY(fields) PROPERTY(boundaries)
                       PROPERTY(nodes) PROPERTY(diagnostics) PROPERTY(resolved)
-                          PROPERTY(spacing_diagnostics)
+                          PROPERTY(spacing_diagnostics) PROPERTY(coordinate_diagnostics)
                               PROPERTY(equilibrium_solves)
                                   PROPERTY(minimization_calls)
                                       PROPERTY(excluded_regions)
@@ -868,6 +913,9 @@ void bind_phase_diagram(py::module_ &m) {
       .def_readonly("sample_index", &FieldPolygon::sample_index)
       .def_readonly("has_open_boundary", &FieldPolygon::has_open_boundary)
       .def_readonly("is_provisional", &FieldPolygon::is_provisional)
+      .def_readonly("has_unresolved_interior", &FieldPolygon::has_unresolved_interior)
+      .def_readonly("has_verified_reaction_perimeter", &FieldPolygon::has_verified_reaction_perimeter)
+      .def_readonly("has_closed_reaction_ring", &FieldPolygon::has_closed_reaction_ring)
       .def_readonly("outside_model_domain", &FieldPolygon::outside_model_domain)
       .def_readonly("phases", &FieldPolygon::phases)
       .def_readonly("boundary_ids", &FieldPolygon::boundary_ids)
@@ -889,6 +937,7 @@ void bind_phase_diagram(py::module_ &m) {
   py::class_<FieldPolygons>(m, "PhaseDiagramPolygons")
       .def_readonly("polygons", &FieldPolygons::polygons)
       .def_readonly("diagnostics", &FieldPolygons::diagnostics)
+      .def_readonly("coordinate_diagnostics", &FieldPolygons::coordinate_diagnostics)
       .def_readonly("boundary_sides", &FieldPolygons::boundary_sides)
       .def_readonly("boundary_segments", &FieldPolygons::boundary_segments)
       .def_readonly("boundary_lines", &FieldPolygons::boundary_lines)
@@ -1140,10 +1189,23 @@ Saved junctions establish connectivity. Crossings of straight drawing segments
 
 Labels use perimeter reaction assemblages and saved equilibria. Inspect each
 polygon's is_provisional/has_open_boundary flags and the returned diagnostics.
+has_verified_reaction_perimeter records a thermodynamic label certificate;
+has_closed_reaction_ring records the fallback of a complete compatible ring;
+has_unresolved_interior independently records coordinate uncertainty.
 field_number is the one-based number used by plots, keys and field diagnostics.
 tolerance is a distance after rescaling both calculation axes to 0..1.
 close_domain permits the frame to close edge fields.
 )doc");
+  m.def("verify_phase_diagram_field_perimeters",
+      [](py::object object, const std::vector<std::shared_ptr<Material>> &phases) {
+        auto result = calculation_result(object);
+        py::gil_scoped_release release;
+        return verify_field_perimeters(result, phases);
+      }, py::arg("result"), py::arg("phases"),
+      "Verify field identities through stable bounding reactions and common "
+      "junctions, testing possible crossings by corrected equilibria. "
+      "Verified fields' precision limits are retained in coordinate_diagnostics "
+      "and do not set resolved=False.");
   m.def(
       "verify_phase_diagram_critical_endpoints",
       [](py::object object,
