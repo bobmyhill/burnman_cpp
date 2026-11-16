@@ -2703,11 +2703,7 @@ void Tracer::resolve_boundaries() {
     for (auto &line : result.boundaries)
       if (line.reaction_kind == ReactionKind::unknown)
         label(line);
-    repair_field_boundaries(
-        result, engine, [&](Boundary &line) { label(line); },
-        [&](Boundary &line, std::size_t k) {
-          return refine_segment(line, k, true);
-        });
+    repair_field_perimeters();
     // Short duplicates may become verifiable only after recovering side labels.
     reconcile_boundaries();
     index_boundaries();
