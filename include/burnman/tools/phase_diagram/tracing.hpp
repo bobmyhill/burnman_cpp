@@ -232,7 +232,7 @@ class Tracer {
   };
   // Correct perimeter intersections with a fixed-coordinate section.
   std::vector<FieldCut> correct_field_section(const FieldPolygon &,
-                                             Eigen::Index axis, double slice);
+                                              Eigen::Index axis, double slice);
   // Verify known assemblages, correcting drawing sections when necessary.
   void verify_field_interiors();
   void repair_field_perimeters();

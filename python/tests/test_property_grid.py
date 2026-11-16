@@ -8,6 +8,7 @@ import pytest
 import burnman_cpp as bm
 from conftest import diagnostic, oxide_params
 
+
 def exchange_phases():
     phases = []
     for k, shifts in enumerate(((0.0, 12000.0), (12000.0, 0.0))):

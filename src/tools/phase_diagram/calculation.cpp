@@ -497,13 +497,15 @@ void Tracer::verify_field_interiors() {
 }
 
 /// Run one local perimeter repair with this tracer's labelling and corrector
-/// callbacks. The repair can join junctions, split arcs, recover side labels and
-/// refine suspect segments. Both tracing recovery and final verification use
-/// this pass; their callers decide whether to repeat it.
+/// callbacks. The repair can join junctions, split arcs, recover side labels
+/// and refine suspect segments. Both tracing recovery and final verification
+/// use this pass; their callers decide whether to repeat it.
 void Tracer::repair_field_perimeters() {
   repair_field_boundaries(
       result, engine, [&](Boundary &line) { label(line); },
-      [&](Boundary &line, std::size_t k) { return refine_segment(line, k, true); });
+      [&](Boundary &line, std::size_t k) {
+        return refine_segment(line, k, true);
+      });
 }
 
 /// Final graph repair after domain attachment and metastable-trace removal.
@@ -524,9 +526,9 @@ void Tracer::repair_field_graph() {
     repair_field_perimeters();
     const auto after = point_count();
     if (engine.settings.verbose)
-      std::cerr << "Field repair pass " << pass + 1 << "/4: " << before << " -> "
-                << after << " boundary points; " << engine.equilibrium_solves
-                << " equilibrium solves.\n";
+      std::cerr << "Field repair pass " << pass + 1 << "/4: " << before
+                << " -> " << after << " boundary points; "
+                << engine.equilibrium_solves << " equilibrium solves.\n";
     const auto geometry = field_polygons(result);
     if (result.section.type != DiagramType::PT ||
         std::none_of(geometry.polygons.begin(), geometry.polygons.end(),

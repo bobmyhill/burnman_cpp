@@ -238,7 +238,8 @@ TEST_CASE("Final diagram audit revisits pairs after late changes",
   // An earlier comparison passed, but a later repair changed one endpoint.
   result.samples.front().gibbs += 10.;
   result.diagnostics.push_back(
-      {DiagnosticCategory::other, -1, "Thermodynamic audit: keep this unrelated diagnostic."});
+      {DiagnosticCategory::other, -1,
+       "Thermodynamic audit: keep this unrelated diagnostic."});
   audit_thermodynamic_samples(result);
   CHECK_FALSE(result.resolved);
   CHECK(result.thermodynamic_validation.violations == 1);

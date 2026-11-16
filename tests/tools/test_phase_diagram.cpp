@@ -126,7 +126,8 @@ TEST_CASE("Reaction perimeters require one compatible cycle",
     REQUIRE(graph.nodes.size() == 2);
     CHECK(graph.nodes[0]->id == 3);
     CHECK(graph.nodes[1]->id == 9);
-    CHECK_FALSE(ps::detail::reaction_perimeter(result, lines, {6}).error.empty());
+    CHECK_FALSE(
+        ps::detail::reaction_perimeter(result, lines, {6}).error.empty());
   } else {
     CHECK_FALSE(graph.error.empty());
     CHECK(graph.nodes.empty());
@@ -357,8 +358,7 @@ TEST_CASE("P-T equilibration compares both warm assemblages by Gibbs energy",
   // Both limiting branches remain admissible within this deliberately loose
   // discovery tolerance, so Gibbs energy must choose between them.
   settings.affinity_tolerance = 1.e6;
-  ps::detail::Engine engine({{"Mg", 1.}, {"O", 1.}}, {first, second},
-                            settings);
+  ps::detail::Engine engine({{"Mg", 1.}, {"O", 1.}}, {first, second}, settings);
   const Eigen::Vector2d target(7.e9, 1150.);
   auto low = engine.stable_at({4.e9, 900.});
   auto high = engine.stable_at({8.e9, 1200.});
@@ -715,8 +715,9 @@ TEST_CASE("Reaction entropy and volume orient singular P-T boundaries",
         1); // Side identification performs no solves.
 }
 
-TEST_CASE("A dependent P-T reaction remains a replacement with a rounded Jacobian",
-          "[phase_diagram][limiting_curves]") {
+TEST_CASE(
+    "A dependent P-T reaction remains a replacement with a rounded Jacobian",
+    "[phase_diagram][limiting_curves]") {
   namespace ps = phase_diagrams;
   const double contamination = GENERATE(0., 1.e-5);
   auto first = minerals::HGP_2018_ds633::per();
@@ -872,9 +873,8 @@ TEST_CASE("A buffered solvus exchanges compositions with identical phase names",
   double low = .500001, high = .999999;
   for (int iteration = 0; iteration < 80; ++iteration) {
     const double x = .5 * (low + high);
-    const double residual =
-        gas * temperature * std::log(x / (1. - x)) +
-        interaction * (1. - 2. * x);
+    const double residual = gas * temperature * std::log(x / (1. - x)) +
+                            interaction * (1. - 2. * x);
     (residual > 0. ? high : low) = x;
   }
   const double x = .5 * (low + high);
@@ -904,7 +904,7 @@ TEST_CASE("A buffered solvus exchanges compositions with identical phase names",
     phase.id = id;
     phase.candidate_index = id / settings.max_phase_instances;
     phase.amount = id == 3 ? 1. - amount : id == zero ? 0. : amount;
-    phase.composition = id == 3 ? Eigen::VectorXd::Ones(1)
+    phase.composition = id == 3   ? Eigen::VectorXd::Ones(1)
                         : id == 0 ? Eigen::VectorXd(Eigen::Vector2d(x, 1. - x))
                                   : Eigen::VectorXd(Eigen::Vector2d(1. - x, x));
     states.push_back(phase);
