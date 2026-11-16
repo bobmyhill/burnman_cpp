@@ -140,60 +140,26 @@ void verify_field_perimeters(Result &result, Engine &engine,
     try {
       std::set<int> perimeter(polygon.boundary_ids.begin(),
                               polygon.boundary_ids.end());
-      std::map<int, int> degree;
-      for (int id : perimeter) {
-        const auto &line = *lines.at(id);
-        if (line.points.size() < 2 || line.start_node < 0 ||
-            line.end_node < 0 || line.start_node == line.end_node ||
-            line.reaction_kind == ReactionKind::unknown ||
-            (engine.canonical_ids(line.side_a) != polygon.phases &&
-             engine.canonical_ids(line.side_b) != polygon.phases))
-          throw std::runtime_error(
-              "Incomplete or incompatible reaction perimeter");
-        ++degree[line.start_node];
-        ++degree[line.end_node];
+      std::set<const Boundary *> reactions;
+      for (int id : perimeter)
+        reactions.insert(lines.at(id));
+      const auto graph = reaction_perimeter(result, reactions, polygon.phases);
+      if (!graph.error.empty())
+        throw std::runtime_error(graph.error);
+      for (const auto *line : reactions)
         for (int end : {0, 1}) {
-          const int node = end ? line.end_node : line.start_node;
-          if (!nodes.count(node) ||
-              ((location(end ? line.points.back() : line.points.front()) -
+          const int node = end ? line->end_node : line->start_node;
+          if (((location(end ? line->points.back() : line->points.front()) -
                 location(*nodes.at(node)))
                    .cwiseAbs()
                    .array() > junction_allowance.array())
                   .any())
             throw std::runtime_error(
                 "Reaction endpoint does not reach its stated common vertex");
-          const auto event = engine.canonical_ids(nodes.at(node)->assemblage),
-                     assemblage = engine.canonical_ids(line.assemblage);
-          if (!std::includes(event.begin(), event.end(), assemblage.begin(),
-                             assemblage.end()))
-            throw std::runtime_error(
-                "Reaction assemblage is incompatible with its common vertex");
         }
-      }
-      std::set<int> reached;
-      std::vector<int> pending{degree.begin()->first};
-      while (!pending.empty()) {
-        const int node = pending.back();
-        pending.pop_back();
-        if (!reached.insert(node).second)
-          continue;
-        for (int boundary_id : perimeter) {
-          const auto &line = *lines.at(boundary_id);
-          if (line.start_node == node)
-            pending.push_back(line.end_node);
-          if (line.end_node == node)
-            pending.push_back(line.start_node);
-        }
-      }
-      if (reached.size() != degree.size())
-        throw std::runtime_error(
-            "Perimeter does not form one connected reaction loop");
-      for (const auto &[id, count] : degree) {
-        if (count != 2 || !nodes.count(id))
-          throw std::runtime_error(
-              "Perimeter reactions do not meet at common vertices");
-        certificate.node_ids.push_back(id);
-        const auto &node = *nodes.at(id);
+      for (const auto *vertex : graph.nodes) {
+        const auto &node = *vertex;
+        certificate.node_ids.push_back(node.id);
         if (node.kind != "junction" || node.zero_phases.size() != 2)
           throw std::runtime_error(
               "Perimeter vertex lacks double-zero junction constraints");

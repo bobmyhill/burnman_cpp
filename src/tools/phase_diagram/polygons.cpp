@@ -1028,64 +1028,28 @@ class PolygonBuilder {
       action(edge_index.at({ring[j - 1], ring[j]}));
   }
   bool closed_reaction_ring(const Face &face, const Phases &phases,
-                            const std::set<const Boundary *> &observations) const {
-    std::set<Index> perimeter_edges;
-    ring_edges(face.exterior,
-               [&](Index edge) { perimeter_edges.insert(edge); });
+                            const std::set<const Boundary *> &observations,
+                            const std::set<Index> &perimeter_edges) const {
     if (face.dangling || !face.holes.empty() || phases.empty() ||
         observations.empty())
       return false;
-    bool complete = true;
-    ring_edges(face.exterior, [&](Index edge) {
-      complete = complete && edges[edge].phase_boundary &&
-                 !edges[edge].observations.empty() &&
-                 !perimeter_edges.count(edge ^ 1);
-    });
-    if (!complete)
-      return false;
-    std::map<int, std::vector<int>> neighbours;
-    for (const auto *line : observations) {
-      if (line->reaction_kind == ReactionKind::unknown ||
-          !boundary_assemblages(*line, result).count(phases))
+    for (Index edge : perimeter_edges)
+      if (!edges[edge].phase_boundary || edges[edge].observations.empty() ||
+          perimeter_edges.count(edge ^ 1))
         return false;
-      if (observations.size() == 1 && line->points.size() >= 3 &&
+    if (observations.size() == 1) {
+      const auto *line = *observations.begin();
+      if (line->points.size() >= 3 &&
           line->termination.find("closed loop") != std::string::npos &&
           (coordinate(line->points.front()) - coordinate(line->points.back()))
                   .norm() <= tolerance)
-        return true;
-      if (line->start_node < 0 || line->end_node < 0 ||
-          !nodes.count(line->start_node) || !nodes.count(line->end_node))
-        return false;
-      const auto assemblage = canonical_assemblage(line->assemblage);
-      for (int id : {line->start_node, line->end_node}) {
-        const auto node =
-            std::find_if(result.nodes.begin(), result.nodes.end(),
-                         [&](const auto &event) { return event.id == id; });
-        if (node == result.nodes.end())
-          return false;
-        const auto event = canonical_assemblage(node->assemblage);
-        if (!std::includes(event.begin(), event.end(), assemblage.begin(),
-                           assemblage.end()))
-          return false;
-      }
-      neighbours[line->start_node].push_back(line->end_node);
-      neighbours[line->end_node].push_back(line->start_node);
+        return boundary_assemblages(*line, result).count(phases) != 0;
     }
-    std::set<int> reached;
-    std::vector<int> pending{neighbours.begin()->first};
-    while (!pending.empty()) {
-      const int vertex = pending.back();
-      pending.pop_back();
-      if (!reached.insert(vertex).second)
-        continue;
-      const auto &next = neighbours.at(vertex);
-      if (next.size() != 2)
+    for (const auto *line : observations)
+      if (!nodes.count(line->start_node) || !nodes.count(line->end_node))
         return false;
-      pending.insert(pending.end(), next.begin(), next.end());
-    }
-    if (reached.size() != neighbours.size())
-      return false;
-    return true;
+    return detail::reaction_perimeter(result, observations, phases)
+        .error.empty();
   }
   bool ring_crosses_other_lines(const std::set<const Boundary *> &observations,
                                 const Point &low, const Point &high) const {
@@ -1395,7 +1359,8 @@ class PolygonBuilder {
       // endpoints must form one connected cycle through common vertices.
       polygon.has_closed_reaction_ring =
           !inconsistent && !unresolved_overlap && !rejected_perimeter &&
-          closed_reaction_ring(face, polygon.phases, observations);
+          closed_reaction_ring(face, polygon.phases, observations,
+                               perimeter_edges);
       // A separate line passing through the ring requires correction before
       // the connectivity fallback can be used. A crossing of drawing chords
       // does not itself establish a thermodynamic vertex. Crossings at saved

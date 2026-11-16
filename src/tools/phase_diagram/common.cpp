@@ -169,6 +169,57 @@ std::set<std::vector<int>> boundary_assemblages(const Boundary &line,
   return choices;
 }
 
+ReactionPerimeter reaction_perimeter(const Result &result,
+                                     const std::set<const Boundary *> &lines,
+                                     const std::vector<int> &phases) {
+  if (lines.empty())
+    return {{}, "Incomplete or incompatible reaction perimeter"};
+  std::map<int, const Node *> nodes;
+  std::map<int, std::vector<int>> neighbours;
+  for (const auto &node : result.nodes)
+    nodes.emplace(node.id, &node);
+  for (const auto *line : lines) {
+    if (line->points.size() < 2 || line->start_node < 0 || line->end_node < 0 ||
+        !boundary_assemblages(*line, result).count(phases))
+      return {{}, "Incomplete or incompatible reaction perimeter"};
+    const auto assemblage = canonical_phase_ids(
+        line->assemblage, result.settings.max_phase_instances);
+    for (int id : {line->start_node, line->end_node}) {
+      const auto node = nodes.find(id);
+      if (node == nodes.end())
+        return {{},
+                "Reaction endpoint does not reach its stated common vertex"};
+      const auto event = canonical_phase_ids(
+          node->second->assemblage, result.settings.max_phase_instances);
+      if (!std::includes(event.begin(), event.end(), assemblage.begin(),
+                         assemblage.end()))
+        return {{},
+                "Reaction assemblage is incompatible with its common vertex"};
+    }
+    neighbours[line->start_node].push_back(line->end_node);
+    neighbours[line->end_node].push_back(line->start_node);
+  }
+  std::set<int> reached;
+  std::vector<int> pending{neighbours.begin()->first};
+  while (!pending.empty()) {
+    const int vertex = pending.back();
+    pending.pop_back();
+    if (!reached.insert(vertex).second)
+      continue;
+    const auto &next = neighbours.at(vertex);
+    pending.insert(pending.end(), next.begin(), next.end());
+  }
+  if (reached.size() != neighbours.size())
+    return {{}, "Perimeter does not form one connected reaction loop"};
+  ReactionPerimeter perimeter;
+  for (const auto &[id, next] : neighbours) {
+    if (next.size() != 2)
+      return {{}, "Perimeter reactions do not meet at common vertices"};
+    perimeter.nodes.push_back(nodes.at(id));
+  }
+  return perimeter;
+}
+
 double solution_separation(const PhaseStates &states) {
   double minimum = std::numeric_limits<double>::infinity();
   for (std::size_t i = 0; i < states.size(); ++i)

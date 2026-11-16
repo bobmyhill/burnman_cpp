@@ -62,6 +62,77 @@ TEST_CASE("Reaction label choices retain solution multiplicity and known sides",
   CHECK(ps::detail::boundary_assemblages(line, result).empty());
 }
 
+TEST_CASE("Reaction perimeters require one compatible cycle",
+          "[phase_diagram]") {
+  namespace ps = phase_diagrams;
+  ps::Result result;
+  for (int id : {9, 3}) {
+    ps::Node node;
+    node.id = id;
+    node.assemblage = {0, 2}; // Copy IDs may differ from the reaction's IDs.
+    result.nodes.push_back(node);
+  }
+  for (int id : {0, 1}) {
+    ps::Boundary line;
+    line.id = id;
+    line.start_node = id ? 3 : 9;
+    line.end_node = id ? 9 : 3;
+    line.assemblage = {1, 2};
+    line.zero_phase = 2;
+    line.reaction_kind = ps::ReactionKind::phase_out;
+    line.points.resize(2);
+    // The reaction constrains the field even when side probes miss it.
+    line.side_a = line.side_b = {6};
+    result.boundaries.push_back(line);
+  }
+  const auto change = GENERATE("none", "open", "branch", "disconnected",
+                               "missing node", "wrong vertex", "unknown",
+                               "negative endpoint", "missing points");
+  const std::string scenario = change;
+  if (scenario == "open")
+    result.boundaries.pop_back();
+  else if (scenario == "branch")
+    result.boundaries.push_back(result.boundaries.front());
+  else if (scenario == "disconnected") {
+    for (int id : {12, 15}) {
+      auto node = result.nodes.front();
+      node.id = id;
+      result.nodes.push_back(node);
+    }
+    for (int id : {2, 3}) {
+      auto line = result.boundaries.front();
+      line.id = id;
+      line.start_node = 12;
+      line.end_node = 15;
+      result.boundaries.push_back(line);
+    }
+  } else if (scenario == "missing node")
+    result.nodes.pop_back();
+  else if (scenario == "wrong vertex")
+    result.nodes.front().assemblage = {3};
+  else if (scenario == "unknown")
+    result.boundaries.front().reaction_kind = ps::ReactionKind::unknown;
+  else if (scenario == "negative endpoint")
+    result.boundaries.front().start_node = -1;
+  else if (scenario == "missing points")
+    result.boundaries.front().points.resize(1);
+  std::set<const ps::Boundary *> lines;
+  for (const auto &line : result.boundaries)
+    lines.insert(&line);
+  const auto graph = ps::detail::reaction_perimeter(result, lines, {0});
+  INFO(scenario);
+  if (scenario == "none") {
+    REQUIRE(graph.error.empty());
+    REQUIRE(graph.nodes.size() == 2);
+    CHECK(graph.nodes[0]->id == 3);
+    CHECK(graph.nodes[1]->id == 9);
+    CHECK_FALSE(ps::detail::reaction_perimeter(result, lines, {6}).error.empty());
+  } else {
+    CHECK_FALSE(graph.error.empty());
+    CHECK(graph.nodes.empty());
+  }
+}
+
 TEST_CASE("Junction warm starts retain coexisting copies before filling gaps",
           "[phase_diagram]") {
   namespace ps = phase_diagrams;

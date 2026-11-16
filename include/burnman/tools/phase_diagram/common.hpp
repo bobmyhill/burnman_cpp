@@ -233,6 +233,16 @@ std::vector<int> canonical_phase_ids(const std::vector<int> &, int copies);
 /// replacement reaction. Unknown reactions provide no label constraint.
 std::set<std::vector<int>> boundary_assemblages(const Boundary &, const Result &);
 
+struct ReactionPerimeter {
+  std::vector<const Node *> nodes; // Common vertices in node-ID order.
+  std::string error;
+};
+/// Check reaction-permitted assemblages, common vertices and one connected
+/// cycle. Callers check geometry; no equilibria are solved.
+ReactionPerimeter reaction_perimeter(const Result &,
+                                    const std::set<const Boundary *> &,
+                                    const std::vector<int> &phases);
+
 /// Smallest endmember-composition distance between copies of one solution.
 /// Infinity means there is no same-model pair; a small value suggests copies
 /// are coalescing near a critical point or duplicating the same phase.
