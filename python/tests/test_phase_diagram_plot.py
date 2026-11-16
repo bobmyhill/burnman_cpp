@@ -85,7 +85,6 @@ def test_pyrolite_reaction_loops_survive_reversed_drawing_winding():
     before = deepcopy(data)
     geometry = bm.phase_diagram_field_polygons(data)
     assert data == before  # Reconstruct without altering any saved reaction.
-    assert not geometry.diagnostics
     expected = {
         (6, 12, 18, 27, 30, 39, 60, 78),
         (6, 18, 27, 28, 39, 45, 60, 78),
@@ -95,6 +94,10 @@ def test_pyrolite_reaction_loops_survive_reversed_drawing_winding():
     assert {tuple(p.phases) for p in restored} == expected
     assert all(not p.is_provisional and not p.has_open_boundary for p in restored)
     assert all(p.has_unresolved_interior and p.area > 0.0 for p in restored)
+    # The cropped reaction neighborhoods leave the surrounding fields incomplete.
+    assert not {p.field_number for p in restored}.intersection(
+        d.get("entity_id") for d in geometry.diagnostic_records
+    )
     assert len(geometry.coordinate_diagnostics) == 3
 
 
@@ -113,16 +116,22 @@ def test_reversed_chords_cannot_override_conflicting_reaction_evidence():
     )
 
 
-def test_reaction_limit_does_not_promote_a_clockwise_exterior():
+@pytest.mark.parametrize("independent_interior", [False, True])
+def test_clockwise_exterior_requires_an_independent_interior(independent_interior):
     data = json.loads(
         (Path(__file__).parent / "data/taylor_limiting_reaction_loop.json").read_text()
     )
     # A positive limiting amount on a replacement curve does not independently
     # establish a separate field interior in P-T coordinates.
+    for state in data["samples"]:
+        state["is_field_verification"] = independent_interior
     inventory = [6, 30, 31, 39, 42, 45, 60, 78]
-    assert not any(
-        p.phases == inventory and p.has_unresolved_interior
-        for p in bm.phase_diagram_field_polygons(data).polygons
+    assert (
+        any(
+            p.phases == inventory and p.has_unresolved_interior
+            for p in bm.phase_diagram_field_polygons(data).polygons
+        )
+        == independent_interior
     )
 
 

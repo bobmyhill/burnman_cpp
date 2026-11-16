@@ -497,35 +497,78 @@ def test_grid_fallback_only_crosses_boundaries_within_one_local_spacing(
         assert np.isnan(grid.values["density"][row, 0])
 
 
-def test_grid_fallback_does_not_cross_two_boundaries(inexact_binary_field):
+@pytest.mark.parametrize("intervening", [False, True])
+@pytest.mark.parametrize("chunk_size", [None, 1])
+def test_grid_fallback_does_not_cross_two_boundaries(
+    inexact_binary_field, intervening, chunk_size
+):
     from copy import deepcopy
 
     _, phases, saved = inexact_binary_field
-    upper = max(
+    lower, upper = sorted(
         saved["boundaries"],
         key=lambda line: np.mean([p["composition_coordinate"] for p in line["points"]]),
     )
-    # Insert an incorrectly drawn A strip between A+B and B. At X=.95 both
-    # separating boundaries are within one grid spacing. Only A is adjacent;
-    # its root is metastable and must fail the alternative's affinity check.
-    extra = deepcopy(upper)
-    extra.update(
-        id=max(line["id"] for line in saved["boundaries"]) + 1,
-        start_node=-1,
-        end_node=-1,
-        zero_phase=1,
-        side_a=[0, 1],
-        side_b=[0],
-    )
-    for point in extra["points"]:
-        point["composition_coordinate"] = 0.98
-    saved["boundaries"].append(extra)
-    upper.update(side_a=[0], side_b=[1], is_solution_replacement=True)
-    grid = bm.phase_diagram_grid(
-        saved, phases, "density", x=[1e9], y=[0.90, 0.95], store_solutions=True
-    )
-    assert not grid.equilibrium_success[1, 0]
-    assert grid.solution_at(1, 0) is None
+    # The modified drawing must supply the labels, rather than interior
+    # samples retained from the original geometry. Boundary states still
+    # supply all warm starts, including the B equilibrium.
+    saved.update(samples=[], fields=[])
+    arcs = [(lower, [0], [0, 1]), (upper, [0, 1], [1])]
+    if intervening:
+        extra = deepcopy(upper)
+        extra.update(
+            id=max(line["id"] for line in saved["boundaries"]) + 1,
+            start_node=-1,
+            end_node=-1,
+            zero_phase=1,
+        )
+        for point in extra["points"]:
+            point["composition_coordinate"] = 0.98
+        saved["boundaries"].append(extra)
+        upper.update(is_solution_replacement=True, reaction_kind="replacement")
+        arcs[-1] = (upper, [0], [1])
+        arcs.append((extra, [0, 1], [0]))
+    # In a pressure-increasing trace, side_a is below and side_b above.
+    for line, below, above in arcs:
+        if line["points"][0]["pressure"] > line["points"][-1]["pressure"]:
+            line["points"].reverse()
+            line["start_node"], line["end_node"] = (
+                line["end_node"],
+                line["start_node"],
+            )
+        line.update(side_a=below, side_b=above)
+    geometry = bm.phase_diagram_field_polygons(saved)
+    assert all(not p.is_provisional for p in geometry.polygons)
+    containing = [
+        p for p in geometry.polygons if p.contains_rectangle([1e9, 0.95], [1.0, 1e-8])
+    ]
+    assert len(containing) == 1
+    assigned = containing[0]
+    assert assigned.phases == [0, 1]
+    neighbours = {
+        tuple(p.phases)
+        for p in geometry.polygons
+        if p.field_number != assigned.field_number
+        and set(p.boundary_ids).intersection(assigned.boundary_ids)
+    }
+    assert neighbours == ({(0,)} if intervening else {(0,), (1,)})
+    arguments = dict(x=[1e9], y=[0.90, 0.95], store_solutions=True)
+    if chunk_size is None:
+        grid = bm.phase_diagram_grid(saved, phases, "density", **arguments)
+        row = 1
+    else:
+        batches = list(
+            bm.phase_diagram_grid_chunks(
+                saved, phases, "density", chunk_size=chunk_size, **arguments
+            )
+        )
+        rows, _, grid = batches[-1]
+        row = 1 - rows.start
+    assert bool(grid.equilibrium_success[row, 0]) == (not intervening)
+    if intervening:
+        assert grid.solution_at(row, 0) is None
+    else:
+        assert [p.id for p in grid.solution_at(row, 0).state.phases] == [1]
 
 
 @pytest.mark.parametrize("chunk_size", [1, 4, 11])

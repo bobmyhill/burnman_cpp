@@ -1634,14 +1634,14 @@ WorkState Engine::resolve_weak_phases(WorkState state) {
             // locally unstable; the constrained solve still fixes the bulk.
             if (count != 1 || stable)
               continue;
-            auto other = std::find_if(alternatives.begin(), alternatives.end(),
-                                      [&](const auto &candidate) {
-                                        return candidate.affinity < 0. &&
-                                               distinct_compositions(
-                                                   base, candidate.p, minimum.p,
-                                                   state.state.pressure,
-                                                   state.state.temperature);
-                                      });
+            auto other = std::find_if(
+                alternatives.begin(), alternatives.end(),
+                [&](const auto &alternative) {
+                  return alternative.affinity < 0. &&
+                         distinct_compositions(base, alternative.p, minimum.p,
+                                               state.state.pressure,
+                                               state.state.temperature);
+                });
             if (other == alternatives.end())
               continue;
             auto old =
