@@ -439,6 +439,7 @@ from ._core import (
     PhaseState,
     phase_diagram_field_polygons,
     verify_phase_diagram_critical_endpoints,
+    verify_phase_diagram_field_perimeters,
     PhaseFieldPolygon,
     PhaseDiagramPolygons,
 )
@@ -498,6 +499,7 @@ __all__ += [
     "PhaseState",
     "phase_diagram_field_polygons",
     "verify_phase_diagram_critical_endpoints",
+    "verify_phase_diagram_field_perimeters",
     "PhaseFieldPolygon",
     "PhaseDiagramPolygons",
     "plot_phase_diagram",

@@ -161,11 +161,7 @@ void join_model_limits(Result &result, Engine &engine) {
       // Repair can re-correct the endpoint after its node was created. The
       // plotted vertex and mask must use the same accepted equilibrium.
       auto &n = result.nodes.at(static_cast<std::size_t>(id));
-      n.pressure = point.pressure;
-      n.temperature = point.temperature;
-      n.entropy = point.entropy;
-      n.volume = point.volume;
-      n.composition_coordinate = point.composition_coordinate;
+      copy_coordinates(n, point);
       (start ? back : forward) = "model domain limit";
     }
     line.termination = back + "; " + forward;
@@ -386,11 +382,7 @@ void join_frame_limits(Result &result, Engine &engine) {
         Node n;
         n.id = burnman::utils::checked_int(result.nodes.size());
         n.kind = "domain_edge";
-        n.pressure = point.pressure;
-        n.temperature = point.temperature;
-        n.entropy = point.entropy;
-        n.volume = point.volume;
-        n.composition_coordinate = point.composition_coordinate;
+        copy_coordinates(n, point);
         n.assemblage = line.assemblage;
         n.zero_phases = {line.zero_phase};
         auto a =

@@ -542,7 +542,9 @@ def test_unmet_resolution_is_reported_without_losing_verified_boundaries(
     report_phase_diagram(result, tmp_path)
     output = capsys.readouterr().out
     assert "Resolved: True" in output
-    assert "Requested line spacing was not reached:" in output
+    assert "Requested line spacing" not in output
+    assert "Requested line spacing was not reached (informational):" in (
+        tmp_path / "diagnostics.txt").read_text()
     retried = bm.refine_phase_diagram(
         bulk,
         crossing_phases(),

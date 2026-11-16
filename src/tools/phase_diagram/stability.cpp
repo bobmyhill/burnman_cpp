@@ -442,18 +442,25 @@ WorkState Engine::stable_at(const Eigen::Vector2d &q, const WorkState *warm,
              ? std::optional<Eigen::Vector2d>(neighbour_physical(*warm))
              : std::nullopt);
   if (direct_coordinates()) {
-    if (section.type == DiagramType::PT)
+    if (section.type == DiagramType::PT) {
+      WorkState best;
       for (const auto *neighbour : neighbours)
         if (neighbour && neighbour->state.success) {
           auto continued = fixed_at(neighbour->ids, neighbour->state.phases, q,
                                     neighbour_physical(*neighbour));
           // Affinities alone can miss a weak solvus within the discovery
-          // tolerance. Reject a saddle before accepting continuation.
+          // tolerance. Reject saddles and compare both limiting assemblages:
+          // their order as warm starts has no thermodynamic significance.
           if (continued.state.success &&
               locally_stable(*continued.assemblage) &&
-              distinct(*continued.assemblage, continued.ids))
-            return continued;
+              distinct(*continued.assemblage, continued.ids) &&
+              (!best.state.success ||
+               continued.state.gibbs < best.state.gibbs))
+            best = std::move(continued);
         }
+      if (best.state.success)
+        return best;
+    }
     return stable(physical[0], physical[1]);
   }
   const auto selected = diagram_axes(section.type);
@@ -1575,6 +1582,113 @@ WorkState Engine::equilibrate_phase_set(
 // lower- energy compositions, and equilibrium refinement adjusts phase amounts
 // and compositions continuously. Candidate affinities test the resulting
 // assemblage.
+WorkState Engine::resolve_weak_phases(WorkState state) {
+  if (!state.state.success || !state.assemblage)
+    return state;
+  for (std::size_t pass = 0; pass < phases.size(); ++pass) {
+    set_pt(state.state.pressure, state.state.temperature);
+    const auto mu = potentials(*state.assemblage);
+    const bool stable = locally_stable(*state.assemblage);
+    bool improved = false;
+    for (std::size_t candidate = 0; candidate < phases.size(); ++candidate) {
+      // A rejected constrained solve may have stopped away from its requested
+      // P,T. Restore candidate properties before testing the next entry.
+      set_pt(state.state.pressure, state.state.temperature);
+      if (!phases[candidate].available)
+        continue;
+      const int base = burnman::utils::checked_int(candidate);
+      const auto count = std::count_if(
+          state.state.phases.begin(), state.state.phases.end(),
+          [&](const auto &p) { return p.candidate_index == base; });
+      if (count >= settings.max_phase_instances)
+        continue;
+      const auto alternatives = minima(base, mu);
+      for (const auto &minimum : alternatives) {
+        if (minimum.affinity >= -std::min(settings.affinity_tolerance, 1.e-5) ||
+            (stable &&
+             std::any_of(state.state.phases.begin(), state.state.phases.end(),
+                         [&](const auto &p) {
+                           return p.candidate_index == base &&
+                                  !distinct_compositions(
+                                      base, p.composition, minimum.p,
+                                      state.state.pressure,
+                                      state.state.temperature);
+                         })))
+          continue;
+        enum class SeedMode { zero_amount, trace_amount, separated_basins };
+        for (const auto mode : {SeedMode::zero_amount, SeedMode::trace_amount,
+                                SeedMode::separated_basins}) {
+          auto seeds = state.state.phases;
+          auto ids = state.ids;
+          PhaseState entering;
+          entering.candidate_index = base;
+          entering.id = base * settings.max_phase_instances;
+          while (std::find(ids.begin(), ids.end(), entering.id) != ids.end())
+            ++entering.id;
+          entering.composition = minimum.p;
+          entering.amount = mode == SeedMode::trace_amount
+                                ? 1.e-6 * state.assemblage->get_n_moles()
+                                : 0.;
+          if (mode == SeedMode::separated_basins) {
+            // A homogeneous saddle can converge back to the coincident-copy
+            // root. Seed both separated basins when the original state is
+            // locally unstable; the constrained solve still fixes the bulk.
+            if (count != 1 || stable)
+              continue;
+            auto other = std::find_if(alternatives.begin(), alternatives.end(),
+                                      [&](const auto &candidate) {
+                                        return candidate.affinity < 0. &&
+                                               distinct_compositions(
+                                                   base, candidate.p, minimum.p,
+                                                   state.state.pressure,
+                                                   state.state.temperature);
+                                      });
+            if (other == alternatives.end())
+              continue;
+            auto old =
+                std::find_if(seeds.begin(), seeds.end(), [&](const auto &p) {
+                  return p.candidate_index == base;
+                });
+            entering.amount = old->amount * .5;
+            old->amount *= .5;
+            old->composition = other->p;
+            old->composition_basis.reset();
+          }
+          ids.push_back(entering.id);
+          seeds.push_back(entering);
+          auto trial = equilibrate_phase_set(ids, seeds, state.state.pressure,
+                                             state.state.temperature);
+          const double energy_accuracy =
+              128. * std::numeric_limits<double>::epsilon() *
+              std::max(1., std::abs(state.state.gibbs));
+          const auto active = active_phases(trial.state);
+          const auto split_count =
+              std::count_if(active.begin(), active.end(), [&](int id) {
+                return id / settings.max_phase_instances == base;
+              });
+          if (trial.state.success && trial.assemblage && split_count > count &&
+              trial.state.equilibrium_error <=
+                  std::min(settings.affinity_tolerance * .1, 1.e-5) &&
+              locally_stable(*trial.assemblage) &&
+              trial.state.gibbs < state.state.gibbs - energy_accuracy) {
+            state = std::move(trial);
+            improved = true;
+            break;
+          }
+        }
+        if (improved)
+          break;
+      }
+      if (improved)
+        break;
+    }
+    if (!improved)
+      break;
+  }
+  set_pt(state.state.pressure, state.state.temperature);
+  return state;
+}
+
 WorkState Engine::stable(double p, double t) {
   WorkState out;
   out.state.pressure = p;
@@ -1623,7 +1737,13 @@ WorkState Engine::stable(double p, double t) {
             auto &c = compounds[static_cast<std::size_t>(j)];
             auto it =
                 std::find_if(clusters.begin(), clusters.end(), [&](auto &old) {
-                  return (old.composition - c.p).norm() < .05;
+                  // Nearby LP mesh points can approximate one homogeneous
+                  // composition, but a narrow solvus can also fit within this
+                  // distance. Preserve copies separated by a mixing barrier;
+                  // averaging them would seed an unstable homogeneous state.
+                  return (old.composition - c.p).norm() < .05 &&
+                         same_composition_basin(burnman::utils::checked_int(i),
+                                                old.composition, c.p, p, t);
                 });
             if (it == clusters.end()) {
               PhaseState s;
@@ -1728,7 +1848,7 @@ WorkState Engine::stable(double p, double t) {
         try {
           auto equilibrium = equilibrate_lp(settings.amount_tolerance);
           if (equilibrium.state.success)
-            return equilibrium;
+            return resolve_weak_phases(std::move(equilibrium));
         } catch (const std::runtime_error &) {
           // A coarse LP mesh can temporarily require too many phase instances.
         }
@@ -1737,7 +1857,7 @@ WorkState Engine::stable(double p, double t) {
         auto equilibrium = equilibrate_lp(settings.amount_tolerance);
         if (equilibrium.state.success || !equilibrium.assemblage ||
             equilibrium.state.minimum_affinity >= -settings.affinity_tolerance)
-          return equilibrium;
+          return resolve_weak_phases(std::move(equilibrium));
         // A phase can occupy a negligible amount in the coarse LP mesh but
         // grow during Newton refinement. Retry those seeds when the ordinary
         // assemblage fails stability; final field counts keep amount_tolerance.
@@ -1745,7 +1865,7 @@ WorkState Engine::stable(double p, double t) {
           auto trace_equilibrium =
               equilibrate_lp(std::min(settings.amount_tolerance, 1.e-10));
           if (trace_equilibrium.state.success)
-            return trace_equilibrium;
+            return resolve_weak_phases(std::move(trace_equilibrium));
         } catch (const std::runtime_error &) {
         }
         // The refined compositions must enter the LP too: frozen mesh points

@@ -56,6 +56,92 @@ def square(low=0.2, high=0.8):
     return [(low, low), (high, low), (high, high), (low, high), (low, low)]
 
 
+def test_thin_field_label_uses_its_verified_equilibrium_interior():
+    width = 1.e-6
+    ring = [(0.5 - width, 0.2), (0.5 + width, 0.2),
+            (0.5 + width, 0.8), (0.5 - width, 0.8), (0.5 - width, 0.2)]
+    verified = dict(sample(0.5, 0.33, [0]), is_field_verification=True)
+    data = diagram([line(ring, [0], [3])], [verified])
+    # Saving and reading must preserve the distinction between a thermodynamic
+    # interior and the pole of the piecewise-linear drawing.
+    geometry = bm.phase_diagram_field_polygons(json.loads(json.dumps(data)))
+    field = next(p for p in geometry.polygons if p.phases == [0])
+    assert not field.is_provisional
+    np.testing.assert_allclose(field.label_position, [0.5, 0.33], atol=1.e-12)
+    assert field.label_clearance > 0.
+    assert field.sample_index == 0
+    assert field.area == pytest.approx(1.2e-6)
+
+
+def test_pyrolite_reaction_loops_survive_reversed_drawing_winding():
+    data = json.loads((Path(__file__).parent / "data/pyrolite_reversed_loops.json").read_text())
+    before = deepcopy(data)
+    geometry = bm.phase_diagram_field_polygons(data)
+    assert data == before  # Reconstruct without altering any saved reaction.
+    assert not geometry.diagnostics
+    expected = {
+        (6, 12, 18, 27, 30, 39, 60, 78),
+        (6, 18, 27, 28, 39, 45, 60, 78),
+        (0, 9, 12, 18, 21, 33, 39, 51),
+    }
+    restored = [p for p in geometry.polygons if tuple(p.phases) in expected]
+    assert {tuple(p.phases) for p in restored} == expected
+    assert all(not p.is_provisional and not p.has_open_boundary for p in restored)
+    assert all(p.has_unresolved_interior and p.area > 0. for p in restored)
+    assert len(geometry.coordinate_diagnostics) == 3
+
+
+def test_reversed_chords_cannot_override_conflicting_reaction_evidence():
+    data = json.loads((Path(__file__).parent / "data/pyrolite_reversed_loops.json").read_text())
+    # Corrupt one required side of the short eight-phase loop. Its clockwise
+    # walk is no longer a consistently identified thermodynamic region.
+    line = next(b for b in data["boundaries"] if b["id"] == 440)
+    line["side_a"] = [0]
+    expected = [0, 9, 12, 18, 21, 33, 39, 51]
+    assert not any(p.phases == expected and not p.is_provisional
+                   for p in bm.phase_diagram_field_polygons(data).polygons)
+
+
+def test_reaction_limit_does_not_promote_a_clockwise_exterior():
+    data = json.loads((Path(__file__).parent / "data/taylor_limiting_reaction_loop.json").read_text())
+    # A positive limiting amount on a replacement curve does not independently
+    # establish a separate field interior in P-T coordinates.
+    inventory = [6, 30, 31, 39, 42, 45, 60, 78]
+    assert not any(p.phases == inventory and p.has_unresolved_interior
+                   for p in bm.phase_diagram_field_polygons(data).polygons)
+
+
+def test_unresolved_field_interior_stays_provisional_until_verified():
+    ring = [(0.49, 0.2), (0.51, 0.2), (0.51, 0.8),
+            (0.49, 0.8), (0.49, 0.2)]
+    failed = dict(pressure=0.5, temperature=0.33, success=False,
+                  is_field_verification=True, phases=[],
+                  message="Field width is below equilibrium coordinate accuracy")
+    data = diagram([line(ring, [0], [3])], [failed])
+    geometry = bm.phase_diagram_field_polygons(json.loads(json.dumps(data)))
+    field = next(p for p in geometry.polygons if p.phases == [0])
+    assert field.is_provisional
+    assert any("coordinate accuracy" in message for message in geometry.diagnostics)
+    data["samples"].append(dict(sample(0.5, 0.66, [0]), is_field_verification=True))
+    field = next(p for p in bm.phase_diagram_field_polygons(data).polygons if p.phases == [0])
+    assert not field.is_provisional
+
+
+def test_known_closed_reaction_loop_can_identify_an_unresolved_interior():
+    boundary = dict(line(square(), [0, 3], [3]), id=0,
+                    assemblage=[0, 3], zero_phase=0,
+                    reaction_kind="phase_out", termination="closed loop")
+    failed = dict(pressure=0.5, temperature=0.5, success=False,
+                  is_field_verification=True, phases=[],
+                  message="Field width is below equilibrium coordinate accuracy")
+    geometry = bm.phase_diagram_field_polygons(diagram([boundary], [failed]))
+    field = next(p for p in geometry.polygons if p.phases == [0, 3])
+    assert field.has_unresolved_interior
+    assert field.has_closed_reaction_ring
+    assert not field.has_verified_reaction_perimeter
+    assert not field.is_provisional
+
+
 @pytest.mark.parametrize("width", [1.0e-6, 1.0e-9])
 @pytest.mark.parametrize("reverse", [False, True])
 def test_reaction_loop_recovers_a_thin_field_despite_agreed_stale_side_labels(
@@ -1546,6 +1632,30 @@ def test_uniform_font_and_numbered_assemblage_document(tmp_path):
         bm.plot_phase_diagram(data, label_fontsize=0.0)
 
 
+def test_crowded_plot_keeps_small_field_in_key(tmp_path):
+    matplotlib = pytest.importorskip("matplotlib")
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    data = diagram([line(square(0.4, 0.6), [0, 1], [0])])
+    data["phase_names"] = ["host", "island"]
+    key_path = tmp_path / "fields.md"
+    fig, ax = bm.plot_phase_diagram(
+        data, max_field_labels=1, label_key_path=key_path, show_unresolved=False
+    )
+    hidden = ax.phase_diagram_hidden_labels
+    assert len(hidden) == 1
+    number = next(iter(hidden))
+    assert hidden[number][0] == "host island"
+    assert all(text.get_text() != str(number) for text in ax.texts)
+    assert f"| {number} | host island |" in key_path.read_text()
+    assert "Temperature (K) | Pressure (Pa)" in key_path.read_text()
+    assert len(ax.phase_diagram_geometry.polygons) == 2
+    plt.close(fig)
+    with pytest.raises(ValueError, match="max_field_labels"):
+        bm.plot_phase_diagram(data, max_field_labels=0)
+
+
 def test_eos_domain_mask_is_subdivided_and_never_gets_an_assemblage_colour():
     data = diagram([], [sample(0.8, 0.5, [0, 1])])
     data["excluded_regions"] = [[(0.0, 0.4), (0.2, 1.0), (0.0, 1.0), (0.0, 0.4)]]
@@ -1587,6 +1697,46 @@ def test_frame_roundoff_does_not_create_zero_kelvin_slivers():
     assert len(geometry.polygons) == 1
     assert geometry.polygons[0].area == pytest.approx(1.0)
     assert geometry.polygons[0].n_phases == 2
+
+
+def test_saved_frame_phases_keep_touching_replacement_fields_separate():
+    # Two nearly coincident replacement reactions leave the same frame node.
+    # Their geometric angles cannot identify the two adjoining fields, but
+    # accepted samples on the neighbouring frame intervals can.
+    data = json.loads((Path(__file__).parent / "data/mars_frame_fan.json").read_text())
+    geometry = bm.phase_diagram_field_polygons(data)
+    lower = [p for p in geometry.polygons if set(p.boundary_ids) == {59, 61, 235, 240}]
+    upper = [p for p in geometry.polygons if set(p.boundary_ids) == {239, 240, 245}]
+    assert len(lower) == len(upper) == 1
+    assert lower[0].phases == [3, 6, 12, 15, 18, 19, 39]
+    assert upper[0].phases == [6, 12, 15, 18, 19, 39]
+    assert not lower[0].is_provisional and not upper[0].is_provisional
+    assert lower[0].area == pytest.approx(0.0009710583, rel=1.0e-6)
+    assert upper[0].area == pytest.approx(0.0013174873, rel=1.0e-6)
+
+
+def test_replacement_overtrace_does_not_join_fields_across_a_junction():
+    data = json.loads((Path(__file__).parent / "data/mars_frame_fan.json").read_text())
+    geometry = bm.phase_diagram_field_polygons(data)
+    # Boundary 60 spans the paths 61 and 237. The latter carry different
+    # limiting assemblages, certified by both zero phases at junction 84.
+    # Its one side pair cannot be used around both fields.
+    assert all(60 not in p.boundary_ids for p in geometry.polygons)
+    fields = {tuple(p.boundary_ids): p for p in geometry.polygons}
+    for ids, phases in [
+        ((236, 237, 239, 244), [6, 12, 15, 18, 19, 39, 60]),
+        ((59, 61, 235, 240), [3, 6, 12, 15, 18, 19, 39]),
+    ]:
+        assert fields[ids].phases == phases
+        assert not fields[ids].is_provisional
+
+    # Geometry or an unverified zero phase alone must not remove a trace.
+    unverified = deepcopy(data)
+    next(n for n in unverified["nodes"] if n["id"] == 84)["zero_phases"] = [60]
+    assert any(
+        60 in p.boundary_ids
+        for p in bm.phase_diagram_field_polygons(unverified).polygons
+    )
 
 
 def test_mixed_perimeter_uses_saved_interior_evidence_and_keeps_internal_edges():

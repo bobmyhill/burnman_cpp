@@ -11,11 +11,12 @@
 //
 // ------------------------------------------------------
 
-#include "burnman/tools/phase_diagram/verification.hpp"
+#include "burnman/tools/phase_diagram/diagram_verification.hpp"
 #include "burnman/tools/phase_diagram/consistency.hpp"
 #include "burnman/tools/phase_diagram/continuation.hpp"
 #include "burnman/tools/phase_diagram/critical.hpp"
 #include "burnman/tools/phase_diagram/domain.hpp"
+#include "burnman/tools/phase_diagram/field_verification.hpp"
 #include "burnman/tools/phase_diagram/polygons.hpp"
 #include "burnman/tools/phase_diagram/stability.hpp"
 #include <algorithm>
@@ -28,8 +29,10 @@ namespace burnman::phase_diagrams {
 namespace detail {
 namespace {
 bool terminal_critical(Engine &engine, const Node &node, const Boundary &line) {
-  if (!line.is_solution_replacement || line.side_a.empty() ||
-      line.side_a != line.side_b || line.points.size() < 2)
+  const bool replacement = line.is_solution_replacement &&
+                           !line.side_a.empty() && line.side_a == line.side_b;
+  const bool phase_out = line.reaction_kind == ReactionKind::phase_out;
+  if ((!replacement && !phase_out) || line.points.size() < 2)
     return false;
   const auto &endpoint =
       node.id == line.start_node ? line.points.front() : line.points.back();
@@ -67,7 +70,8 @@ bool terminal_critical(Engine &engine, const Node &node, const Boundary &line) {
     return false;
   ids.erase(absent);
   auto a = engine.make_assemblage(ids, states, target[0], target[1]);
-  if (field_variance(*a, line.assemblage.size()) != 1)
+  if (field_variance(*a, line.assemblage.size()) != node.gibbs_variance ||
+      node.gibbs_variance != (replacement ? 1 : 2))
     return false;
   const int phase =
       static_cast<int>(std::find(ids.begin(), ids.end(), other) - ids.begin());
@@ -89,6 +93,45 @@ bool terminal_critical(Engine &engine, const Node &node, const Boundary &line) {
                                engine.settings.amount_tolerance) ||
       !static_cast<CriticalConstraint *>(c[0][0].get())->stable(*a, phase))
     return false;
+
+  // A phase-out line can end when its zero-amount solution copy merges into a
+  // surviving copy. It has one arm, unlike a univariant replacement line.
+  // The corrected intrinsic critical point and an accepted separated state
+  // on that arm certify the termination without inventing a second branch.
+  if (phase_out) {
+    for (std::size_t j = 1; j < line.points.size(); ++j) {
+      const auto &seed = node.id == line.start_node
+                             ? line.points[j]
+                             : line.points[line.points.size() - 1 - j];
+      const auto missing = find_phase(seed.phases, line.zero_phase);
+      const auto present = find_phase(seed.phases, other);
+      if (missing == seed.phases.end() || present == seed.phases.end() ||
+          missing->candidate_index != candidate ||
+          (missing->composition - present->composition).norm() <=
+              engine.settings.composition_tolerance)
+        continue;
+      const double amount = total_amount(seed.phases);
+      if (amount > 0. &&
+          std::abs(missing->amount) <=
+              amount * engine.settings.amount_tolerance &&
+          present->amount > amount * engine.settings.amount_tolerance) {
+        try {
+          auto corrected = boundary_point_at(
+              engine, line, seed.phases,
+              diagram_coordinates(seed, DiagramType::PT), {0., 1.}, accuracy);
+          if (corrected &&
+              same_phase_compositions(seed.phases, corrected->phases,
+                                      engine.settings.composition_tolerance,
+                                      engine.settings.amount_tolerance))
+            return true;
+        } catch (const std::exception &) {
+          // A point too close to the critical endpoint can be ill-conditioned;
+          // another accepted point along the arm may still certify it.
+        }
+      }
+    }
+    return false;
+  }
 
   // On a univariant replacement, the two zero-amount choices are limiting
   // states on one P-T curve. Re-solve both, rather than inferring this from
@@ -140,7 +183,8 @@ void verify_critical_endpoints(Result &result, Engine &engine) {
     node.is_verified_critical_endpoint =
         false; // Never reuse a stale certificate.
     if (result.section.type != DiagramType::PT ||
-        node.kind != "critical_point" || node.gibbs_variance != 1 ||
+        node.kind != "critical_point" ||
+        (node.gibbs_variance != 1 && node.gibbs_variance != 2) ||
         !node.critical_mode.size())
       continue;
     bool verified = true, found = false;
@@ -157,10 +201,62 @@ void verify_critical_endpoints(Result &result, Engine &engine) {
         }
       }
     node.is_verified_critical_endpoint = found && verified;
+    // An intrinsic critical state need not terminate the plotted phase front.
+    // Two separately verified phase-out arms can pass through the coalescence
+    // while exchanging which solution copy has zero amount. Replacement
+    // limits (variance one) can instead be two records of one terminal arm.
+    if (node.is_verified_critical_endpoint && node.gibbs_variance == 2) {
+      const auto ranges = result.coordinate_ranges();
+      const Eigen::Vector2d range(ranges[0][1] - ranges[0][0],
+                                  ranges[1][1] - ranges[1][0]);
+      auto direction = [&](const Boundary &line) -> Eigen::Vector2d {
+        for (std::size_t k = 1; k < line.points.size(); ++k) {
+          const auto &point = node.id == line.start_node
+                                  ? line.points[k]
+                                  : line.points[line.points.size() - 1 - k];
+          const Eigen::Vector2d delta(point.pressure - node.pressure,
+                                      point.temperature - node.temperature);
+          if ((delta.cwiseAbs().array() >
+               equilibrium_pt_tolerance().array() * 4.)
+                  .any())
+            return delta.cwiseQuotient(range).normalized();
+        }
+        return Eigen::Vector2d::Zero();
+      };
+      bool continued = false;
+      std::vector<std::pair<const Boundary *, Eigen::Vector2d>> arms;
+      for (const auto &line : result.boundaries)
+        if ((line.start_node == node.id || line.end_node == node.id) &&
+            line.reaction_kind == ReactionKind::phase_out) {
+          const auto current = direction(line);
+          // Compare only with earlier arms: each pair and direction is used
+          // without repeating the endpoint search for the reverse pair.
+          for (const auto &[other, previous] : arms)
+            if (other->id != line.id &&
+                engine.canonical_ids(other->assemblage) ==
+                    engine.canonical_ids(line.assemblage) &&
+                same_boundary_sides(*other, line) &&
+                previous.dot(current) < -.5)
+              continued = true;
+          arms.emplace_back(&line, current);
+        }
+      if (continued) {
+        node.kind = "boundary_continuation";
+        node.is_verified_critical_endpoint = false;
+        for (auto &line : result.boundaries) {
+          auto [back, forward] = boundary_statuses(line);
+          if (line.start_node == node.id)
+            back = "boundary continuation";
+          if (line.end_node == node.id)
+            forward = "boundary continuation";
+          line.termination = back + "; " + forward;
+        }
+      }
+    }
     if (engine.settings.verbose)
       std::cerr << "Critical endpoint " << node.id << ": "
                 << (node.is_verified_critical_endpoint
-                        ? "verified univariant termination"
+                        ? "verified critical termination"
                         : "not certified")
                 << '\n';
   }
@@ -175,6 +271,64 @@ FieldPolygons recover_boundary_labels(Result &result) {
       line.side_b = it->second[1];
     }
   return geometry;
+}
+
+void refresh_coordinate_diagnostics(Result &result,
+                                     const FieldPolygons &geometry) {
+  std::set<int> verified_interiors;
+  for (const auto &polygon : geometry.polygons)
+    if (!polygon.is_provisional &&
+        (polygon.has_verified_reaction_perimeter ||
+         polygon.has_closed_reaction_ring || polygon.sample_index >= 0))
+      verified_interiors.insert(polygon.interior_failure_indices.begin(),
+                                polygon.interior_failure_indices.end());
+  result.coordinate_diagnostics = geometry.coordinate_diagnostics;
+  // Older saved files kept these same derived notes in blocking diagnostics.
+  for (const auto &message : geometry.coordinate_diagnostics)
+    erase_if(result.diagnostics,
+             [&](const auto &saved) { return saved == message; });
+  for (std::size_t index = 0; index < result.samples.size(); ++index) {
+    const auto &state = result.samples[index];
+    if (state.success || state.outside_model_domain ||
+        !state.is_field_verification)
+      continue;
+    const auto message = failed_sample_diagnostic(state);
+    const std::string legacy = "Unresolved seed: " + state.message;
+    erase_if(result.diagnostics, [&](const auto &saved) {
+      return saved == message || saved == legacy;
+    });
+    auto &messages = verified_interiors.count(static_cast<int>(index))
+                         ? result.coordinate_diagnostics
+                         : result.diagnostics;
+    if (std::find(messages.begin(), messages.end(), message) == messages.end())
+      messages.push_back(message);
+  }
+}
+
+void erase_field_diagnostics(Result &result) {
+  // Field numbers and winding can change when reconstructing an older file.
+  // Rebuild these owned messages instead of comparing only today's numbering
+  // with stale messages. Keep unrelated diagnostics and all solve failures.
+  erase_if(result.diagnostics, [](const std::string &message) {
+    if (message.rfind("No closed region resolved for sampled assemblage ", 0) == 0)
+      return true;
+    if (message.rfind("Field ", 0) != 0)
+      return false;
+    const auto end = message.find_first_not_of("0123456789", 6);
+    if (end == 6 || end == std::string::npos)
+      return false;
+    const auto detail = message.substr(end);
+    for (const auto *prefix : {
+             " has conflicting perimeter", " has no assemblage evidence.",
+             " has no interior resolved", " has an overlapping reaction",
+             " contains an unfinished boundary", " has an unlabelled perimeter",
+             " has no labelled perimeter", " has a reaction-verified assemblage",
+             " has an assemblage identified by a complete reaction ring",
+             " follows consistent perimeter reactions"})
+      if (detail.rfind(prefix, 0) == 0)
+        return true;
+    return false;
+  });
 }
 
 std::vector<std::string> field_diagnostics(const Result &result, Engine &engine,
@@ -309,36 +463,27 @@ std::vector<std::string> field_diagnostics(const Result &result, Engine &engine,
 }
 } // namespace detail
 
-Result verify_critical_endpoints(
-    const Result &previous,
-    const std::vector<std::shared_ptr<Material>> &candidates) {
+namespace {
+// Both public verification operations preserve unrelated diagnostics and use
+// the same field-status refresh and accounting after their specialised checks.
+template <typename Verify>
+Result reverify_result(const Result &previous,
+                       const std::vector<std::shared_ptr<Material>> &candidates,
+                       Verify verify) {
   Result result = previous;
   detail::Engine engine(result.composition_start, candidates, result.settings,
                         result.section);
   engine.pressure_bounds = result.pressure_range;
   engine.temperature_bounds = result.temperature_range;
-  // Regenerate the same derived diagnostics used after tracing. Preserve
-  // every unrelated message, without matching hard-coded warning prefixes.
   const auto old =
       detail::field_diagnostics(result, engine, field_polygons(result));
   detail::erase_if(result.diagnostics, [&](const auto &message) {
     return std::find(old.begin(), old.end(), message) != old.end();
   });
-  // Full native snapshots index their nodes contiguously. Cropped networks
-  // can retain original IDs and connections to omitted exterior boundaries;
-  // their incidence cannot be reconstructed from this partial record alone.
-  bool indexed_graph = true;
-  for (std::size_t i = 0; i < result.nodes.size(); ++i)
-    indexed_graph = indexed_graph && result.nodes[i].id == static_cast<int>(i);
-  for (const auto &line : result.boundaries)
-    for (int id : {line.start_node, line.end_node})
-      indexed_graph = indexed_graph && (id < 0 || static_cast<std::size_t>(id) <
-                                                      result.nodes.size());
-  if (indexed_graph)
-    detail::rebuild_boundary_incidence(result);
-  detail::verify_critical_endpoints(result, engine);
-  const auto graph = detail::recover_boundary_labels(result);
-  auto messages = detail::field_diagnostics(result, engine, graph);
+  detail::erase_field_diagnostics(result);
+  const auto graph = verify(result, engine);
+  detail::refresh_coordinate_diagnostics(result, graph);
+  const auto messages = detail::field_diagnostics(result, engine, graph);
   result.diagnostics.insert(result.diagnostics.end(), messages.begin(),
                             messages.end());
   result.equilibrium_solves += engine.equilibrium_solves;
@@ -347,4 +492,41 @@ Result verify_critical_endpoints(
   detail::audit_thermodynamic_samples(result);
   return result;
 }
+} // namespace
+
+Result verify_critical_endpoints(
+    const Result &previous,
+    const std::vector<std::shared_ptr<Material>> &candidates) {
+  return reverify_result(
+      previous, candidates, [](Result &result, detail::Engine &engine) {
+        // Full native snapshots index their nodes contiguously. Cropped
+        // networks can retain original IDs and connections to omitted exterior
+        // boundaries; their incidence cannot be reconstructed from this partial
+        // record alone.
+        bool indexed_graph = true;
+        for (std::size_t i = 0; i < result.nodes.size(); ++i)
+          indexed_graph =
+              indexed_graph && result.nodes[i].id == static_cast<int>(i);
+        for (const auto &line : result.boundaries)
+          for (int id : {line.start_node, line.end_node})
+            indexed_graph =
+                indexed_graph &&
+                (id < 0 || static_cast<std::size_t>(id) < result.nodes.size());
+        if (indexed_graph)
+          detail::rebuild_boundary_incidence(result);
+        detail::verify_critical_endpoints(result, engine);
+        return detail::recover_boundary_labels(result);
+      });
+}
+
+Result verify_field_perimeters(
+    const Result &previous,
+    const std::vector<std::shared_ptr<Material>> &candidates) {
+  return reverify_result(
+      previous, candidates, [](Result &result, detail::Engine &engine) {
+        detail::verify_field_perimeters(result, engine, true);
+        return field_polygons(result);
+      });
+}
+
 } // namespace burnman::phase_diagrams

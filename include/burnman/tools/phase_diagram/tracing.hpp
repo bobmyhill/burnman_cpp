@@ -47,7 +47,6 @@ class Tracer {
   std::set<std::string> expanded;
   std::map<std::vector<int>, Eigen::MatrixXd> amount_vertices;
   Eigen::VectorXd critical_axis;
-  std::optional<LineResolution> line_resolution;
   std::set<int> unstable_lines;
   std::vector<std::string> thermodynamic_diagnostics;
   Eigen::Vector2d normalise(double first, double second) const;
@@ -227,10 +226,10 @@ class Tracer {
   // Record incomplete trace ends and failed equilibrium samples, rebuilding
   // node incidence from the surviving lines rather than stale trace history.
   void collect_boundary_diagnostics();
-  // With requested line resolution, add interior equilibrium evidence only for
-  // closed fields whose labels remain provisional or unknown after perimeter
-  // tests.
+  // Add interior equilibrium evidence for closed fields whose labels remain
+  // provisional or unknown after perimeter tests.
   void verify_field_interiors();
+  void verify_field_geometry();
   // Refresh critical-endpoint certificates and closed-field diagnostics, then
   // set resolved from the outstanding messages. This is completion of the
   // implemented checks, not a proof that every stability field was discovered.
@@ -242,19 +241,14 @@ class Tracer {
   // Require the saved bulk, phase order and phase-instance settings to agree
   // with this calculation before reusing its equilibrium records.
   void validate_previous_identity(const Result &previous) const;
-  // Restore accepted states and reaction identities for a resumed calculation.
-  // Return whether junction branches need searching as well as boundary
-  // recovery.
-  bool prepare_previous(const Result &previous,
-                        const std::optional<LineResolution> &resolution);
 
 public:
   Tracer(const types::FormulaMap &bulk,
          const std::vector<std::shared_ptr<Material>> &phases,
          const std::array<double, 2> &pr, const std::array<double, 2> &tr,
          const Settings &settings, const CompositionSection &section);
-  // Resolved diagrams only gain solved points. Unresolved saved diagrams and
-  // fresh calculations share recovery, repair and field-identification stages.
+  // Refinement preserves saved topology, labels and states, inserting solved
+  // boundary points. Recovery and field identification belong to creation.
   Result
   calculate(const Result *previous = nullptr,
             const std::optional<LineResolution> &resolution = std::nullopt);

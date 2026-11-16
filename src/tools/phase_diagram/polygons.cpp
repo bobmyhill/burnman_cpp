@@ -14,7 +14,9 @@
 #include "burnman/tools/phase_diagram/polygons.hpp"
 #include "burnman/tools/phase_diagram/boundary_repair.hpp"
 #include "burnman/tools/phase_diagram/common.hpp"
+#include "burnman/tools/phase_diagram/continuation.hpp"
 #include "burnman/tools/phase_diagram/domain.hpp"
+#include "burnman/tools/phase_diagram/field_verification.hpp"
 #include "burnman/utils/index_utils.hpp"
 #include "burnman/utils/polygon_utils.hpp"
 #include <algorithm>
@@ -48,30 +50,7 @@ using detail::segment_distance;
 using Assemblages = std::set<Phases>;
 using detail::canonical_phase_ids;
 
-// Finite-area neighbouring assemblages permitted by this reaction. Include the
-// zero phase only on an admissible side; a univariant reaction is not itself an
-// additional area to colour. Verified replacement reactions supply their sides.
-Assemblages boundary_assemblages(const Boundary &line, const Result &result) {
-  Assemblages choices;
-  if (line.assemblage.empty() || line.zero_phase < 0)
-    return choices;
-  auto insert = [&](const Phases &phases) {
-    if (!phases.empty())
-      choices.insert(
-          canonical_phase_ids(phases, result.settings.max_phase_instances));
-  };
-  if (line.reaction_kind == ReactionKind::phase_out) {
-    insert(line.assemblage);
-    auto absent = line.assemblage;
-    absent.erase(std::remove(absent.begin(), absent.end(), line.zero_phase),
-                 absent.end());
-    insert(absent);
-  } else if (line.reaction_kind == ReactionKind::replacement) {
-    insert(line.side_a);
-    insert(line.side_b);
-  }
-  return choices;
-}
+using detail::boundary_assemblages;
 
 // Every physical arc constrains the same field. No edge gets extra authority
 // because it is longer or has more stored corrector points.
@@ -171,7 +150,15 @@ void link_junction(const std::vector<Index> &list, std::vector<Edge> &edges,
   const bool latent = std::any_of(list.begin(), list.end(), [&](Index edge) {
     return edges[edge].latent_invariant;
   });
-  if (best_score.first != 0 && !latent)
+  const bool sampled_frame =
+      domain && std::any_of(list.begin(), list.end(), [&](Index edge) {
+        return edges[edge].domain_boundary &&
+               (!edges[edge].labels.empty() || !edges[edge ^ 1].labels.empty());
+      });
+  // A frame sample identifies its adjacent field directly. Keep the fan with
+  // the fewest conflicting phase sides even if another, nearly coincident
+  // reaction still disagrees; the purely angular fan can join separate fields.
+  if (best_score.first != 0 && !latent && !sampled_frame)
     std::iota(best.begin(), best.end(), 0);
   for (Index i = 0; i < best.size(); ++i)
     edges[list[best[i]] ^ 1].next =
@@ -192,6 +179,7 @@ struct Face {
   std::vector<Ring> holes;
   double area;
   bool dangling;
+  bool inverted = false;
 };
 
 struct Hole {
@@ -392,9 +380,12 @@ class PolygonBuilder {
   std::vector<std::vector<Point>> excluded;
   std::vector<std::vector<Index>> outgoing;
   std::vector<Face> faces;
+  std::set<Ring> promoted_holes;
+  std::set<const Boundary *> plotted_lines;
   std::vector<Phases> sample_labels;
   bool uniform = false;
   FieldPolygons output;
+  std::string verification_signature;
   Point normalise(double p, double t) const {
     Point value = (Point(p, t) - origin).cwiseQuotient(scale);
     if (!value.allFinite())
@@ -458,7 +449,7 @@ class PolygonBuilder {
         nodes.emplace(node.id, vertex);
         if (node.is_verified_critical_endpoint &&
             node.kind == "critical_point" &&
-            result.section.type == DiagramType::PT && node.gibbs_variance == 1)
+            result.section.type == DiagramType::PT)
           complete_critical.insert(vertex);
       }
   }
@@ -619,9 +610,11 @@ class PolygonBuilder {
   // Convert saved reaction curves to graph arcs. Stable endpoints establish
   // connectivity; incidental crossings of interior drawing chords do not.
   void add_phase_boundaries() {
+    const auto overtraces = detail::reaction_overtraces(result);
     std::vector<const Boundary *> lines;
     for (const auto &line : result.boundaries)
-      lines.push_back(&line);
+      if (!overtraces.count(line.id))
+        lines.push_back(&line);
     std::sort(lines.begin(), lines.end(), [&](auto a, auto b) {
       return a->points.size() != b->points.size()
                  ? a->points.size() > b->points.size()
@@ -631,6 +624,7 @@ class PolygonBuilder {
       const auto &line = *record;
       if (line.points.size() < 2)
         continue;
+      plotted_lines.insert(record);
       std::vector<Point> points;
       for (const auto &point : line.points) {
         auto value = coordinate(point);
@@ -774,9 +768,25 @@ class PolygonBuilder {
                         : vertices.points[a][1 - fixed] >
                               vertices.points[b][1 - fixed];
       });
-      for (Index i = 1; i < ordered.size(); ++i)
-        add_edge({ordered[i - 1], ordered[i]}, {}, {}, false, false, false,
-                 nullptr, 1);
+      for (Index i = 1; i < ordered.size(); ++i) {
+        const double a = vertices.points[ordered[i - 1]][1 - fixed],
+                     b = vertices.points[ordered[i]][1 - fixed];
+        Assemblages labels;
+        // Use only unanimous, strictly interior samples on this frame arc.
+        // A missing or disputed sample leaves the arc unlabelled.
+        for (std::size_t j = 0; j < result.samples.size(); ++j) {
+          if (sample_labels[j].empty())
+            continue;
+          const Point p = coordinate(result.samples[j]);
+          if (std::abs(p[fixed] - value) <= tolerance &&
+              p[1 - fixed] > std::min(a, b) + tolerance &&
+              p[1 - fixed] < std::max(a, b) - tolerance)
+            labels.insert(sample_labels[j]);
+        }
+        add_edge({ordered[i - 1], ordered[i]},
+                 labels.size() == 1 ? *labels.begin() : Phases{}, {}, false,
+                 false, false, nullptr, 1);
+      }
     }
   }
   // Order outgoing arcs at each vertex and set the next arc around each field.
@@ -924,12 +934,215 @@ class PolygonBuilder {
         faces[parent].dangling = faces[parent].dangling || dangling;
       }
     }
+    // Unsynchronised chords can reverse a real, extremely narrow field's
+    // signed area. Its directed reaction walk still identifies the same
+    // assemblage throughout. Keep that field instead of misclassifying its
+    // walk as a hole in a neighbouring thermodynamic field.
+    auto left_label = [&](const std::vector<Ring> &rings) {
+      Assemblages common;
+      bool initialized = false;
+      for (const auto &ring : rings)
+        ring_edges(ring, [&](Index edge) {
+          if (!edges[edge].labels.empty())
+            intersect_assemblages(common, edges[edge].labels, initialized);
+        });
+      return common.size() == 1 ? *common.begin() : Phases{};
+    };
+    std::set<Phases> represented;
+    for (const auto &face : faces) {
+      auto rings = face.holes;
+      rings.push_back(face.exterior);
+      const auto phases = left_label(rings);
+      if (!phases.empty())
+        represented.insert(phases);
+    }
+    for (const auto &[ring, dangling] : holes) {
+      if (result.section.type != DiagramType::PT)
+        continue;
+      const auto phases = left_label({ring});
+      if (dangling || phases.empty() || represented.count(phases))
+        continue;
+      bool compatible = true;
+      std::set<int> zeros;
+      std::set<const Boundary *> reactions;
+      ring_edges(ring, [&](Index edge) {
+        if (edges[edge].domain_boundary || edges[edge].labels.empty() ||
+            edges[edge].observations.empty())
+          compatible = false;
+        for (const auto &[line, follows] : edges[edge].observations) {
+          (void)follows;
+          reactions.insert(line);
+          const auto allowed = boundary_assemblages(*line, result);
+          if (!allowed.count(phases) || line->start_node < 0 || line->end_node < 0)
+            compatible = false;
+          if (line->reaction_kind == ReactionKind::phase_out &&
+              canonical_assemblage(line->assemblage) == phases)
+            zeros.insert(line->zero_phase);
+        }
+      });
+      // Distinct regular phase-out conditions establish a full assemblage
+      // between them. The clockwise exterior of an ordinary island does not.
+      bool sampled = false;
+      const auto accuracy = detail::equilibrium_pt_tolerance();
+      for (std::size_t index = 0; index < sample_labels.size(); ++index) {
+        if (sample_labels[index] != phases)
+          continue;
+        const auto &state = result.samples[index];
+        const auto location = diagram_coordinates(state, result.section.type);
+        const bool at_vertex = std::any_of(result.nodes.begin(), result.nodes.end(),
+            [&](const auto &node) {
+              return ((diagram_coordinates(node, result.section.type) - location)
+                          .cwiseAbs().array() <= accuracy.array()).all();
+            });
+        const bool on_reaction = std::any_of(reactions.begin(), reactions.end(),
+            [&](const auto *line) {
+              return std::any_of(line->points.begin(), line->points.end(),
+                  [&](const auto &point) {
+                    return ((diagram_coordinates(point, result.section.type) - location)
+                                .cwiseAbs().array() <= accuracy.array()).all();
+                  });
+            });
+        // A finite amount in a replacement curve's limiting state is not an
+        // independently verified interior of the full P-T field.
+        sampled = sampled ||
+                  (state.is_field_verification || (!at_vertex && !on_reaction));
+      }
+      const bool paired_phase_outs = reactions.size() == 2 &&
+          std::all_of(reactions.begin(), reactions.end(), [&](const auto *line) {
+            return line->reaction_kind == ReactionKind::phase_out &&
+                   canonical_assemblage(line->assemblage) == phases;
+          }) && detail::same_boundary_nodes(**reactions.begin(), **reactions.rbegin());
+      // A larger unsampled clockwise walk could be an external face. Require
+      // an independent equilibrium witness before promoting that inventory.
+      if (compatible && zeros.size() >= 2 && (sampled || paired_phase_outs)) {
+        faces.push_back({ring, {}, -area(ring, vertices.points), false, true});
+        promoted_holes.insert(ring);
+        represented.insert(phases);
+      }
+    }
   }
   // Visit the directed graph arc underlying every consecutive ring segment.
   template <typename Action>
   void ring_edges(const Ring &ring, Action action) const {
     for (std::size_t j = 1; j < ring.size(); ++j)
       action(edge_index.at({ring[j - 1], ring[j]}));
+  }
+  bool closed_reaction_ring(const Face &face, const Phases &phases,
+                            const std::set<const Boundary *> &observations) const {
+    std::set<Index> perimeter_edges;
+    ring_edges(face.exterior,
+               [&](Index edge) { perimeter_edges.insert(edge); });
+    if (face.dangling || !face.holes.empty() || phases.empty() ||
+        observations.empty())
+      return false;
+    bool complete = true;
+    ring_edges(face.exterior, [&](Index edge) {
+      complete = complete && edges[edge].phase_boundary &&
+                 !edges[edge].observations.empty() &&
+                 !perimeter_edges.count(edge ^ 1);
+    });
+    if (!complete)
+      return false;
+    std::map<int, std::vector<int>> neighbours;
+    for (const auto *line : observations) {
+      if (line->reaction_kind == ReactionKind::unknown ||
+          !boundary_assemblages(*line, result).count(phases))
+        return false;
+      if (observations.size() == 1 && line->points.size() >= 3 &&
+          line->termination.find("closed loop") != std::string::npos &&
+          (coordinate(line->points.front()) - coordinate(line->points.back()))
+                  .norm() <= tolerance)
+        return true;
+      if (line->start_node < 0 || line->end_node < 0 ||
+          !nodes.count(line->start_node) || !nodes.count(line->end_node))
+        return false;
+      const auto assemblage = canonical_assemblage(line->assemblage);
+      for (int id : {line->start_node, line->end_node}) {
+        const auto node =
+            std::find_if(result.nodes.begin(), result.nodes.end(),
+                         [&](const auto &event) { return event.id == id; });
+        if (node == result.nodes.end())
+          return false;
+        const auto event = canonical_assemblage(node->assemblage);
+        if (!std::includes(event.begin(), event.end(), assemblage.begin(),
+                           assemblage.end()))
+          return false;
+      }
+      neighbours[line->start_node].push_back(line->end_node);
+      neighbours[line->end_node].push_back(line->start_node);
+    }
+    std::set<int> reached;
+    std::vector<int> pending{neighbours.begin()->first};
+    while (!pending.empty()) {
+      const int vertex = pending.back();
+      pending.pop_back();
+      if (!reached.insert(vertex).second)
+        continue;
+      const auto &next = neighbours.at(vertex);
+      if (next.size() != 2)
+        return false;
+      pending.insert(pending.end(), next.begin(), next.end());
+    }
+    if (reached.size() != neighbours.size())
+      return false;
+    return true;
+  }
+  bool ring_crosses_other_lines(const std::set<const Boundary *> &observations,
+                                const Point &low, const Point &high) const {
+    const Point accuracy =
+        detail::equilibrium_coordinate_tolerance(result.section.type, scale)
+            .cwiseQuotient(scale) *
+        4.;
+    for (const auto *other : plotted_lines) {
+      if (observations.count(other))
+        continue;
+      Point other_low = coordinate(other->points.front()),
+            other_high = other_low;
+      for (const auto &point : other->points) {
+        other_low = other_low.cwiseMin(coordinate(point));
+        other_high = other_high.cwiseMax(coordinate(point));
+      }
+      if ((other_high.array() < low.array()).any() ||
+          (other_low.array() > high.array()).any())
+        continue;
+      for (const auto *source : observations)
+        for (Index i = 1; i < source->points.size(); ++i)
+          for (Index j = 1; j < other->points.size(); ++j) {
+            const Point a = coordinate(source->points[i - 1]),
+                        b = coordinate(source->points[i]),
+                        c = coordinate(other->points[j - 1]),
+                        d = coordinate(other->points[j]);
+            if ((a.cwiseMax(b).array() < c.cwiseMin(d).array()).any() ||
+                (c.cwiseMax(d).array() < a.cwiseMin(b).array()).any())
+              continue;
+            const Point u = b - a, v = d - c, offset = c - a;
+            const auto intersection =
+                detail::segment_intersection(u, v, offset);
+            if (!intersection)
+              continue;
+            if (intersection->first != intersection->last)
+              return true;
+            const Point crossing = a + intersection->first * u;
+            bool common_vertex = false;
+            if (other->reaction_kind != ReactionKind::unknown)
+              for (int id : {source->start_node, source->end_node})
+                if (id >= 0 &&
+                    (id == other->start_node || id == other->end_node))
+                  for (const auto *line : {source, other}) {
+                    const auto &end = id == line->start_node
+                                          ? line->points.front()
+                                          : line->points.back();
+                    common_vertex =
+                        common_vertex ||
+                        ((crossing - coordinate(end)).cwiseAbs().array() <=
+                         accuracy.array())
+                            .all();
+                  }
+            if (!common_vertex)
+              return true;
+          }
+    }
+    return false;
   }
   // Assign mineral assemblages from perimeter reactions and saved interior
   // equilibria. Missing/conflicting evidence remains provisional or unknown;
@@ -946,6 +1159,8 @@ class PolygonBuilder {
       polygon.area = face.area;
       polygon.vertices =
           coordinates(face.exterior, vertices.points, origin, scale);
+      if (face.inverted)
+        polygon.vertices = polygon.vertices.colwise().reverse().eval();
       for (auto &ring : face.holes) {
         polygon.holes.push_back(
             coordinates(ring, vertices.points, origin, scale));
@@ -975,10 +1190,9 @@ class PolygonBuilder {
       }
       Phases sample_phases;
       double clearance = -1.;
+      bool verified_sample = false, failed_verification = false;
       for (std::size_t index = 0; index < result.samples.size(); ++index) {
         const auto &state = result.samples[index];
-        if (!state.success)
-          continue;
         Point location = coordinate(state);
         if ((location.array() < low.array()).any() ||
             (location.array() > high.array()).any())
@@ -994,6 +1208,14 @@ class PolygonBuilder {
         if (!contains(face, vertices.points, location, sample_tolerance)) {
           continue;
         }
+        if (!state.success) {
+          failed_verification =
+              failed_verification || state.is_field_verification;
+          if (state.is_field_verification)
+            polygon.interior_failure_indices.push_back(
+                burnman::utils::checked_int(index));
+          continue;
+        }
         const auto &phases = sample_labels[index];
         if (phases.empty())
           continue;
@@ -1007,10 +1229,13 @@ class PolygonBuilder {
         measure(face.exterior);
         for (auto &hole : face.holes)
           measure(hole);
-        if (margin > clearance) {
+        if ((state.is_field_verification && !verified_sample) ||
+            (state.is_field_verification == verified_sample &&
+             margin > clearance)) {
           clearance = margin;
           sample_phases = canonical(phases);
           polygon.sample_index = burnman::utils::checked_int(index);
+          verified_sample = state.is_field_verification;
         }
       }
       // The exterior loop is the primary evidence. Internal holes and spurs
@@ -1025,7 +1250,8 @@ class PolygonBuilder {
       ring_edges(face.exterior, collect);
       for (const auto &hole : face.holes)
         ring_edges(hole, collect);
-      bool physical_perimeter = false, unknown_side = false;
+      bool physical_perimeter = false, unknown_side = false,
+           unresolved_overlap = false;
       auto evidence = [&](const Ring &ring, bool exterior) {
         ring_edges(ring, [&](Index edge) {
           // Traversing both directions is a spur, not a separating perimeter.
@@ -1036,6 +1262,19 @@ class PolygonBuilder {
                                           edges[edge].labels.empty());
           if (edges[edge].source)
             sources.insert(edges[edge].source);
+          // An unverified line coincident with a known reaction must not
+          // disappear into that edge's trusted labels. Geometry-only inputs
+          // can still use their ordinary side-label evidence.
+          bool known_reaction = false, unknown_reaction = false;
+          for (const auto &[record, follows] : edges[edge].observations) {
+            (void)follows;
+            known_reaction = known_reaction ||
+                             record->reaction_kind != ReactionKind::unknown;
+            unknown_reaction = unknown_reaction ||
+                               record->reaction_kind == ReactionKind::unknown;
+          }
+          unresolved_overlap = unresolved_overlap ||
+                               (known_reaction && unknown_reaction);
           for (const auto &[record, follows] : edges[edge].observations) {
             if (!observations.insert(record).second)
               continue;
@@ -1066,7 +1305,8 @@ class PolygonBuilder {
       };
       evidence(face.exterior, true);
       for (const auto &hole : face.holes)
-        evidence(hole, false);
+        if (!promoted_holes.count(hole))
+          evidence(hole, false);
       for (const auto *source : observations)
         if (source->id >= 0)
           polygon.boundary_ids.push_back(source->id);
@@ -1132,14 +1372,41 @@ class PolygonBuilder {
           }
         }
       }
-      if (sample_phases != polygon.phases)
+      if (sample_phases != polygon.phases) {
         polygon.sample_index = -1;
+        verified_sample = false;
+      }
       polygon.n_phases = burnman::utils::checked_int(polygon.phases.size());
       const auto identified = field_ids.find(polygon.phases);
       if (identified != field_ids.end())
         polygon.field_id = identified->second;
+      const bool unresolved_geometry = failed_verification && !verified_sample;
+      polygon.has_unresolved_interior = unresolved_geometry || face.inverted;
+      bool rejected_perimeter = false;
+      for (const auto &certificate : result.field_verifications)
+        if (certificate.graph_signature == verification_signature &&
+            certificate.phases == polygon.phases &&
+            certificate.boundary_ids == polygon.boundary_ids) {
+          polygon.has_verified_reaction_perimeter = certificate.success;
+          rejected_perimeter = rejected_perimeter || !certificate.success;
+        }
+      // A closed drawing polygon alone is insufficient: all its arcs must be
+      // known reactions compatible with this assemblage, and their saved
+      // endpoints must form one connected cycle through common vertices.
+      polygon.has_closed_reaction_ring =
+          !inconsistent && !unresolved_overlap && !rejected_perimeter &&
+          closed_reaction_ring(face, polygon.phases, observations);
+      // A separate line passing through the ring requires correction before
+      // the connectivity fallback can be used. A crossing of drawing chords
+      // does not itself establish a thermodynamic vertex. Crossings at saved
+      // common endpoints are already accounted for by the reaction graph.
+      if (polygon.has_closed_reaction_ring && unresolved_geometry &&
+          ring_crosses_other_lines(observations, low, high))
+        polygon.has_closed_reaction_ring = false;
       polygon.is_provisional =
-          face.dangling || inconsistent ||
+          (unresolved_geometry && !polygon.has_verified_reaction_perimeter &&
+           !polygon.has_closed_reaction_ring) ||
+          face.dangling || inconsistent || unresolved_overlap ||
           (!loop_identified && (unknown_side || perimeter.size() > 1)) ||
           (perimeter.empty() && (physical_perimeter || !uniform));
       if (polygon.is_provisional || polygon.phases.empty())
@@ -1150,6 +1417,12 @@ class PolygonBuilder {
                    "label "
                    "was found."
              : polygon.phases.empty() ? " has no assemblage evidence."
+             : unresolved_geometry
+                 ? " has no interior resolved at equilibrium coordinate "
+                   "accuracy; its label is provisional."
+             : unresolved_overlap
+                 ? " has an overlapping reaction with unresolved identity; "
+                   "its label is provisional."
              : face.dangling
                  ? " contains an unfinished boundary; its label is provisional."
              : inconsistent ? " has conflicting perimeter reactions; its label "
@@ -1161,6 +1434,19 @@ class PolygonBuilder {
                    "label is provisional."
                  : " has conflicting perimeter assemblages; its "
                    "label is provisional."));
+      else if (unresolved_geometry)
+        output.coordinate_diagnostics.push_back(
+            "Field " + std::to_string(polygon.field_number) +
+            (polygon.has_verified_reaction_perimeter
+                 ? " has a reaction-verified assemblage; its interior "
+                   "coordinates remain unresolved."
+                 : " has an assemblage identified by a complete reaction "
+                   "ring; its interior coordinates remain unresolved."));
+      else if (face.inverted)
+        output.coordinate_diagnostics.push_back(
+            "Field " + std::to_string(polygon.field_number) +
+            " follows consistent perimeter reactions; drawing chords reverse "
+            "its orientation, so fine interior coordinates remain unresolved.");
       Point sample;
       if (polygon.sample_index >= 0) {
         auto &state =
@@ -1169,6 +1455,10 @@ class PolygonBuilder {
       }
       auto label = label_point(face, vertices.points,
                                polygon.sample_index >= 0 ? &sample : nullptr);
+      if (polygon.sample_index >= 0 && verified_sample) {
+        label.first = sample;
+        label.second = clearance;
+      }
       polygon.label_position = origin + label.first.cwiseProduct(scale);
       polygon.label_clearance = label.second;
       output.polygons.push_back(std::move(polygon));
@@ -1184,7 +1474,8 @@ class PolygonBuilder {
       auto assign = [&](Index edge) { edge_faces[edge] = i; };
       ring_edges(faces[i].exterior, assign);
       for (auto &hole : faces[i].holes)
-        ring_edges(hole, assign);
+        if (!promoted_holes.count(hole))
+          ring_edges(hole, assign);
     }
     std::vector<Phases> face_phases;
     for (const auto &polygon : output.polygons)
@@ -1307,6 +1598,8 @@ public:
         (scale.array() <= 0.).any())
       throw std::invalid_argument(
           "Polygon diagram ranges must be finite and increasing.");
+    if (!result.field_verifications.empty())
+      verification_signature = detail::field_verification_signature(result);
   }
   // Geometry/identification pipeline. No stage moves the saved equilibrium
   // traces or creates a thermodynamic junction from a drawing intersection.

@@ -15,16 +15,18 @@
 #include "burnman/tools/phase_diagram/boundary_repair.hpp"
 #include "burnman/tools/phase_diagram/consistency.hpp"
 #include "burnman/tools/phase_diagram/continuation.hpp"
+#include "burnman/tools/phase_diagram/diagram_verification.hpp"
 #include "burnman/tools/phase_diagram/domain.hpp"
+#include "burnman/tools/phase_diagram/field_verification.hpp"
 #include "burnman/tools/phase_diagram/polygons.hpp"
 #include "burnman/tools/phase_diagram/properties.hpp"
 #include "burnman/tools/phase_diagram/tracing.hpp"
-#include "burnman/tools/phase_diagram/verification.hpp"
 #include "burnman/utils/index_utils.hpp"
 #include <chrono>
 #include <cmath>
 #include <iomanip>
 #include <iostream>
+#include <tuple>
 
 namespace burnman::phase_diagrams::detail {
 // Master sequence for new diagrams and saved-diagram refinement.
@@ -34,7 +36,6 @@ Result Tracer::calculate(const Result *previous,
     validate_previous_identity(*previous);
     result = *previous;
     result.settings = engine.settings;
-    line_resolution = resolution;
     if (resolution) {
       validate_line_resolution(result, *resolution);
       result.spacing_diagnostics = detail::refine_line_spacing(
@@ -60,7 +61,12 @@ Result Tracer::calculate(const Result *previous,
   // Recovery can add accepted endpoints after the first domain pass.
   detail::join_frame_limits(result, engine);
   detail::join_model_limits(result, engine);
-  if (detail::remove_metastable_parallel_lines(result, engine))
+  const auto overtraces = detail::reaction_overtraces(result);
+  erase_if(result.boundaries,
+           [&](const Boundary &line) { return overtraces.count(line.id); });
+  const auto metastable =
+      detail::remove_metastable_parallel_lines(result, engine);
+  if (!overtraces.empty() || metastable)
     index_boundaries();
   collect_boundary_diagnostics();
   verify_field_interiors();
@@ -95,7 +101,6 @@ Tracer::Tracer(const types::FormulaMap &bulk,
   } else if (section.fixed_coordinate)
     throw std::invalid_argument(
         "Only X diagrams take an additional fixed coordinate.");
-  result.section = engine.section;
   const auto ranges = result.coordinate_ranges();
   for (auto r : ranges)
     if (!std::isfinite(r[0]) || !std::isfinite(r[1]) || r[1] <= r[0])
@@ -287,16 +292,260 @@ void Tracer::verify_field_interiors() {
   }
 }
 
+void Tracer::verify_field_geometry() {
+  if (result.section.type != DiagramType::PT)
+    return;
+  const auto geometry = field_polygons(result);
+  const auto accuracy =
+      equilibrium_coordinate_tolerance(result.section.type, range);
+  for (const auto &polygon : geometry.polygons) {
+    if (polygon.outside_model_domain || polygon.has_open_boundary ||
+        polygon.phases.empty() || polygon.is_provisional ||
+        polygon.boundary_ids.empty())
+      continue;
+    struct Start {
+      double distance;
+      PhaseStates phases;
+    };
+    std::vector<Start> starts;
+    std::map<int, int> counts;
+    for (int id : polygon.phases)
+      ++counts[id / engine.settings.max_phase_instances];
+    auto subset = [&](const PhaseStates &phases) {
+      PhaseStates selected;
+      for (const auto &[candidate, count] : counts) {
+        PhaseStates group;
+        for (const auto &p : phases)
+          if (p.candidate_index == candidate)
+            group.push_back(p);
+        if (group.size() < static_cast<std::size_t>(count))
+          return PhaseStates{};
+        std::stable_sort(
+            group.begin(), group.end(),
+            [](const auto &a, const auto &b) { return a.amount > b.amount; });
+        for (int copy = 0; copy < count; ++copy) {
+          auto p = group[static_cast<std::size_t>(copy)];
+          p.id = candidate * engine.settings.max_phase_instances + copy;
+          selected.push_back(std::move(p));
+        }
+      }
+      return selected;
+    };
+    auto consider = [&](const auto &point) {
+      auto selected = subset(point.phases);
+      if (!selected.empty())
+        starts.push_back(
+            {(normalise(point) - normalise(polygon.label_position)).norm(),
+             std::move(selected)});
+    };
+    for (const auto &state : result.samples)
+      if (state.success)
+        consider(state);
+    for (int id : polygon.boundary_ids)
+      for (const auto &point :
+           result.boundaries.at(static_cast<std::size_t>(id)).points)
+        consider(point);
+    std::sort(starts.begin(), starts.end(), [](const auto &a, const auto &b) {
+      return a.distance < b.distance;
+    });
+    auto solve =
+        [&](const Eigen::Vector2d &location,
+            const std::vector<PhaseStates> &extra) -> std::optional<State> {
+      auto attempt = [&](const PhaseStates &selected) -> std::optional<State> {
+        if (selected.empty())
+          return std::nullopt;
+        try {
+          auto work = engine.equilibrate_phase_set(polygon.phases, selected,
+                                                   location[0], location[1],
+                                                   std::nullopt, true);
+          if (work.state.success &&
+              engine.active_phases(work.state) == polygon.phases &&
+              engine.locally_stable(*work.assemblage) &&
+              engine.distinct(*work.assemblage, work.ids)) {
+            work.state.is_field_verification = true;
+            work.state.message =
+                "Interior verified against the field's equilibrium assemblage";
+            return work.state;
+          }
+        } catch (const std::exception &) {
+        }
+        return std::nullopt;
+      };
+      for (const auto &seed : extra)
+        if (auto state = attempt(subset(seed)))
+          return state;
+      for (std::size_t i = 0; i < std::min<std::size_t>(8, starts.size()); ++i)
+        if (auto state = attempt(starts[i].phases))
+          return state;
+      return std::nullopt;
+    };
+    if (auto state = solve(polygon.label_position, {})) {
+      add_sample(*state);
+      continue;
+    }
+    // A fixed assemblage need not determine every elemental potential. A cold
+    // phase search supplies a feasible tangent-plane gauge before treating a
+    // failed conditional affinity check as evidence of a drawing error.
+    auto independent =
+        engine.stable(polygon.label_position[0], polygon.label_position[1]);
+    if (independent.state.success &&
+        engine.active_phases(independent.state) == polygon.phases &&
+        engine.locally_stable(*independent.assemblage)) {
+      independent.state.is_field_verification = true;
+      add_sample(independent.state);
+      continue;
+    }
+    const Eigen::Vector2d low = polygon.vertices.colwise().minCoeff(),
+                          high = polygon.vertices.colwise().maxCoeff();
+    Eigen::Index axis;
+    ((high - low).cwiseQuotient(range)).maxCoeff(&axis);
+    struct Cut {
+      std::size_t line, segment;
+      BoundaryPoint point;
+    };
+    bool below_accuracy = false;
+    // A strip can be unresolved on fixed-P cuts yet have a resolvable width
+    // in pressure. Try both coordinates before treating its interior as below
+    // the solver's accuracy; the dominant drawing axis is only a first choice.
+    auto verify_sections = [&](Eigen::Index fixed_axis) {
+      const Eigen::Index other = 1 - fixed_axis;
+      for (double slice :
+           {polygon.label_position[fixed_axis],
+            low[fixed_axis] + .25 * (high[fixed_axis] - low[fixed_axis]),
+            low[fixed_axis] + .5 * (high[fixed_axis] - low[fixed_axis]),
+            low[fixed_axis] + .75 * (high[fixed_axis] - low[fixed_axis])}) {
+        std::vector<Cut> cuts;
+        for (int id : polygon.boundary_ids) {
+          const auto &line = result.boundaries.at(static_cast<std::size_t>(id));
+          for (std::size_t k = 1; k < line.points.size(); ++k) {
+            const auto left = diagram_coordinates(line.points[k - 1],
+                                                  result.section.type),
+                       right = diagram_coordinates(line.points[k],
+                                                   result.section.type);
+            if (slice < std::min(left[fixed_axis], right[fixed_axis]) ||
+                slice > std::max(left[fixed_axis], right[fixed_axis]) ||
+                std::abs(right[fixed_axis] - left[fixed_axis]) <=
+                    accuracy[fixed_axis])
+              continue;
+            const double fraction = (slice - left[fixed_axis]) /
+                                    (right[fixed_axis] - left[fixed_axis]);
+            const Eigen::Vector2d target = left + fraction * (right - left);
+            Eigen::Vector2d weights = Eigen::Vector2d::Zero(),
+                            allowance =
+                                range *
+                                ((right - left).cwiseQuotient(range).norm() +
+                                 engine.settings.node_tolerance);
+            weights[fixed_axis] = 1. / range[fixed_axis];
+            allowance[fixed_axis] = accuracy[fixed_axis];
+            for (const auto *warm :
+                 {&line.points[k - 1].phases, &line.points[k].phases})
+              try {
+                if (auto point = boundary_point_at(engine, line, *warm, target,
+                                                   weights, allowance)) {
+                  cuts.push_back(
+                      {static_cast<std::size_t>(id), k, std::move(*point)});
+                  break;
+                }
+              } catch (const std::exception &) {
+              }
+          }
+        }
+        std::sort(cuts.begin(), cuts.end(), [&](const auto &a, const auto &b) {
+          return diagram_coordinates(a.point, result.section.type)[other] <
+                 diagram_coordinates(b.point, result.section.type)[other];
+        });
+        for (std::size_t k = 1; k < cuts.size(); ++k) {
+          auto &a = cuts[k - 1], &b = cuts[k];
+          const Eigen::Vector2d left = diagram_coordinates(a.point,
+                                                           result.section.type),
+                                right = diagram_coordinates(
+                                    b.point, result.section.type);
+          if (right[other] - left[other] <= accuracy[other] * 4.) {
+            below_accuracy = true;
+            continue;
+          }
+          auto blended = average_phase_states(a.point.phases, b.point.phases);
+          auto state = solve(.5 * (left + right),
+                             {blended, a.point.phases, b.point.phases});
+          if (!state)
+            continue;
+          // Insert independently solved boundary states at the same section.
+          // Their midpoint is now inside the drawing as well as the field.
+          std::array<Cut *, 2> insertions{&a, &b};
+          std::sort(insertions.begin(), insertions.end(),
+                    [](const auto *first, const auto *second) {
+                      return std::tie(first->line, first->segment) >
+                             std::tie(second->line, second->segment);
+                    });
+          for (auto *cut : insertions) {
+            auto &points = result.boundaries[cut->line].points;
+            if (std::none_of(
+                    points.begin(), points.end(), [&](const auto &saved) {
+                      return ((diagram_coordinates(saved, result.section.type) -
+                               diagram_coordinates(cut->point,
+                                                   result.section.type))
+                                  .cwiseAbs()
+                                  .array() <= accuracy.array())
+                          .all();
+                    }))
+              points.insert(points.begin() +
+                                static_cast<std::ptrdiff_t>(cut->segment),
+                            cut->point);
+          }
+          add_sample(*state);
+          return true;
+        }
+      }
+      return false;
+    };
+    const bool repaired = verify_sections(axis) || verify_sections(1 - axis);
+    if (!repaired) {
+      State failed;
+      failed.pressure = polygon.label_position[0];
+      failed.temperature = polygon.label_position[1];
+      failed.is_field_verification = true;
+      failed.message =
+          below_accuracy
+              ? "Field width could not be resolved above the equilibrium "
+                "coordinate accuracy"
+              : "No equilibrium interior could be verified for the drawn field";
+      add_sample(failed);
+    }
+  }
+}
+
 Result Tracer::certify_result() {
   // Domain attachment and removal of metastable records can change the
   // final perimeter after tracing's repair pass. Reuse the same local repair
   // before certification; relabelling a subset of its arcs can leave a spur
   // with stale side evidence or an artificial hole between coarse chords.
-  repair_field_boundaries(
-      result, engine, [&](Boundary &line) { label(line); },
-      [&](Boundary &line, std::size_t k) {
-        return refine_segment(line, k, true);
-      });
+  const auto point_count = [&]() {
+    std::size_t count = 0;
+    for (const auto &line : result.boundaries)
+      count += line.points.size();
+    return count;
+  };
+  const auto initial_points = point_count();
+  for (int pass = 0; pass < 4; ++pass) {
+    const auto before = point_count();
+    repair_field_boundaries(
+        result, engine, [&](Boundary &line) { label(line); },
+        [&](Boundary &line, std::size_t k) {
+          return refine_segment(line, k, true);
+        });
+    const auto geometry = field_polygons(result);
+    if (result.section.type != DiagramType::PT ||
+        std::none_of(geometry.polygons.begin(), geometry.polygons.end(),
+                     [](const auto &p) {
+                       return p.is_provisional && !p.has_open_boundary &&
+                              !p.outside_model_domain && !p.phases.empty();
+                     }) ||
+        point_count() == before || point_count() >= initial_points + 4096)
+      break;
+  }
+  const auto overtraces = detail::reaction_overtraces(result);
+  erase_if(result.boundaries,
+           [&](const Boundary &line) { return overtraces.count(line.id); });
   index_boundaries();
   // The final repair can merge nodes, split arcs or remove boundary records
   // after collect_boundary_diagnostics() rebuilt these connections. Certify
@@ -304,7 +553,84 @@ Result Tracer::certify_result() {
   rebuild_boundary_incidence(result);
   // Verify endpoint diagnostics after the final geometry repair.
   detail::verify_critical_endpoints(result, engine);
-  const auto graph = detail::recover_boundary_labels(result);
+  if (detail::recover_solvus_branch_gaps(result, engine) +
+      detail::continue_boundary_past_coalescence(result, engine)) {
+    detail::verify_critical_endpoints(result, engine);
+    // Continuation can create a new narrow field after the earlier interior
+    // checks. Solve inside that field before assigning its plotted label.
+    verify_field_interiors();
+  }
+  // A coarse chord can make a neighbouring reaction appear on a field's
+  // perimeter even though that reaction cannot border its assemblage. Refine
+  // locally around the incompatible arc, rather than repeatedly bisecting
+  // long unrelated portions of the surrounding field.
+  if (result.section.type == DiagramType::PT) {
+    const auto geometry = field_polygons(result);
+    std::set<int> incompatible;
+    std::map<int, std::set<int>> neighbours;
+    for (const auto &polygon : geometry.polygons)
+      if (polygon.is_provisional && !polygon.has_open_boundary &&
+          !polygon.outside_model_domain && !polygon.phases.empty())
+        for (int id : polygon.boundary_ids) {
+          const auto &line = result.boundaries.at(static_cast<std::size_t>(id));
+          const auto choices = boundary_assemblages(line, result);
+          if (!choices.empty() && !choices.count(polygon.phases)) {
+            incompatible.insert(id);
+            neighbours[id].insert(polygon.boundary_ids.begin(),
+                                  polygon.boundary_ids.end());
+          }
+        }
+    for (int id : incompatible) {
+      const auto &source = result.boundaries.at(static_cast<std::size_t>(id));
+      const auto &points = source.points;
+      if (points.empty())
+        continue;
+      Eigen::Vector2d low = diagram_coordinates(points.front(),
+                                                result.section.type),
+                      high = low;
+      for (const auto &point : points) {
+        const auto q = diagram_coordinates(point, result.section.type);
+        low = low.cwiseMin(q);
+        high = high.cwiseMax(q);
+      }
+      // Neighbouring perimeter arcs can curve outside the incompatible arc's
+      // own bounding box. Include their solved extent at this junction.
+      for (int adjacent : neighbours[id]) {
+        const auto &line =
+            result.boundaries.at(static_cast<std::size_t>(adjacent));
+        if (line.start_node != source.start_node &&
+            line.start_node != source.end_node &&
+            line.end_node != source.start_node &&
+            line.end_node != source.end_node)
+          continue;
+        for (const auto &point : line.points) {
+          const auto q = diagram_coordinates(point, result.section.type);
+          low = low.cwiseMin(q);
+          high = high.cwiseMax(q);
+        }
+      }
+      const Eigen::Vector2d padding =
+          ((high - low) * .05).cwiseMax(range * 1.e-7);
+      low = (low - padding).cwiseMax(origin);
+      high = (high + padding).cwiseMin(origin + range);
+      LineResolution local;
+      local.axis_points = {65, 65};
+      local.region = std::array<std::array<double, 2>, 2>{
+          {{low[0], high[0]}, {low[1], high[1]}}};
+      detail::refine_line_spacing(result, engine, local,
+                                  [&](Boundary &line, std::size_t k) {
+                                    return refine_segment(line, k);
+                                  });
+    }
+  }
+  verify_field_geometry();
+  detail::verify_critical_endpoints(result, engine);
+  detail::recover_boundary_labels(result);
+  // A sub-resolution drawing does not invalidate a label established by
+  // stable reactions meeting at common vertices without intervening curves.
+  detail::verify_field_perimeters(result, engine);
+  const auto graph = field_polygons(result);
+  detail::refresh_coordinate_diagnostics(result, graph);
   auto messages = detail::field_diagnostics(result, engine, graph);
   result.diagnostics.insert(result.diagnostics.end(), messages.begin(),
                             messages.end());

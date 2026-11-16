@@ -37,6 +37,22 @@ std::set<int> active_boundary_nodes(const Result &);
 /// Return the number of removed records.
 std::size_t remove_metastable_parallel_lines(Result &, Engine &);
 
+/// Find a replacement trace that retraces two independently labelled reactions
+/// meeting at a saved junction. Its single side pair cannot describe both
+/// branches. Only the fully covered trace is redundant; the two phase-checked
+/// branches and their junction remain in the diagram.
+std::set<int> reaction_overtraces(const Result &);
+
+/// Continue a phase boundary between two local coalescence records only when
+/// equilibria along its path confirm the same neighbouring assemblages. The
+/// coalescences are numerical trace stops, not necessarily reaction endpoints.
+/// Return the number of accepted connections.
+std::size_t recover_solvus_branch_gaps(Result &, Engine &);
+
+/// Continue a boundary past a locally coalesced solution state to the
+/// temperature edge when stable equilibria confirm both sides throughout.
+std::size_t continue_boundary_past_coalescence(Result &, Engine &);
+
 /// Repair reaction-line connectivity using verified equilibrium junctions.
 /// Split curves at accepted nodes and use the supplied label/refinement
 /// callbacks to recover neighbouring assemblages and test suspect segments.

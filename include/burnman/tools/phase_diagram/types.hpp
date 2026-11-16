@@ -236,8 +236,8 @@ struct Node {
   double entropy = 0., volume = 0.;
   std::vector<int> zero_phases, assemblage, incident_lines;
   Eigen::VectorXd critical_mode; // normalised endmember direction, if verified
-  // Stable critical coalescence and both limiting states of a P-T univariant
-  // replacement have been re-solved; this endpoint needs no second graph arm.
+  // The local coalescence conditions and an adjacent reaction arm were
+  // re-solved. This does not establish that the geometric boundary ends here.
   bool is_verified_critical_endpoint = false;
 };
 
@@ -248,6 +248,18 @@ struct Field {
   // Sorted IDs of phases present in the samples. The same assemblage may
   // occupy several disconnected regions of the diagram.
   std::vector<int> phases, sample_indices;
+};
+
+/// A field identity established from stable reactions and common junctions.
+/// This verifies an assemblage, not a finite pressure/temperature width.
+struct FieldVerification {
+  std::vector<int> phases, boundary_ids, node_ids;
+  bool success = false;
+  std::string graph_signature, message;
+  int checked_junctions = 0, checked_boundary_points = 0,
+      checked_crossings = 0;
+  double maximum_mass_balance_error = 0., maximum_reaction_error = 0.,
+         minimum_affinity = 0.;
 };
 
 /// Coverage of energy comparisons, rather than a global-minimum certificate.
@@ -292,7 +304,11 @@ struct Result {
   std::vector<Field> fields;
   std::vector<Boundary> boundaries;
   std::vector<Node> nodes;
+  std::vector<FieldVerification> field_verifications;
   std::vector<std::string> diagnostics;
+  // Informational precision limits for thermodynamically verified fields.
+  // These do not invalidate reaction connectivity or set resolved=false.
+  std::vector<std::string> coordinate_diagnostics;
   ThermodynamicValidation thermodynamic_validation;
   // Unmet boundary-point spacing from the latest refinement request. These
   // messages do not invalidate the saved connections or phase-field labels.
@@ -302,7 +318,7 @@ struct Result {
   // These are model limits, not equilibrium phase lines.
   std::vector<Eigen::MatrixXd> excluded_regions;
   // True when the implemented tracing and field-identification checks leave
-  // no structural diagnostics; spacing_diagnostics are reported separately.
+  // no structural diagnostics; spacing/coordinate diagnostics are separate.
   // This does not prove that finite seed sampling found every
   // stability field or every lower-energy composition of the candidate models.
   bool resolved = false;
@@ -329,6 +345,16 @@ struct FieldPolygon {
   // A display label chosen despite missing or conflicting perimeter evidence.
   // This does not assert a resolved topology or a newly verified equilibrium.
   bool is_provisional = false;
+  // Independent of label certainty: a reaction-verified assemblage need not
+  // have an interior location resolved by the coordinate corrector.
+  bool has_unresolved_interior = false, has_verified_reaction_perimeter = false;
+  // A complete ring of known, compatible reactions identifies the label even
+  // when no interior coordinate is available. This is a connectivity fallback,
+  // distinct from an independently re-solved thermodynamic certificate.
+  bool has_closed_reaction_ring = false;
+  // Failed explicit interior attempts classified in this polygon. Retain
+  // provenance so successful verification can downgrade just those failures.
+  std::vector<int> interior_failure_indices;
   bool outside_model_domain = false;
   std::vector<int> phases;
   // Closed rings in the selected diagram coordinates (SI units). Holes
@@ -336,7 +362,7 @@ struct FieldPolygon {
   Eigen::MatrixXd vertices;
   std::vector<Eigen::MatrixXd> holes;
   double area = 0.;
-  // Interior label point with approximate maximum clearance, in diagram units.
+  // Verified equilibrium interior when available; otherwise a geometric pole.
   Eigen::Vector2d label_position = Eigen::Vector2d::Zero();
   double label_clearance = 0.; // normalised distance to the closest ring
   /// Test whether a label rectangle fits wholly inside this field, including
@@ -350,6 +376,7 @@ struct FieldPolygon {
 struct FieldPolygons {
   std::vector<FieldPolygon> polygons;
   std::vector<std::string> diagnostics;
+  std::vector<std::string> coordinate_diagnostics;
   // Unique closed, non-provisional neighbours compatible with the reaction.
   // Boundary ID -> {right, left}, following that record's native direction.
   std::map<int, std::array<std::vector<int>, 2>> boundary_sides;

@@ -30,6 +30,12 @@ Result verify_critical_endpoints(
 
 namespace burnman::phase_diagrams::detail {
 struct Engine;
+/// Move precision-only failures of verified fields out of blocking diagnostics.
+/// Unverified fields and unrelated failed equilibria remain blocking.
+void refresh_coordinate_diagnostics(Result &, const FieldPolygons &);
+/// Remove derived polygon/coverage messages before recomputing them from the
+/// retained graph, including files written by earlier polygon reconstruction.
+void erase_field_diagnostics(Result &);
 /// Update critical-endpoint certificates in place using thermodynamic tests.
 void verify_critical_endpoints(Result &, Engine &);
 

@@ -133,7 +133,7 @@ def _padded_section_region(data, points, padding, display):
     minimum = (domain[:, 1] - domain[:, 0]) * data.get("settings", {}).get(
         "step", 0.025
     )
-    pad = np.where(width > 0, width * padding, minimum / 2)
+    pad = np.maximum(width * padding, (minimum - width) / 2)
     low, high = np.maximum(domain[:, 0], low - pad), np.minimum(
         domain[:, 1], high + pad
     )
@@ -153,8 +153,8 @@ def phase_diagram_field_regions(result, field_numbers=None, *, padding=0.05, **d
 
     Each window includes the field's saved reaction points and endpoint nodes.
     Pad each side by ``padding`` times that coordinate's window span, then clip
-    to the calculation domain. A zero-width field uses the tracing step as a
-    minimum width. Windows default to SI units (Pa, K, J/K, m3) in plot axis
+    to the calculation domain. Narrow fields use the tracing step as a minimum
+    width. Windows default to SI units (Pa, K, J/K, m3) in plot axis
     order: for P-T, x is temperature and y is pressure. ``**display`` accepts
     the unit options of ``plot_phase_diagram``. No equilibria are calculated.
     """
@@ -193,10 +193,10 @@ def phase_diagram_field_regions(result, field_numbers=None, *, padding=0.05, **d
 def phase_diagram_problem_regions(result, *, padding=0.05, **display):
     """Select local recalculation windows from field and boundary diagnostics.
 
-    Return ``{'Field N': window, 'Boundary N': window, ...}``, where a window
-    is ``((xmin, xmax), (ymin, ymax))``. Include provisional, unidentified and
-    open fields, plus reaction boundaries named in saved ``Boundary N`` messages.
-    This also covers boundary problems that do not belong to a closed field.
+    Return windows keyed by ``Field N``, ``Boundary N`` or
+    ``Sampled assemblage N``. Each window is ``((xmin, xmax), (ymin, ymax))``.
+    Include provisional, unidentified and open fields, flagged boundaries,
+    and sampled assemblages without a closed region.
 
     Field numbers are the one-based plot labels; Boundary IDs are used as saved,
     without adding one. Each boundary is included once. Windows use the padding,
@@ -225,6 +225,27 @@ def phase_diagram_problem_regions(result, *, padding=0.05, **display):
             points = _boundary_coordinates(boundary, nodes, names)
             if points:
                 regions[f"Boundary {boundary['id']}"] = _padded_section_region(
+                    data, points, padding, display
+                )
+    missing = {
+        int(match[1])
+        for message in data.get("diagnostics", [])
+        if (
+            match := re.match(
+                r"No closed region resolved for sampled assemblage (\d+)\b", message
+            )
+        )
+    }
+    samples = data.get("samples", [])
+    for field in data.get("fields", []):
+        if field["id"] in missing:
+            points = [
+                [samples[i][name] for name in names]
+                for i in field.get("sample_indices", [])
+                if samples[i].get("success")
+            ]
+            if points:
+                regions[f"Sampled assemblage {field['id']}"] = _padded_section_region(
                     data, points, padding, display
                 )
     return regions
@@ -935,6 +956,7 @@ def plot_phase_diagram(
     phase_aliases=None,
     label_fontsize=7.0,
     label_key_path="phase_diagram_labels.md",
+    max_field_labels=None,
 ):
     """Plot phase lines and colour closed fields by number of coexisting phases.
 
@@ -962,9 +984,15 @@ def plot_phase_diagram(
     Field labels use agreed outer-ring side assemblages, then assemblages
     compatible with the perimeter reactions and saved interior equilibria.
     Longer boundaries have no extra authority. A provisional label has enough
-    evidence to display an assemblage but lacks full perimeter agreement; it
+    evidence to display an assemblage but lacks full perimeter or interior agreement; it
     remains coloured and is flagged by ``is_provisional`` and polygon diagnostics.
     Fields without assemblage evidence stay uncoloured and issue a warning.
+    Saved verified interiors locate field labels when available; a drawing's
+    geometric pole can miss a very thin curved field. Failed interior checks
+    retain a separate coordinate-resolution diagnostic. A label verified from
+    stable bounding reactions and common junctions can be definitive even when
+    the drawing has no resolved interior width. Inspect
+    ``has_verified_reaction_perimeter`` and ``has_unresolved_interior``.
     Each coexisting solution copy counts as one phase: two feldspars count as two,
     irrespective of their number of endmembers. A phase with zero solved amount
     on a reaction line is not counted as present on both sides.
@@ -1013,6 +1041,9 @@ def plot_phase_diagram(
     leader lines. ``label_key_path``
     writes a separate Markdown assemblage key; pass ``None`` to suppress the
     file and read the same mapping from ``axes.phase_diagram_label_key``.
+    ``max_field_labels`` shows only the largest fields in crowded plots;
+    smaller fields and their plot positions remain in the key and in
+    ``axes.phase_diagram_hidden_labels``.
     Set ``label_assemblages=False`` to suppress labels and the key.
     """
     import numpy as np
@@ -1027,6 +1058,12 @@ def plot_phase_diagram(
 
     if not np.isfinite(label_fontsize) or label_fontsize <= 0.0:
         raise ValueError("label_fontsize must be positive and finite.")
+    if max_field_labels is not None and (
+        isinstance(max_field_labels, bool)
+        or not isinstance(max_field_labels, int)
+        or max_field_labels < 1
+    ):
+        raise ValueError("max_field_labels must be a positive integer or None.")
     if not isinstance(secondary_labels, (bool, np.bool_)):
         raise TypeError("secondary_labels must be a boolean.")
     result = _phase_diagram_data(result)
@@ -1233,14 +1270,21 @@ def plot_phase_diagram(
             if not _value(s, "success", False)
             and not _value(s, "outside_model_domain", False)
         ]
-        if failures:
+        for interior_check, description in [
+            (False, "Unresolved equilibrium"),
+            (True, "Unresolved interior coordinates"),
+        ]:
+            selected = [s for s in failures
+                        if bool(_value(s, "is_field_verification", False)) == interior_check]
+            if not selected:
+                continue
             ax.scatter(
-                [point_coordinates(s)[0] for s in failures],
-                [point_coordinates(s)[1] for s in failures],
-                marker="x",
-                color="crimson",
+                [point_coordinates(s)[0] for s in selected],
+                [point_coordinates(s)[1] for s in selected],
+                marker="+" if interior_check else "x",
+                color="0.45" if interior_check else "crimson",
                 s=15,
-                label="Unresolved equilibrium",
+                label=description,
                 zorder=4,
             )
         handles, labels = ax.get_legend_handles_labels()
@@ -1280,12 +1324,20 @@ def plot_phase_diagram(
         ylabel=labels[diagram[order[1]]],
     )
     ax.phase_diagram_label_key = {}
+    ax.phase_diagram_hidden_labels = {}
     ax.phase_diagram_field_labels = {
         polygon.field_number: assemblage_text(polygon.phases, polygon.field_number)
         for polygon in geometry.polygons
         if polygon.phases
     }
     if label_assemblages:
+        eligible = [p for p in geometry.polygons if p.n_phases > 0 and p.phases]
+        labelled = {
+            p.field_number
+            for p in sorted(eligible, key=lambda p: p.area, reverse=True)[
+                :max_field_labels
+            ]
+        }
         # Text metrics depend on the final axes limits, colorbar and layout.
         # Thermodynamic and polygon containment calculations remain native.
         fig.canvas.draw()
@@ -1325,6 +1377,9 @@ def plot_phase_diagram(
             if not name:
                 continue
             location = coordinates([polygon.label_position])[0]
+            if number not in labelled:
+                ax.phase_diagram_hidden_labels[number] = (name, location)
+                continue
             text = ax.text(*location, name, **text_style)
             fitted = False
             variants = [name] + [
@@ -1400,7 +1455,9 @@ def plot_phase_diagram(
             )
             occupied.append(bounds)
 
-        if label_key_path is not None and ax.phase_diagram_label_key:
+        if label_key_path is not None and (
+            ax.phase_diagram_label_key or ax.phase_diagram_hidden_labels
+        ):
             destination = FilePath(label_key_path)
             destination.parent.mkdir(parents=True, exist_ok=True)
             rows = [
@@ -1417,6 +1474,25 @@ def plot_phase_diagram(
             for number, name in ax.phase_diagram_label_key.items():
                 escaped_name = name.replace("|", r"\|")
                 rows.append(f"| {number} | {escaped_name} |")
+            if ax.phase_diagram_hidden_labels:
+                rows.extend(
+                    [
+                        "",
+                        "## Small fields omitted from the plot",
+                        "",
+                        f"| Field number | Assemblage | {labels[diagram[order[0]]]} | "
+                        f"{labels[diagram[order[1]]]} |",
+                        "| ---: | --- | ---: | ---: |",
+                    ]
+                )
+                for number, (name, location) in sorted(
+                    ax.phase_diagram_hidden_labels.items()
+                ):
+                    escaped_name = name.replace("|", r"\|")
+                    rows.append(
+                        f"| {number} | {escaped_name} | "
+                        f"{location[0]:.6g} | {location[1]:.6g} |"
+                    )
             destination.write_text("\n".join(rows) + "\n", encoding="utf-8")
     return fig, ax
 

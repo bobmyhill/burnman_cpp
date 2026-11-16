@@ -14,8 +14,16 @@
 #include "burnman/tools/phase_diagram/common.hpp"
 #include <cmath>
 #include <map>
+#include <sstream>
 
 namespace burnman::phase_diagrams::detail {
+std::string failed_sample_diagnostic(const State &state) {
+  std::ostringstream message;
+  message << "Unresolved seed P=" << state.pressure
+          << " Pa, T=" << state.temperature << " K: " << state.message;
+  return message.str();
+}
+
 bool intersects_region(const Eigen::Vector2d &a, const Eigen::Vector2d &b,
                        const std::array<std::array<double, 2>, 2> &ranges,
                        double parallel_tolerance) {
@@ -34,6 +42,80 @@ bool intersects_region(const Eigen::Vector2d &a, const Eigen::Vector2d &b,
     }
   }
   return first <= last;
+}
+
+std::optional<SegmentIntersection>
+segment_intersection(const Eigen::Vector2d &direction,
+                     const Eigen::Vector2d &other_direction,
+                     const Eigen::Vector2d &offset) {
+  const double determinant = cross(direction, other_direction);
+  if (std::abs(determinant) < 1.e-30) {
+    // Use cross-product roundoff, rather than a geometric exclusion band
+    // that could swallow a narrow field between nearly parallel reactions.
+    const double roundoff = 16. * std::numeric_limits<double>::epsilon() *
+                            (std::abs(direction[0] * offset[1]) +
+                             std::abs(direction[1] * offset[0]));
+    if (direction.squaredNorm() > 0. && other_direction.squaredNorm() > 0. &&
+        std::abs(cross(direction, offset)) <= roundoff) {
+      const double first = offset.dot(direction) / direction.squaredNorm(),
+                   last = (offset + other_direction).dot(direction) /
+                          direction.squaredNorm(),
+                   low = std::max(0., std::min(first, last)),
+                   high = std::min(1., std::max(first, last));
+      if (high - low > 1.e-9)
+        return SegmentIntersection{low, high};
+    }
+    return std::nullopt;
+  }
+  const double along = cross(offset, other_direction) / determinant,
+               across = cross(offset, direction) / determinant;
+  if (along < -1.e-9 || along > 1. + 1.e-9 || across < -1.e-9 ||
+      across > 1. + 1.e-9)
+    return std::nullopt;
+  return SegmentIntersection{along, along};
+}
+
+PhaseStates junction_states(const std::vector<Boundary> &lines,
+                            const Node &event) {
+  PhaseStates phases;
+  std::pair<std::size_t, std::size_t> best{};
+  for (const auto &peer : lines)
+    if (!peer.points.empty() &&
+        (peer.start_node == event.id || peer.end_node == event.id)) {
+      const auto &states = (peer.start_node == event.id ? peer.points.front()
+                                                        : peer.points.back())
+                               .phases;
+      std::map<int, std::size_t> counts;
+      std::size_t size = 0, copies = 0;
+      for (const auto &state : states)
+        if (std::find(event.assemblage.begin(), event.assemblage.end(),
+                      state.id) != event.assemblage.end()) {
+          ++size;
+          copies += counts[state.candidate_index]++;
+        }
+      const auto score = std::make_pair(size, copies);
+      if (score > best) {
+        best = score;
+        phases = states;
+      }
+    }
+  // Keep coexisting copies together. A single-copy arm may reuse the other
+  // copy's ID after canonicalisation; combining that arm first can otherwise
+  // reconstruct two identical compositions and lose the absent solution.
+  for (const auto &peer : lines)
+    if (!peer.points.empty() &&
+        (peer.start_node == event.id || peer.end_node == event.id))
+      for (const auto &p : (peer.start_node == event.id ? peer.points.front()
+                                                        : peer.points.back())
+                               .phases)
+        if (std::none_of(phases.begin(), phases.end(),
+                         [&](const auto &q) { return p.id == q.id; }))
+          phases.push_back(p);
+  erase_if(phases, [&](const auto &p) {
+    return std::find(event.assemblage.begin(), event.assemblage.end(), p.id) ==
+           event.assemblage.end();
+  });
+  return phases;
 }
 
 PhaseStates average_phase_states(PhaseStates states, const PhaseStates &other) {
@@ -62,6 +144,29 @@ std::vector<int> canonical_phase_ids(const std::vector<int> &ids, int copies) {
     for (int copy = 0; copy < count; ++copy)
       canonical.push_back(base * copies + copy);
   return canonical;
+}
+
+std::set<std::vector<int>> boundary_assemblages(const Boundary &line,
+                                                const Result &result) {
+  std::set<std::vector<int>> choices;
+  if (line.assemblage.empty())
+    return choices;
+  auto insert = [&](const std::vector<int> &phases) {
+    if (!phases.empty())
+      choices.insert(
+          canonical_phase_ids(phases, result.settings.max_phase_instances));
+  };
+  if (line.reaction_kind == ReactionKind::phase_out && line.zero_phase >= 0) {
+    insert(line.assemblage);
+    auto absent = line.assemblage;
+    erase_if(absent, [&](int id) { return id == line.zero_phase; });
+    insert(absent);
+  } else if (line.reaction_kind == ReactionKind::phase_out ||
+             line.reaction_kind == ReactionKind::replacement) {
+    insert(line.side_a);
+    insert(line.side_b);
+  }
+  return choices;
 }
 
 double solution_separation(const PhaseStates &states) {

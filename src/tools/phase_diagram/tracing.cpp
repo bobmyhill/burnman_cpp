@@ -367,10 +367,7 @@ void Tracer::add_sample(const State &state, int existing) {
   } else
     result.samples.push_back(canonical);
   if (!state.success) {
-    std::ostringstream msg;
-    msg << "Unresolved seed P=" << state.pressure
-        << " Pa, T=" << state.temperature << " K: " << state.message;
-    result.diagnostics.push_back(msg.str());
+    result.diagnostics.push_back(failed_sample_diagnostic(state));
     return;
   }
   auto ids = engine.active_phases(canonical);
@@ -561,11 +558,7 @@ void Tracer::separate_junctions() {
       if (found < 0) {
         Node n;
         n.id = burnman::utils::checked_int(result.nodes.size());
-        n.pressure = p.pressure;
-        n.temperature = p.temperature;
-        n.entropy = p.entropy;
-        n.volume = p.volume;
-        n.composition_coordinate = p.composition_coordinate;
+        copy_coordinates(n, p);
         n.kind = "junction";
         n.assemblage = ids;
         n.zero_phases = zeros;
@@ -1367,13 +1360,7 @@ Tracer::follow(std::shared_ptr<Assemblage> a, const Seed &seed,
     auto old_x = solve.x;
     auto old_u = normalised_coordinates(*a);
 
-    const double maximum_step =
-        line_resolution
-            ? refinement_step(result, *line_resolution, engine.coordinates(*a),
-                              engine.project_direction(direction, *a),
-                              engine.settings)
-            : engine.settings.step;
-    double requested = std::min(step, maximum_step);
+    double requested = std::min(step, engine.settings.step);
     double affinity = 0.;
     // Predict the first phase-out event from amount derivatives.
     auto prm = engine.parameters(*a);
@@ -1703,6 +1690,7 @@ Tracer::follow(std::shared_ptr<Assemblage> a, const Seed &seed,
 void Tracer::label(Boundary &line) {
   // A failed refresh must not retain an earlier, unverified interpretation.
   line.reaction_kind = ReactionKind::unknown;
+  line.is_solution_replacement = false;
   if (line.points.size() < 2 || lies_on_calculation_frame(line, result))
     return;
   double length = 0.;
@@ -1802,6 +1790,29 @@ void Tracer::label(Boundary &line) {
         continue;
       anchor = point(*a, line.assemblage, s, affinity);
       centre = normalise(anchor);
+      // Retain the corrected interior state used to identify this arc. A
+      // short critical-to-junction branch can otherwise contain only its
+      // two degenerate endpoints after splitting, leaving no separated
+      // limiting state with which to certify the physical termination.
+      const Eigen::Vector2d chord = right - left;
+      const double fraction = chord.squaredNorm() > 0.
+                                  ? (centre - left).dot(chord) /
+                                        chord.squaredNorm()
+                                  : 0.;
+      const auto accuracy =
+          equilibrium_coordinate_tolerance(result.section.type, range);
+      if (fraction > 0. && fraction < 1. &&
+          std::none_of(line.points.begin(), line.points.end(),
+                       [&](const BoundaryPoint &saved) {
+                         return ((diagram_coordinates(saved, result.section.type) -
+                                   diagram_coordinates(anchor, result.section.type))
+                                      .cwiseAbs()
+                                      .array() <= accuracy.array())
+                             .all();
+                       }))
+        line.points.insert(line.points.begin() +
+                               static_cast<std::ptrdiff_t>(segment),
+                           anchor);
       const auto direction = tangent(s, *a);
       if (direction.size()) {
         auto unit = engine.project_direction(direction, *a)
@@ -1841,13 +1852,13 @@ void Tracer::label(Boundary &line) {
     line.side_a = neighbours[0];
   if (!neighbours[1].empty())
     line.side_b = neighbours[1];
-  if (!has_composition_axis(result.section.type) || anchor.phases.empty() ||
-      !ambiguous_boundary(line))
+  if (anchor.phases.empty() || !ambiguous_boundary(line))
     return;
-  // A bulk-composition section can meet a field containing phases absent
-  // from this reaction. The graph cannot discover that field from one arc.
-  // Solve its neighbours locally, retaining the response as a constraint:
-  // failure to recover a known side means the probe crossed another boundary.
+  // A nearly singular reaction can have no differentiable side response even
+  // in P-T. Check stable equilibria on both sides before leaving its field
+  // labels ambiguous. A bulk-composition section can also meet a field with
+  // phases absent from this reaction. Retain any known side as a constraint:
+  // failure to recover it means the probe crossed another boundary.
   const auto source = engine.canonical_ids(line.assemblage);
   const auto accuracy =
       equilibrium_coordinate_tolerance(result.section.type, range);
@@ -2702,19 +2713,10 @@ void Tracer::resolve_boundaries() {
     index_boundaries();
     // Rebuild from surviving records; earlier failures may now be recovered.
     result.diagnostics.clear();
-    result.spacing_diagnostics =
-        line_resolution
-            ? detail::refine_line_spacing(result, engine, *line_resolution,
-                                          [&](Boundary &line, std::size_t k) {
-                                            return refine_segment(line, k);
-                                          })
-            : std::vector<std::string>{};
+    result.spacing_diagnostics.clear();
     if (pass)
       return;
-    if (line_resolution)
-      for (int id : regional_retrace_lines(result, *line_resolution))
-        unstable_lines.insert(id);
-    // Retrace unstable chords or a requested region's conflicting arcs once;
+    // Retrace unstable chords once;
     // ordinary phase-entry recovery supplies their missing connections.
     if (!engine.settings.max_recovery_passes || unstable_lines.empty())
       return;
@@ -2738,177 +2740,9 @@ void Tracer::resolve_boundaries() {
     expanded.clear();
     index_boundaries();
     rebuild_boundary_incidence(result);
-    const auto saved_settings = engine.settings;
-    if (line_resolution)
-      engine.settings =
-          refinement_settings(result, *line_resolution, saved_settings);
-    engine.settings.step = saved_settings.step;
     search();
     recover();
-    engine.settings = saved_settings;
   }
 }
 
-bool Tracer::prepare_previous(const Result &previous,
-                              const std::optional<LineResolution> &resolution) {
-  if (resolution)
-    validate_line_resolution(result, *resolution);
-  line_resolution = resolution;
-  validate_previous_identity(previous);
-  result = previous;
-  result.section = engine.section;
-  result.settings = engine.settings;
-  // Stationary saddle branches near a solvus can pass finite affinity
-  // tolerance but cannot bound stable fields. Retain every arc with any
-  // locally stable state.
-  erase_if(result.boundaries, [&](const Boundary &line) {
-    return !engine.direct_coordinates() && !line.points.empty() &&
-           std::all_of(
-               line.points.begin(), line.points.end(), [&](const auto &p) {
-                 auto a = engine.make_assemblage(line.assemblage, p.phases,
-                                                 p.pressure, p.temperature);
-                 return !engine.locally_stable(*a) ||
-                        !engine.distinct(*a, line.assemblage);
-               });
-  });
-  // A phase-entry endpoint can contain an additional stationary copy
-  // that is a saddle or belongs to the same mixing basin. It is not a
-  // junction: reopen the original reaction from its last accepted state.
-  for (auto &line : result.boundaries) {
-    if (engine.direct_coordinates() || line.points.empty())
-      continue;
-    auto [back, forward] = boundary_statuses(line);
-    for (bool start : {true, false}) {
-      auto &status = start ? back : forward;
-      const auto &p = start ? line.points.front() : line.points.back();
-      const auto ids = phase_ids(p.phases);
-      if (status != "junction" || ids.size() <= line.assemblage.size())
-        continue;
-      auto a = engine.make_assemblage(ids, p.phases, p.pressure, p.temperature);
-      const int node_id = start ? line.start_node : line.end_node;
-      const Node *event =
-          node_id >= 0 ? &result.nodes.at(static_cast<std::size_t>(node_id))
-                       : nullptr;
-      // A near-critical third-copy root can pass finite reaction tolerances
-      // while its double-zero constraints fail to isolate a junction.
-      // Reopen it for native recovery rather than retaining that connection.
-      const bool nonisolated_copy =
-          event && event->pt_nullity > 0 && event->zero_phases.size() == 2 &&
-          near_third_copy_event(ids, event->zero_phases[0],
-                                event->zero_phases[1], p.phases);
-      if (nonisolated_copy || !engine.locally_stable(*a) ||
-          !engine.distinct(*a, ids)) {
-        (start ? line.start_node : line.end_node) = -1;
-        status = "unresolved phase-in event";
-        while (line.points.size() > 1) {
-          const auto &last = start ? line.points.front() : line.points.back();
-          auto original = engine.make_assemblage(
-              line.assemblage, last.phases, last.pressure, last.temperature);
-          if (engine.locally_stable(*original) &&
-              engine.distinct(*original, line.assemblage))
-            break;
-          if (start)
-            line.points.erase(line.points.begin());
-          else
-            line.points.pop_back();
-        }
-        auto &last = start ? line.points.front() : line.points.back();
-        erase_if(last.phases, [&](const auto &phase) {
-          return std::find(line.assemblage.begin(), line.assemblage.end(),
-                           phase.id) == line.assemblage.end();
-        });
-      }
-    }
-    line.termination = back + "; " + forward;
-  }
-  if (!engine.direct_coordinates())
-    index_boundaries();
-  separate_junctions();
-  if (!engine.settings.required_eos_phases.empty())
-    result.excluded_regions.clear();
-  model_domain();
-  detail::join_frame_limits(result, engine);
-  detail::join_model_limits(result, engine);
-  auto samples = std::move(result.samples);
-  result.samples.clear();
-  result.fields.clear();
-  for (auto &state : samples) {
-    if (state.success && !engine.direct_coordinates()) {
-      const auto ids = phase_ids(state.phases);
-      auto a = engine.make_assemblage(ids, state.phases, state.pressure,
-                                      state.temperature);
-      if (!engine.locally_stable(*a) || !engine.distinct(*a, ids)) {
-        state.success = false;
-        state.message =
-            "Saved solution compositions are not stable Gibbs minima.";
-      }
-    }
-    add_sample(state);
-  }
-  for (std::size_t i = 0; i < result.nodes.size(); ++i)
-    if (result.nodes[i].id != static_cast<int>(i))
-      throw std::invalid_argument("Saved node IDs must be contiguous.");
-  const bool dangling_junction = std::any_of(
-      result.nodes.begin(), result.nodes.end(), [&](const Node &node) {
-        return node.kind == "junction" &&
-               std::count_if(result.boundaries.begin(), result.boundaries.end(),
-                             [&](const Boundary &line) {
-                               return line.start_node == node.id ||
-                                      line.end_node == node.id;
-                             }) == 1;
-      });
-  if (resolution && (previous.resolved || resolution->region) &&
-      (!dangling_junction || !engine.settings.max_recovery_passes)) {
-    // Regional requests use the existing graph; only an unstable local arc
-    // reopens its endpoints. Completed diagrams also skip general searches.
-    return false;
-  }
-  // A seed-only saved calculation still supplies initial boundary brackets.
-  if (!previous.resolved && previous.fields.empty() &&
-      result.boundaries.empty() && engine.settings.max_recovery_passes) {
-    for (const auto &state : result.samples)
-      if (state.success && inside(normalise(state))) {
-        auto ids = engine.active_phases(state);
-        grid.push_back(
-            {state,
-             engine.make_at(ids, state.phases,
-                            diagram_coordinates(state, result.section.type),
-                            Eigen::Vector2d(state.pressure, state.temperature)),
-             ids});
-      }
-    for (std::size_t i = 1; i < grid.size(); ++i)
-      bracket(grid[i - 1], grid[i]);
-  }
-  // Successful endpoint states seed all untraced branches at their junction.
-  for (auto &line : result.boundaries) {
-    if (line.points.empty())
-      continue;
-    auto [back, forward] = boundary_statuses(line);
-    for (bool start : {true, false}) {
-      auto status = start ? back : forward;
-      int id = start ? line.start_node : line.end_node;
-      if ((status != "junction" && status != "solution critical point") ||
-          id < 0)
-        continue;
-      auto &point = start ? line.points.front() : line.points.back();
-      auto &n = result.nodes.at(static_cast<std::size_t>(id));
-      if ((normalise(point) - normalise(n)).norm() >
-          engine.settings.node_tolerance)
-        continue;
-      // A solution copy is renumbered when its neighbour disappears. The
-      // endpoint states identify the actual zero copies; the shared node's
-      // IDs can refer to the opposite composition of the same solution.
-      auto ids = phase_ids(point.phases);
-      const auto zeros =
-          zero_phases_at(n, point.phases, engine.settings.max_phase_instances);
-      auto a = engine.make_at(
-          ids, point.phases, diagram_coordinates(n, result.section.type),
-          Eigen::Vector2d(point.pressure, point.temperature));
-      if (status == "junction")
-        expand(*a, ids, zeros, id);
-      // Critical endpoints are first approached from both arms in recover().
-    }
-  }
-  return true;
-}
 } // namespace burnman::phase_diagrams::detail

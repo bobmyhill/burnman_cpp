@@ -225,11 +225,7 @@ void audit_thermodynamic_samples(Result &result) {
 State equilibrium_state(const BoundaryPoint &point, double gibbs) {
   State state;
   state.success = true;
-  state.pressure = point.pressure;
-  state.temperature = point.temperature;
-  state.entropy = point.entropy;
-  state.volume = point.volume;
-  state.composition_coordinate = point.composition_coordinate;
+  copy_coordinates(state, point);
   state.phases = point.phases;
   state.gibbs = gibbs;
   state.mass_balance_error = point.mass_balance_error;

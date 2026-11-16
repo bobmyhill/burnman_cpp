@@ -31,6 +31,96 @@
 #include <cmath>
 using namespace burnman;
 
+TEST_CASE("Reaction label choices retain solution multiplicity and known sides",
+          "[phase_diagram]") {
+  namespace ps = phase_diagrams;
+  ps::Result result;
+  result.settings.max_phase_instances = 3;
+  ps::Boundary line;
+  line.assemblage = {4, 6, 3};
+  line.zero_phase = 4;
+  line.reaction_kind = ps::ReactionKind::phase_out;
+  // Side probes can miss a narrow field. The phase-out condition still permits
+  // the full two-copy assemblage and the limiting one-copy assemblage.
+  line.side_a = {6};
+  line.side_b = {99};
+  const std::set<std::vector<int>> phase_out{{3, 4, 6}, {3, 6}};
+  CHECK(ps::detail::boundary_assemblages(line, result) == phase_out);
+  line.side_a = {4, 6};
+  line.side_b = {3, 4, 9};
+  const std::set<std::vector<int>> replacement{{3, 6}, {3, 4, 9}};
+  line.reaction_kind = ps::ReactionKind::replacement;
+  CHECK(ps::detail::boundary_assemblages(line, result) == replacement);
+  // A continued solvus with exchanging copy IDs uses its verified side pair.
+  line.reaction_kind = ps::ReactionKind::phase_out;
+  line.zero_phase = -1;
+  CHECK(ps::detail::boundary_assemblages(line, result) == replacement);
+  line.reaction_kind = ps::ReactionKind::unknown;
+  CHECK(ps::detail::boundary_assemblages(line, result).empty());
+  line.reaction_kind = ps::ReactionKind::replacement;
+  line.assemblage.clear();
+  CHECK(ps::detail::boundary_assemblages(line, result).empty());
+}
+
+TEST_CASE("Junction warm starts retain coexisting copies before filling gaps",
+          "[phase_diagram]") {
+  namespace ps = phase_diagrams;
+  auto phase = [](int id, double first, double amount = 1.) {
+    ps::PhaseState state;
+    state.id = id;
+    state.candidate_index = id / 3;
+    state.amount = amount;
+    state.composition = Eigen::Vector2d(first, 1. - first);
+    return state;
+  };
+  ps::Node node;
+  node.id = 7;
+  node.assemblage = {0, 1, 3, 6};
+  auto arm = [&](ps::detail::PhaseStates states) {
+    ps::Boundary line;
+    line.start_node = node.id;
+    ps::BoundaryPoint point;
+    point.phases = std::move(states);
+    line.points.push_back(std::move(point));
+    return line;
+  };
+  const auto seed = ps::detail::junction_states(
+      {arm({phase(0, .9), phase(3, 1.)}),
+       arm({phase(0, .1, 2.), phase(1, .9, 0.), phase(3, 1.)}),
+       arm({phase(0, .5), phase(6, 1.), phase(9, 1.), phase(12, 1.),
+            phase(15, 1.)})},
+      node);
+  // The largest raw endpoint contains extraneous phases. The most complete
+  // matching endpoint preserves both solution compositions and their amounts.
+  REQUIRE(ps::detail::phase_ids(seed) == std::vector<int>{0, 1, 3, 6});
+  CHECK(seed[0].composition[0] == .1);
+  CHECK(seed[0].amount == 2.);
+  CHECK(seed[1].composition[0] == .9);
+  CHECK(seed[1].amount == 0.);
+}
+
+TEST_CASE("Reaction chord intersections preserve narrow separated strips",
+          "[phase_diagram]") {
+  using phase_diagrams::detail::segment_intersection;
+  // A small absolute offset between parallel chords is still a finite strip.
+  CHECK_FALSE(segment_intersection({1., 1.e-9}, {1., 1.e-9}, {0., 1.e-15}));
+  const auto crossing =
+      segment_intersection({1., 1.e-9}, {1., -1.e-9}, {0., 1.e-9});
+  REQUIRE(crossing);
+  CHECK(crossing->first == .5);
+  CHECK(crossing->last == .5);
+  const auto endpoint = segment_intersection({1., 0.}, {0., 1.}, {1., 0.});
+  REQUIRE(endpoint);
+  CHECK(endpoint->first == 1.);
+  CHECK(endpoint->last == 1.);
+  const auto overlap = segment_intersection({1., 0.}, {-1., 0.}, {1.5, 0.});
+  REQUIRE(overlap);
+  CHECK(overlap->first == .5);
+  CHECK(overlap->last == 1.);
+  CHECK_FALSE(segment_intersection({1., 0.}, {1., 0.}, {1., 0.}));
+  CHECK_FALSE(segment_intersection({0., 0.}, {1., 0.}, {0., 0.}));
+}
+
 TEST_CASE("Midpoint equilibrium tries both bracket ends before phase discovery",
           "[phase_diagram]") {
   namespace ps = phase_diagrams;
@@ -184,6 +274,35 @@ TEST_CASE("P-T warm seeds reject a weak solution saddle before phase discovery",
   }
   CHECK((warm.state.phases[0].composition - Eigen::Vector2d(.5, .5)).norm() <
         1.e-12);
+}
+
+TEST_CASE("P-T equilibration compares both warm assemblages by Gibbs energy",
+          "[phase_diagram]") {
+  namespace ps = phase_diagrams;
+  auto first = minerals::HGP_2018_ds633::per();
+  auto second = std::make_shared<Mineral>(make_combined_mineral(
+      {*first}, Eigen::ArrayXd::Ones(1), {22500., 20., -.5e-6}, "second"));
+  ps::Settings settings;
+  // Both limiting branches remain admissible within this deliberately loose
+  // discovery tolerance, so Gibbs energy must choose between them.
+  settings.affinity_tolerance = 1.e6;
+  ps::detail::Engine engine({{"Mg", 1.}, {"O", 1.}}, {first, second},
+                            settings);
+  const Eigen::Vector2d target(7.e9, 1150.);
+  auto low = engine.stable_at({4.e9, 900.});
+  auto high = engine.stable_at({8.e9, 1200.});
+  REQUIRE(low.state.success);
+  REQUIRE(high.state.success);
+  REQUIRE(low.ids != high.ids);
+  auto from_low = engine.fixed_at(low.ids, low.state.phases, target);
+  auto from_high = engine.fixed_at(high.ids, high.state.phases, target);
+  REQUIRE(from_low.state.success);
+  REQUIRE(from_high.state.success);
+  const auto expected = from_low.state.gibbs < from_high.state.gibbs
+                            ? from_low.ids
+                            : from_high.ids;
+  CHECK(engine.stable_at(target, &low, &high).ids == expected);
+  CHECK(engine.stable_at(target, &high, &low).ids == expected);
 }
 
 TEST_CASE("P-T correction rejects the saved pyrolite garnet saddle",
@@ -525,6 +644,229 @@ TEST_CASE("Reaction entropy and volume orient singular P-T boundaries",
         1); // Side identification performs no solves.
 }
 
+TEST_CASE("A dependent P-T reaction remains a replacement with a rounded Jacobian",
+          "[phase_diagram][limiting_curves]") {
+  namespace ps = phase_diagrams;
+  const double contamination = GENERATE(0., 1.e-5);
+  auto first = minerals::HGP_2018_ds633::per();
+  auto second = std::make_shared<Mineral>(make_combined_mineral(
+      {*first}, Eigen::ArrayXd::Ones(1), {10000., 10., -1.e-6}, "second"));
+  ps::Settings settings;
+  settings.max_phase_instances = 1;
+  ps::detail::Engine engine({{"Mg", 1.}, {"O", 1.}}, {first, second}, settings);
+  ps::detail::PhaseStates states;
+  for (int id : {0, 1}) {
+    ps::PhaseState phase;
+    phase.id = phase.candidate_index = id;
+    phase.amount = static_cast<double>(id);
+    phase.composition = Eigen::VectorXd::Ones(1);
+    states.push_back(phase);
+  }
+  auto a = engine.make_at({0, 1}, states, {1.e9, 900.});
+  const auto prm = engine.parameters(*a);
+  auto constraints = ps::detail::constraints(
+      std::make_unique<equilibration::PhaseFractionConstraint>(0, 0., prm),
+      std::make_unique<equilibration::TemperatureConstraint>(900.));
+  auto solved = engine.solve(*a, constraints);
+  REQUIRE(solved.success);
+  // A tiny spurious amount derivative makes the normal-response matrix
+  // invertible. The known polymorph reaction still has only single-phase
+  // sides: a numerical response cannot create a two-phase areal field.
+  solved.J(2, prm.phase_amount_indices[0]) += contamination;
+  std::array<ps::State, 2> limits;
+  auto kind = ps::ReactionKind::unknown;
+  const auto sides = ps::detail::boundary_sides(
+      engine, *a, {0, 1}, 0, solved, {1.e9, 500.}, {1., 0.}, &limits, &kind);
+  CHECK(kind == ps::ReactionKind::replacement);
+  CHECK(sides[0] == std::vector<int>{0});
+  CHECK(sides[1] == std::vector<int>{1});
+  for (const auto &state : limits) {
+    REQUIRE(state.success);
+    REQUIRE(state.phases.size() == 1);
+    CHECK(state.mass_balance_error < 1.e-12);
+    CHECK(state.equilibrium_error <= settings.affinity_tolerance * .1);
+  }
+}
+
+TEST_CASE("Trace-site boundary tangents survive changes of drawing frame",
+          "[phase_diagram]") {
+  namespace ps = phase_diagrams;
+  const bool faces = GENERATE(false, true);
+  const Eigen::Vector2d range =
+      GENERATE(Eigen::Vector2d(23.e9, 2100.), Eigen::Vector2d(7.e6, 2.));
+  const double trace = 1.e-12, pressure = 1.e9, temperature = 1000.;
+  const double entropy = 10., volume = 1.e-6;
+  auto mg = minerals::HGP_2018_ds633::per();
+  auto fe = minerals::HGP_2018_ds633::wu();
+  auto solution = std::make_shared<Solution>();
+  solution->set_solution_model(
+      std::make_shared<solution_models::SymmetricRegularSolution>(
+          types::PairedEndmemberList{{*mg, "[Mg]O"}, {*fe, "[Fe]O"}},
+          std::vector<std::vector<double>>{{0.}}));
+  solution->set_composition(Eigen::Array2d(1. - trace, trace));
+  solution->set_state(pressure, temperature);
+  fe->set_state(pressure, temperature);
+  const double offset =
+      solution->get_partial_gibbs()[1] - fe->get_molar_gibbs();
+  auto buffer = std::make_shared<Mineral>(make_combined_mineral(
+      {*fe}, Eigen::ArrayXd::Ones(1),
+      {offset + entropy * temperature - volume * pressure, entropy, volume},
+      "Fe buffer"));
+  ps::Settings settings;
+  settings.active_solution_faces = faces;
+  ps::detail::Engine engine({{"Mg", 1. - trace}, {"Fe", trace}, {"O", 1.}},
+                            {solution, buffer}, settings);
+  ps::PhaseState mixed, absent;
+  mixed.id = mixed.candidate_index = 0;
+  mixed.amount = 1.;
+  mixed.composition = Eigen::Vector2d(1. - trace, trace);
+  absent.id = settings.max_phase_instances;
+  absent.candidate_index = 1;
+  absent.amount = 0.;
+  absent.composition = Eigen::VectorXd::Ones(1);
+  auto a = engine.make_assemblage({mixed.id, absent.id}, {mixed, absent},
+                                  pressure, temperature, 1.e-15, true);
+  auto c = ps::detail::constraints(
+      std::make_unique<equilibration::PhaseFractionConstraint>(
+          1, 0., engine.parameters(*a)),
+      std::make_unique<equilibration::TemperatureConstraint>(temperature));
+  const auto solved = engine.solve(*a, c);
+  INFO(solved.message);
+  REQUIRE(solved.success);
+  int rank = -1;
+  const auto tangent =
+      ps::detail::continuation_tangent(engine, solved, *a, range, &rank);
+  REQUIRE(rank == 1);
+  REQUIRE(tangent.size() == solved.x.size());
+  const auto mixed_phase = a->get_phase<Solution>(0);
+  const auto buffer_phase = a->get_phase(1);
+  const double clapeyron = (mixed_phase->get_partial_entropies()[1] -
+                            buffer_phase->get_molar_entropy()) /
+                           (mixed_phase->get_partial_volumes()[1] -
+                            buffer_phase->get_molar_volume());
+  CHECK_THAT(tangent[0] / tangent[1],
+             Catch::Matchers::WithinRel(clapeyron, 1.e-7));
+  CHECK_THAT(engine.project_direction(tangent, *a).cwiseQuotient(range).norm(),
+             Catch::Matchers::WithinAbs(1., 1.e-12));
+}
+
+TEST_CASE("Phase discovery preserves a narrow regular-solution solvus",
+          "[phase_diagram]") {
+  namespace ps = phase_diagrams;
+  const double fraction = GENERATE(.9997, .9999);
+  const double affinity_tolerance = GENERATE(.2, 1.e-5);
+  const double interaction = 13000.;
+  const double gas = constants::physics::gas_constant;
+  const double temperature = fraction * interaction / (2. * gas);
+  auto phase = std::make_shared<Solution>();
+  phase->set_solution_model(
+      std::make_shared<solution_models::SymmetricRegularSolution>(
+          types::PairedEndmemberList{
+              {*minerals::HGP_2018_ds633::per(), "[Mg]O"},
+              {*minerals::HGP_2018_ds633::wu(), "[Fe]O"}},
+          std::vector<std::vector<double>>{{interaction}}));
+  phase->set_composition(Eigen::Array2d(.5, .5));
+  ps::Settings settings;
+  settings.affinity_tolerance = affinity_tolerance;
+  ps::detail::Engine engine({{"Mg", .5}, {"Fe", .5}, {"O", 1.}}, {phase},
+                            settings);
+  const auto state = engine.stable(1.e9, temperature).state;
+  INFO(state.message);
+  REQUIRE(state.success);
+  REQUIRE(state.phases.size() == 2);
+  const auto &first = state.phases[0], &second = state.phases[1];
+  const double separation = (first.composition - second.composition).norm();
+  CHECK(separation < .05);
+  CHECK(separation > settings.composition_tolerance);
+  CHECK_THAT(first.amount, Catch::Matchers::WithinAbs(.5, 1.e-5));
+  CHECK_THAT(second.amount, Catch::Matchers::WithinAbs(.5, 1.e-5));
+  for (const auto &copy : state.phases) {
+    const double x = copy.composition[0];
+    const double tangent = gas * temperature * std::log(x / (1. - x)) +
+                           interaction * (1. - 2. * x);
+    CHECK_THAT(tangent, Catch::Matchers::WithinAbs(0., 1.e-5));
+  }
+  CHECK(state.mass_balance_error < 1.e-12);
+  CHECK(state.minimum_affinity >= -settings.affinity_tolerance);
+}
+
+TEST_CASE("A buffered solvus exchanges compositions with identical phase names",
+          "[phase_diagram][limiting_curves]") {
+  namespace ps = phase_diagrams;
+  const double fraction = GENERATE(.9, .99);
+  const int zero = GENERATE(0, 1);
+  const double gas = constants::physics::gas_constant, interaction = 13000.;
+  const double critical_t = interaction / (2. * gas), critical_p = 1.e9;
+  const double temperature = fraction * critical_t, volume = 1.e-6;
+  double low = .500001, high = .999999;
+  for (int iteration = 0; iteration < 80; ++iteration) {
+    const double x = .5 * (low + high);
+    const double residual =
+        gas * temperature * std::log(x / (1. - x)) +
+        interaction * (1. - 2. * x);
+    (residual > 0. ? high : low) = x;
+  }
+  const double x = .5 * (low + high);
+  const double critical_g = interaction / 4. - gas * critical_t * std::log(2.);
+  const double iron_potential =
+      gas * temperature * std::log(1. - x) + interaction * x * x;
+  const double pressure =
+      (critical_g + critical_p * volume - iron_potential) / volume;
+  auto mg = minerals::HGP_2018_ds633::per();
+  auto fe = minerals::HGP_2018_ds633::wu();
+  auto mixture = std::make_shared<Solution>();
+  mixture->set_solution_model(
+      std::make_shared<solution_models::SymmetricRegularSolution>(
+          types::PairedEndmemberList{{*mg, "[Mg]O"}, {*fe, "[Fe]O"}},
+          std::vector<std::vector<double>>{{interaction}}));
+  mixture->set_composition(Eigen::Array2d(.5, .5));
+  auto buffer = std::make_shared<Mineral>(make_combined_mineral(
+      {*fe}, Eigen::ArrayXd::Ones(1),
+      {critical_g + critical_p * volume, 0., -volume}, "Fe buffer"));
+  ps::Settings settings;
+  ps::detail::Engine engine({{"Mg", .1}, {"Fe", .9}, {"O", 1.}},
+                            {mixture, buffer}, settings);
+  const double amount = .1 / (zero ? x : 1. - x);
+  ps::detail::PhaseStates states;
+  for (int id : {0, 1, 3}) {
+    ps::PhaseState phase;
+    phase.id = id;
+    phase.candidate_index = id / settings.max_phase_instances;
+    phase.amount = id == 3 ? 1. - amount : id == zero ? 0. : amount;
+    phase.composition = id == 3 ? Eigen::VectorXd::Ones(1)
+                        : id == 0 ? Eigen::VectorXd(Eigen::Vector2d(x, 1. - x))
+                                  : Eigen::VectorXd(Eigen::Vector2d(1. - x, x));
+    states.push_back(phase);
+  }
+  const std::vector<int> ids{0, 1, 3}, expected{0, 3};
+  auto a = engine.make_at(ids, states, {pressure, temperature});
+  const auto prm = engine.parameters(*a);
+  auto constraints = ps::detail::constraints(
+      std::make_unique<equilibration::PhaseFractionConstraint>(zero, 0., prm),
+      std::make_unique<equilibration::TemperatureConstraint>(temperature));
+  auto solved = engine.solve(*a, constraints);
+  REQUIRE(solved.success);
+  std::array<ps::State, 2> limits;
+  auto kind = ps::ReactionKind::unknown;
+  const auto sides = ps::detail::boundary_sides(
+      engine, *a, ids, zero, solved, {1.e9, 500.}, {1., 0.}, &limits, &kind);
+  CHECK(kind == ps::ReactionKind::replacement);
+  CHECK(sides[0] == expected);
+  CHECK(sides[1] == expected);
+  for (const auto &state : limits) {
+    REQUIRE(state.success);
+    REQUIRE(state.phases.size() == 2);
+    CHECK(state.mass_balance_error < 1.e-12);
+    CHECK(state.equilibrium_error <= settings.affinity_tolerance * .1);
+  }
+  CHECK_THAT(limits[0].gibbs,
+             Catch::Matchers::WithinAbs(limits[1].gibbs, 1.e-7));
+  const auto &first = limits[0].phases.front().composition;
+  const auto &second = limits[1].phases.front().composition;
+  CHECK_THAT(std::abs(first[0] - second[0]),
+             Catch::Matchers::WithinAbs(2. * x - 1., 1.e-8));
+}
+
 TEST_CASE("Parallel-line removal needs thermodynamic evidence of instability",
           "[phase_diagram]") {
   namespace ps = phase_diagrams;
@@ -575,6 +917,67 @@ TEST_CASE("Parallel-line removal needs thermodynamic evidence of instability",
   CHECK(removed == (correctable ? 1 : 0));
   CHECK(result.boundaries.size() == (correctable ? 1 : 2));
   CHECK(result.boundaries.front().assemblage == std::vector<int>{0, 1});
+}
+
+TEST_CASE("A replacement overtrace cannot join two reactions across a junction",
+          "[phase_diagram]") {
+  namespace ps = phase_diagrams;
+  ps::Result result;
+  result.section.type = ps::DiagramType::PT;
+  result.settings.max_phase_instances = 1;
+  result.pressure_range = {0., 1.};
+  result.temperature_range = {0., 1.};
+  for (int id = 0; id < 3; ++id) {
+    ps::Node node;
+    node.id = id;
+    node.kind = id == 1 ? "junction" : "domain_edge";
+    node.pressure = .4 + .1 * id;
+    node.temperature = .5 * id;
+    if (id == 1)
+      node.zero_phases = {0, 2};
+    result.nodes.push_back(node);
+  }
+  auto add = [&](int id, int start, int end, int zero, std::vector<int> a,
+                 std::vector<int> b, std::vector<ps::BoundaryPoint> points) {
+    ps::Boundary line;
+    line.id = id;
+    line.start_node = start;
+    line.end_node = end;
+    line.zero_phase = zero;
+    line.reaction_kind = ps::ReactionKind::replacement;
+    line.assemblage = {0, 1, 2};
+    line.side_a = std::move(a);
+    line.side_b = std::move(b);
+    line.points = std::move(points);
+    result.boundaries.push_back(std::move(line));
+  };
+  auto point = [](double p, double t) {
+    ps::BoundaryPoint value;
+    value.pressure = p;
+    value.temperature = t;
+    return value;
+  };
+  const auto first = point(.4, 0.), middle = point(.5, .5),
+             last = point(.6, 1.);
+  add(0, 0, 2, 1, {0, 2}, {1, 2}, {first, middle, last});
+  add(1, 0, 1, 0, {0, 2}, {0, 1}, {first, middle});
+  add(2, 1, 2, 2, {0, 2}, {1, 2}, {middle, last});
+  CHECK(ps::detail::reaction_overtraces(result) == std::set<int>{0});
+  auto reversed = result;
+  for (auto &line : reversed.boundaries) {
+    std::reverse(line.points.begin(), line.points.end());
+    std::swap(line.start_node, line.end_node);
+    std::swap(line.side_a, line.side_b);
+  }
+  CHECK(ps::detail::reaction_overtraces(reversed) == std::set<int>{0});
+  result.nodes[1].zero_phases = {0};
+  CHECK(ps::detail::reaction_overtraces(result).empty());
+  result.nodes[1].zero_phases = {0, 2};
+  result.boundaries[1].side_b = {1, 2};
+  CHECK(ps::detail::reaction_overtraces(result).empty());
+  result.boundaries[1].side_b = {0, 1};
+  result.boundaries[1].points.back().temperature = .6;
+  CHECK(ps::detail::reaction_overtraces(result).empty());
 }
 
 TEST_CASE("Shared composition faces retain independent limiting populations",
@@ -1243,6 +1646,7 @@ TEST_CASE(
     "A univariant reaction splits at an invariant with other zero amounts",
     "[phase_diagram]") {
   namespace ps = phase_diagrams;
+  const int projected_nullity = GENERATE(0, 1);
   auto first = minerals::HGP_2018_ds633::per();
   auto second = std::make_shared<Mineral>(make_combined_mineral(
       {*first}, Eigen::ArrayXd::Ones(1), {10000., 10., 0.}, "second"));
@@ -1276,7 +1680,7 @@ TEST_CASE(
     node.id = id;
     node.kind = id == 2 ? "junction" : "domain_edge";
     node.gibbs_variance = id == 2 ? 0 : 1;
-    node.pt_nullity = 0;
+    node.pt_nullity = id == 2 ? projected_nullity : 0;
     node.assemblage = id == 2   ? std::vector<int>{0, 1, 2}
                       : id == 3 ? std::vector<int>{0, 2}
                                 : std::vector<int>{0, 1};
@@ -1313,4 +1717,50 @@ TEST_CASE(
       ++split;
     }
   CHECK(split == 2);
+}
+
+TEST_CASE("A solvus edge uses its verified sides without a zero phase",
+          "[phase_diagram]") {
+  namespace ps = phase_diagrams;
+  ps::Result result;
+  result.pressure_range = {0., 1.e9};
+  result.temperature_range = {1000., 2000.};
+  result.phase_names = {"host", "split copy"};
+  result.settings.max_phase_instances = 1;
+  for (int id = 0; id < 2; ++id) {
+    ps::Node node;
+    node.id = id;
+    node.kind = "domain_edge";
+    node.pressure = .5e9;
+    node.temperature = id ? 2000. : 1000.;
+    node.incident_lines = {0};
+    result.nodes.push_back(node);
+  }
+  ps::Boundary edge;
+  edge.id = 0;
+  edge.zero_phase = -1;
+  edge.reaction_kind = ps::ReactionKind::phase_out;
+  edge.assemblage = {0, 1};
+  edge.side_a = {0, 1};
+  edge.side_b = {0};
+  edge.start_node = 0;
+  edge.end_node = 1;
+  edge.termination = "domain edge; domain edge";
+  for (const auto &node : result.nodes) {
+    ps::BoundaryPoint point;
+    point.pressure = node.pressure;
+    point.temperature = node.temperature;
+    edge.points.push_back(point);
+  }
+  result.boundaries = {edge};
+  const auto polygons = ps::field_polygons(result);
+  CHECK(polygons.polygons.size() == 2);
+  CHECK(std::any_of(polygons.polygons.begin(), polygons.polygons.end(),
+                    [](const auto &polygon) {
+                      return polygon.phases == std::vector<int>{0};
+                    }));
+  CHECK(std::any_of(polygons.polygons.begin(), polygons.polygons.end(),
+                    [](const auto &polygon) {
+                      return polygon.phases == std::vector<int>{0, 1};
+                    }));
 }
