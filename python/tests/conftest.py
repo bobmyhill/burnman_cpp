@@ -22,6 +22,20 @@ import burnman_cpp as bm
 import numpy as np
 
 
+def diagnostic(message="", category="other", entity_id=None, grid_point=None):
+    """Construct a diagnostic record without inferring ownership from its text."""
+    record = dict(category=category, message=message)
+    if entity_id is not None:
+        record["entity_id"] = entity_id
+    if grid_point is not None:
+        record["grid_point"] = list(grid_point)
+    return record
+
+
+def diagnostic_texts(records):
+    return bm._core.phase_diagram_diagnostic_messages(records)
+
+
 def pytest_sessionstart(session):
     """Prevent optional comparisons from silently using another BurnMan version."""
     if find_spec("burnman") is None:

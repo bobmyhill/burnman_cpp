@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 
 import burnman_cpp as bm
-from conftest import oxide_params
+from conftest import diagnostic, diagnostic_texts, oxide_params
 from test_phase_diagram import crossing_phases, settings
 
 
@@ -136,11 +136,15 @@ def test_patching_drops_obsolete_sample_audit_evidence():
     base["thermodynamic_validation"] = dict(
         scope="aligned_samples", checked_pairs=10, skipped_pairs=0, violations=1
     )
-    base["diagnostics"] = ["Thermodynamic audit: inconsistent saved samples 8 and 9."]
+    base["diagnostics"] = [
+        diagnostic(
+            "Thermodynamic audit: inconsistent saved samples 8 and 9.", "thermodynamic"
+        )
+    ]
     patch = diagram([(0.5, 0.25), (0.5, 0.75)], 0.25, 0.75)
     merged, _ = bm.merge_phase_diagrams(base, patch)
     assert "thermodynamic_validation" not in merged
-    assert not any(d.startswith("Thermodynamic audit: ") for d in merged["diagnostics"])
+    assert not any(d["category"] == "thermodynamic" for d in merged["diagnostics"])
     assert base["thermodynamic_validation"]["checked_pairs"] == 10
 
 
@@ -152,8 +156,10 @@ def test_unmatched_ports_and_open_native_endpoints_stay_unresolved():
     )
     result, _ = bm.merge_phase_diagrams(base, patch)
     assert not result["resolved"]
-    assert any("unresolved patch seam" in d for d in result["diagnostics"])
-    assert any("corrector failed" in d for d in result["diagnostics"])
+    assert any(
+        "unresolved patch seam" in d for d in diagnostic_texts(result["diagnostics"])
+    )
+    assert any("corrector failed" in d for d in diagnostic_texts(result["diagnostics"]))
     assert_indices(result)
     patch = diagram([(0.6, 0.25), (0.6, 0.75)], 0.25, 0.75)
     result, _ = bm.merge_phase_diagrams(base, patch, join_tolerance=0.01)
@@ -306,10 +312,14 @@ def test_field_windows_use_plot_numbers_and_clip_padding():
 def test_problem_regions_include_boundary_diagnostics_without_problem_fields(tmp_path):
     base = diagram([(0.5, 0), (0.5, 1)])
     base["diagnostics"] = [
-        "Boundary 0: neighbouring fields could not be distinguished within tolerances.",
-        "Boundary 0: corrector failed; junction",
-        "Boundary 999: stale diagnostic",
-        "No closed region resolved for sampled assemblage 4.",
+        diagnostic(
+            "neighbouring fields could not be distinguished within tolerances.",
+            "boundary",
+            0,
+        ),
+        diagnostic("corrector failed; junction", "trace", 0),
+        diagnostic("stale diagnostic", "trace", 999),
+        diagnostic(category="missing_assemblage", entity_id=4),
     ]
     original = deepcopy(base)
     assert bm.phase_diagram_field_regions(base) == {}
@@ -321,11 +331,37 @@ def test_problem_regions_include_boundary_diagnostics_without_problem_fields(tmp
     assert base == original
 
 
-def test_problem_regions_include_missing_sampled_assemblage():
+def test_problem_regions_use_provenance_instead_of_message_wording():
     base = diagram([(0.5, 0), (0.5, 1)])
     base["diagnostics"] = [
-        "No closed region resolved for sampled assemblage 4; increase seed density."
+        diagnostic("Entirely different wording", "boundary", 0),
+        diagnostic("Boundary 999: unrelated text"),
     ]
+    assert list(bm.phase_diagram_problem_regions(base)) == ["Boundary 0"]
+
+
+def test_stitching_remaps_boundary_notes_without_parsing_their_text():
+    base = diagram([(0.5, 0), (0.5, 1)])
+    base["boundaries"][0]["id"] = 17
+    note = diagnostic("Words with no boundary number", "boundary_note", 17)
+    base["diagnostics"] = [note]
+    spacing = diagnostic("Requested spacing remains unresolved", "spacing", 17)
+    information = diagnostic("Keep unrelated coordinate information")
+    base["spacing_diagnostics"] = [spacing]
+    base["coordinate_diagnostics"] = [information]
+    patch = diagram([(0.5, 0.25), (0.5, 0.75)], 0.25, 0.75)
+    merged, _ = bm.merge_phase_diagrams(base, patch)
+    kept = [d for d in merged["diagnostics"] if d["category"] == "boundary_note"]
+    assert len(kept) == 1
+    assert kept[0] == dict(note, entity_id=0)
+    assert merged["spacing_diagnostics"] == [dict(spacing, entity_id=0)]
+    assert not merged["spacing_resolved"]
+    assert information in merged["coordinate_diagnostics"]
+
+
+def test_problem_regions_include_missing_sampled_assemblage():
+    base = diagram([(0.5, 0), (0.5, 1)])
+    base["diagnostics"] = [diagnostic(category="missing_assemblage", entity_id=4)]
     base["samples"] = [
         dict(pressure=p, temperature=t, success=True, phases=[dict(id=0, amount=1)])
         for p, t in ((0.51, 0.50), (0.52, 0.51))
@@ -343,7 +379,11 @@ def test_problem_regions_keep_fields_and_boundary_ids_separate_and_include_nodes
     base["nodes"][0].update(pressure=0.6, temperature=0)
     base["nodes"][1]["temperature"] = 1
     base["diagnostics"] = [
-        "Boundary 1: neighbouring fields could not be distinguished within tolerances."
+        diagnostic(
+            "neighbouring fields could not be distinguished within tolerances.",
+            "boundary",
+            1,
+        )
     ]
     display = dict(temperature_unit="K", pressure_unit="Pa")
     fields = bm.phase_diagram_field_regions(base, padding=0.1, **display)
@@ -360,7 +400,7 @@ def test_problem_regions_keep_fields_and_boundary_ids_separate_and_include_nodes
 def test_problem_regions_give_frame_boundaries_finite_width(pressure):
     base = diagram([(pressure, 0), (pressure, 1)])
     base["boundaries"][0]["start_node"] = -1
-    base["diagnostics"] = ["Boundary 0: corrector failed; domain edge"]
+    base["diagnostics"] = [diagnostic("corrector failed; domain edge", "trace", 0)]
     region = bm.phase_diagram_problem_regions(
         base, padding=0, pressure_unit="Pa", temperature_unit="K"
     )["Boundary 0"]
@@ -392,7 +432,11 @@ def test_problem_regions_follow_all_diagram_axes(diagram_type):
             record[names[diagram_type[0]]] = 0.5
             record[names[diagram_type[1]]] = i
     base["diagnostics"] = [
-        "Boundary 0: neighbouring fields could not be distinguished within tolerances."
+        diagnostic(
+            "neighbouring fields could not be distinguished within tolerances.",
+            "boundary",
+            0,
+        )
     ]
     region = bm.phase_diagram_problem_regions(
         base, swap_axes=True, pressure_unit="Pa", temperature_unit="K"

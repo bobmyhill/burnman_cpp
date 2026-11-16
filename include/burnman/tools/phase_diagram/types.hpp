@@ -268,6 +268,41 @@ struct ThermodynamicValidation {
   std::size_t checked_pairs = 0, skipped_pairs = 0, violations = 0;
 };
 
+enum class DiagnosticCategory {
+  other,
+  trace,
+  boundary_note,
+  sample,
+  field,
+  boundary,
+  junction,
+  critical_endpoint,
+  missing_assemblage,
+  thermodynamic,
+  equilibrium,
+  property,
+  spacing,
+  search,
+  count
+};
+
+/// Category and provenance control updates; text() renders readable context.
+/// entity_id identifies the category's boundary, sample, field or node. Grid
+/// issues carry {row, column}, optionally with a field ID. -1 means
+/// unspecified.
+struct Diagnostic {
+  DiagnosticCategory category = DiagnosticCategory::other;
+  int entity_id = -1;
+  std::string message{};
+  std::array<int, 2> grid_point{-1, -1};
+  std::string text() const;
+  bool operator==(const Diagnostic &other) const {
+    return category == other.category && entity_id == other.entity_id &&
+           message == other.message && grid_point == other.grid_point;
+  }
+};
+using Diagnostics = std::vector<Diagnostic>;
+
 /// Saved thermodynamic states and boundary connectivity for the whole diagram.
 /// fields groups samples by assemblage; field_polygons() finds the actual
 /// areas.
@@ -305,14 +340,14 @@ struct Result {
   std::vector<Boundary> boundaries;
   std::vector<Node> nodes;
   std::vector<FieldVerification> field_verifications;
-  std::vector<std::string> diagnostics;
+  Diagnostics diagnostics;
   // Informational precision limits for thermodynamically verified fields.
   // These do not invalidate reaction connectivity or set resolved=false.
-  std::vector<std::string> coordinate_diagnostics;
+  Diagnostics coordinate_diagnostics;
   ThermodynamicValidation thermodynamic_validation;
   // Unmet boundary-point spacing from the latest refinement request. These
   // messages do not invalidate the saved connections or phase-field labels.
-  std::vector<std::string> spacing_diagnostics;
+  Diagnostics spacing_diagnostics;
   // Closed diagram-coordinate rings outside the admissible EOS domain: either
   // remaining candidates cannot represent the bulk or a required EOS fails.
   // These are model limits, not equilibrium phase lines.
@@ -375,8 +410,8 @@ struct FieldPolygon {
 /// Plotting geometry, inferred neighbouring assemblages and labelling messages.
 struct FieldPolygons {
   std::vector<FieldPolygon> polygons;
-  std::vector<std::string> diagnostics;
-  std::vector<std::string> coordinate_diagnostics;
+  Diagnostics diagnostics;
+  Diagnostics coordinate_diagnostics;
   // Unique closed, non-provisional neighbours compatible with the reaction.
   // Boundary ID -> {right, left}, following that record's native direction.
   std::map<int, std::array<std::vector<int>, 2>> boundary_sides;

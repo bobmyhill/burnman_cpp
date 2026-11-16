@@ -19,6 +19,7 @@ import numpy as np
 import pytest
 
 import burnman_cpp as bm
+from conftest import diagnostic
 from burnman_cpp.minerals import SLB_2024, load_dataset
 from burnman_cpp.tools import phase_diagram_workflow as workflow
 
@@ -167,7 +168,9 @@ def test_unresolved_initial_diagram_is_saved_before_stopping(tmp_path, monkeypat
 
     def unresolved(*args, **kwargs):
         data = phase_diagram(*args, **kwargs).to_dict()
-        data.update(resolved=False, diagnostics=["Unresolved test boundary"])
+        data.update(
+            resolved=False, diagnostics=[diagnostic("Unresolved test boundary")]
+        )
         return bm.PhaseDiagramResult.from_dict(data)
 
     def forbidden(*args, **kwargs):
@@ -182,7 +185,7 @@ def test_unresolved_initial_diagram_is_saved_before_stopping(tmp_path, monkeypat
     assert set(tmp_path.iterdir()) == {initial}
     saved = bm.load_phase_diagram(initial)
     assert not saved["resolved"]
-    assert saved["diagnostics"] == ["Unresolved test boundary"]
+    assert saved["diagnostics"] == [diagnostic("Unresolved test boundary")]
 
 
 @pytest.mark.parametrize("problem", ["unresolved", "polygon"])
@@ -193,7 +196,9 @@ def test_only_completely_resolved_diagrams_are_gridded(tmp_path, monkeypatch, pr
         result = refine(*args, **kwargs)
         data = result.to_dict()
         if problem == "unresolved":
-            data.update(resolved=False, diagnostics=["Unresolved test boundary"])
+            data.update(
+                resolved=False, diagnostics=[diagnostic("Unresolved test boundary")]
+            )
         return bm.PhaseDiagramResult.from_dict(data)
 
     monkeypatch.setattr(workflow._core, "refine_phase_diagram", fail_refinement)
@@ -226,7 +231,10 @@ def test_unmet_boundary_spacing_warns_without_blocking_gridding(
 
     def unmet_spacing(*args, **kwargs):
         data = refine(*args, **kwargs).to_dict()
-        data.update(spacing_resolved=False, spacing_diagnostics=["Unmet test spacing"])
+        data.update(
+            spacing_resolved=False,
+            spacing_diagnostics=[diagnostic("Unmet test spacing")],
+        )
         return bm.PhaseDiagramResult.from_dict(data)
 
     monkeypatch.setattr(workflow._core, "refine_phase_diagram", unmet_spacing)
@@ -235,7 +243,7 @@ def test_unmet_boundary_spacing_warns_without_blocking_gridding(
         def warning_on_retry(*args, **kwargs):
             for rows, cols, grid in retry(*args, **kwargs):
                 data = grid.to_dict()
-                data["diagnostics"] = ["Test grid property warning"]
+                data["diagnostics"] = [diagnostic("Test grid property warning")]
                 yield rows, cols, bm.PhaseDiagramPropertyGrid.from_dict(data)
 
         monkeypatch.setattr(workflow, "retry_property_grid_chunks", warning_on_retry)
@@ -588,7 +596,9 @@ def test_plotting_without_gridding_saves_and_closes_the_refined_figure(
 
         def unresolved(*args, **kwargs):
             data = refine(*args, **kwargs).to_dict()
-            data.update(resolved=False, diagnostics=["Test unresolved boundary"])
+            data.update(
+                resolved=False, diagnostics=[diagnostic("Test unresolved boundary")]
+            )
             return bm.PhaseDiagramResult.from_dict(data)
 
         monkeypatch.setattr(workflow._core, "refine_phase_diagram", unresolved)

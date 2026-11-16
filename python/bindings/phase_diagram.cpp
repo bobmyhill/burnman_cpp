@@ -106,6 +106,71 @@ py::list matrix_list(const Eigen::MatrixXd &matrix) {
     rows.append(vector_list(matrix.row(i).transpose()));
   return rows;
 }
+// Geometry views accept partial records; calculations require the saved
+// equilibrium members. Keep the presence/type handling shared by both views.
+template <typename Value>
+void read_member(const py::dict &record, const char *key, Value &value,
+                 bool required = false) {
+  if (required || record.contains(key))
+    value = record[key].cast<Value>();
+}
+std::vector<phase_diagrams::PhaseState>
+saved_phase_states(py::handle records, bool full = true) {
+  std::vector<phase_diagrams::PhaseState> states;
+  for (auto item : py::reinterpret_borrow<py::iterable>(records)) {
+    auto record = py::reinterpret_borrow<py::dict>(item);
+    phase_diagrams::PhaseState state;
+    state.amount = 1.;
+#define READ(name) read_member(record, #name, state.name, full);
+    state.id = record["id"].cast<int>();
+    READ(amount)
+    if (full) {
+      if (!record.contains("composition") ||
+          !record.contains("candidate_index"))
+        throw py::value_error("Resuming requires saved phase compositions "
+                              "and candidate_index.");
+      READ(candidate_index)
+      READ(composition)
+      READ(name)
+      read_member(record, "composition_basis", state.composition_basis);
+    }
+#undef READ
+    states.push_back(std::move(state));
+  }
+  return states;
+}
+template <typename Point>
+void read_coordinates(const py::dict &record, Point &point,
+                       phase_diagrams::DiagramType type) {
+  using namespace phase_diagrams;
+  point.pressure = record["pressure"].cast<double>();
+  point.temperature = record["temperature"].cast<double>();
+  const auto axes = diagram_axes(type);
+  auto read = [&](const char *key, Coordinate axis, double &value) {
+    if (!record.contains(key) && (axes[0] == axis || axes[1] == axis))
+      throw py::value_error(std::string("Records in this diagram require ") +
+                            key + ".");
+    read_member(record, key, value);
+  };
+  read("entropy", Coordinate::S, point.entropy);
+  read("volume", Coordinate::V, point.volume);
+  read("composition_coordinate", Coordinate::X, point.composition_coordinate);
+}
+phase_diagrams::BoundaryPoint
+saved_boundary_point(const py::dict &record, phase_diagrams::DiagramType type,
+                      bool full = true) {
+  phase_diagrams::BoundaryPoint point;
+  read_coordinates(record, point, type);
+  if (full) {
+    point.phases = saved_phase_states(record["phases"]);
+#define READ(name) point.name = record[#name].cast<decltype(point.name)>();
+    READ(mass_balance_error)
+    READ(minimum_affinity)
+    READ(residual)
+#undef READ
+  }
+  return point;
+}
 py::list
 phase_states_dict(const std::vector<phase_diagrams::PhaseState> &states) {
   py::list records;
@@ -185,9 +250,83 @@ phase_diagrams::ThermodynamicValidation saved_validation(const py::dict &data) {
   }
   return validation;
 }
+constexpr std::array<const char *, 14> diagnostic_categories{
+    "other",
+    "trace",
+    "boundary_note",
+    "sample",
+    "field",
+    "boundary",
+    "junction",
+    "critical_endpoint",
+    "missing_assemblage",
+    "thermodynamic",
+    "equilibrium",
+    "property",
+    "spacing",
+    "search"};
+static_assert(
+    static_cast<std::size_t>(phase_diagrams::DiagnosticCategory::count) ==
+    diagnostic_categories.size());
+
+py::list diagnostic_records(const phase_diagrams::Diagnostics &diagnostics) {
+  py::list records;
+  for (const auto &diagnostic : diagnostics) {
+    py::dict record;
+    record["category"] =
+        diagnostic_categories.at(static_cast<std::size_t>(diagnostic.category));
+    record["message"] = diagnostic.message;
+    if (diagnostic.entity_id >= 0)
+      record["entity_id"] = diagnostic.entity_id;
+    if (diagnostic.grid_point[0] >= 0)
+      record["grid_point"] = diagnostic.grid_point;
+    records.append(record);
+  }
+  return records;
+}
+phase_diagrams::Diagnostics saved_diagnostics(const py::handle &items) {
+  phase_diagrams::Diagnostics diagnostics;
+  for (auto item : items.cast<py::list>()) {
+    if (!py::isinstance<py::dict>(item))
+      throw py::value_error("Diagnostics require category/message records.");
+    const auto record = item.cast<py::dict>();
+    const auto category = record["category"].cast<std::string>();
+    const auto found = std::find(diagnostic_categories.begin(),
+                                 diagnostic_categories.end(), category);
+    if (found == diagnostic_categories.end())
+      throw py::value_error("Unknown diagnostic category: " + category);
+    phase_diagrams::Diagnostic diagnostic{
+        static_cast<phase_diagrams::DiagnosticCategory>(
+            found - diagnostic_categories.begin()),
+        record.contains("entity_id") ? record["entity_id"].cast<int>() : -1,
+        record["message"].cast<std::string>()};
+    if (record.contains("grid_point"))
+      diagnostic.grid_point = record["grid_point"].cast<std::array<int, 2>>();
+    if (record.contains("entity_id") && diagnostic.entity_id < 0)
+      throw py::value_error("Diagnostic entity_id must be nonnegative.");
+    if (record.contains("grid_point") &&
+        (diagnostic.grid_point[0] < 0 || diagnostic.grid_point[1] < 0))
+      throw py::value_error(
+          "Diagnostic grid_point must contain nonnegative indices.");
+    diagnostics.push_back(std::move(diagnostic));
+  }
+  return diagnostics;
+}
+std::vector<std::string>
+diagnostic_messages(const phase_diagrams::Diagnostics &diagnostics) {
+  std::vector<std::string> messages;
+  for (const auto &diagnostic : diagnostics)
+    messages.push_back(diagnostic.text());
+  return messages;
+}
+template <typename T, typename Format>
+auto diagnostic_view(phase_diagrams::Diagnostics T::*member, Format format) {
+  return [member, format](const T &value) { return format(value.*member); };
+}
+
 py::dict result_dict(const phase_diagrams::Result &result) {
   py::dict data;
-  data["schema_version"] = 5;
+  data["schema_version"] = 6;
   data["diagram_type"] = diagram_name(result.section.type);
   data["composition_start"] = py::cast(result.composition_start);
   data["composition_end"] = py::cast(result.section.composition_end);
@@ -203,9 +342,10 @@ py::dict result_dict(const phase_diagrams::Result &result) {
   SAVE(pressure_range)
   SAVE(temperature_range)
   SAVE(phase_names)
-  SAVE(diagnostics)
-  SAVE(coordinate_diagnostics)
-  SAVE(spacing_diagnostics)
+  data["diagnostics"] = diagnostic_records(result.diagnostics);
+  data["coordinate_diagnostics"] =
+      diagnostic_records(result.coordinate_diagnostics);
+  data["spacing_diagnostics"] = diagnostic_records(result.spacing_diagnostics);
   data["spacing_resolved"] = result.spacing_diagnostics.empty();
   SAVE(resolved)
   SAVE(equilibrium_solves)
@@ -341,110 +481,51 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
   if (data.contains("diagram_type"))
     result.section.type =
         diagram_type(data["diagram_type"].cast<std::string>());
-  if (data.contains("composition_start"))
-    result.composition_start =
-        data["composition_start"].cast<types::FormulaMap>();
-  if (data.contains("composition_end"))
-    result.section.composition_end =
-        data["composition_end"].cast<types::FormulaMap>();
-  if (data.contains("composition_range"))
-    result.section.composition_range =
-        data["composition_range"].cast<std::array<double, 2>>();
-  if (data.contains("entropy_range"))
-    result.section.entropy_range =
-        data["entropy_range"].cast<std::array<double, 2>>();
-  if (data.contains("volume_range"))
-    result.section.volume_range =
-        data["volume_range"].cast<std::array<double, 2>>();
+#define READ(name) read_member(data, #name, result.section.name);
+  READ(composition_end)
+  READ(composition_range)
+  READ(entropy_range)
+  READ(volume_range)
+#undef READ
+  read_member(data, "composition_start", result.composition_start);
   if (data.contains("fixed_coordinate")) {
     result.section.fixed_coordinate =
         coordinate_type(data["fixed_coordinate"].cast<std::string>());
     result.section.fixed_value = data["fixed_value"].cast<double>();
   }
-  auto extensive = [&](const py::dict &record, const char *key,
-                       Coordinate axis) {
-    if (record.contains(key))
-      return record[key].cast<double>();
-    const auto axes = diagram_axes(result.section.type);
-    if (axes[0] == axis || axes[1] == axis)
-      throw py::value_error(std::string("Records in this diagram require ") +
-                            key + ".");
-    return 0.;
-  };
-  auto composition_coordinate = [&](const py::dict &record) {
-    if (record.contains("composition_coordinate"))
-      return record["composition_coordinate"].cast<double>();
-    if (has_composition_axis(result.section.type))
-      throw py::value_error("X records require composition_coordinate.");
-    return 0.;
-  };
   if (data.contains("settings"))
     result.settings = saved_settings(data["settings"].cast<py::dict>());
-  if (data.contains("resolved"))
-    result.resolved = data["resolved"].cast<bool>();
+  read_member(data, "resolved", result.resolved);
   if (data.contains("diagnostics"))
-    result.diagnostics = data["diagnostics"].cast<std::vector<std::string>>();
+    result.diagnostics = saved_diagnostics(data["diagnostics"]);
   if (data.contains("coordinate_diagnostics"))
     result.coordinate_diagnostics =
-        data["coordinate_diagnostics"].cast<std::vector<std::string>>();
+        saved_diagnostics(data["coordinate_diagnostics"]);
   if (data.contains("spacing_diagnostics"))
-    result.spacing_diagnostics =
-        data["spacing_diagnostics"].cast<std::vector<std::string>>();
+    result.spacing_diagnostics = saved_diagnostics(data["spacing_diagnostics"]);
   result.pressure_range = data["pressure_range"].cast<std::array<double, 2>>();
   result.temperature_range =
       data["temperature_range"].cast<std::array<double, 2>>();
-  if (data.contains("phase_names"))
-    result.phase_names = data["phase_names"].cast<std::vector<std::string>>();
-  if (data.contains("excluded_regions"))
-    result.excluded_regions =
-        data["excluded_regions"].cast<std::vector<Eigen::MatrixXd>>();
-  auto phases = [&](py::handle records) {
-    std::vector<PhaseState> out;
-    for (auto item : py::reinterpret_borrow<py::iterable>(records)) {
-      auto value = py::reinterpret_borrow<py::dict>(item);
-      PhaseState phase;
-      phase.id = value["id"].cast<int>();
-      phase.amount =
-          value.contains("amount") ? value["amount"].cast<double>() : 1.;
-      if (full) {
-        if (!value.contains("composition") ||
-            !value.contains("candidate_index"))
-          throw py::value_error("Resuming requires saved phase compositions "
-                                "and candidate_index.");
-        phase.candidate_index = value["candidate_index"].cast<int>();
-        phase.composition = value["composition"].cast<Eigen::VectorXd>();
-        if (value.contains("composition_basis"))
-          phase.composition_basis =
-              value["composition_basis"].cast<Eigen::MatrixXd>();
-        if (value.contains("name"))
-          phase.name = value["name"].cast<std::string>();
-      }
-      out.push_back(std::move(phase));
-    }
-    return out;
-  };
+  read_member(data, "phase_names", result.phase_names);
+  read_member(data, "excluded_regions", result.excluded_regions);
   auto saved_state = [&](const py::dict &value) {
     State state;
     state.success = value["success"].cast<bool>();
-    state.pressure = value["pressure"].cast<double>();
-    state.temperature = value["temperature"].cast<double>();
-    state.composition_coordinate = composition_coordinate(value);
-    state.entropy = extensive(value, "entropy", Coordinate::S);
-    state.volume = extensive(value, "volume", Coordinate::V);
-    if (value.contains("is_field_verification"))
-      state.is_field_verification = value["is_field_verification"].cast<bool>();
-    if (value.contains("outside_model_domain"))
-      state.outside_model_domain = value["outside_model_domain"].cast<bool>();
-    if (value.contains("excluded_phases"))
-      state.excluded_phases =
-          value["excluded_phases"].cast<std::vector<std::string>>();
-    state.phases = phases(value["phases"]);
+    read_coordinates(value, state, result.section.type);
+#define READ(name) read_member(value, #name, state.name);
+    READ(is_field_verification)
+    READ(outside_model_domain)
+    READ(excluded_phases)
+#undef READ
+    state.phases = saved_phase_states(value["phases"], full);
     if (full) {
-      state.message = value["message"].cast<std::string>();
-      state.gibbs = value["gibbs"].cast<double>();
-      state.mass_balance_error = value["mass_balance_error"].cast<double>();
-      state.minimum_affinity = value["minimum_affinity"].cast<double>();
-      state.equilibrium_error = value["equilibrium_error"].cast<double>();
+#define READ(name) state.name = value[#name].cast<decltype(state.name)>();
+      READ(message)
+      READ(gibbs)
+      READ(mass_balance_error)
+      READ(minimum_affinity)
+      READ(equilibrium_error)
+#undef READ
     }
     return state;
   };
@@ -455,58 +536,40 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
       if (!full)
         node.gibbs_variance = node.pt_nullity = -1; // unknown unless supplied
       node.id = value["id"].cast<int>();
-      node.pressure = value["pressure"].cast<double>();
-      node.temperature = value["temperature"].cast<double>();
-      node.composition_coordinate = composition_coordinate(value);
-      node.entropy = extensive(value, "entropy", Coordinate::S);
-      node.volume = extensive(value, "volume", Coordinate::V);
-      if (value.contains("incident_lines"))
-        node.incident_lines = value["incident_lines"].cast<std::vector<int>>();
-      if (value.contains("is_verified_critical_endpoint"))
-        node.is_verified_critical_endpoint =
-            value["is_verified_critical_endpoint"].cast<bool>();
+      read_coordinates(value, node, result.section.type);
+      read_member(value, "incident_lines", node.incident_lines);
+      read_member(value, "is_verified_critical_endpoint",
+                  node.is_verified_critical_endpoint);
       // Polygon construction also needs invariant metadata when plotting a
       // saved dictionary, without requiring all resumable equilibrium data.
-      if (full || value.contains("kind"))
-        node.kind = value["kind"].cast<std::string>();
-      if (full || value.contains("assemblage"))
-        node.assemblage = value["assemblage"].cast<std::vector<int>>();
-      if (full || value.contains("gibbs_variance"))
-        node.gibbs_variance = value["gibbs_variance"].cast<int>();
-      if (full || value.contains("pt_nullity"))
-        node.pt_nullity = value["pt_nullity"].cast<int>();
-      if (full || value.contains("zero_phases"))
-        node.zero_phases = value["zero_phases"].cast<std::vector<int>>();
-      if (full) {
-        if (value.contains("critical_mode"))
-          node.critical_mode = value["critical_mode"].cast<Eigen::VectorXd>();
-      }
+#define READ(name) read_member(value, #name, node.name, full);
+      READ(kind)
+      READ(assemblage)
+      READ(gibbs_variance)
+      READ(pt_nullity)
+      READ(zero_phases)
+#undef READ
+      if (full)
+        read_member(value, "critical_mode", node.critical_mode);
       result.nodes.push_back(node);
     }
   for (auto item : data["boundaries"]) {
     auto value = py::reinterpret_borrow<py::dict>(item);
     Boundary line;
-    if (full || value.contains("assemblage"))
-      line.assemblage = value["assemblage"].cast<std::vector<int>>();
     // Loop constraints need the reaction metadata for dictionary plotting too.
-    if (full || value.contains("id"))
-      line.id = value["id"].cast<int>();
-    if (full || value.contains("zero_phase"))
-      line.zero_phase = value["zero_phase"].cast<int>();
-    if (full || value.contains("termination")) {
-      line.termination = value["termination"].cast<std::string>();
-    }
-    if (value.contains("start_node"))
-      line.start_node = value["start_node"].cast<int>();
-    if (value.contains("end_node"))
-      line.end_node = value["end_node"].cast<int>();
-    if (value.contains("side_a"))
-      line.side_a = value["side_a"].cast<std::vector<int>>();
-    if (value.contains("side_b"))
-      line.side_b = value["side_b"].cast<std::vector<int>>();
-    if (value.contains("is_solution_replacement"))
-      line.is_solution_replacement =
-          value["is_solution_replacement"].cast<bool>();
+#define READ(name) read_member(value, #name, line.name, full);
+    READ(assemblage)
+    READ(id)
+    READ(zero_phase)
+    READ(termination)
+#undef READ
+#define READ(name) read_member(value, #name, line.name);
+    READ(start_node)
+    READ(end_node)
+    READ(side_a)
+    READ(side_b)
+    READ(is_solution_replacement)
+#undef READ
     if (value.contains("reaction_kind")) {
       const auto kind = value["reaction_kind"].cast<std::string>();
       if (kind == "phase_out")
@@ -517,20 +580,8 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
         throw py::value_error("Unknown reaction kind: " + kind);
     }
     for (auto point : value["points"]) {
-      auto record = py::reinterpret_borrow<py::dict>(point);
-      BoundaryPoint p;
-      p.pressure = record["pressure"].cast<double>();
-      p.temperature = record["temperature"].cast<double>();
-      p.composition_coordinate = composition_coordinate(record);
-      p.entropy = extensive(record, "entropy", Coordinate::S);
-      p.volume = extensive(record, "volume", Coordinate::V);
-      if (full) {
-        p.phases = phases(record["phases"]);
-        p.mass_balance_error = record["mass_balance_error"].cast<double>();
-        p.minimum_affinity = record["minimum_affinity"].cast<double>();
-        p.residual = record["residual"].cast<double>();
-      }
-      line.points.push_back(p);
+      line.points.push_back(saved_boundary_point(
+          py::reinterpret_borrow<py::dict>(point), result.section.type, full));
     }
     if (full && value.contains("limiting_curves")) {
       auto curves = value["limiting_curves"].cast<py::list>();
@@ -563,10 +614,8 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
           saved_state(py::reinterpret_borrow<py::dict>(item)));
     }
   if (full) {
-    if (data.contains("equilibrium_solves"))
-      result.equilibrium_solves = data["equilibrium_solves"].cast<int>();
-    if (data.contains("minimization_calls"))
-      result.minimization_calls = data["minimization_calls"].cast<int>();
+    read_member(data, "equilibrium_solves", result.equilibrium_solves);
+    read_member(data, "minimization_calls", result.minimization_calls);
   }
   return result;
 }
@@ -582,8 +631,7 @@ phase_diagrams::Result calculation_result(const py::object &object) {
 py::dict grid_solution_dict(const phase_diagrams::GridSolution &solution) {
   auto data = boundary_point_dict(solution.state);
   data["n_moles"] = solution.n_moles;
-  if (std::isfinite(solution.gibbs))
-    data["gibbs"] = solution.gibbs;
+  data["gibbs"] = solution.gibbs;
   data["molar_fractions"] = vector_list(solution.molar_fractions.matrix());
   py::list bases, compositions;
   for (const auto &basis : solution.phase_bases)
@@ -597,7 +645,7 @@ py::dict grid_solution_dict(const phase_diagrams::GridSolution &solution) {
 py::dict property_grid_dict(const phase_diagrams::PropertyGrid &grid) {
   py::dict data;
   data["format"] = "burnman_cpp.property_grid";
-  data["schema_version"] = 1;
+  data["schema_version"] = 2;
   data["context"] = result_dict(grid.context);
   data["x"] = vector_list(grid.x);
   data["y"] = vector_list(grid.y);
@@ -607,8 +655,9 @@ py::dict property_grid_dict(const phase_diagrams::PropertyGrid &grid) {
   data["success"] = py::cast(grid.success).attr("tolist")();
   data["equilibrium_success"] =
       py::cast(grid.equilibrium_success).attr("tolist")();
-  data["diagnostics"] = grid.diagnostics;
-  data["equilibrium_diagnostics"] = grid.equilibrium_diagnostics;
+  data["diagnostics"] = diagnostic_records(grid.diagnostics);
+  data["equilibrium_diagnostics"] =
+      diagnostic_records(grid.equilibrium_diagnostics);
   data["equilibrium_solves"] = grid.equilibrium_solves;
   if (grid.thermodynamic_validation.scope != "not_checked")
     data["thermodynamic_validation"] =
@@ -654,7 +703,7 @@ phase_diagrams::PropertyGrid saved_property_grid(const py::dict &data) {
   if (!data.contains("format") ||
       data["format"].cast<std::string>() != "burnman_cpp.property_grid" ||
       !data.contains("schema_version") ||
-      data["schema_version"].cast<int>() != 1)
+      data["schema_version"].cast<int>() != 2)
     throw py::value_error(
         "Unsupported property grid format or schema version.");
   PropertyGrid grid;
@@ -669,9 +718,9 @@ phase_diagrams::PropertyGrid saved_property_grid(const py::dict &data) {
   grid.success = data["success"].cast<decltype(grid.success)>();
   grid.equilibrium_success =
       data["equilibrium_success"].cast<decltype(grid.equilibrium_success)>();
-  grid.diagnostics = data["diagnostics"].cast<std::vector<std::string>>();
+  grid.diagnostics = saved_diagnostics(data["diagnostics"]);
   grid.equilibrium_diagnostics =
-      data["equilibrium_diagnostics"].cast<std::vector<std::string>>();
+      saved_diagnostics(data["equilibrium_diagnostics"]);
   grid.equilibrium_solves = data["equilibrium_solves"].cast<int>();
   grid.values = data["values"].cast<std::map<std::string, Eigen::MatrixXd>>();
   auto shape = [&](const auto &matrix) {
@@ -714,36 +763,13 @@ phase_diagrams::PropertyGrid saved_property_grid(const py::dict &data) {
         solution.max_phase_instances =
             grid.context.settings.max_phase_instances;
         solution.n_moles = record["n_moles"].cast<double>();
-        if (record.contains("gibbs"))
-          solution.gibbs = record["gibbs"].cast<double>();
+        solution.gibbs = record["gibbs"].cast<double>();
+        if (!std::isfinite(solution.gibbs))
+          throw py::value_error("Saved grid Gibbs energy must be finite.");
         solution.molar_fractions =
             record["molar_fractions"].cast<Eigen::ArrayXd>();
         auto &point = solution.state;
-#define READ(name) point.name = record[#name].cast<decltype(point.name)>();
-        READ(pressure)
-        READ(temperature)
-        READ(entropy)
-        READ(volume)
-        READ(composition_coordinate)
-        READ(mass_balance_error)
-        READ(minimum_affinity)
-        READ(residual)
-#undef READ
-        for (auto entry : record["phases"].cast<py::list>()) {
-          auto p = entry.cast<py::dict>();
-          PhaseState phase;
-#define READ(name) phase.name = p[#name].cast<decltype(phase.name)>();
-          READ(id)
-          READ(candidate_index)
-          READ(name)
-          READ(amount)
-          READ(composition)
-#undef READ
-          if (p.contains("composition_basis"))
-            phase.composition_basis =
-                p["composition_basis"].cast<Eigen::MatrixXd>();
-          point.phases.push_back(std::move(phase));
-        }
+        point = saved_boundary_point(record, grid.diagram_type);
         solution.phase_bases =
             record["phase_bases"].cast<std::vector<Eigen::MatrixXd>>();
         solution.phase_compositions =
@@ -761,6 +787,20 @@ phase_diagrams::PropertyGrid saved_property_grid(const py::dict &data) {
 }
 } // namespace
 void bind_phase_diagram(py::module_ &m) {
+  m.def("phase_diagram_diagnostic_messages", [](const py::list &records) {
+    return diagnostic_messages(saved_diagnostics(records));
+  });
+  m.def("_refresh_phase_diagram_diagnostics", [](const py::dict &data) {
+    auto result = saved_result(data);
+    phase_diagrams::detail::refresh_diagram_diagnostics(
+        result, phase_diagrams::field_polygons(result));
+    py::dict refreshed;
+    refreshed["diagnostics"] = diagnostic_records(result.diagnostics);
+    refreshed["coordinate_diagnostics"] =
+        diagnostic_records(result.coordinate_diagnostics);
+    refreshed["resolved"] = result.diagnostics.empty();
+    return refreshed;
+  });
   using namespace phase_diagrams;
   py::class_<Settings>(m, "PhaseDiagramSettings",
                        "Initial equilibrium sampling, reaction continuation "
@@ -891,12 +931,26 @@ void bind_phase_diagram(py::module_ &m) {
           PROPERTY(pressure_range) PROPERTY(temperature_range)
               PROPERTY(composition_start) PROPERTY(phase_names)
                   PROPERTY(samples) PROPERTY(fields) PROPERTY(boundaries)
-                      PROPERTY(nodes) PROPERTY(diagnostics) PROPERTY(resolved)
-                          PROPERTY(spacing_diagnostics) PROPERTY(coordinate_diagnostics)
-                              PROPERTY(equilibrium_solves)
-                                  PROPERTY(minimization_calls)
-                                      PROPERTY(excluded_regions)
+                      PROPERTY(nodes) PROPERTY(resolved)
+                          PROPERTY(equilibrium_solves)
+                              PROPERTY(minimization_calls)
+                                  PROPERTY(excluded_regions)
 #undef PROPERTY
+      .def_property_readonly(
+          "diagnostics",
+          diagnostic_view(&Result::diagnostics, diagnostic_messages))
+      .def_property_readonly(
+          "coordinate_diagnostics",
+          diagnostic_view(&Result::coordinate_diagnostics, diagnostic_messages))
+      .def_property_readonly(
+          "spacing_diagnostics",
+          diagnostic_view(&Result::spacing_diagnostics, diagnostic_messages))
+      .def_property_readonly(
+          "diagnostic_records",
+          diagnostic_view(&Result::diagnostics, diagnostic_records))
+      .def_property_readonly(
+          "coordinate_diagnostic_records",
+          diagnostic_view(&Result::coordinate_diagnostics, diagnostic_records))
       .def_property_readonly(
           "spacing_resolved",
           [](const Result &r) { return r.spacing_diagnostics.empty(); })
@@ -936,8 +990,20 @@ void bind_phase_diagram(py::module_ &m) {
       });
   py::class_<FieldPolygons>(m, "PhaseDiagramPolygons")
       .def_readonly("polygons", &FieldPolygons::polygons)
-      .def_readonly("diagnostics", &FieldPolygons::diagnostics)
-      .def_readonly("coordinate_diagnostics", &FieldPolygons::coordinate_diagnostics)
+      .def_property_readonly(
+          "diagnostics",
+          diagnostic_view(&FieldPolygons::diagnostics, diagnostic_messages))
+      .def_property_readonly(
+          "coordinate_diagnostics",
+          diagnostic_view(&FieldPolygons::coordinate_diagnostics,
+                          diagnostic_messages))
+      .def_property_readonly(
+          "diagnostic_records",
+          diagnostic_view(&FieldPolygons::diagnostics, diagnostic_records))
+      .def_property_readonly(
+          "coordinate_diagnostic_records",
+          diagnostic_view(&FieldPolygons::coordinate_diagnostics,
+                          diagnostic_records))
       .def_readonly("boundary_sides", &FieldPolygons::boundary_sides)
       .def_readonly("boundary_segments", &FieldPolygons::boundary_segments)
       .def_readonly("boundary_lines", &FieldPolygons::boundary_lines)
@@ -960,14 +1026,19 @@ void bind_phase_diagram(py::module_ &m) {
           [](const ContourResult &r) { return diagram_name(r.diagram_type); })
       .def_readonly("lines", &ContourResult::lines)
       .def_readonly("resolved", &ContourResult::resolved)
-      .def_readonly("diagnostics", &ContourResult::diagnostics)
+      .def_property_readonly(
+          "diagnostics",
+          diagnostic_view(&ContourResult::diagnostics, diagnostic_messages))
+      .def_property_readonly(
+          "diagnostic_records",
+          diagnostic_view(&ContourResult::diagnostics, diagnostic_records))
       .def_readonly("equilibrium_solves", &ContourResult::equilibrium_solves)
       .def("to_dict", [](const ContourResult &r) {
         py::dict data;
-        data["schema_version"] = 1;
+        data["schema_version"] = 2;
         data["diagram_type"] = diagram_name(r.diagram_type);
         data["resolved"] = r.resolved;
-        data["diagnostics"] = r.diagnostics;
+        data["diagnostics"] = diagnostic_records(r.diagnostics);
         data["equilibrium_solves"] = r.equilibrium_solves;
         py::list lines;
         for (const auto &line : r.lines) {
@@ -1012,9 +1083,20 @@ void bind_phase_diagram(py::module_ &m) {
       .def_readonly("equilibrium_success", &PropertyGrid::equilibrium_success)
       .def_readonly("relaxed", &PropertyGrid::relaxed)
       .def_readonly("resolved", &PropertyGrid::resolved)
-      .def_readonly("diagnostics", &PropertyGrid::diagnostics)
-      .def_readonly("equilibrium_diagnostics",
-                    &PropertyGrid::equilibrium_diagnostics)
+      .def_property_readonly(
+          "diagnostics",
+          diagnostic_view(&PropertyGrid::diagnostics, diagnostic_messages))
+      .def_property_readonly(
+          "equilibrium_diagnostics",
+          diagnostic_view(&PropertyGrid::equilibrium_diagnostics,
+                          diagnostic_messages))
+      .def_property_readonly(
+          "equilibrium_diagnostic_records",
+          diagnostic_view(&PropertyGrid::equilibrium_diagnostics,
+                          diagnostic_records))
+      .def_property_readonly(
+          "diagnostic_records",
+          diagnostic_view(&PropertyGrid::diagnostics, diagnostic_records))
       .def_readonly("context", &PropertyGrid::context)
       .def_property_readonly("thermodynamic_validation",
                              [](const PropertyGrid &r) {

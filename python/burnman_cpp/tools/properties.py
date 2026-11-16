@@ -392,6 +392,16 @@ def evaluate_property_grid(
     )
 
 
+def _grid_diagnostic_records(batch, rows, cols):
+    """Rebase chunk-local diagnostic cells into the assembled grid."""
+    records = batch.equilibrium_diagnostic_records
+    for record in records:
+        if "grid_point" in record:
+            j, i = record["grid_point"]
+            record["grid_point"] = [j + (rows.start or 0), i + (cols.start or 0)]
+    return records
+
+
 def _saved_property_grid_batches(source):
     """Return full axes and bounded batches of completed retained equilibria."""
     from pathlib import Path

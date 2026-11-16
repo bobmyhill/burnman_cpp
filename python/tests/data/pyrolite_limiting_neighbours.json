@@ -22,7 +22,7 @@
     0.0,
     2500.0
   ],
-  "schema_version": 4,
+  "schema_version": 6,
   "diagram_type": "PT",
   "composition_start": {
     "Si": 0.7489522445881484,
@@ -139,7 +139,11 @@
     "Fe-hcp #3"
   ],
   "diagnostics": [
-    "No closed region resolved for sampled assemblage 0; increase seed density or inspect failed solves."
+    {
+      "category": "missing_assemblage",
+      "entity_id": 0,
+      "message": ""
+    }
   ],
   "resolved": false,
   "equilibrium_solves": 16,

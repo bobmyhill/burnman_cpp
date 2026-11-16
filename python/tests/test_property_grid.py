@@ -6,8 +6,7 @@ import numpy as np
 import pytest
 
 import burnman_cpp as bm
-from conftest import oxide_params
-
+from conftest import diagnostic, oxide_params
 
 def exchange_phases():
     phases = []
@@ -233,13 +232,8 @@ def test_final_grid_audit_replaces_stale_messages_without_equilibrating(single_p
     ).to_dict()
     data = dict(original)
     data.pop("thermodynamic_validation")
-    # Legacy snapshots can reconstruct energy from their phase compositions.
-    for row in data["solutions"]:
-        for state in row:
-            state.pop("gibbs")
-    stale = (
-        "grid [0, 0]: Thermodynamic inconsistency with a neighbouring "
-        "equilibrium remains after recovery."
+    stale = diagnostic(
+        "Completely revised consistency wording.", "thermodynamic", grid_point=[0, 0]
     )
     data.update(resolved=False, diagnostics=[stale], equilibrium_diagnostics=[stale])
     grid = bm.PhaseDiagramPropertyGrid.from_dict(data)
@@ -665,7 +659,9 @@ def test_reverse_pass_recovers_across_saved_batch_rows(
                     data["equilibrium_success"][j][i] = False
                     data["success"][j][i] = False
                     data["values"]["density"][j][i] = None
-                    message = f"grid [{j}, {i}]: forced failed equilibrium"
+                    message = diagnostic(
+                        "forced failed equilibrium", "equilibrium", grid_point=[j, i]
+                    )
                     data["diagnostics"].append(message)
                     data["equilibrium_diagnostics"].append(message)
                     data["resolved"] = False
@@ -710,7 +706,9 @@ def test_reverse_pass_preserves_property_failures_at_accepted_equilibria(single_
     data = grid.to_dict()
     data["success"][1][1] = False
     data["values"]["density"][1][1] = None
-    data["diagnostics"] = ["Field 1: grid [1, 1]: density: unavailable response"]
+    data["diagnostics"] = [
+        diagnostic("density: unavailable response", "property", 1, grid_point=[1, 1])
+    ]
     data["resolved"] = False
     grid = bm.PhaseDiagramPropertyGrid.from_dict(data)
     prepared = bm._core._PropertyGridder(source, [phase], grid.x, grid.y)
@@ -978,7 +976,7 @@ def test_saved_solutions_round_trip_and_add_properties(single_phase, tmp_path, s
     opener = gzip.open if suffix.endswith("gz") else open
     with opener(path, "rt", encoding="utf-8") as stream:
         data = json.load(stream)
-    assert data["schema_version"] == 1
+    assert data["schema_version"] == 2
     assert data["context"]["samples"] == []
 
 
@@ -1102,6 +1100,15 @@ def test_saved_grid_validation(single_phase):
     bad = copy.deepcopy(data)
     bad["solutions"][0][0] = None
     with pytest.raises(ValueError, match="missing its solution"):
+        bm.PhaseDiagramPropertyGrid.from_dict(bad)
+    for energy in [float("nan"), float("inf"), -float("inf")]:
+        bad = copy.deepcopy(data)
+        bad["solutions"][0][0]["gibbs"] = energy
+        with pytest.raises(ValueError, match="Gibbs energy must be finite"):
+            bm.PhaseDiagramPropertyGrid.from_dict(bad)
+    bad = copy.deepcopy(data)
+    del bad["solutions"][0][0]["gibbs"]
+    with pytest.raises(KeyError, match="gibbs"):
         bm.PhaseDiagramPropertyGrid.from_dict(bad)
 
 

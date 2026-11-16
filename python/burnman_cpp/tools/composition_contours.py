@@ -11,7 +11,12 @@ import operator
 import numpy as np
 
 from .. import _core
-from .properties import _saved_property_grid_batches, load_property_grid
+from .properties import (
+    _grid_diagnostic_records,
+    _saved_property_grid_batches,
+    load_property_grid,
+)
+from .phase_diagram import _unique_diagnostics
 
 _VOLUME_SYMBOLS = {"volume_fraction", "standard_volume_fraction"}
 
@@ -317,7 +322,7 @@ def phase_composition_grid(
         if not np.array_equal(batch.x, x[cols]) or not np.array_equal(batch.y, y[rows]):
             raise ValueError("Chunk coordinates disagree with the complete grid axes.")
         context = current
-        equilibrium_diagnostics.extend(batch.equilibrium_diagnostics)
+        equilibrium_diagnostics.extend(_grid_diagnostic_records(batch, rows, cols))
         field_numbers[rows, cols] = batch.field_numbers
         equilibrium_success[rows, cols] = batch.equilibrium_success
         covered[rows, cols] = True
@@ -359,7 +364,14 @@ def phase_composition_grid(
                         )
                 except (ValueError, RuntimeError) as error:
                     evaluation_diagnostics.append(
-                        f"grid [{(rows.start or 0)+j}, {(cols.start or 0)+i}]: {error}"
+                        dict(
+                            category="property",
+                            grid_point=[
+                                int((rows.start or 0) + j),
+                                int((cols.start or 0) + i),
+                            ],
+                            message=str(error),
+                        )
                     )
     if context is None or not covered.all():
         raise ValueError("Saved equilibrium batches do not cover the complete grid.")
@@ -371,16 +383,19 @@ def phase_composition_grid(
     success = present & np.isfinite(values)
     undefined = int(np.count_nonzero(present & ~success))
     values[~success] = np.nan
-    equilibrium_diagnostics = list(dict.fromkeys(equilibrium_diagnostics))
+    equilibrium_diagnostics = _unique_diagnostics(equilibrium_diagnostics)
     diagnostics = [*equilibrium_diagnostics, *evaluation_diagnostics]
     if undefined:
         diagnostics.append(
-            f"{undefined} composition values are undefined or nonfinite; masked."
+            dict(
+                category="property",
+                message=f"{undefined} composition values are undefined or nonfinite; masked.",
+            )
         )
     return _core.PhaseDiagramPropertyGrid.from_dict(
         dict(
             format="burnman_cpp.property_grid",
-            schema_version=1,
+            schema_version=2,
             context=context,
             x=x,
             y=y,
@@ -392,7 +407,7 @@ def phase_composition_grid(
             field_numbers=field_numbers,
             success=success,
             equilibrium_success=equilibrium_success,
-            diagnostics=list(dict.fromkeys(diagnostics)),
+            diagnostics=_unique_diagnostics(diagnostics),
             equilibrium_diagnostics=equilibrium_diagnostics,
             equilibrium_solves=0,
             solutions=None,

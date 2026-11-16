@@ -35,7 +35,7 @@ struct Engine;
 /// Subdivide boundary segments with equilibrium corrector solves until their
 /// coordinate spacing meets resolution. Return messages for unmet spacing;
 /// branch discovery/recovery remains the tracing calculation's responsibility.
-std::vector<std::string> refine_line_spacing(
+Diagnostics refine_line_spacing(
     Result &, Engine &, const LineResolution &,
     const std::function<bool(Boundary &, std::size_t)> &refine_segment);
 

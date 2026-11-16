@@ -31,10 +31,6 @@
 #include <set>
 #include <sstream>
 namespace burnman::phase_diagrams::detail {
-Eigen::Vector2d Tracer::normalise(double first, double second) const {
-  return (Eigen::Vector2d(first, second) - origin).cwiseQuotient(range);
-}
-
 Eigen::Vector2d Tracer::normalise(const Eigen::Vector2d &q) const {
   return (q - origin).cwiseQuotient(range);
 }
@@ -366,10 +362,8 @@ void Tracer::add_sample(const State &state, int existing) {
     }
   } else
     result.samples.push_back(canonical);
-  if (!state.success) {
-    result.diagnostics.push_back(failed_sample_diagnostic(state));
+  if (!state.success)
     return;
-  }
   auto ids = engine.active_phases(canonical);
   auto it = field_index.find(ids);
   int id;
@@ -2097,14 +2091,6 @@ void Tracer::trace(const Seed &seed) {
       }
     }
     record_incident_line(result, line);
-    if (backward_status.find("unresolved") != std::string::npos ||
-        forward_status.find("unresolved") != std::string::npos ||
-        backward_status == "corrector failed" ||
-        forward_status == "corrector failed" ||
-        backward_status == "trace step limit" ||
-        forward_status == "trace step limit")
-      result.diagnostics.push_back("Boundary " + std::to_string(line.id) +
-                                   ": " + line.termination);
     result.boundaries.push_back(std::move(line));
   } catch (const std::exception &e) {
     if (engine.settings.verbose)
@@ -2461,13 +2447,13 @@ State Tracer::field_state(const Eigen::Vector2d &location) {
   return engine.stable_at(location).state;
 }
 
-bool Tracer::model_excluded(double first, double second) const {
-  Eigen::Vector2d p = normalise(first, second);
+bool Tracer::model_excluded(const Eigen::Vector2d &q) const {
+  const auto p = normalise(q);
   for (auto &region : result.excluded_regions) {
     bool inside = false;
     for (int i = 1; i < region.rows(); ++i) {
-      auto a = normalise(region(i - 1, 0), region(i - 1, 1)),
-           b = normalise(region(i, 0), region(i, 1));
+      auto a = normalise({region(i - 1, 0), region(i - 1, 1)}),
+           b = normalise({region(i, 0), region(i, 1)});
       if ((a[1] > p[1]) != (b[1] > p[1]) &&
           p[0] < a[0] + (p[1] - a[1]) * (b[0] - a[0]) / (b[1] - a[1]))
         inside = !inside;
@@ -2476,11 +2462,6 @@ bool Tracer::model_excluded(double first, double second) const {
       return true;
   }
   return false;
-}
-
-void Tracer::model_domain() {
-  if (result.excluded_regions.empty())
-    result.excluded_regions = excluded_model_regions(engine, origin, range);
 }
 
 void Tracer::reconcile_boundaries(bool transfer_labels_only) {
@@ -2579,7 +2560,8 @@ void Tracer::index_boundaries() {
 
 void Tracer::apply_model_domain() {
   separate_junctions();
-  model_domain();
+  if (result.excluded_regions.empty())
+    result.excluded_regions = excluded_model_regions(engine, origin, range);
   detail::join_frame_limits(result, engine);
   detail::join_model_limits(result, engine);
   for (auto &state : result.samples)
@@ -2707,9 +2689,6 @@ void Tracer::resolve_boundaries() {
     // Short duplicates may become verifiable only after recovering side labels.
     reconcile_boundaries();
     index_boundaries();
-    // Rebuild from surviving records; earlier failures may now be recovered.
-    result.diagnostics.clear();
-    result.spacing_diagnostics.clear();
     if (pass)
       return;
     // Retrace unstable chords once;

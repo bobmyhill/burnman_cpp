@@ -1361,7 +1361,7 @@ TEST_CASE("Fe-O TX closes fields with unequal composition endpoints",
   auto geometry = ps::field_polygons(result);
   CHECK(result.resolved == geometry.diagnostics.empty());
   for (const auto &diagnostic : geometry.diagnostics)
-    CHECK(diagnostic.find("label is provisional") != std::string::npos);
+    CHECK(diagnostic.text().find("label is provisional") != std::string::npos);
   REQUIRE(geometry.polygons.size() == 4);
   double area = 0.;
   for (const auto &field : geometry.polygons) {

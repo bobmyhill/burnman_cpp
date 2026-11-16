@@ -96,10 +96,10 @@ std::vector<int> interior_boundaries(const Result &result,
   return crossings;
 }
 
-std::vector<std::string> refine_line_spacing(
+Diagnostics refine_line_spacing(
     Result &result, Engine &engine, const LineResolution &resolution,
     const std::function<bool(Boundary &, std::size_t)> &refine_segment) {
-  std::vector<std::string> issues;
+  Diagnostics issues;
   const auto axes = diagram_axes(result.section.type);
   auto measured = [&](Eigen::Vector2d q) {
     if (resolution.reciprocal_volume)
@@ -159,12 +159,12 @@ std::vector<std::string> refine_line_spacing(
       progress();
     ++completed;
     if (failed)
-      issues.push_back("Boundary " + std::to_string(line.id) +
-                       ": requested line resolution was not reached on " +
-                       std::to_string(failed) + " segments" +
-                       (double(added) >= limit
-                            ? " (refinement limit reached)."
-                            : " (equilibrium refinement failed)."));
+      issues.push_back(
+          {DiagnosticCategory::spacing, line.id,
+           "requested line resolution was not reached on " +
+               std::to_string(failed) + " segments" +
+               (double(added) >= limit ? " (refinement limit reached)."
+                                       : " (equilibrium refinement failed).")});
   }
   return issues;
 }

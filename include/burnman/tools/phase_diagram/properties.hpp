@@ -26,7 +26,6 @@ struct GridSolution {
   BoundaryPoint state;
   double n_moles = 0.;
   // Total G for inexpensive consistency checks during reverse/batched retries.
-  // Legacy archives without it can reconstruct G from the retained solution.
   double gibbs = std::numeric_limits<double>::quiet_NaN();
   Eigen::ArrayXd molar_fractions;
   // The exact active basis and coefficients used by the accepted solve.
@@ -56,8 +55,8 @@ struct PropertyGrid {
   Eigen::MatrixXi field_numbers;
   Eigen::Array<bool, Eigen::Dynamic, Eigen::Dynamic> success;
   Eigen::Array<bool, Eigen::Dynamic, Eigen::Dynamic> equilibrium_success;
-  std::vector<std::string> diagnostics;
-  std::vector<std::string> equilibrium_diagnostics;
+  Diagnostics diagnostics;
+  Diagnostics equilibrium_diagnostics;
   int equilibrium_solves = 0;
   ThermodynamicValidation thermodynamic_validation;
   // Temporary audit evidence; saved grids reconstruct it from their solutions.

@@ -14,9 +14,8 @@ from .composition_contours import (
     _check_context,
     _secondary_branch,
 )
-from .phase_diagram import _value
-from .properties import _saved_property_grid_batches
-
+from .phase_diagram import _unique_diagnostics, _value
+from .properties import _grid_diagnostic_records, _saved_property_grid_batches
 
 def _phase_selection(phases, include_phases, exclude_phases):
     """Resolve candidate-name filters and retain their normalized options."""
@@ -320,7 +319,7 @@ def phase_diagram_property_grid(
             batch.equilibrium_success,
         )
         covered[rows, cols] = True
-        equilibrium_diagnostics.extend(batch.equilibrium_diagnostics)
+        equilibrium_diagnostics.extend(_grid_diagnostic_records(batch, rows, cols))
         block = values[rows, cols]
         for j, i in np.argwhere(batch.equilibrium_success):
             solution = batch.solution_at(int(j), int(i))
@@ -335,7 +334,14 @@ def phase_diagram_property_grid(
                 block[j, i] = value
             except (ValueError, RuntimeError) as error:
                 diagnostics.append(
-                    f"grid [{(rows.start or 0)+j}, {(cols.start or 0)+i}]: {property_name}: {error}"
+                    dict(
+                        category="property",
+                        grid_point=[
+                            int((rows.start or 0) + j),
+                            int((cols.start or 0) + i),
+                        ],
+                        message=f"{property_name}: {error}",
+                    )
                 )
     if context is None or not covered.all():
         raise ValueError("Saved equilibrium batches do not cover the complete grid.")
@@ -343,11 +349,11 @@ def phase_diagram_property_grid(
     quantity = "property: " + property_name
     if options:
         quantity += "; options=" + json.dumps(options)
-    equilibrium_diagnostics = list(dict.fromkeys(equilibrium_diagnostics))
+    equilibrium_diagnostics = _unique_diagnostics(equilibrium_diagnostics)
     return _core.PhaseDiagramPropertyGrid.from_dict(
         dict(
             format="burnman_cpp.property_grid",
-            schema_version=1,
+            schema_version=2,
             context=context,
             x=x,
             y=y,

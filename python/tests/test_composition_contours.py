@@ -83,6 +83,7 @@ def stored_grid(phases, *, diagram=None, x=None, y=None, phase_states=None):
                     mass_balance_error=0.0,
                     minimum_affinity=0.0,
                     residual=0.0,
+                    gibbs=0.0,  # Synthetic metadata; these tests do not audit energy.
                     n_moles=sum(s["amount"] for s in states),
                     molar_fractions=[1.0 / len(states)] * len(states),
                     phases=states,
@@ -97,7 +98,7 @@ def stored_grid(phases, *, diagram=None, x=None, y=None, phase_states=None):
     return bm.PhaseDiagramPropertyGrid.from_dict(
         dict(
             format="burnman_cpp.property_grid",
-            schema_version=1,
+            schema_version=2,
             context=context,
             x=x,
             y=y,

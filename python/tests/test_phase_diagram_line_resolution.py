@@ -20,7 +20,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 import burnman_cpp as bm
-from conftest import oxide_params
+from conftest import diagnostic, oxide_params
 from test_phase_diagram import crossing_phases, curved_phases, pure, settings
 from test_composition_phase_diagram import (
     START,
@@ -142,7 +142,7 @@ def test_refinement_preserves_graph_ids_labels_and_saved_evidence(
     saved = deepcopy(original)
     if unresolved:
         saved["resolved"] = False
-        saved["diagnostics"] = ["Boundary 7: saved unresolved connection."]
+        saved["diagnostics"] = [diagnostic("saved unresolved connection.", "trace", 7)]
         saved["settings"]["max_recovery_passes"] = 5
     # Saved IDs are identities, even when no longer contiguous after editing.
     ids = {b["id"]: 7 + 10 * i for i, b in enumerate(saved["boundaries"])}
@@ -165,7 +165,7 @@ def test_refinement_preserves_graph_ids_labels_and_saved_evidence(
     )
     after = result.to_dict()
     assert result.resolved == saved["resolved"]
-    assert result.diagnostics == saved["diagnostics"]
+    assert result.diagnostic_records == saved["diagnostics"]
     assert result.spacing_resolved and not result.spacing_diagnostics
     for key in ("nodes", "fields", "samples", "excluded_regions", "phase_names"):
         assert after[key] == saved[key]
@@ -369,7 +369,7 @@ def test_refinement_reports_an_ordering_jump_without_repair():
         resolution=(21, 21),
     )
     assert not result.resolved
-    assert result.diagnostics == saved["diagnostics"]
+    assert result.diagnostic_records == saved["diagnostics"]
     assert not result.spacing_resolved
     assert any("equilibrium refinement failed" in d for d in result.spacing_diagnostics)
     after = result.to_dict()

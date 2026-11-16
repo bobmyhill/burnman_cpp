@@ -14,16 +14,41 @@
 #include "burnman/tools/phase_diagram/common.hpp"
 #include <cmath>
 #include <map>
-#include <sstream>
+
+namespace burnman::phase_diagrams {
+std::string Diagnostic::text() const {
+  const auto id = std::to_string(entity_id);
+  if (grid_point[0] >= 0) {
+    const auto field =
+        category == DiagnosticCategory::property && entity_id >= 0
+            ? "Field " + id + ": "
+            : "";
+    return field + "grid [" + std::to_string(grid_point[0]) + ", " +
+           std::to_string(grid_point[1]) + "]: " + message;
+  }
+  switch (category) {
+  case DiagnosticCategory::trace:
+  case DiagnosticCategory::boundary_note:
+  case DiagnosticCategory::boundary:
+  case DiagnosticCategory::spacing:
+    return "Boundary " + id + ": " + message;
+  case DiagnosticCategory::field:
+    return "Field " + id + message;
+  case DiagnosticCategory::junction:
+    return "Unpaired internal junction at node " + id + ".";
+  case DiagnosticCategory::critical_endpoint:
+    return "Unpaired solution critical endpoint at node " + id +
+           "; its adjoining field remains unresolved.";
+  case DiagnosticCategory::missing_assemblage:
+    return "No closed region resolved for sampled assemblage " + id +
+           "; increase seed density or inspect failed solves.";
+  default:
+    return message;
+  }
+}
+} // namespace burnman::phase_diagrams
 
 namespace burnman::phase_diagrams::detail {
-std::string failed_sample_diagnostic(const State &state) {
-  std::ostringstream message;
-  message << "Unresolved seed P=" << state.pressure
-          << " Pa, T=" << state.temperature << " K: " << state.message;
-  return message.str();
-}
-
 bool intersects_region(const Eigen::Vector2d &a, const Eigen::Vector2d &b,
                        const std::array<std::array<double, 2>, 2> &ranges,
                        double parallel_tolerance) {
