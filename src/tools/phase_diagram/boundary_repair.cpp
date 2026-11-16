@@ -151,6 +151,61 @@ std::set<int> reaction_overtraces(const Result &result) {
 }
 
 namespace {
+struct SolvusBracket {
+  struct Endpoint {
+    double coordinate;
+    WorkState work;
+  };
+  Engine &engine;
+  std::vector<int> low, high;
+  int high_side = 0; // Positive when the upper endpoint has more phases.
+
+  SolvusBracket(Engine &e, const Boundary &arm) : engine(e) {
+    const bool a_is_smaller = arm.side_a.size() < arm.side_b.size();
+    low = engine.canonical_ids(a_is_smaller ? arm.side_a : arm.side_b);
+    high = engine.canonical_ids(a_is_smaller ? arm.side_b : arm.side_a);
+  }
+  bool valid() const {
+    return !low.empty() && high.size() == low.size() + 1 &&
+           std::includes(high.begin(), high.end(), low.begin(), low.end());
+  }
+  int side(const WorkState &work) const {
+    if (!work.state.success)
+      return 0;
+    const auto ids = engine.active_phases(work.state);
+    return ids == high ? 1 : (ids == low ? -1 : 0);
+  }
+  bool brackets(const Endpoint &lower, const Endpoint &upper) {
+    const int upper_side = side(upper.work);
+    if (!upper_side || side(lower.work) != -upper_side ||
+        (high_side && high_side != upper_side))
+      return false;
+    high_side = upper_side;
+    return true;
+  }
+  // Refine an accepted bracket. Each caller supplies its midpoint coordinate:
+  // requested offset for a gap, solved pressure for continuation to the frame.
+  template <typename Evaluate>
+  bool refine(Endpoint &lower, Endpoint &upper, int iterations,
+              Evaluate at) const {
+    try {
+      for (int iteration = 0; iteration < iterations; ++iteration) {
+        auto trial = at(.5 * (lower.coordinate + upper.coordinate));
+        const int trial_side = side(trial.work);
+        if (!trial_side)
+          return false;
+        (trial_side == high_side ? upper : lower) = std::move(trial);
+      }
+      return true;
+    } catch (const std::exception &) {
+      return false;
+    }
+  }
+  const State &high_state(const Endpoint &lower, const Endpoint &upper) const {
+    return (high_side > 0 ? upper : lower).work.state;
+  }
+};
+
 BoundaryPoint boundary_point_from_state(const State &state) {
   BoundaryPoint point;
   copy_coordinates(point, state);
@@ -186,9 +241,6 @@ std::size_t recover_solvus_branch_gaps(Result &result, Engine &engine) {
     return (diagram_coordinates(node, DiagramType::PT) - origin)
         .cwiseQuotient(span)
         .eval();
-  };
-  auto phases = [&](const WorkState &work) {
-    return engine.active_phases(work.state);
   };
   std::size_t added = 0;
   for (std::size_t i = 0; i < result.nodes.size(); ++i) {
@@ -233,14 +285,8 @@ std::size_t recover_solvus_branch_gaps(Result &result, Engine &engine) {
           first.temperature < second.temperature ? *arm_a : *arm_b;
       const Boundary &end_arm =
           first.temperature < second.temperature ? *arm_b : *arm_a;
-      const auto low = engine.canonical_ids(
-          start_arm.side_a.size() < start_arm.side_b.size() ? start_arm.side_a
-                                                            : start_arm.side_b);
-      const auto high = engine.canonical_ids(
-          start_arm.side_a.size() < start_arm.side_b.size() ? start_arm.side_b
-                                                            : start_arm.side_a);
-      if (low.empty() || high.size() != low.size() + 1 ||
-          !std::includes(high.begin(), high.end(), low.begin(), low.end()))
+      SolvusBracket front(engine, start_arm);
+      if (!front.valid())
         continue;
       const Eigen::Vector2d a = position(start), b = position(end);
       const Eigen::Vector2d tangent = b - a;
@@ -255,14 +301,13 @@ std::size_t recover_solvus_branch_gaps(Result &result, Engine &engine) {
       line.zero_phase = -1;
       line.start_node = start.id;
       line.end_node = end.id;
-      line.assemblage = high;
+      line.assemblage = front.high;
       line.reaction_kind = ReactionKind::phase_out;
       line.termination = "boundary continuation; boundary continuation";
       line.points.push_back(start_arm.start_node == start.id
                                 ? start_arm.points.front()
                                 : start_arm.points.back());
       bool accepted = true;
-      int right_side = 0;
       // Locate the stable phase front on each cross-section. These points
       // approach the front from the high-phase side; they are not exact
       // coexistence solves, so retain the explicit phase labels on each side.
@@ -271,44 +316,19 @@ std::size_t recover_solvus_branch_gaps(Result &result, Engine &engine) {
             (a + (static_cast<double>(step) / 12.) * tangent).eval();
         const double offset = .1 * length;
         auto at = [&](double distance) {
-          return engine.stable_at(
+          auto work = engine.stable_at(
               origin + (centre + distance * right).cwiseProduct(span));
+          return SolvusBracket::Endpoint{distance, std::move(work)};
         };
         try {
           auto left = at(-offset), right_state = at(offset);
-          const auto left_ids = phases(left), right_ids = phases(right_state);
-          if (!left.state.success || !right_state.state.success ||
-              !((left_ids == low && right_ids == high) ||
-                (left_ids == high && right_ids == low)) ||
-              (right_side && right_side != (right_ids == high ? 1 : -1))) {
+          if (!front.brackets(left, right_state) ||
+              !front.refine(left, right_state, 18, at)) {
             accepted = false;
             break;
           }
-          right_side = right_ids == high ? 1 : -1;
-          double lower = -offset, upper = offset;
-          for (int iteration = 0; iteration < 18; ++iteration) {
-            const double middle = .5 * (lower + upper);
-            auto trial = at(middle);
-            if (!trial.state.success) {
-              accepted = false;
-              break;
-            }
-            const auto ids = phases(trial);
-            if (ids == left_ids) {
-              lower = middle;
-              left = std::move(trial);
-            } else if (ids == right_ids) {
-              upper = middle;
-              right_state = std::move(trial);
-            } else {
-              accepted = false;
-              break;
-            }
-          }
-          if (!accepted)
-            break;
-          const auto &state = (left_ids == high ? left : right_state).state;
-          line.points.push_back(boundary_point_from_state(state));
+          line.points.push_back(
+              boundary_point_from_state(front.high_state(left, right_state)));
         } catch (const std::exception &) {
           accepted = false;
         }
@@ -318,8 +338,8 @@ std::size_t recover_solvus_branch_gaps(Result &result, Engine &engine) {
       line.points.push_back(end_arm.start_node == end.id
                                 ? end_arm.points.front()
                                 : end_arm.points.back());
-      line.side_a = right_side > 0 ? high : low;
-      line.side_b = right_side > 0 ? low : high;
+      line.side_a = front.high_side > 0 ? front.high : front.low;
+      line.side_b = front.high_side > 0 ? front.low : front.high;
       const int start_arm_id = start_arm.id, end_arm_id = end_arm.id;
       result.boundaries.push_back(std::move(line));
       rebuild_boundary_incidence(result);
@@ -345,9 +365,6 @@ std::size_t continue_boundary_past_coalescence(Result &result, Engine &engine) {
   const double p_span = p_max - p_min;
   const double t_min = result.temperature_range[0];
   const double t_max = result.temperature_range[1];
-  auto phases = [&](const WorkState &work) {
-    return engine.active_phases(work.state);
-  };
   std::size_t added = 0;
   const auto original_nodes = result.nodes.size();
   for (std::size_t i = 0; i < original_nodes; ++i) {
@@ -376,12 +393,8 @@ std::size_t continue_boundary_past_coalescence(Result &result, Engine &engine) {
     const double frame = dt < 0. ? t_min : t_max;
     if ((frame - start.temperature) * dt <= 0.)
       continue;
-    const auto low = engine.canonical_ids(
-        arm.side_a.size() < arm.side_b.size() ? arm.side_a : arm.side_b);
-    const auto high = engine.canonical_ids(
-        arm.side_a.size() < arm.side_b.size() ? arm.side_b : arm.side_a);
-    if (high.size() != low.size() + 1 ||
-        !std::includes(high.begin(), high.end(), low.begin(), low.end()))
+    SolvusBracket front(engine, arm);
+    if (!front.valid())
       continue;
     const int steps = std::clamp(
         static_cast<int>(std::ceil(std::abs(frame - start.temperature) /
@@ -394,7 +407,7 @@ std::size_t continue_boundary_past_coalescence(Result &result, Engine &engine) {
     line.id = burnman::utils::checked_int(result.boundaries.size());
     line.start_node = start.id;
     line.zero_phase = -1;
-    line.assemblage = high;
+    line.assemblage = front.high;
     line.reaction_kind = ReactionKind::phase_out;
     line.side_a = arm_starts_here ? arm.side_b : arm.side_a;
     line.side_b = arm_starts_here ? arm.side_a : arm.side_b;
@@ -405,13 +418,16 @@ std::size_t continue_boundary_past_coalescence(Result &result, Engine &engine) {
     // Bracket the stable assemblage change at each temperature instead of
     // assuming that this coalescence ends the geometric phase boundary.
     bool accepted = true;
-    int high_pressure_side = 0;
     for (int step = 1; step <= steps && accepted; ++step) {
       const double t =
           start.temperature +
           (frame - start.temperature) * (static_cast<double>(step) / steps);
       const double predicted = previous_p + slope * (t - previous_t);
-      WorkState below, above;
+      SolvusBracket::Endpoint below, above;
+      auto at = [&](double pressure) {
+        auto work = engine.stable_at({pressure, t});
+        return SolvusBracket::Endpoint{work.state.pressure, std::move(work)};
+      };
       bool bracketed = false;
       for (int trial = 0; trial < 7; ++trial) {
         const double offset = std::ldexp(p_span * .001, trial);
@@ -420,49 +436,20 @@ std::size_t continue_boundary_past_coalescence(Result &result, Engine &engine) {
         if (left >= right)
           continue;
         try {
-          below = engine.stable_at({left, t});
-          above = engine.stable_at({right, t});
-          const auto a = phases(below), b = phases(above);
-          if (below.state.success && above.state.success &&
-              ((a == low && b == high) || (a == high && b == low)) &&
-              (!high_pressure_side ||
-               high_pressure_side == (b == high ? 1 : -1))) {
-            high_pressure_side = b == high ? 1 : -1;
+          below = at(left);
+          above = at(right);
+          if (front.brackets(below, above)) {
             bracketed = true;
             break;
           }
         } catch (const std::exception &) {
         }
       }
-      if (!bracketed) {
+      if (!bracketed || !front.refine(below, above, 24, at)) {
         accepted = false;
         break;
       }
-      for (int iteration = 0; iteration < 24; ++iteration) {
-        const double middle =
-            .5 * (below.state.pressure + above.state.pressure);
-        try {
-          auto trial = engine.stable_at({middle, t});
-          if (!trial.state.success) {
-            accepted = false;
-            break;
-          }
-          if (phases(trial) == phases(below))
-            below = std::move(trial);
-          else if (phases(trial) == phases(above))
-            above = std::move(trial);
-          else {
-            accepted = false;
-            break;
-          }
-        } catch (const std::exception &) {
-          accepted = false;
-          break;
-        }
-      }
-      if (!accepted)
-        break;
-      const auto &state = (high_pressure_side > 0 ? above : below).state;
+      const auto &state = front.high_state(below, above);
       line.points.push_back(boundary_point_from_state(state));
       slope = (state.pressure - previous_p) / (t - previous_t);
       previous_p = state.pressure;
@@ -475,7 +462,7 @@ std::size_t continue_boundary_past_coalescence(Result &result, Engine &engine) {
     end.kind = "domain_edge";
     copy_coordinates(end, line.points.back());
     end.temperature = frame;
-    end.assemblage = high;
+    end.assemblage = front.high;
     line.end_node = end.id;
     result.nodes.push_back(std::move(end));
     result.boundaries.push_back(std::move(line));
