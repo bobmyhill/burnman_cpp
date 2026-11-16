@@ -68,7 +68,7 @@ WorkState recover_thermodynamic_state(Engine &, WorkState,
 /// varies the second diagram coordinate. Update only flagged states, notifying
 /// the caller so its saved samples and assemblage memberships stay current.
 /// Return outstanding violations and log the added solves/time when verbose.
-std::vector<std::string>
+Diagnostics
 recover_thermodynamic_grid(Engine &, std::vector<WorkState> &, int columns,
                            const std::function<void(std::size_t)> &updated);
 } // namespace burnman::phase_diagrams::detail

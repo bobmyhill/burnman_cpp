@@ -48,8 +48,7 @@ class Tracer {
   std::map<std::vector<int>, Eigen::MatrixXd> amount_vertices;
   Eigen::VectorXd critical_axis;
   std::set<int> unstable_lines;
-  std::vector<std::string> thermodynamic_diagnostics;
-  Eigen::Vector2d normalise(double first, double second) const;
+  Diagnostics thermodynamic_diagnostics;
   Eigen::Vector2d normalise(const Eigen::Vector2d &q) const;
   template <typename Point> Eigen::Vector2d coordinates(const Point &p) const {
     return diagram_coordinates(p, result.section.type);
@@ -202,14 +201,10 @@ class Tracer {
                       bool reconnect = false);
   // Repair an unsuccessful seed using the discovered neighbouring fields.
   State field_state(const Eigen::Vector2d &location);
-  bool model_excluded(double first, double second) const;
+  bool model_excluded(const Eigen::Vector2d &) const;
   template <typename Point> bool model_excluded(const Point &point) const {
-    const auto q = diagram_coordinates(point, result.section.type);
-    return model_excluded(q[0], q[1]);
+    return model_excluded(coordinates(point));
   }
-  // Find the lower-pressure EOS feasibility limit. This is a boundary of
-  // the admissible model domain, not a zero-amount phase-equilibrium line.
-  void model_domain();
   // Resuming overlapping partial traces can complete several records of the
   // same physical edge. Keep one polyline so chord differences do not create
   // artificial sliver fields or inflate the number of branches at a node.
@@ -226,9 +221,8 @@ class Tracer {
   // returned once to the ordinary tracing queue, then checked by the same
   // process. Accepted, unrelated boundaries retain their saved equilibria.
   void resolve_boundaries();
-  // Record incomplete trace ends and failed equilibrium samples, rebuilding
-  // node incidence from the surviving lines rather than stale trace history.
-  void collect_boundary_diagnostics();
+  // Remove node references from unfinished trace ends before graph repair.
+  void detach_unfinished_endpoints();
   // Add interior equilibrium evidence for closed fields whose labels remain
   // provisional or unknown after perimeter tests.
   void sample_unlabelled_fields();

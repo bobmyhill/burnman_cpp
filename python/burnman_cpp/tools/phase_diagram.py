@@ -35,6 +35,11 @@ def save_phase_diagram(result, path, *, metadata=None):
     can later be plotted or refined without repeating the initial calculation.
     Candidate model objects are not serialised; refinement needs them separately.
 
+    Native schema 6 stores diagnostics as category/message records, with optional
+    entity_id or grid_point provenance. Native result.diagnostics and the other
+    message views remain lists of readable text. Text-only saved diagnostics are
+    not upgraded automatically.
+
     All coordinates retain their native SI units. Optional ``metadata`` adds
     top-level entries, e.g. a model set or oxide amounts. Result entries take
     precedence, so ``metadata=previous`` retains extra information when saving
@@ -43,6 +48,7 @@ def save_phase_diagram(result, path, *, metadata=None):
     Parent directories are created as needed. Non-finite values are rejected
     before writing, leaving an existing file unchanged if serialization fails.
     """
+
     import json
     from pathlib import Path
 
@@ -74,10 +80,37 @@ def load_phase_diagram(path):
 
 
 def _value(record, name, default=None):
-    return (
+    value = (
         record.get(name, default)
         if isinstance(record, Mapping)
         else getattr(record, name, default)
+    )
+    if (
+        isinstance(record, Mapping)
+        and value is not None
+        and name
+        in (
+            "diagnostics",
+            "coordinate_diagnostics",
+            "spacing_diagnostics",
+            "equilibrium_diagnostics",
+        )
+    ):
+        return _core.phase_diagram_diagnostic_messages(value)
+    return value
+
+
+def _unique_diagnostics(records):
+    return list(
+        {
+            (
+                d["category"],
+                d.get("entity_id", -1),
+                tuple(d.get("grid_point", [-1, -1])),
+                d["message"],
+            ): d
+            for d in records
+        }.values()
     )
 
 
@@ -203,8 +236,6 @@ def phase_diagram_problem_regions(result, *, padding=0.05, **display):
     clipping and SI defaults of ``phase_diagram_field_regions``. This selects
     windows only; ``calculate_phase_diagram_patch`` performs the new calculations.
     """
-    import re
-
     data = _phase_diagram_data(result)
     regions = {
         f"Field {n}": region
@@ -213,9 +244,10 @@ def phase_diagram_problem_regions(result, *, padding=0.05, **display):
         ).items()
     }
     flagged = {
-        int(match[1])
-        for message in data.get("diagnostics", [])
-        if (match := re.match(r"Boundary\s+(\d+)\b", message))
+        d["entity_id"]
+        for d in data.get("diagnostics", [])
+        if d["category"] in ("trace", "boundary", "boundary_note", "spacing")
+        and d.get("entity_id", -1) >= 0
     }
     _, axes = _section_axes(data)
     names = ["composition_coordinate" if a == "composition" else a for a in axes]
@@ -228,13 +260,9 @@ def phase_diagram_problem_regions(result, *, padding=0.05, **display):
                     data, points, padding, display
                 )
     missing = {
-        int(match[1])
-        for message in data.get("diagnostics", [])
-        if (
-            match := re.match(
-                r"No closed region resolved for sampled assemblage (\d+)\b", message
-            )
-        )
+        d["entity_id"]
+        for d in data.get("diagnostics", [])
+        if d["category"] == "missing_assemblage"
     }
     samples = data.get("samples", [])
     for field in data.get("fields", []):
@@ -366,7 +394,6 @@ def merge_phase_diagrams(base, patch, *, join_tolerance=None, phases=None):
     joins; outstanding problems are in ``dict['diagnostics']``.
     """
     import math
-    import re
     import numpy as np
 
     base, patch = _phase_diagram_data(base), _phase_diagram_data(patch)
@@ -589,14 +616,13 @@ def merge_phase_diagrams(base, patch, *, join_tolerance=None, phases=None):
         lines.append(line)
         for key in set(s.nodes) - {None}:
             new_nodes[node_map[key]]["incident_lines"].append(i)
-        if any(
-            "unresolved" in status or "failed" in status or status == "trace step limit"
-            for status in s.statuses
-        ):
-            messages.append(f"Boundary {i}: {line['termination']}")
         if not line.get("side_a") or not line.get("side_b"):
             messages.append(
-                f"Boundary {i}: neighbouring fields could not be distinguished within tolerances."
+                dict(
+                    category="boundary",
+                    entity_id=i,
+                    message="neighbouring fields could not be distinguished within tolerances.",
+                )
             )
 
     samples, fields, by_phases = [], [], {}
@@ -620,7 +646,13 @@ def merge_phase_diagrams(base, patch, *, join_tolerance=None, phases=None):
             by_phases[key]["sample_indices"].extend(indices)
 
     merged = deepcopy(base)
-    merged.update(nodes=new_nodes, boundaries=lines, samples=samples, fields=fields)
+    merged.update(
+        schema_version=6,
+        nodes=new_nodes,
+        boundaries=lines,
+        samples=samples,
+        fields=fields,
+    )
     # Changed samples and indices invalidate the source audit's coverage.
     merged.pop("thermodynamic_validation", None)
 
@@ -662,32 +694,42 @@ def merge_phase_diagrams(base, patch, *, join_tolerance=None, phases=None):
         merged[key] = base.get(key, 0) + patch.get(key, 0)
     # These messages refer to the old graph. Regenerate them below rather than
     # retaining obsolete Field/Boundary/Node numbers after clipping.
-    graph_message = re.compile(
-        r"^(Field |Region |Unpaired |No closed region |Thermodynamic audit: )"
-    )
-    for source, data in enumerate((base, patch)):
-        if source == 0 and np.array_equal(box, domain):
-            continue
-        for d in data.get("diagnostics", []):
-            boundary = re.match(r"Boundary (\d+): (.*)", d)
-            if boundary:
-                old_line = next(
-                    (b for b in data["boundaries"] if b["id"] == int(boundary[1])), None
-                )
-                if old_line and boundary[2] not in (
-                    old_line.get("termination"),
-                    "neighbouring fields could not be distinguished within tolerances.",
-                ):
-                    messages.extend(
-                        f"Boundary {i}: {boundary[2]}"
+    graph_categories = {
+        "trace",
+        "sample",
+        "field",
+        "boundary",
+        "junction",
+        "critical_endpoint",
+        "missing_assemblage",
+        "thermodynamic",
+    }
+
+    def retained_diagnostics(channel):
+        retained = []
+        for source, data in enumerate((base, patch)):
+            if source == 0 and np.array_equal(box, domain):
+                continue
+            for d in data.get(channel, []):
+                if d["category"] in ("boundary_note", "spacing"):
+                    retained.extend(
+                        dict(d, entity_id=i)
                         for i, s in enumerate(segments)
-                        if (source, int(boundary[1])) in s.origins
+                        if (source, d["entity_id"]) in s.origins
                     )
-            elif not graph_message.match(d):
-                messages.append(d)
+                elif d["category"] not in graph_categories:
+                    retained.append(d)
+        return retained
+
+    messages.extend(retained_diagnostics("diagnostics"))
     geometry = _core.phase_diagram_field_polygons(merged)
-    messages.extend(geometry.diagnostics)
-    merged["diagnostics"] = list(dict.fromkeys(messages))
+    messages.extend(geometry.diagnostic_records)
+    merged["diagnostics"] = _unique_diagnostics(messages)
+    merged["coordinate_diagnostics"] = retained_diagnostics("coordinate_diagnostics")
+    merged["spacing_diagnostics"] = _unique_diagnostics(
+        retained_diagnostics("spacing_diagnostics")
+    )
+    merged["spacing_resolved"] = not merged["spacing_diagnostics"]
     merged["resolved"] = not merged["diagnostics"]
     if phases is not None:
         checked = _core.verify_phase_diagram_critical_endpoints(merged, phases)
@@ -701,21 +743,23 @@ def merge_phase_diagrams(base, patch, *, join_tolerance=None, phases=None):
         for data in (base, patch):
             old_fields = {f["id"]: f for f in data["fields"]}
             for d in data.get("diagnostics", []):
-                match = re.match(
-                    r"No closed region resolved for sampled (?:field|assemblage) (\d+)",
-                    d,
-                )
-                if match and int(match[1]) in old_fields:
-                    key = tuple(sorted(old_fields[int(match[1])]["phases"]))
+                if (
+                    d["category"] == "missing_assemblage"
+                    and d["entity_id"] in old_fields
+                ):
+                    key = tuple(sorted(old_fields[d["entity_id"]]["phases"]))
                     if key in by_phases and key not in bordered:
                         merged["diagnostics"].append(
-                            "No closed region resolved for sampled assemblage "
-                            f"{by_phases[key]['id']}; increase seed density or inspect failed solves."
+                            dict(
+                                category="missing_assemblage",
+                                entity_id=by_phases[key]["id"],
+                                message="",
+                            )
                         )
         for node in new_nodes:
             if node["kind"] == "junction" and len(node["incident_lines"]) == 1:
                 merged["diagnostics"].append(
-                    f"Unpaired internal junction at node {node['id']}."
+                    dict(category="junction", entity_id=node["id"], message="")
                 )
             if (
                 node["kind"] == "critical_point"
@@ -723,11 +767,10 @@ def merge_phase_diagrams(base, patch, *, join_tolerance=None, phases=None):
                 and not node.get("is_verified_critical_endpoint", False)
             ):
                 merged["diagnostics"].append(
-                    f"Unpaired solution critical endpoint at node {node['id']}; "
-                    "its adjoining field remains unresolved."
+                    dict(category="critical_endpoint", entity_id=node["id"], message="")
                 )
-        merged["diagnostics"] = list(dict.fromkeys(merged["diagnostics"]))
-        merged["resolved"] = not merged["diagnostics"]
+        merged["diagnostics"] = _unique_diagnostics(merged["diagnostics"])
+        merged.update(_core._refresh_phase_diagram_diagnostics(merged))
     report = [
         f"Joined {len(gaps)} line ends; largest join gap {max(gaps, default=0):.3g} patch widths; "
         f"{len(cuts.keys() - used)} base line ends left open."

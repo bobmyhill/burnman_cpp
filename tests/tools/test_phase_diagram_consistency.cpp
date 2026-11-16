@@ -237,13 +237,14 @@ TEST_CASE("Final diagram audit revisits pairs after late changes",
   CHECK(result.thermodynamic_validation.violations == 0);
   // An earlier comparison passed, but a later repair changed one endpoint.
   result.samples.front().gibbs += 10.;
-  result.diagnostics.push_back("Keep this unrelated boundary diagnostic.");
+  result.diagnostics.push_back(
+      {DiagnosticCategory::other, -1, "Thermodynamic audit: keep this unrelated diagnostic."});
   audit_thermodynamic_samples(result);
   CHECK_FALSE(result.resolved);
   CHECK(result.thermodynamic_validation.violations == 1);
   CHECK(result.diagnostics.size() == 2);
-  CHECK(result.diagnostics.front() ==
-        "Keep this unrelated boundary diagnostic.");
+  CHECK(result.diagnostics.front().text() ==
+        "Thermodynamic audit: keep this unrelated diagnostic.");
   audit_thermodynamic_samples(result);
   CHECK(result.diagnostics.size() == 2); // No duplicate audit messages.
   result.samples.front().gibbs -= 10.;

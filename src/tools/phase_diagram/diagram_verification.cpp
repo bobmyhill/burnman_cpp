@@ -24,6 +24,7 @@
 #include <iostream>
 #include <limits>
 #include <set>
+#include <sstream>
 
 namespace burnman::phase_diagrams {
 namespace detail {
@@ -273,8 +274,8 @@ FieldPolygons recover_boundary_labels(Result &result) {
   return geometry;
 }
 
-void refresh_coordinate_diagnostics(Result &result,
-                                     const FieldPolygons &geometry) {
+void refresh_diagram_diagnostics(Result &result,
+                                 const FieldPolygons &geometry) {
   std::set<int> verified_interiors;
   for (const auto &polygon : geometry.polygons)
     if (!polygon.is_provisional &&
@@ -282,72 +283,66 @@ void refresh_coordinate_diagnostics(Result &result,
          polygon.has_closed_reaction_ring || polygon.sample_index >= 0))
       verified_interiors.insert(polygon.interior_failure_indices.begin(),
                                 polygon.interior_failure_indices.end());
-  result.coordinate_diagnostics = geometry.coordinate_diagnostics;
-  // Older saved files kept these same derived notes in blocking diagnostics.
-  for (const auto &message : geometry.coordinate_diagnostics)
-    erase_if(result.diagnostics,
-             [&](const auto &saved) { return saved == message; });
+  erase_if(result.coordinate_diagnostics, [](const Diagnostic &diagnostic) {
+    return diagnostic.category == DiagnosticCategory::field ||
+           diagnostic.category == DiagnosticCategory::sample;
+  });
+  result.coordinate_diagnostics.insert(result.coordinate_diagnostics.end(),
+                                       geometry.coordinate_diagnostics.begin(),
+                                       geometry.coordinate_diagnostics.end());
+  erase_if(result.diagnostics, [](const Diagnostic &diagnostic) {
+    return diagnostic.category == DiagnosticCategory::sample ||
+           diagnostic.category == DiagnosticCategory::trace;
+  });
+  // Repair can remove or reindex traces; regenerate their messages from the
+  // retained graph instead of carrying stale boundary IDs through the passes.
+  for (const auto &line : result.boundaries) {
+    const auto [back, forward] = boundary_statuses(line);
+    if (unfinished_boundary(back) || unfinished_boundary(forward))
+      result.diagnostics.push_back(
+          {DiagnosticCategory::trace, line.id, line.termination});
+  }
   for (std::size_t index = 0; index < result.samples.size(); ++index) {
     const auto &state = result.samples[index];
-    if (state.success || state.outside_model_domain ||
-        !state.is_field_verification)
+    if (state.success || state.outside_model_domain)
       continue;
-    const auto message = failed_sample_diagnostic(state);
-    const std::string legacy = "Unresolved seed: " + state.message;
-    erase_if(result.diagnostics, [&](const auto &saved) {
-      return saved == message || saved == legacy;
-    });
     auto &messages = verified_interiors.count(static_cast<int>(index))
                          ? result.coordinate_diagnostics
                          : result.diagnostics;
-    if (std::find(messages.begin(), messages.end(), message) == messages.end())
-      messages.push_back(message);
+    std::ostringstream message;
+    message << "Unresolved seed P=" << state.pressure
+            << " Pa, T=" << state.temperature << " K: " << state.message;
+    messages.push_back(
+        {DiagnosticCategory::sample, static_cast<int>(index), message.str()});
   }
 }
 
 void erase_field_diagnostics(Result &result) {
-  // Field numbers and winding can change when reconstructing an older file.
-  // Rebuild these owned messages instead of comparing only today's numbering
-  // with stale messages. Keep unrelated diagnostics and all solve failures.
-  erase_if(result.diagnostics, [](const std::string &message) {
-    if (message.rfind("No closed region resolved for sampled assemblage ", 0) == 0)
-      return true;
-    if (message.rfind("Field ", 0) != 0)
-      return false;
-    const auto end = message.find_first_not_of("0123456789", 6);
-    if (end == 6 || end == std::string::npos)
-      return false;
-    const auto detail = message.substr(end);
-    for (const auto *prefix : {
-             " has conflicting perimeter", " has no assemblage evidence.",
-             " has no interior resolved", " has an overlapping reaction",
-             " contains an unfinished boundary", " has an unlabelled perimeter",
-             " has no labelled perimeter", " has a reaction-verified assemblage",
-             " has an assemblage identified by a complete reaction ring",
-             " follows consistent perimeter reactions"})
-      if (detail.rfind(prefix, 0) == 0)
-        return true;
-    return false;
+  // Rebuild only graph-owned categories; wording never determines ownership.
+  erase_if(result.diagnostics, [](const Diagnostic &diagnostic) {
+    const auto category = diagnostic.category;
+    return category == DiagnosticCategory::field ||
+           category == DiagnosticCategory::boundary ||
+           category == DiagnosticCategory::junction ||
+           category == DiagnosticCategory::critical_endpoint ||
+           category == DiagnosticCategory::missing_assemblage;
   });
 }
 
-std::vector<std::string> field_diagnostics(const Result &result, Engine &engine,
-                                           const FieldPolygons &geometry) {
+Diagnostics field_diagnostics(const Result &result, Engine &engine,
+                              const FieldPolygons &geometry) {
   auto messages = geometry.diagnostics;
   for (const auto &line : result.boundaries)
     if (ambiguous_boundary(line) && !lies_on_calculation_frame(line, result))
-      messages.push_back("Boundary " + std::to_string(line.id) +
-                         ": neighbouring fields could not be distinguished "
-                         "within tolerances.");
+      messages.push_back({DiagnosticCategory::boundary, line.id,
+                          "neighbouring fields could not be distinguished "
+                          "within tolerances."});
   for (const auto &node : result.nodes) {
     if (node.kind == "critical_point" && node.incident_lines.size() == 1 &&
         !node.is_verified_critical_endpoint)
-      messages.push_back("Unpaired solution critical endpoint at node " +
-                         std::to_string(node.id) +
-                         "; its adjoining field remains unresolved.");
+      messages.push_back({DiagnosticCategory::critical_endpoint, node.id});
     if (node.kind == "junction" && node.incident_lines.size() == 1)
-      messages.push_back("Unpaired internal junction at node " +
-                         std::to_string(node.id) + ".");
+      messages.push_back({DiagnosticCategory::junction, node.id});
   }
   std::set<std::vector<int>> bordered;
   for (const auto &p : geometry.polygons)
@@ -455,9 +450,7 @@ std::vector<std::string> field_diagnostics(const Result &result, Engine &engine,
               1.e-10 * engine.bulk_direction.norm())
             continue;
         }
-        messages.push_back("No closed region resolved for sampled assemblage " +
-                           std::to_string(field.id) +
-                           "; increase seed density or inspect failed solves.");
+        messages.push_back({DiagnosticCategory::missing_assemblage, field.id});
       }
   return messages;
 }
@@ -475,14 +468,9 @@ Result reverify_result(const Result &previous,
                         result.section);
   engine.pressure_bounds = result.pressure_range;
   engine.temperature_bounds = result.temperature_range;
-  const auto old =
-      detail::field_diagnostics(result, engine, field_polygons(result));
-  detail::erase_if(result.diagnostics, [&](const auto &message) {
-    return std::find(old.begin(), old.end(), message) != old.end();
-  });
   detail::erase_field_diagnostics(result);
   const auto graph = verify(result, engine);
-  detail::refresh_coordinate_diagnostics(result, graph);
+  detail::refresh_diagram_diagnostics(result, graph);
   const auto messages = detail::field_diagnostics(result, engine, graph);
   result.diagnostics.insert(result.diagnostics.end(), messages.begin(),
                             messages.end());

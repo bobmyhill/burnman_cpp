@@ -189,8 +189,8 @@ class Contours {
   }
   void issue(const std::string &message) {
     result.resolved = false;
-    auto diagnostic =
-        "Field " + std::to_string(field.field_number) + ": " + message;
+    Diagnostic diagnostic{DiagnosticCategory::field, field.field_number,
+                          ": " + message};
     if (std::find(result.diagnostics.begin(), result.diagnostics.end(),
                   diagnostic) == result.diagnostics.end())
       result.diagnostics.push_back(std::move(diagnostic));

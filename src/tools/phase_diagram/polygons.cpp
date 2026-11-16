@@ -1376,42 +1376,45 @@ class PolygonBuilder {
           (perimeter.empty() && (physical_perimeter || !uniform));
       if (polygon.is_provisional || polygon.phases.empty())
         output.diagnostics.push_back(
-            "Field " + std::to_string(polygon.field_number) +
-            (polygon.phases.empty() && perimeter.size() > 1
-                 ? " has conflicting perimeter assemblages; no consistent "
-                   "label "
-                   "was found."
-             : polygon.phases.empty() ? " has no assemblage evidence."
-             : unresolved_geometry
-                 ? " has no interior resolved at equilibrium coordinate "
-                   "accuracy; its label is provisional."
-             : unresolved_overlap
-                 ? " has an overlapping reaction with unresolved identity; "
-                   "its label is provisional."
-             : face.dangling
-                 ? " contains an unfinished boundary; its label is provisional."
-             : inconsistent ? " has conflicting perimeter reactions; its label "
-                              "is provisional."
-             : unknown_side ? " has an unlabelled perimeter side; its label is "
-                              "provisional."
-             : perimeter.empty()
-                 ? " has no labelled perimeter; its saved-sample "
-                   "label is provisional."
-                 : " has conflicting perimeter assemblages; its "
-                   "label is provisional."));
+            {DiagnosticCategory::field, polygon.field_number,
+             (polygon.phases.empty() && perimeter.size() > 1
+                  ? " has conflicting perimeter assemblages; no consistent "
+                    "label "
+                    "was found."
+              : polygon.phases.empty() ? " has no assemblage evidence."
+              : unresolved_geometry
+                  ? " has no interior resolved at equilibrium coordinate "
+                    "accuracy; its label is provisional."
+              : unresolved_overlap
+                  ? " has an overlapping reaction with unresolved identity; "
+                    "its label is provisional."
+              : face.dangling ? " contains an unfinished boundary; its label "
+                                "is provisional."
+              : inconsistent
+                  ? " has conflicting perimeter reactions; its label "
+                    "is provisional."
+              : unknown_side
+                  ? " has an unlabelled perimeter side; its label is "
+                    "provisional."
+              : perimeter.empty()
+                  ? " has no labelled perimeter; its saved-sample "
+                    "label is provisional."
+                  : " has conflicting perimeter assemblages; its "
+                    "label is provisional.")});
       else if (unresolved_geometry)
         output.coordinate_diagnostics.push_back(
-            "Field " + std::to_string(polygon.field_number) +
-            (polygon.has_verified_reaction_perimeter
-                 ? " has a reaction-verified assemblage; its interior "
-                   "coordinates remain unresolved."
-                 : " has an assemblage identified by a complete reaction "
-                   "ring; its interior coordinates remain unresolved."));
+            {DiagnosticCategory::field, polygon.field_number,
+             (polygon.has_verified_reaction_perimeter
+                  ? " has a reaction-verified assemblage; its interior "
+                    "coordinates remain unresolved."
+                  : " has an assemblage identified by a complete reaction "
+                    "ring; its interior coordinates remain unresolved.")});
       else if (face.inverted)
         output.coordinate_diagnostics.push_back(
-            "Field " + std::to_string(polygon.field_number) +
-            " follows consistent perimeter reactions; drawing chords reverse "
-            "its orientation, so fine interior coordinates remain unresolved.");
+            {DiagnosticCategory::field, polygon.field_number,
+             " follows consistent perimeter reactions; drawing chords reverse "
+             "its orientation, so fine interior coordinates remain "
+             "unresolved."});
       Point sample;
       if (polygon.sample_index >= 0) {
         auto &state =

@@ -626,10 +626,6 @@ void PropertyGridder::audit(PropertyGrid &grid, bool reverse, bool reset) {
     grid.thermodynamic_samples.resize(count);
     for (std::size_t k = 0; k < count; ++k)
       if (auto &saved = grid.solutions[k]) {
-        if (!std::isfinite(saved->gibbs)) {
-          auto a = restore_solution(*saved, *engine_);
-          saved->gibbs = a->get_n_moles() * a->get_molar_gibbs();
-        }
         grid.thermodynamic_samples[k] = thermodynamic_sample(
             equilibrium_state(saved->state, saved->gibbs), source_.section);
       }
@@ -637,11 +633,8 @@ void PropertyGridder::audit(PropertyGrid &grid, bool reverse, bool reset) {
   // Sweep-time messages can become stale when a later point is repaired.
   // Rebuild only consistency diagnostics from the final retained states.
   for (auto *messages : {&grid.diagnostics, &grid.equilibrium_diagnostics})
-    erase_if(*messages, [](const auto &message) {
-      return message.rfind("Thermodynamic audit: ", 0) == 0 ||
-             message.find("Thermodynamic inconsistency with a neighbouring "
-                          "equilibrium remains after recovery.") !=
-                 std::string::npos;
+    erase_if(*messages, [](const Diagnostic &diagnostic) {
+      return diagnostic.category == DiagnosticCategory::thermodynamic;
     });
   if (reset || reverse != audit_reverse_) {
     audit_previous_.clear();
@@ -668,11 +661,12 @@ void PropertyGridder::audit(PropertyGrid &grid, bool reverse, bool reset) {
       sample.available = sample.available && grid.equilibrium_success(j, i);
       auto check = [&](const auto &other, std::size_t axis) {
         if (audit_thermodynamic_pair(sample, other, axis, coverage) > 0.) {
-          const auto message =
-              "Thermodynamic audit: grid [" + std::to_string(j) + ", " +
-              std::to_string(i) +
-              "] has an inconsistent final neighbour along axis " +
-              std::to_string(axis) + ".";
+          const Diagnostic message{
+              DiagnosticCategory::thermodynamic,
+              -1,
+              "Thermodynamic audit: inconsistent final neighbour along axis " +
+                  std::to_string(axis) + ".",
+              {static_cast<int>(j), static_cast<int>(i)}};
           grid.diagnostics.push_back(message);
           grid.equilibrium_diagnostics.push_back(message);
         }
@@ -728,12 +722,6 @@ void PropertyGridder::calculate(PropertyGrid &result, bool reverse) {
   engine.equilibrium_solves = engine.minimization_calls = 0;
   if (!engine.free_vectors.empty())
     engine.set_bulk(0.);
-  auto issue = [&](const std::string &message, bool equilibrium = true) {
-    result.resolved = false;
-    result.diagnostics.push_back(message);
-    if (equilibrium)
-      result.equilibrium_diagnostics.push_back(message);
-  };
   auto within = [&](std::size_t f, const Eigen::Vector2d &q) {
     return (q.array() >= (fields_[f].low - 1.e-9 * range).array()).all() &&
            (q.array() <= (fields_[f].high + 1.e-9 * range).array()).all() &&
@@ -766,6 +754,19 @@ void PropertyGridder::calculate(PropertyGrid &result, bool reverse) {
     }
     for (Eigen::Index column = 0; column < x.size(); ++column) {
       const auto i = reverse ? x.size() - 1 - column : column;
+      const std::array<int, 2> grid_point{static_cast<int>(j),
+                                          static_cast<int>(i)};
+      auto issue = [&](const std::string &message, bool equilibrium = true,
+                       DiagnosticCategory category =
+                           DiagnosticCategory::equilibrium) {
+        const Diagnostic diagnostic{
+            equilibrium ? category : DiagnosticCategory::property,
+            equilibrium ? -1 : result.field_numbers(j, i), message, grid_point};
+        result.resolved = false;
+        result.diagnostics.push_back(diagnostic);
+        if (equilibrium)
+          result.equilibrium_diagnostics.push_back(diagnostic);
+      };
       const Eigen::Vector2d q(x[i], y[j]);
       const auto neighbours = neighbours_at(q);
       auto consistent = [&](const State &state) {
@@ -779,23 +780,18 @@ void PropertyGridder::calculate(PropertyGrid &result, bool reverse) {
         auto &saved =
             result.solutions[static_cast<std::size_t>(j * x.size() + i)];
         if (saved) {
-          // Legacy archives lack energy; replay it once without equilibration.
-          if (!std::isfinite(saved->gibbs)) {
-            auto a = restore_solution(*saved, engine);
-            saved->gibbs = a->get_n_moles() * a->get_molar_gibbs();
-          }
           auto state = detail::equilibrium_state(saved->state, saved->gibbs);
           result.thermodynamic_samples[static_cast<std::size_t>(j * x.size() +
                                                                 i)] =
               detail::thermodynamic_sample(state, source.section);
           if (consistent(state)) {
             current_row_[q[0]] = std::move(state);
-            const auto prefix = "grid [" + std::to_string(j) + ", " +
-                                std::to_string(i) + "]: Thermodynamic";
             for (auto *messages :
                  {&result.diagnostics, &result.equilibrium_diagnostics})
-              detail::erase_if(*messages, [&](const auto &message) {
-                return message.find(prefix) != std::string::npos;
+              detail::erase_if(*messages, [&](const Diagnostic &diagnostic) {
+                return diagnostic.category ==
+                           DiagnosticCategory::thermodynamic &&
+                       diagnostic.grid_point == grid_point;
               });
             continue;
           }
@@ -830,17 +826,15 @@ void PropertyGridder::calculate(PropertyGrid &result, bool reverse) {
       if (assigned >= 0)
         result.field_numbers(j, i) =
             geometry.polygons[static_cast<std::size_t>(assigned)].field_number;
-      const auto point =
-          "grid [" + std::to_string(j) + ", " + std::to_string(i) + "]: ";
       if (reverse) {
         for (auto *messages :
              {&result.diagnostics, &result.equilibrium_diagnostics})
-          messages->erase(std::remove_if(messages->begin(), messages->end(),
-                                         [&](const auto &message) {
-                                           return message.find(point) !=
-                                                  std::string::npos;
-                                         }),
-                          messages->end());
+          detail::erase_if(*messages, [&](const Diagnostic &diagnostic) {
+            return diagnostic.grid_point == grid_point &&
+                   (diagnostic.category == DiagnosticCategory::equilibrium ||
+                    diagnostic.category == DiagnosticCategory::property ||
+                    diagnostic.category == DiagnosticCategory::thermodynamic);
+          });
       }
       std::string failure =
           "No saved equilibrium supplies a candidate assemblage.";
@@ -960,7 +954,7 @@ void PropertyGridder::calculate(PropertyGrid &result, bool reverse) {
         }
       }
       if (!accepted) {
-        issue(point + failure);
+        issue(failure);
         continue;
       }
       auto state = detail::equilibrium_state(engine, *accepted, accepted_ids);
@@ -971,8 +965,7 @@ void PropertyGridder::calculate(PropertyGrid &result, bool reverse) {
         auto recovered = detail::recover_thermodynamic_state(
             engine, {state, accepted, accepted_ids}, starts);
         if (!recovered.state.success) {
-          issue(point +
-                "Thermodynamic recovery failed: " + recovered.state.message);
+          issue("Thermodynamic recovery failed: " + recovered.state.message);
           result.equilibrium_success(j, i) = result.success(j, i) = false;
           continue;
         }
@@ -997,12 +990,13 @@ void PropertyGridder::calculate(PropertyGrid &result, bool reverse) {
               }
             }
           if (!chosen)
-            issue(point + "Recovered stable assemblage has no field in the "
-                          "saved diagram.");
+            issue("Recovered stable assemblage has no field in the "
+                  "saved diagram.");
         }
         if (!consistent(state))
-          issue(point + "Thermodynamic inconsistency with a neighbouring "
-                        "equilibrium remains after recovery.");
+          issue("Thermodynamic inconsistency with a neighbouring "
+                "equilibrium remains after recovery.",
+                true, DiagnosticCategory::thermodynamic);
       }
       result.field_numbers(j, i) = chosen;
       result.thermodynamic_samples[static_cast<std::size_t>(j * x.size() + i)] =
@@ -1019,9 +1013,7 @@ void PropertyGridder::calculate(PropertyGrid &result, bool reverse) {
           values(j, i) = properties.value(name);
         } catch (const std::exception &e) {
           result.success(j, i) = false;
-          issue("Field " + std::to_string(chosen) + ": " + point + name + ": " +
-                    e.what(),
-                false);
+          issue(name + ": " + e.what(), false);
         }
       }
     }
@@ -1104,19 +1096,20 @@ evaluate_property_grid(const PropertyGrid &saved,
     result.values[name] =
         Eigen::MatrixXd::Constant(saved.y.size(), saved.x.size(),
                                   std::numeric_limits<double>::quiet_NaN());
-  auto issue = [&](const std::string &message) {
-    result.diagnostics.push_back(message);
-    result.resolved = false;
-  };
   for (Eigen::Index j = 0; j < saved.y.size(); ++j)
     for (Eigen::Index i = 0; i < saved.x.size(); ++i) {
       const auto &solution =
           saved.solutions[static_cast<std::size_t>(j * saved.x.size() + i)];
       if (!solution)
         continue;
-      const auto prefix = "Field " + std::to_string(saved.field_numbers(j, i)) +
-                          ": grid [" + std::to_string(j) + ", " +
-                          std::to_string(i) + "]: ";
+      auto issue = [&](const std::string &message) {
+        result.diagnostics.push_back(
+            {DiagnosticCategory::property,
+             saved.field_numbers(j, i),
+             message,
+             {static_cast<int>(j), static_cast<int>(i)}});
+        result.resolved = false;
+      };
       try {
         auto a = restore_solution(*solution, engine);
         a->set_averaging_scheme(averaging_scheme);
@@ -1134,11 +1127,11 @@ evaluate_property_grid(const PropertyGrid &saved,
             result.values.at(name)(j, i) = properties.value(name);
           } catch (const std::exception &e) {
             result.success(j, i) = false;
-            issue(prefix + name + ": " + e.what());
+            issue(name + ": " + e.what());
           }
         }
       } catch (const std::exception &e) {
-        issue(prefix + e.what());
+        issue(e.what());
       }
     }
   return result;

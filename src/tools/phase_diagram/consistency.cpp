@@ -177,9 +177,8 @@ double thermodynamic_violation(const State &a, const State &b,
 void audit_thermodynamic_samples(Result &result) {
   auto &coverage = result.thermodynamic_validation;
   coverage = {"aligned_samples", 0, 0, 0};
-  erase_if(result.diagnostics, [](const auto &message) {
-    return message.rfind("Thermodynamic audit: ", 0) == 0 ||
-           message.rfind("Thermodynamic inconsistency between seed ", 0) == 0;
+  erase_if(result.diagnostics, [](const Diagnostic &diagnostic) {
+    return diagnostic.category == DiagnosticCategory::thermodynamic;
   });
   std::vector<ThermodynamicSample> samples;
   for (const auto &state : result.samples)
@@ -211,9 +210,10 @@ void audit_thermodynamic_samples(Result &result) {
         if (audit_thermodynamic_pair(samples[order[i - 1]], samples[order[i]],
                                      axis, coverage) > 0.)
           result.diagnostics.push_back(
-              "Thermodynamic audit: inconsistent saved samples " +
-              std::to_string(order[i - 1]) + " and " +
-              std::to_string(order[i]) + ".");
+              {DiagnosticCategory::thermodynamic, -1,
+               "Thermodynamic audit: inconsistent saved samples " +
+                   std::to_string(order[i - 1]) + " and " +
+                   std::to_string(order[i]) + "."});
       first = last;
     }
   }
@@ -275,11 +275,11 @@ WorkState recover_thermodynamic_state(Engine &engine, WorkState best,
   engine.physical_seed = physical_seed;
   return best;
 }
-std::vector<std::string>
+Diagnostics
 recover_thermodynamic_grid(Engine &engine, std::vector<WorkState> &grid,
                            int columns,
                            const std::function<void(std::size_t)> &updated) {
-  std::vector<std::string> diagnostics;
+  Diagnostics diagnostics;
   const auto start = std::chrono::steady_clock::now();
   const int solves = engine.equilibrium_solves;
   auto pairs = [&](auto visit) {
@@ -317,9 +317,10 @@ recover_thermodynamic_grid(Engine &engine, std::vector<WorkState> &grid,
   pairs([&](auto a, auto b, auto axis) {
     if (thermodynamic_violation(grid[a].state, grid[b].state, engine.section,
                                 axis) > 0.)
-      diagnostics.push_back("Thermodynamic inconsistency between seed " +
-                            std::to_string(a) + " and " + std::to_string(b) +
-                            ".");
+      diagnostics.push_back({DiagnosticCategory::thermodynamic, -1,
+                             "Thermodynamic inconsistency between seed " +
+                                 std::to_string(a) + " and " +
+                                 std::to_string(b) + "."});
   });
   if (engine.settings.verbose)
     std::cerr << "Thermodynamic seed checks: "

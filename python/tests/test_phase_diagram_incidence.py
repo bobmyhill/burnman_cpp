@@ -7,6 +7,7 @@ import json
 
 import pytest
 import burnman_cpp as bm
+from conftest import diagnostic
 
 from test_phase_diagram import crossing_phases, settings
 
@@ -43,7 +44,7 @@ def test_stale_single_arm_does_not_reject_a_complete_graph(crossing_graph):
     junction = next(n for n in saved["nodes"] if n["kind"] == "junction")
     assert len(junction["incident_lines"]) > 1
     junction["incident_lines"] = junction["incident_lines"][:1]
-    saved["diagnostics"] = [f"Unpaired internal junction at node {junction['id']}."]
+    saved["diagnostics"] = [diagnostic(category="junction", entity_id=junction["id"])]
     saved["resolved"] = False
     before = deepcopy(saved)
 
@@ -61,7 +62,7 @@ def test_retired_junction_loses_its_stale_incident_line(crossing_graph):
     retired["id"] = len(saved["nodes"])
     retired["incident_lines"] = retired["incident_lines"][:1]
     saved["nodes"].append(retired)
-    saved["diagnostics"] = [f"Unpaired internal junction at node {retired['id']}."]
+    saved["diagnostics"] = [diagnostic(category="junction", entity_id=retired["id"])]
     saved["resolved"] = False
 
     result = bm.verify_phase_diagram_critical_endpoints(saved, crossing_phases())

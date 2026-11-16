@@ -30,9 +30,9 @@ Result verify_critical_endpoints(
 
 namespace burnman::phase_diagrams::detail {
 struct Engine;
-/// Move precision-only failures of verified fields out of blocking diagnostics.
-/// Unverified fields and unrelated failed equilibria remain blocking.
-void refresh_coordinate_diagnostics(Result &, const FieldPolygons &);
+/// Rebuild trace/sample issues from current IDs and classify verified fields'
+/// coordinate precision notes separately. Preserve unrelated diagnostics.
+void refresh_diagram_diagnostics(Result &, const FieldPolygons &);
 /// Remove derived polygon/coverage messages before recomputing them from the
 /// retained graph, including files written by earlier polygon reconstruction.
 void erase_field_diagnostics(Result &);
@@ -47,6 +47,5 @@ FieldPolygons recover_boundary_labels(Result &);
 /// Diagnose unresolved field labels, unpaired junctions and sampled assemblages
 /// with no corresponding closed field. Constructing the messages does not trace
 /// new boundaries or modify the result.
-std::vector<std::string> field_diagnostics(const Result &, Engine &,
-                                           const FieldPolygons &);
+Diagnostics field_diagnostics(const Result &, Engine &, const FieldPolygons &);
 } // namespace burnman::phase_diagrams::detail

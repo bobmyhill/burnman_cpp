@@ -21,9 +21,6 @@ namespace burnman::phase_diagrams::detail {
 using namespace equilibration;
 using PhaseStates = std::vector<PhaseState>;
 using EquilibriumSolve = optim::roots::DampedNewtonResult;
-/// Diagnostic for a failed equilibrium sample, shared by tracing and status
-/// reclassification after independent field verification.
-std::string failed_sample_diagnostic(const State &);
 /// Copy all physical and composition coordinates between saved point types.
 /// Coordinate uncertainty does not affect the phase or reaction metadata.
 template <typename Target, typename Source>

@@ -52,7 +52,7 @@ def test_original_creation_records_two_separate_curves(original_diagram):
 def test_curve_json_roundtrip_and_older_diagrams(original_diagram, tmp_path):
     diagram, _ = original_diagram
     data = json.loads(json.dumps(diagram.to_dict(), allow_nan=False))
-    assert data["schema_version"] == 5
+    assert data["schema_version"] == 6
     boundary = data["boundaries"][0]
     assert len(boundary["limiting_curves"]) == 2
     assert all("limiting_states" not in p for p in boundary["points"])

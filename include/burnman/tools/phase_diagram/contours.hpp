@@ -41,7 +41,7 @@ struct ContourLine {
 struct ContourResult {
   DiagramType diagram_type = DiagramType::PT;
   std::vector<ContourLine> lines;
-  std::vector<std::string> diagnostics;
+  Diagnostics diagnostics;
   int equilibrium_solves = 0;
   bool resolved = true;
 };

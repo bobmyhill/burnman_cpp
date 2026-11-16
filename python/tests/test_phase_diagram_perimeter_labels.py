@@ -20,6 +20,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 import burnman_cpp as bm
+from conftest import diagnostic
 from burnman_cpp.minerals import SLB_2024
 from test_phase_diagram_plot import diagram, line, square
 
@@ -45,7 +46,7 @@ def test_closed_perimeters_recover_ambiguous_boundary_labels(
 ):
     data, phases = pyrolite_neighbours
     if unrelated:
-        data["diagnostics"].append("An unrelated diagnostic must survive.")
+        data["diagnostics"].append(diagnostic("An unrelated diagnostic must survive."))
     before = bm.phase_diagram_field_polygons(data)
     full = [0, 12, 13, 21, 22, 24, 51, 54]
     absent = [0, 12, 13, 21, 22, 51, 54]
@@ -85,7 +86,7 @@ def test_open_perimeter_does_not_certify_boundary_sides(pyrolite_neighbours):
     assert 9 not in bm.phase_diagram_field_polygons(data).boundary_sides
     result = bm.verify_phase_diagram_critical_endpoints(data, phases)
     assert not result.resolved
-    assert data["diagnostics"][0] in result.diagnostics
+    assert data["diagnostics"][0] in result.diagnostic_records
     actual = next(b for b in result.boundaries if b.id == 9)
     assert actual.side_a == boundary["side_a"] and actual.side_b == boundary["side_b"]
 
@@ -96,7 +97,7 @@ def test_reaction_incompatible_perimeters_do_not_clear_warning(pyrolite_neighbou
     assert 9 not in bm.phase_diagram_field_polygons(data).boundary_sides
     result = bm.verify_phase_diagram_critical_endpoints(data, phases)
     assert not result.resolved
-    assert data["diagnostics"][0] in result.diagnostics
+    assert data["diagnostics"][0] in result.diagnostic_records
 
 
 @pytest.mark.parametrize("reverse", [False, True])

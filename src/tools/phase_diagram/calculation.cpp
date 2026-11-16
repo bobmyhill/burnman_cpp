@@ -67,7 +67,7 @@ Result Tracer::calculate(const Result *previous,
       detail::remove_metastable_parallel_lines(result, engine);
   if (!overtraces.empty() || metastable)
     index_boundaries();
-  collect_boundary_diagnostics();
+  detach_unfinished_endpoints();
   return certify_result();
 }
 
@@ -249,21 +249,15 @@ void Tracer::validate_previous_identity(const Result &previous) const {
         "Resume with the same candidate names and max_phase_instances.");
 }
 
-void Tracer::collect_boundary_diagnostics() {
+void Tracer::detach_unfinished_endpoints() {
   for (auto &line : result.boundaries) {
     auto [back, forward] = boundary_statuses(line);
     if (unfinished_boundary(back))
       line.start_node = -1;
     if (unfinished_boundary(forward))
       line.end_node = -1;
-    if (unfinished_boundary(back) || unfinished_boundary(forward))
-      result.diagnostics.push_back("Boundary " + std::to_string(line.id) +
-                                   ": " + line.termination);
   }
   rebuild_boundary_incidence(result);
-  for (auto &state : result.samples)
-    if (!state.success && !state.outside_model_domain)
-      result.diagnostics.push_back("Unresolved seed: " + state.message);
 }
 
 void Tracer::sample_unlabelled_fields() {
@@ -633,7 +627,7 @@ Result Tracer::certify_result() {
   // stable reactions meeting at common vertices without intervening curves.
   detail::verify_field_perimeters(result, engine);
   const auto graph = field_polygons(result);
-  detail::refresh_coordinate_diagnostics(result, graph);
+  detail::refresh_diagram_diagnostics(result, graph);
   auto messages = detail::field_diagnostics(result, engine, graph);
   result.diagnostics.insert(result.diagnostics.end(), messages.begin(),
                             messages.end());
@@ -642,10 +636,12 @@ Result Tracer::certify_result() {
                             thermodynamic_diagnostics.end());
   if (!queue.empty())
     result.diagnostics.push_back(
-        "Boundary search limit reached; increase max_lines.");
+        {DiagnosticCategory::search, -1,
+         "Boundary search limit reached; increase max_lines."});
   if (result.fields.size() > 1 && result.boundaries.empty())
     result.diagnostics.push_back(
-        "Field changes detected but no boundaries converged.");
+        {DiagnosticCategory::search, -1,
+         "Field changes detected but no boundaries converged."});
   record_limiting_curves(result, engine);
   result.equilibrium_solves += engine.equilibrium_solves;
   result.minimization_calls += engine.minimization_calls;
