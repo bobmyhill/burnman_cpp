@@ -114,8 +114,8 @@ void read_member(const py::dict &record, const char *key, Value &value,
   if (required || record.contains(key))
     value = record[key].cast<Value>();
 }
-std::vector<phase_diagrams::PhaseState>
-saved_phase_states(py::handle records, bool full = true) {
+std::vector<phase_diagrams::PhaseState> saved_phase_states(py::handle records,
+                                                           bool full = true) {
   std::vector<phase_diagrams::PhaseState> states;
   for (auto item : py::reinterpret_borrow<py::iterable>(records)) {
     auto record = py::reinterpret_borrow<py::dict>(item);
@@ -141,7 +141,7 @@ saved_phase_states(py::handle records, bool full = true) {
 }
 template <typename Point>
 void read_coordinates(const py::dict &record, Point &point,
-                       phase_diagrams::DiagramType type) {
+                      phase_diagrams::DiagramType type) {
   using namespace phase_diagrams;
   point.pressure = record["pressure"].cast<double>();
   point.temperature = record["temperature"].cast<double>();
@@ -158,7 +158,7 @@ void read_coordinates(const py::dict &record, Point &point,
 }
 phase_diagrams::BoundaryPoint
 saved_boundary_point(const py::dict &record, phase_diagrams::DiagramType type,
-                      bool full = true) {
+                     bool full = true) {
   phase_diagrams::BoundaryPoint point;
   read_coordinates(record, point, type);
   if (full) {
@@ -462,7 +462,8 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
     for (auto item : data["field_verifications"].cast<py::list>()) {
       const auto record = item.cast<py::dict>();
       FieldVerification verification;
-#define READ(name) verification.name = record[#name].cast<decltype(verification.name)>();
+#define READ(name)                                                             \
+  verification.name = record[#name].cast<decltype(verification.name)>();
       READ(phases)
       READ(boundary_ids)
       READ(node_ids)
@@ -540,8 +541,8 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
       read_member(value, "incident_lines", node.incident_lines);
       read_member(value, "is_verified_critical_endpoint",
                   node.is_verified_critical_endpoint);
-      // Polygon construction also needs invariant metadata when plotting a
-      // saved dictionary, without requiring all resumable equilibrium data.
+    // Polygon construction also needs invariant metadata when plotting a
+    // saved dictionary, without requiring all resumable equilibrium data.
 #define READ(name) read_member(value, #name, node.name, full);
       READ(kind)
       READ(assemblage)
@@ -967,9 +968,12 @@ void bind_phase_diagram(py::module_ &m) {
       .def_readonly("sample_index", &FieldPolygon::sample_index)
       .def_readonly("has_open_boundary", &FieldPolygon::has_open_boundary)
       .def_readonly("is_provisional", &FieldPolygon::is_provisional)
-      .def_readonly("has_unresolved_interior", &FieldPolygon::has_unresolved_interior)
-      .def_readonly("has_verified_reaction_perimeter", &FieldPolygon::has_verified_reaction_perimeter)
-      .def_readonly("has_closed_reaction_ring", &FieldPolygon::has_closed_reaction_ring)
+      .def_readonly("has_unresolved_interior",
+                    &FieldPolygon::has_unresolved_interior)
+      .def_readonly("has_verified_reaction_perimeter",
+                    &FieldPolygon::has_verified_reaction_perimeter)
+      .def_readonly("has_closed_reaction_ring",
+                    &FieldPolygon::has_closed_reaction_ring)
       .def_readonly("outside_model_domain", &FieldPolygon::outside_model_domain)
       .def_readonly("phases", &FieldPolygon::phases)
       .def_readonly("boundary_ids", &FieldPolygon::boundary_ids)
@@ -1278,15 +1282,19 @@ field_number is the one-based number used by plots, keys and field diagnostics.
 tolerance is a distance after rescaling both calculation axes to 0..1.
 close_domain permits the frame to close edge fields.
 )doc");
-  m.def("verify_phase_diagram_field_perimeters",
-      [](py::object object, const std::vector<std::shared_ptr<Material>> &phases) {
+  m.def(
+      "verify_phase_diagram_field_perimeters",
+      [](py::object object,
+         const std::vector<std::shared_ptr<Material>> &phases) {
         auto result = calculation_result(object);
         py::gil_scoped_release release;
         return verify_field_perimeters(result, phases);
-      }, py::arg("result"), py::arg("phases"),
+      },
+      py::arg("result"), py::arg("phases"),
       "Verify field identities through stable bounding reactions and common "
       "junctions, testing possible crossings by corrected equilibria. "
-      "Verified fields' precision limits are retained in coordinate_diagnostics "
+      "Verified fields' precision limits are retained in "
+      "coordinate_diagnostics "
       "and do not set resolved=False.");
   m.def(
       "verify_phase_diagram_critical_endpoints",

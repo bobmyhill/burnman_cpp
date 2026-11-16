@@ -1317,8 +1317,11 @@ def plot_phase_diagram(
             (False, "Unresolved equilibrium"),
             (True, "Unresolved interior coordinates"),
         ]:
-            selected = [s for s in failures
-                        if bool(_value(s, "is_field_verification", False)) == interior_check]
+            selected = [
+                s
+                for s in failures
+                if bool(_value(s, "is_field_verification", False)) == interior_check
+            ]
             if not selected:
                 continue
             ax.scatter(

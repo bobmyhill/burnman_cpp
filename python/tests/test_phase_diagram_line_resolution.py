@@ -277,15 +277,21 @@ def test_creation_reports_verification_stages_only_on_stderr(capfd, verbose):
     opts.pressure_seeds = opts.temperature_seeds = 2
     opts.verbose = verbose
     result = bm.phase_diagram(
-        {"Mg": 1.0, "O": 1.0}, [bm.minerals.SLB_2024.periclase()],
-        (1.e9, 2.e9), (800., 1000.), opts,
+        {"Mg": 1.0, "O": 1.0},
+        [bm.minerals.SLB_2024.periclase()],
+        (1.0e9, 2.0e9),
+        (800.0, 1000.0),
+        opts,
     )
     assert result.resolved, result.diagnostics
     captured = capfd.readouterr()
     assert captured.out == ""
     if verbose:
-        stages = ["Sampling unlabelled phase fields.", "Field repair pass 1/4:",
-                  "Verifying field interiors and corrected sections."]
+        stages = [
+            "Sampling unlabelled phase fields.",
+            "Field repair pass 1/4:",
+            "Verifying field interiors and corrected sections.",
+        ]
         positions = [captured.err.index(stage) for stage in stages]
         assert positions == sorted(positions)
     else:
@@ -567,8 +573,10 @@ def test_unmet_resolution_is_reported_without_losing_verified_boundaries(
     output = capsys.readouterr().out
     assert "Resolved: True" in output
     assert "Requested line spacing" not in output
-    assert "Requested line spacing was not reached (informational):" in (
-        tmp_path / "diagnostics.txt").read_text()
+    assert (
+        "Requested line spacing was not reached (informational):"
+        in (tmp_path / "diagnostics.txt").read_text()
+    )
     retried = bm.refine_phase_diagram(
         bulk,
         crossing_phases(),

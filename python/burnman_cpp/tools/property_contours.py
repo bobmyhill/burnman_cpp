@@ -17,6 +17,7 @@ from .composition_contours import (
 from .phase_diagram import _unique_diagnostics, _value
 from .properties import _grid_diagnostic_records, _saved_property_grid_batches
 
+
 def _phase_selection(phases, include_phases, exclude_phases):
     """Resolve candidate-name filters and retain their normalized options."""
     known = {p.name for p in phases}

@@ -57,9 +57,14 @@ def square(low=0.2, high=0.8):
 
 
 def test_thin_field_label_uses_its_verified_equilibrium_interior():
-    width = 1.e-6
-    ring = [(0.5 - width, 0.2), (0.5 + width, 0.2),
-            (0.5 + width, 0.8), (0.5 - width, 0.8), (0.5 - width, 0.2)]
+    width = 1.0e-6
+    ring = [
+        (0.5 - width, 0.2),
+        (0.5 + width, 0.2),
+        (0.5 + width, 0.8),
+        (0.5 - width, 0.8),
+        (0.5 - width, 0.2),
+    ]
     verified = dict(sample(0.5, 0.33, [0]), is_field_verification=True)
     data = diagram([line(ring, [0], [3])], [verified])
     # Saving and reading must preserve the distinction between a thermodynamic
@@ -67,14 +72,16 @@ def test_thin_field_label_uses_its_verified_equilibrium_interior():
     geometry = bm.phase_diagram_field_polygons(json.loads(json.dumps(data)))
     field = next(p for p in geometry.polygons if p.phases == [0])
     assert not field.is_provisional
-    np.testing.assert_allclose(field.label_position, [0.5, 0.33], atol=1.e-12)
-    assert field.label_clearance > 0.
+    np.testing.assert_allclose(field.label_position, [0.5, 0.33], atol=1.0e-12)
+    assert field.label_clearance > 0.0
     assert field.sample_index == 0
     assert field.area == pytest.approx(1.2e-6)
 
 
 def test_pyrolite_reaction_loops_survive_reversed_drawing_winding():
-    data = json.loads((Path(__file__).parent / "data/pyrolite_reversed_loops.json").read_text())
+    data = json.loads(
+        (Path(__file__).parent / "data/pyrolite_reversed_loops.json").read_text()
+    )
     before = deepcopy(data)
     geometry = bm.phase_diagram_field_polygons(data)
     assert data == before  # Reconstruct without altering any saved reaction.
@@ -87,53 +94,77 @@ def test_pyrolite_reaction_loops_survive_reversed_drawing_winding():
     restored = [p for p in geometry.polygons if tuple(p.phases) in expected]
     assert {tuple(p.phases) for p in restored} == expected
     assert all(not p.is_provisional and not p.has_open_boundary for p in restored)
-    assert all(p.has_unresolved_interior and p.area > 0. for p in restored)
+    assert all(p.has_unresolved_interior and p.area > 0.0 for p in restored)
     assert len(geometry.coordinate_diagnostics) == 3
 
 
 def test_reversed_chords_cannot_override_conflicting_reaction_evidence():
-    data = json.loads((Path(__file__).parent / "data/pyrolite_reversed_loops.json").read_text())
+    data = json.loads(
+        (Path(__file__).parent / "data/pyrolite_reversed_loops.json").read_text()
+    )
     # Corrupt one required side of the short eight-phase loop. Its clockwise
     # walk is no longer a consistently identified thermodynamic region.
     line = next(b for b in data["boundaries"] if b["id"] == 440)
     line["side_a"] = [0]
     expected = [0, 9, 12, 18, 21, 33, 39, 51]
-    assert not any(p.phases == expected and not p.is_provisional
-                   for p in bm.phase_diagram_field_polygons(data).polygons)
+    assert not any(
+        p.phases == expected and not p.is_provisional
+        for p in bm.phase_diagram_field_polygons(data).polygons
+    )
 
 
 def test_reaction_limit_does_not_promote_a_clockwise_exterior():
-    data = json.loads((Path(__file__).parent / "data/taylor_limiting_reaction_loop.json").read_text())
+    data = json.loads(
+        (Path(__file__).parent / "data/taylor_limiting_reaction_loop.json").read_text()
+    )
     # A positive limiting amount on a replacement curve does not independently
     # establish a separate field interior in P-T coordinates.
     inventory = [6, 30, 31, 39, 42, 45, 60, 78]
-    assert not any(p.phases == inventory and p.has_unresolved_interior
-                   for p in bm.phase_diagram_field_polygons(data).polygons)
+    assert not any(
+        p.phases == inventory and p.has_unresolved_interior
+        for p in bm.phase_diagram_field_polygons(data).polygons
+    )
 
 
 def test_unresolved_field_interior_stays_provisional_until_verified():
-    ring = [(0.49, 0.2), (0.51, 0.2), (0.51, 0.8),
-            (0.49, 0.8), (0.49, 0.2)]
-    failed = dict(pressure=0.5, temperature=0.33, success=False,
-                  is_field_verification=True, phases=[],
-                  message="Field width is below equilibrium coordinate accuracy")
+    ring = [(0.49, 0.2), (0.51, 0.2), (0.51, 0.8), (0.49, 0.8), (0.49, 0.2)]
+    failed = dict(
+        pressure=0.5,
+        temperature=0.33,
+        success=False,
+        is_field_verification=True,
+        phases=[],
+        message="Field width is below equilibrium coordinate accuracy",
+    )
     data = diagram([line(ring, [0], [3])], [failed])
     geometry = bm.phase_diagram_field_polygons(json.loads(json.dumps(data)))
     field = next(p for p in geometry.polygons if p.phases == [0])
     assert field.is_provisional
     assert any("coordinate accuracy" in message for message in geometry.diagnostics)
     data["samples"].append(dict(sample(0.5, 0.66, [0]), is_field_verification=True))
-    field = next(p for p in bm.phase_diagram_field_polygons(data).polygons if p.phases == [0])
+    field = next(
+        p for p in bm.phase_diagram_field_polygons(data).polygons if p.phases == [0]
+    )
     assert not field.is_provisional
 
 
 def test_known_closed_reaction_loop_can_identify_an_unresolved_interior():
-    boundary = dict(line(square(), [0, 3], [3]), id=0,
-                    assemblage=[0, 3], zero_phase=0,
-                    reaction_kind="phase_out", termination="closed loop")
-    failed = dict(pressure=0.5, temperature=0.5, success=False,
-                  is_field_verification=True, phases=[],
-                  message="Field width is below equilibrium coordinate accuracy")
+    boundary = dict(
+        line(square(), [0, 3], [3]),
+        id=0,
+        assemblage=[0, 3],
+        zero_phase=0,
+        reaction_kind="phase_out",
+        termination="closed loop",
+    )
+    failed = dict(
+        pressure=0.5,
+        temperature=0.5,
+        success=False,
+        is_field_verification=True,
+        phases=[],
+        message="Field width is below equilibrium coordinate accuracy",
+    )
     geometry = bm.phase_diagram_field_polygons(diagram([boundary], [failed]))
     field = next(p for p in geometry.polygons if p.phases == [0, 3])
     assert field.has_unresolved_interior

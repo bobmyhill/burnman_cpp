@@ -256,8 +256,7 @@ struct FieldVerification {
   std::vector<int> phases, boundary_ids, node_ids;
   bool success = false;
   std::string graph_signature, message;
-  int checked_junctions = 0, checked_boundary_points = 0,
-      checked_crossings = 0;
+  int checked_junctions = 0, checked_boundary_points = 0, checked_crossings = 0;
   double maximum_mass_balance_error = 0., maximum_reaction_error = 0.,
          minimum_affinity = 0.;
 };

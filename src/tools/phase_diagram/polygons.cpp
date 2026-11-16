@@ -973,7 +973,8 @@ class PolygonBuilder {
           (void)follows;
           reactions.insert(line);
           const auto allowed = boundary_assemblages(*line, result);
-          if (!allowed.count(phases) || line->start_node < 0 || line->end_node < 0)
+          if (!allowed.count(phases) || line->start_node < 0 ||
+              line->end_node < 0)
             compatible = false;
           if (line->reaction_kind == ReactionKind::phase_out &&
               canonical_assemblage(line->assemblage) == phases)
@@ -989,17 +990,24 @@ class PolygonBuilder {
           continue;
         const auto &state = result.samples[index];
         const auto location = diagram_coordinates(state, result.section.type);
-        const bool at_vertex = std::any_of(result.nodes.begin(), result.nodes.end(),
-            [&](const auto &node) {
-              return ((diagram_coordinates(node, result.section.type) - location)
-                          .cwiseAbs().array() <= accuracy.array()).all();
+        const bool at_vertex = std::any_of(
+            result.nodes.begin(), result.nodes.end(), [&](const auto &node) {
+              return ((diagram_coordinates(node, result.section.type) -
+                       location)
+                          .cwiseAbs()
+                          .array() <= accuracy.array())
+                  .all();
             });
-        const bool on_reaction = std::any_of(reactions.begin(), reactions.end(),
-            [&](const auto *line) {
-              return std::any_of(line->points.begin(), line->points.end(),
+        const bool on_reaction = std::any_of(
+            reactions.begin(), reactions.end(), [&](const auto *line) {
+              return std::any_of(
+                  line->points.begin(), line->points.end(),
                   [&](const auto &point) {
-                    return ((diagram_coordinates(point, result.section.type) - location)
-                                .cwiseAbs().array() <= accuracy.array()).all();
+                    return ((diagram_coordinates(point, result.section.type) -
+                             location)
+                                .cwiseAbs()
+                                .array() <= accuracy.array())
+                        .all();
                   });
             });
         // A finite amount in a replacement curve's limiting state is not an
@@ -1007,11 +1015,15 @@ class PolygonBuilder {
         sampled = sampled ||
                   (state.is_field_verification || (!at_vertex && !on_reaction));
       }
-      const bool paired_phase_outs = reactions.size() == 2 &&
-          std::all_of(reactions.begin(), reactions.end(), [&](const auto *line) {
-            return line->reaction_kind == ReactionKind::phase_out &&
-                   canonical_assemblage(line->assemblage) == phases;
-          }) && detail::same_boundary_nodes(**reactions.begin(), **reactions.rbegin());
+      const bool paired_phase_outs =
+          reactions.size() == 2 &&
+          std::all_of(reactions.begin(), reactions.end(),
+                      [&](const auto *line) {
+                        return line->reaction_kind == ReactionKind::phase_out &&
+                               canonical_assemblage(line->assemblage) == phases;
+                      }) &&
+          detail::same_boundary_nodes(**reactions.begin(),
+                                      **reactions.rbegin());
       // A larger unsampled clockwise walk could be an external face. Require
       // an independent equilibrium witness before promoting that inventory.
       if (compatible && zeros.size() >= 2 && (sampled || paired_phase_outs)) {
@@ -1237,8 +1249,8 @@ class PolygonBuilder {
             unknown_reaction = unknown_reaction ||
                                record->reaction_kind == ReactionKind::unknown;
           }
-          unresolved_overlap = unresolved_overlap ||
-                               (known_reaction && unknown_reaction);
+          unresolved_overlap =
+              unresolved_overlap || (known_reaction && unknown_reaction);
           for (const auto &[record, follows] : edges[edge].observations) {
             if (!observations.insert(record).second)
               continue;

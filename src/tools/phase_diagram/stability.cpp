@@ -454,8 +454,7 @@ WorkState Engine::stable_at(const Eigen::Vector2d &q, const WorkState *warm,
           if (continued.state.success &&
               locally_stable(*continued.assemblage) &&
               distinct(*continued.assemblage, continued.ids) &&
-              (!best.state.success ||
-               continued.state.gibbs < best.state.gibbs))
+              (!best.state.success || continued.state.gibbs < best.state.gibbs))
             best = std::move(continued);
         }
       if (best.state.success)

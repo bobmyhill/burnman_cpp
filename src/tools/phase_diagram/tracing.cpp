@@ -1789,24 +1789,24 @@ void Tracer::label(Boundary &line) {
       // two degenerate endpoints after splitting, leaving no separated
       // limiting state with which to certify the physical termination.
       const Eigen::Vector2d chord = right - left;
-      const double fraction = chord.squaredNorm() > 0.
-                                  ? (centre - left).dot(chord) /
-                                        chord.squaredNorm()
-                                  : 0.;
+      const double fraction =
+          chord.squaredNorm() > 0.
+              ? (centre - left).dot(chord) / chord.squaredNorm()
+              : 0.;
       const auto accuracy =
           equilibrium_coordinate_tolerance(result.section.type, range);
       if (fraction > 0. && fraction < 1. &&
-          std::none_of(line.points.begin(), line.points.end(),
-                       [&](const BoundaryPoint &saved) {
-                         return ((diagram_coordinates(saved, result.section.type) -
-                                   diagram_coordinates(anchor, result.section.type))
-                                      .cwiseAbs()
-                                      .array() <= accuracy.array())
-                             .all();
-                       }))
-        line.points.insert(line.points.begin() +
-                               static_cast<std::ptrdiff_t>(segment),
-                           anchor);
+          std::none_of(
+              line.points.begin(), line.points.end(),
+              [&](const BoundaryPoint &saved) {
+                return ((diagram_coordinates(saved, result.section.type) -
+                         diagram_coordinates(anchor, result.section.type))
+                            .cwiseAbs()
+                            .array() <= accuracy.array())
+                    .all();
+              }))
+        line.points.insert(
+            line.points.begin() + static_cast<std::ptrdiff_t>(segment), anchor);
       const auto direction = tangent(s, *a);
       if (direction.size()) {
         auto unit = engine.project_direction(direction, *a)

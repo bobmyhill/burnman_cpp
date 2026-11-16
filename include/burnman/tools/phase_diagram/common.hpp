@@ -160,8 +160,8 @@ struct SegmentIntersection {
 /// endpoints and zero-length segments do not establish a separating crossing.
 std::optional<SegmentIntersection>
 segment_intersection(const Eigen::Vector2d &direction,
-                      const Eigen::Vector2d &other_direction,
-                      const Eigen::Vector2d &offset);
+                     const Eigen::Vector2d &other_direction,
+                     const Eigen::Vector2d &offset);
 /// Test whether a straight segment meets a rectangular refinement/label window.
 /// Contact counts as intersection. parallel_tolerance treats a small coordinate
 /// change as zero; it uses coordinate units and does not expand the rectangle.
@@ -228,7 +228,8 @@ inline Eigen::Vector2d equilibrium_pt_tolerance() { return {.2, 1.e-6}; }
 std::vector<int> canonical_phase_ids(const std::vector<int> &, int copies);
 /// Canonical finite-field assemblages permitted by a known phase-out or
 /// replacement reaction. Unknown reactions provide no label constraint.
-std::set<std::vector<int>> boundary_assemblages(const Boundary &, const Result &);
+std::set<std::vector<int>> boundary_assemblages(const Boundary &,
+                                                const Result &);
 
 struct ReactionPerimeter {
   std::vector<const Node *> nodes; // Common vertices in node-ID order.
@@ -237,8 +238,8 @@ struct ReactionPerimeter {
 /// Check reaction-permitted assemblages, common vertices and one connected
 /// cycle. Callers check geometry; no equilibria are solved.
 ReactionPerimeter reaction_perimeter(const Result &,
-                                    const std::set<const Boundary *> &,
-                                    const std::vector<int> &phases);
+                                     const std::set<const Boundary *> &,
+                                     const std::vector<int> &phases);
 
 /// Smallest endmember-composition distance between copies of one solution.
 /// Infinity means there is no same-model pair; a small value suggests copies
