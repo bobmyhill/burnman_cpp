@@ -51,8 +51,11 @@ class Tracer {
   std::vector<std::string> thermodynamic_diagnostics;
   Eigen::Vector2d normalise(double first, double second) const;
   Eigen::Vector2d normalise(const Eigen::Vector2d &q) const;
+  template <typename Point> Eigen::Vector2d coordinates(const Point &p) const {
+    return diagram_coordinates(p, result.section.type);
+  }
   template <typename Point> Eigen::Vector2d normalise(const Point &p) const {
-    return normalise(diagram_coordinates(p, result.section.type));
+    return normalise(coordinates(p));
   }
   // Position in the selected diagram after rescaling each axis to 0..1.
   Eigen::Vector2d normalised_coordinates(const Assemblage &a) const;
@@ -228,8 +231,19 @@ class Tracer {
   void collect_boundary_diagnostics();
   // Add interior equilibrium evidence for closed fields whose labels remain
   // provisional or unknown after perimeter tests.
+  void sample_unlabelled_fields();
+  struct FieldCut {
+    std::size_t line, segment;
+    BoundaryPoint point;
+  };
+  // Correct perimeter intersections with a fixed-coordinate section.
+  std::vector<FieldCut> correct_field_section(const FieldPolygon &,
+                                             Eigen::Index axis, double slice);
+  // Verify known assemblages, correcting drawing sections when necessary.
   void verify_field_interiors();
-  void verify_field_geometry();
+  void repair_field_perimeters();
+  void repair_field_graph();
+  void refine_incompatible_perimeters();
   // Refresh critical-endpoint certificates and closed-field diagnostics, then
   // set resolved from the outstanding messages. This is completion of the
   // implemented checks, not a proof that every stability field was discovered.

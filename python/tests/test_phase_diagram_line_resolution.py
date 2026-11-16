@@ -271,6 +271,27 @@ def test_regional_refinement_rejects_invalid_windows(crossing, region):
         bm.refine_phase_diagram(bulk, crossing_phases(), saved, region=region)
 
 
+@pytest.mark.parametrize("verbose", [False, True])
+def test_creation_reports_verification_stages_only_on_stderr(capfd, verbose):
+    opts = bm.PhaseDiagramSettings()
+    opts.pressure_seeds = opts.temperature_seeds = 2
+    opts.verbose = verbose
+    result = bm.phase_diagram(
+        {"Mg": 1.0, "O": 1.0}, [bm.minerals.SLB_2024.periclase()],
+        (1.e9, 2.e9), (800., 1000.), opts,
+    )
+    assert result.resolved, result.diagnostics
+    captured = capfd.readouterr()
+    assert captured.out == ""
+    if verbose:
+        stages = ["Sampling unlabelled phase fields.", "Field repair pass 1/4:",
+                  "Verifying field interiors and corrected sections."]
+        positions = [captured.err.index(stage) for stage in stages]
+        assert positions == sorted(positions)
+    else:
+        assert captured.err == ""
+
+
 def test_completed_refinement_skips_junction_search_and_repeated_solves(
     crossing, capfd
 ):
@@ -290,7 +311,10 @@ def test_completed_refinement_skips_junction_search_and_repeated_solves(
     assert "Line 4/4" in messages
     assert "points added" in messages
     assert "equilibrium solves in this refinement" in messages
-    assert "Checking phase field consistency" not in messages
+    assert "Sampling unlabelled phase fields" not in messages
+    assert "Field repair pass" not in messages
+    assert "Verifying field interiors" not in messages
+    assert "Refining incompatible perimeter" not in messages
     assert "Rejected boundary corrector" not in messages
     assert "seeds remaining" not in messages
     repeated = bm.refine_phase_diagram(
