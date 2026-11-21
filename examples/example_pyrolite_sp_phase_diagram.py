@@ -163,6 +163,7 @@ def plot(
         result,
         path,
         label_fontsize,
+        label_assemblages=False,
         pressure_unit="GPa",
         entropy_unit=entropy_unit,
         show_nodes=False,
