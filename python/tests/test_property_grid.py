@@ -795,6 +795,68 @@ def test_grid_keeps_successful_assigned_assemblage_even_when_provisional(
             ]
 
 
+@pytest.mark.parametrize("relaxed", [False, True])
+@pytest.mark.parametrize("chunk_size", [None, 1])
+def test_thermodynamic_recovery_initialises_density_and_elastic_averaging(
+    relaxed, chunk_size
+):
+    from copy import deepcopy
+
+    first = bm.Mineral(oxide_params())
+    hot = bm.CombinedMineral([first], [1.0], [5000.0, 5.0, 0.0], name="hot")
+    settings = bm.PhaseDiagramSettings()
+    settings.pressure_seeds = settings.temperature_seeds = 2
+    settings.max_phase_instances = 1
+    source = bm.phase_diagram(
+        {"Mg": 1.0, "O": 1.0},
+        [first, hot],
+        (3e9, 5e9),
+        (800.0, 1200.0),
+        settings,
+    ).to_dict()
+    # The true transition is at 1000 K. An inaccurate saved boundary assigns
+    # 950 K to the metastable hot phase. Its local solve succeeds, but the
+    # energy jump from the cold phase at 949 K triggers independent recovery.
+    for boundary in source["boundaries"]:
+        for point in boundary["points"]:
+            point["temperature"] = 949.5
+        for curve in boundary["limiting_curves"]:
+            for point in curve["points"]:
+                point["temperature"] = 949.5
+    for node in source["nodes"]:
+        node["temperature"] = 949.5
+    assigned = next(
+        field
+        for field in bm.phase_diagram_field_polygons(source).polygons
+        if field.contains_rectangle([4e9, 950.0], [1.0, 1e-5])
+    )
+    assert assigned.phases == [1]
+    before = deepcopy(source)
+    names = ["density", "shear_modulus", "p_wave_velocity"]
+    arguments = dict(x=[4e9], y=[949.0, 950.0], relaxed=relaxed, store_solutions=True)
+    if chunk_size is None:
+        grids = [bm.phase_diagram_grid(source, [first, hot], names, **arguments)]
+    else:
+        grids = [
+            grid
+            for _, _, grid in bm.phase_diagram_grid_chunks(
+                source, [first, hot], names, chunk_size=chunk_size, **arguments
+            )
+        ]
+    assert sum(grid.equilibrium_solves for grid in grids) > 2
+    for grid in grids:
+        assert grid.success.all(), grid.diagnostics
+        assert grid.thermodynamic_validation["violations"] == 0
+        for row, temperature in enumerate(grid.y):
+            assert [p.id for p in grid.solution_at(row, 0).state.phases] == [0]
+            first.set_state(4e9, temperature)
+            for name in names:
+                assert grid.values[name][row, 0] == pytest.approx(
+                    getattr(first, name), rel=1e-10
+                )
+    assert source == before
+
+
 def test_excluded_holes_remain_nan(single_phase):
     source, phase = single_phase
     saved = source.to_dict()

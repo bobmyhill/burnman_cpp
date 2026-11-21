@@ -970,6 +970,9 @@ void PropertyGridder::calculate(PropertyGrid &result, bool reverse) {
           continue;
         }
         accepted = std::move(recovered.assemblage);
+        // Recovery constructs a new thermodynamic assemblage. Restore the
+        // grid's averaging policy before density or elastic getters use it.
+        accepted->set_averaging_scheme(types::AveragingType::VRH);
         accepted_ids = std::move(recovered.ids);
         state = std::move(recovered.state);
         const auto active = engine.canonical_ids(engine.active_phases(state));
