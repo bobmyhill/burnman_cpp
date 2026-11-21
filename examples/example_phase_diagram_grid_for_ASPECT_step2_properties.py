@@ -23,8 +23,8 @@ Relaxed responses allow phase amounts and endmember compositions to adjust
 to pressure and temperature perturbations at fixed bulk composition.
 Unrelaxed responses hold phase amounts and endmember compositions fixed.
 
-The six panels show pressure in GPa (x axis) and total entropy in J/K (y axis).
-Rows show alpha, beta_T and Cp. Columns show relaxed and unrelaxed responses.
+The six panels show total entropy in J/K (x axis) and pressure in GPa (y axis).
+Columns show alpha, beta_T and Cp. Rows show unrelaxed and relaxed responses.
 Phase boundaries and the 1000, 1500 and 2000 K isotherms are overlaid.
 
 Outputs share Step 1's phase_diagram_grid_for_ASPECT_output directory.
@@ -59,7 +59,7 @@ PROPERTIES = (
     ("isothermal_compressibility_reuss", r"$\beta_T$ (GPa$^{-1}$)", 1e9),
     ("heat_capacity_p", r"$C_p$ (J K$^{-1}$)", 1.0),
 )
-MODES = ("relaxed", "unrelaxed")
+MODES = ("unrelaxed", "relaxed")
 
 
 def saved_batches(path):
@@ -179,19 +179,20 @@ def plot(diagram, x, y, arrays, *, isotherms=(), max_plot_resolution=1001):
 
     columns = np.linspace(0, len(x) - 1, min(len(x), max_plot_resolution), dtype=int)
     rows = np.linspace(0, len(y) - 1, min(len(y), max_plot_resolution), dtype=int)
-    extent = (x[0] / 1e9, x[-1] / 1e9, y[0], y[-1])
-    dx = (extent[1] - extent[0]) / (len(columns) - 1) / 2
-    dy = (extent[3] - extent[2]) / (len(rows) - 1) / 2
-    image_extent = (extent[0] - dx, extent[1] + dx, extent[2] - dy, extent[3] + dy)
+    # Arrays are (entropy, pressure); transpose for pressure on the vertical axis.
+    extent = (y[0], y[-1], x[0] / 1e9, x[-1] / 1e9)
+    ds = (extent[1] - extent[0]) / (len(rows) - 1) / 2
+    dp = (extent[3] - extent[2]) / (len(columns) - 1) / 2
+    image_extent = (extent[0] - ds, extent[1] + ds, extent[2] - dp, extent[3] + dp)
     fig, axes = plt.subplots(
-        3, 2, figsize=(14, 15), sharex=True, sharey=True, layout="constrained"
+        2, 3, figsize=(12, 7), sharex=True, sharey=True, layout="constrained"
     )
-    for row, (name, label, factor) in enumerate(PROPERTIES):
+    for col, (name, label, factor) in enumerate(PROPERTIES):
         values = [
-            arrays[f"{mode}_{name}"][np.ix_(rows, columns)] * factor for mode in MODES
+            arrays[f"{mode}_{name}"][np.ix_(rows, columns)].T * factor for mode in MODES
         ]
         finite = np.concatenate([v[np.isfinite(v)] for v in values])
-        if row == 0:
+        if col == 0:
             low, high = -5.0, 5.0
         elif finite.size:
             low, high = np.percentile(finite, (0.5, 99.5))
@@ -200,15 +201,15 @@ def plot(diagram, x, y, arrays, *, isotherms=(), max_plot_resolution=1001):
                 high = low + 1.0
         else:
             low, high = 0.0, 1.0
-        cmap = plt.get_cmap("bwr_r" if row == 0 else "viridis").with_extremes(
+        cmap = plt.get_cmap("bwr_r" if col == 0 else "viridis").with_extremes(
             bad="0.85"
         )
-        for col, mode in enumerate(MODES):
+        for row, mode in enumerate(MODES):
             ax = axes[row, col]
             # Preserve signed infinities at the colour limits, masking only NaNs.
             image = ax.imshow(
                 np.ma.masked_where(
-                    np.isnan(values[col]), np.clip(values[col], low, high)
+                    np.isnan(values[row]), np.clip(values[row], low, high)
                 ),
                 extent=image_extent,
                 origin="lower",
@@ -226,7 +227,6 @@ def plot(diagram, x, y, arrays, *, isotherms=(), max_plot_resolution=1001):
                 line_width=0.35,
                 pressure_unit="GPa",
                 entropy_unit="J/K",
-                swap_axes=True,
                 label_assemblages=False,
                 label_key_path=None,
                 show_unresolved=False,
@@ -244,10 +244,16 @@ def plot(diagram, x, y, arrays, *, isotherms=(), max_plot_resolution=1001):
             ax.set(
                 xlim=extent[:2], ylim=extent[2:], title=f"{mode.capitalize()} {label}"
             )
-            ax.set_xlabel("Pressure (GPa)" if row == 2 else "")
-            if col:
-                ax.set_ylabel("")
-        fig.colorbar(image, ax=list(axes[row]), label=label, extend="both", shrink=0.9)
+            ax.set_xlabel("Entropy (J/K)" if row == 1 else "")
+            ax.set_ylabel("Pressure (GPa)" if col == 0 else "")
+        fig.colorbar(
+            image,
+            ax=list(axes[:, col]),
+            label=label,
+            extend="both",
+            orientation="horizontal",
+            shrink=0.9,
+        )
     fig.suptitle(
         "Pyrolite: responses at saved equilibria\n"
         "Orange: equilibrium isotherms · Grey: unavailable properties"

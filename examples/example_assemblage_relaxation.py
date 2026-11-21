@@ -51,6 +51,7 @@ properties of mineral assemblages, which is important for:
 """
 
 import numpy as np
+from pathlib import Path
 import burnman_cpp
 import matplotlib.pyplot as plt
 
@@ -58,6 +59,7 @@ from burnman_cpp import equilibrate
 from burnman_cpp.minerals import SLB_2011
 from burnman_cpp import Assemblage, RelaxedComposite
 from burnman_cpp.tools.chemistry import reaction_matrix_as_strings
+from burnman_cpp.tools.phase_diagram_helpers import save_figure
 
 if __name__ == "__main__":
     # Initialize the minerals we will use in this example.
@@ -192,35 +194,55 @@ if __name__ == "__main__":
     )
 
     # Plot the results
-    fig = plt.figure(figsize=(15, 5))
-    ax = [fig.add_subplot(1, 3, i) for i in range(1, 4)]
-    ax[0].plot(pressures / 1.0e9, KS_u / 1.0e9, label="Unrelaxed")
-    ax[0].plot(pressures / 1.0e9, KS_fm / 1.0e9, linestyle="--")
-    ax[0].plot(pressures / 1.0e9, KS_pc / 1.0e9, linestyle=":")
-    ax[0].plot(pressures / 1.0e9, KS_r / 1.0e9)
-    ax[0].set_xlabel("Pressure (GPa)")
-    ax[0].set_ylabel("K$_S$ (GPa)")
-
-    ax[1].plot(pressures / 1.0e9, alpha_u * 1.0e6, label="Unrelaxed")
-    ax[1].plot(pressures / 1.0e9, alpha_fm * 1.0e6, linestyle="--")
-    ax[1].plot(pressures / 1.0e9, alpha_pc * 1.0e6, linestyle=":")
-    ax[1].plot(pressures / 1.0e9, alpha_r * 1.0e6)
-
-    ax[1].set_xlabel("Pressure (GPa)")
-    ax[1].set_ylabel("alpha (1e-6/K)")
-
-    ax[2].plot(pressures / 1.0e9, Cp_u / M_u, label="Unrelaxed")
-    ax[2].plot(
-        pressures / 1.0e9, Cp_fm / M_fm, linestyle="--", label="Fe-Mg exchange only"
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4.8), layout="constrained")
+    cases = [
+        ("Unrelaxed", "-", 3.0, "#1f77b4"),
+        ("Fe-Mg exchange only", "--", 1.8, "#ff7f0e"),
+        ("Phase change only", ":", 2.2, "#2ca02c"),
+        ("Fe-Mg exchange + phase change (fully relaxed)", "-", 2.0, "#d62728"),
+    ]
+    panels = [
+        (
+            "Isentropic bulk modulus (GPa)",
+            [KS_u / 1.0e9, KS_fm / 1.0e9, KS_pc / 1.0e9, KS_r / 1.0e9],
+        ),
+        (
+            r"Thermal expansivity ($10^{-6}$ K$^{-1}$)",
+            [a * 1.0e6 for a in (alpha_u, alpha_fm, alpha_pc, alpha_r)],
+        ),
+        (
+            r"Specific heat capacity (J K$^{-1}$ kg$^{-1}$)",
+            [Cp_u / M_u, Cp_fm / M_fm, Cp_pc / M_pc, Cp_r / M_r],
+        ),
+    ]
+    for index, (ax, (ylabel, curves)) in enumerate(zip(axes, panels)):
+        for (label, linestyle, linewidth, color), values in zip(cases, curves):
+            ax.plot(
+                pressures / 1.0e9,
+                values,
+                label=label,
+                linestyle=linestyle,
+                linewidth=linewidth,
+                color=color,
+            )
+        ax.set_xlabel("Pressure (GPa)")
+        ax.set_ylabel(ylabel)
+        ax.set_xlim(pressures[0] / 1.0e9, pressures[-1] / 1.0e9)
+        ax.set_title(f"({chr(97 + index)})", loc="left")
+        ax.grid(alpha=0.3)
+    fig.legend(
+        *axes[0].get_legend_handles_labels(),
+        loc="outside lower center",
+        ncols=4,
+        frameon=False,
     )
-    ax[2].plot(
-        pressures / 1.0e9, Cp_pc / M_pc, linestyle=":", label="Phase change only"
+    fig.suptitle(
+        f"Olivine-wadsleyite assemblage at {int(T)} K: "
+        "effect of relaxation on thermodynamic properties"
     )
-    ax[2].plot(pressures / 1.0e9, Cp_r / M_r, label="Fe-Mg exchange + phase change")
-    ax[2].set_xlabel("Pressure (GPa)")
-    ax[2].set_ylabel("C$_p$ (J/K/kg)")
-    ax[2].legend()
-    plt.show()
+    output_dir = Path(__file__).resolve().with_name("assemblage_relaxation_output")
+    save_figure(fig, output_dir / "assemblage_relaxation.png", formats=("pdf",))
+    print(f"Figure saved to {output_dir}")
 
     # The results show that allowing for full relaxation
     # of the assemblage leads to significant reductions in the
