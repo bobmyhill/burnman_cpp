@@ -12,6 +12,32 @@ import burnman_cpp as bm
 from conftest import make_model, oxide_params
 
 
+def test_internal_replacement_line_cannot_create_interpolated_middle_values():
+    from types import SimpleNamespace
+    from burnman_cpp.tools._grid_contours import field_contours
+
+    polygon = SimpleNamespace(
+        vertices=np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]]),
+        holes=[],
+    )
+    points = np.array([(x, y) for x in (0.0, 0.4, 0.6, 1.0) for y in (0.0, 0.5, 1.0)])
+    values = (points[:, 0] > 0.5).astype(float)
+    assert list(field_contours(points, values, polygon, [], [0.5]))
+    # The assemblage names can be identical on both sides of a first-order
+    # composition jump. A contour at an intermediate value would be fictitious.
+    barrier = np.array([[0.5, 0.0], [0.5, 1.0]])
+    assert not list(
+        field_contours(points, values, polygon, [], [0.5], barriers=[barrier])
+    )
+    # Valid contours away from the discontinuity must remain available.
+    continuous = points[:, 1]
+    result = list(
+        field_contours(points, continuous, polygon, [], [0.5], barriers=[barrier])
+    )
+    assert len(result) == 2
+    assert all(np.allclose(segment[:, 1], 0.5) for _, segment in result)
+
+
 @pytest.fixture(autouse=True)
 def forbid_equilibrium_calculations(monkeypatch):
     def forbidden(*args, **kwargs):

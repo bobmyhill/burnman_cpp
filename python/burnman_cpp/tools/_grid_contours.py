@@ -5,19 +5,22 @@
 import numpy as np
 
 
-def field_contours(points, values, polygon, invalid, levels):
+def field_contours(points, values, polygon, invalid, levels, *, barriers=()):
     """Yield (level, coordinates) inside a field, including its boundary.
 
     Values at pre-existing boundary equilibria belong in points/values.
     Missing boundary vertices use a local affine estimate from this field's
     observations. Invalid grid nodes mask incident triangles. Rescaling by
     the field's own spans also supports fields much thinner than a grid cell.
+    Optional barriers are native-coordinate polylines across which values are
+    discontinuous, even inside one field with identical assemblage names.
+    Supply their two limiting values as separate observations beside each line.
     """
     from matplotlib.figure import Figure
     from matplotlib.tri import Triangulation
     from scipy.interpolate import LinearNDInterpolator
     from scipy.spatial import Delaunay, QhullError, cKDTree
-    from shapely import make_valid, union_all
+    from shapely import intersects, make_valid, polygons, union_all
     from shapely.geometry import LineString, Polygon
 
     rings = [polygon.vertices, *polygon.holes]
@@ -77,6 +80,14 @@ def field_contours(points, values, polygon, invalid, levels):
     except QhullError:
         return
     mask = ~np.isfinite(samples[triangles]).all(axis=1)
+    if barriers:
+        cuts = union_all(
+            [LineString((np.asarray(line) - origin) / scale) for line in barriers]
+        )
+        # Invalid point samples alone do not prevent a Delaunay edge from
+        # bridging a gap between them. Mask every triangle touching the actual
+        # discontinuity, retaining separate limiting observations on its sides.
+        mask |= intersects(polygons(coordinates[triangles]), cuts)
     if mask.all():
         return
     mesh = Triangulation(*coordinates.T, triangles=triangles, mask=mask)
