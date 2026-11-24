@@ -381,6 +381,49 @@ def test_gridding_can_be_disabled_for_a_resolved_diagram(tmp_path, monkeypatch):
     assert not (tmp_path / "grid_solutions").exists()
 
 
+@pytest.mark.parametrize("diagram", ["PT", "TP"])
+@pytest.mark.parametrize("patch_steps", [2, 500])
+def test_local_discovery_patch_repairs_a_real_incomplete_diagram(
+    tmp_path, diagram, patch_steps
+):
+    initial = bm.PhaseDiagramSettings()
+    initial.max_trace_steps = 2
+    initial.max_recovery_passes = 0
+    patch = bm.PhaseDiagramSettings()
+    patch.pressure_seeds = patch.temperature_seeds = 3
+    patch.max_trace_steps = patch_steps
+    patch.max_recovery_passes = 0
+    region = ((0.5e9, 5.0e9), (900.0, 1500.0))
+    run = bm.calculate_phase_diagram_grid(
+        "SLB_2024",
+        {"Si": 1.0, "O": 2.0},
+        diagram,
+        {"P": 0.5e9, "T": 900.0},
+        {"P": 5.0e9, "T": 1500.0},
+        phase_names=["quartz", "coesite"],
+        settings=initial,
+        seeds=(3, 3),
+        boundary_resolution=(11, 11),
+        grid_resolution=(3, 3),
+        patch_regions=[region if diagram == "PT" else region[::-1]],
+        patch_settings=patch,
+        output_dir=tmp_path,
+        make_grid=True,
+    )
+    assert not bm.load_phase_diagram(run.initial_diagram)["resolved"]
+    assert (tmp_path / "patches/patch_001.json").exists()
+    report = json.loads((tmp_path / "patches/report.json").read_text())
+    if patch_steps == 500:
+        assert run.diagram.resolved and run.grid_manifest is not None, run.diagnostics
+        assert (tmp_path / "patches/merged_001.json").exists()
+        assert report["patches"][0]["resolved"]
+        assert report["patches"][0]["merge"]
+    else:
+        assert not run.diagram.resolved and run.grid_manifest is None
+        assert not (tmp_path / "patches/merged_001.json").exists()
+        assert not report["patches"][0]["resolved"]
+
+
 def test_raw_potential_output_does_not_implicitly_process_arrays(tmp_path, monkeypatch):
     def forbidden(*args, **kwargs):
         pytest.fail("Infilling/smoothing was not requested")
@@ -402,6 +445,54 @@ def test_infill_output_does_not_require_smoothing(tmp_path):
     potentials = process(calculate(tmp_path), make_infilled_potential_grid=True)
     assert potentials.raw_potential.exists() and potentials.infilled_potential.exists()
     assert potentials.smoothed_potential is None
+
+
+@pytest.mark.parametrize("sigma,has_wrong_curvature", [(1.0, True), (2.5, False)])
+def test_smoothing_reports_curvature_artifacts_and_physical_widths(
+    tmp_path, sigma, has_wrong_curvature
+):
+    # This potential is analytically concave in P and strictly convex in S.
+    # An unconstrained cubic interpolant can overshoot its sharp curvature
+    # change after narrow Gaussian smoothing, even with no missing equilibria.
+    pressure = np.linspace(120.0e9, 140.0e9, 17)
+    entropy = np.linspace(50.0, 300.0, 401)
+    p, s = np.meshgrid(pressure, entropy)
+    z = np.maximum(s - 100.23, 0.0)
+    grids = bm.PotentialGrid(
+        "H",
+        pressure,
+        entropy,
+        2.0e-5 * p
+        - 0.5e-17 * (p - 130.0e9) ** 2
+        + 500.0 * s
+        + 0.5e-6 * s**2
+        + 2.5 * z**2,
+        2.0e-5 - 1.0e-17 * (p - 130.0e9),
+        500.0 + 1.0e-6 * s + 5.0 * z,
+        np.full(p.shape, -1.0e-17),
+        np.zeros(p.shape),
+        1.0e-6 + 5.0 * (s > 100.23),
+    )
+    result = bm.calculate_potential_grid(
+        grids,
+        output_dir=tmp_path,
+        make_infilled_potential_grid=True,
+        make_smoothed_potential_grid=True,
+        smoothing_sigma=sigma,
+    )
+    info = result.smoothing_info
+    assert info["axis_order"] == ["S", "P"]
+    assert info["sigma_cells"] == [sigma, sigma]
+    assert info["sigma_native"] == [sigma * 0.625, sigma * 1.25e9]
+    assert info["curvature_audit"]["raw"]["S"]["wrong_sign_nodes"] == 0
+    assert bool(info["curvature_audit"]["smoothed"]["S"]["wrong_sign_nodes"]) == (
+        has_wrong_curvature
+    )
+    assert bool(result.diagnostics) == has_wrong_curvature
+    assert json.loads((tmp_path / "report.json").read_text())["smoothing"] == info
+    np.testing.assert_array_equal(
+        bm.load_potential_grid(result.raw_potential).values, grids.values
+    )
 
 
 def test_smoothing_is_skipped_when_infilling_leaves_a_gap(tmp_path, monkeypatch):

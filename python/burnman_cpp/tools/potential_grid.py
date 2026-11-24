@@ -34,7 +34,7 @@ from scipy.ndimage import (
     gaussian_filter,
     label,
 )
-from scipy.optimize import Bounds, LinearConstraint, lsq_linear, minimize
+from scipy.optimize import Bounds, LinearConstraint, linprog, lsq_linear, minimize
 from scipy.spatial import cKDTree
 
 from .properties import (
@@ -963,6 +963,82 @@ def _extend_axis(values, axis, sigma, radius):
     return np.moveaxis(extended, -1, axis)
 
 
+def _constrain_extension(values, observed, curvature):
+    """Correct ghost values whose fits violate natural-coordinate curvature.
+
+    Minimise the absolute change to the fitted padding subject to signed
+    second-difference inequalities involving ghost cells. Observed values and
+    their interior stencils are untouched. Valid quadratic extensions pass
+    through exactly, without optimisation. Corrections have potential units;
+    neither physical-axis scales nor the reference energy affect the fit.
+    """
+    count = int(np.count_nonzero(~observed))
+    if not count:
+        return values
+    indices = np.full(values.shape, -1, dtype=int)
+    indices[~observed] = np.arange(count)
+    rows, columns, coefficients, constants = [], [], [], []
+    offset = 0
+    for axis, sign in ((1, curvature[0]), (0, curvature[1])):
+        data = np.moveaxis(values, axis, -1)
+        ids = np.moveaxis(indices, axis, -1)
+        stencils = np.stack((ids[..., :-2], ids[..., 1:-1], ids[..., 2:]), axis=-1)
+        selected = (stencils >= 0).any(axis=-1)
+        labels = stencils[selected]
+        rhs = sign * np.diff(data, n=2, axis=-1)[selected]
+        valid = labels >= 0
+        rows.append(
+            np.broadcast_to((offset + np.arange(len(rhs)))[:, None], labels.shape)[
+                valid
+            ]
+        )
+        columns.append(labels[valid])
+        coefficients.append(
+            np.broadcast_to(-sign * np.array([1.0, -2.0, 1.0]), labels.shape)[valid]
+        )
+        constants.append(rhs)
+        offset += len(rhs)
+    rhs = np.concatenate(constants)
+    roundoff = 128.0 * np.finfo(float).eps * max(1.0, np.max(np.abs(values)))
+    if (rhs >= -roundoff).all():
+        return values
+    matrix = sparse.csr_matrix(
+        (np.concatenate(coefficients), (np.concatenate(rows), np.concatenate(columns))),
+        shape=(len(rhs), count),
+    )
+    identity = sparse.eye(count, format="csr")
+    constraints = sparse.vstack(
+        (
+            sparse.hstack((matrix, sparse.csr_matrix((len(rhs), count)))),
+            sparse.hstack((identity, -identity)),
+            sparse.hstack((-identity, -identity)),
+        ),
+        format="csr",
+    )
+    # The second variable block bounds the absolute ghost-value corrections.
+    fit = linprog(
+        np.r_[np.zeros(count), np.ones(count)],
+        A_ub=constraints,
+        b_ub=np.r_[rhs + roundoff, np.zeros(2 * count)],
+        bounds=np.vstack(
+            (np.tile([-np.inf, np.inf], (count, 1)), np.tile([0.0, np.inf], (count, 1)))
+        ),
+        method="highs",
+        options={
+            "primal_feasibility_tolerance": 1.0e-9,
+            "dual_feasibility_tolerance": 1.0e-9,
+        },
+    )
+    if not fit.success:
+        raise RuntimeError(
+            "Could not construct a curvature-preserving smoothing "
+            f"extension: {fit.message}"
+        )
+    extended = values.copy()
+    extended[~observed] += fit.x[:count]
+    return extended
+
+
 def _smooth_values(grids, sigma, *, truncate=4.0):
     """Extend the potential, convolve in 2D and crop to the original domain."""
     f, fx, fy, fxx, fxy, fyy = (
@@ -994,6 +1070,9 @@ def _smooth_values(grids, sigma, *, truncate=4.0):
         if radius:
             padded = _extend_axis(padded, axis, widths[axis], radius)
             crop[axis] = slice(radius, -radius)
+    observed = np.zeros(padded.shape, dtype=bool)
+    observed[tuple(crop)] = True
+    padded = _constrain_extension(padded, observed, grids.curvature)
     return gaussian_filter(padded, widths, mode="nearest", truncate=truncate)[
         tuple(crop)
     ]
@@ -1004,11 +1083,16 @@ def smooth_potential_grid(grids, sigma=2.0, *, truncate=4.0):
 
     Apply a 2D Gaussian (default sigma=2 cells along both axes) to the potential,
     extending its edges with weighted, anchored quadratic fits to nearby values.
+    When those fits violate the natural-coordinate curvature signs, adjust only
+    ghost values with a constrained fit before convolution. Original sampled
+    potentials stay fixed during extension; inconsistent interior data require
+    correction in the equilibrium grid.
     The input gradients and Hessians do not determine the extension. All six
     input arrays must be finite; infill gaps first. At least three points per
     axis are required. sigma accepts a scalar or (y, x) pair in grid cells.
     Analytically differentiate a tensor-product cubic interpolant of the
-    smoothed values, including at the domain edges. Metadata and original
+    smoothed values, anchoring its edge curvatures to local three-point
+    quadratics. Metadata and original
     arrays are retained unchanged. No equilibrium solves or np.gradient calls
     are used. The extension reproduces quadratics but does not guarantee
     thermodynamic stability for every surface; validate the derived properties.
@@ -1018,12 +1102,26 @@ def smooth_potential_grid(grids, sigma=2.0, *, truncate=4.0):
     values = _smooth_values(grids, sigma, truncate=truncate)
     result = copy(grids)
     result.values = values
+
+    def spline(coordinates, data, axis):
+        # A not-a-knot end condition can overshoot a sharp curvature change
+        # even when the smoothed nodal values have the correct convexity.
+        # Local quadratic end conditions retain quadratic reproduction and
+        # remain linear in the values, including for the mixed derivative.
+        edge = np.moveaxis(data, axis, 0)
+        spacing = coordinates[1] - coordinates[0]
+        left = (edge[0] - 2.0 * edge[1] + edge[2]) / spacing**2
+        right = (edge[-3] - 2.0 * edge[-2] + edge[-1]) / spacing**2
+        return CubicSpline(
+            coordinates, data, axis=axis, bc_type=((2, left), (2, right))
+        )
+
     for coordinates, axis, first, second in (
         (grids.x, 1, "d_dx", "d2_dx2"),
         (grids.y, 0, "d_dy", "d2_dy2"),
     ):
-        spline = CubicSpline(coordinates, values, axis=axis)
-        setattr(result, first, spline(coordinates, 1))
-        setattr(result, second, spline(coordinates, 2))
-    result.d2_dxdy = CubicSpline(grids.y, result.d_dx, axis=0)(grids.y, 1)
+        interpolant = spline(coordinates, values, axis)
+        setattr(result, first, interpolant(coordinates, 1))
+        setattr(result, second, interpolant(coordinates, 2))
+    result.d2_dxdy = spline(grids.y, result.d_dx, 0)(grids.y, 1)
     return result

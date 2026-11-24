@@ -29,7 +29,8 @@
 namespace burnman::phase_diagrams {
 namespace detail {
 namespace {
-bool terminal_critical(Engine &engine, const Node &node, const Boundary &line) {
+bool terminal_critical(Engine &engine, const Result &result, const Node &node,
+                       const Boundary &line) {
   const bool replacement = line.is_solution_replacement &&
                            !line.side_a.empty() && line.side_a == line.side_b;
   const bool phase_out = line.reaction_kind == ReactionKind::phase_out;
@@ -37,11 +38,14 @@ bool terminal_critical(Engine &engine, const Node &node, const Boundary &line) {
     return false;
   const auto &endpoint =
       node.id == line.start_node ? line.points.front() : line.points.back();
-  const Eigen::Vector2d target(node.pressure, node.temperature);
-  const auto accuracy = equilibrium_pt_tolerance();
-  if (((diagram_coordinates(endpoint, DiagramType::PT) - target)
-           .cwiseAbs()
-           .array() > accuracy.array())
+  const auto type = result.section.type;
+  const auto ranges = result.coordinate_ranges();
+  const Eigen::Vector2d span(ranges[0][1] - ranges[0][0],
+                             ranges[1][1] - ranges[1][0]);
+  const auto target = diagram_coordinates(node, type);
+  const auto accuracy = equilibrium_coordinate_tolerance(type, span);
+  if (((diagram_coordinates(endpoint, type) - target).cwiseAbs().array() >
+       accuracy.array())
           .any())
     return false;
   auto states = endpoint.phases;
@@ -70,9 +74,13 @@ bool terminal_critical(Engine &engine, const Node &node, const Boundary &line) {
   if (absent == ids.end())
     return false;
   ids.erase(absent);
-  auto a = engine.make_assemblage(ids, states, target[0], target[1]);
+  auto a = engine.make_assemblage(ids, states, node.pressure, node.temperature);
+  // Gibbs variance includes chemical degrees of freedom. It need not equal
+  // the two plotted thermodynamic directions: basalt phase-out critical
+  // endpoints can have variance three or five. The critical equations and
+  // stability certificate below determine whether the endpoint is genuine.
   if (field_variance(*a, line.assemblage.size()) != node.gibbs_variance ||
-      node.gibbs_variance != (replacement ? 1 : 2))
+      (replacement ? node.gibbs_variance != 1 : node.gibbs_variance < 2))
     return false;
   const int phase =
       static_cast<int>(std::find(ids.begin(), ids.end(), other) - ids.begin());
@@ -116,19 +124,23 @@ bool terminal_critical(Engine &engine, const Node &node, const Boundary &line) {
           std::abs(missing->amount) <=
               amount * engine.settings.amount_tolerance &&
           present->amount > amount * engine.settings.amount_tolerance) {
-        try {
-          auto corrected = boundary_point_at(
-              engine, line, seed.phases,
-              diagram_coordinates(seed, DiagramType::PT), {0., 1.}, accuracy);
-          if (corrected &&
-              same_phase_compositions(seed.phases, corrected->phases,
-                                      engine.settings.composition_tolerance,
-                                      engine.settings.amount_tolerance))
-            return true;
-        } catch (const std::exception &) {
-          // A point too close to the critical endpoint can be ill-conditioned;
-          // another accepted point along the arm may still certify it.
-        }
+        // A regular P-T arm can turn in an extensive coordinate. Try both
+        // coordinate planes so that a singular fixed-S/V solve does not
+        // reject an otherwise verifiable saved equilibrium.
+        for (const Eigen::Vector2d &weights :
+             {Eigen::Vector2d(0., 1.), Eigen::Vector2d(1., 0.)})
+          try {
+            auto corrected = boundary_point_at(engine, line, seed.phases,
+                                               diagram_coordinates(seed, type),
+                                               weights, accuracy);
+            if (corrected &&
+                same_phase_compositions(seed.phases, corrected->phases,
+                                        engine.settings.composition_tolerance,
+                                        engine.settings.amount_tolerance))
+              return true;
+          } catch (const std::exception &) {
+            // Another accepted point along the arm may still certify it.
+          }
       }
     }
     return false;
@@ -142,7 +154,7 @@ bool terminal_critical(Engine &engine, const Node &node, const Boundary &line) {
                            ? line.points[j]
                            : line.points[line.points.size() - 1 - j];
     try {
-      const auto location = diagram_coordinates(seed, DiagramType::PT);
+      const auto location = diagram_coordinates(seed, type);
       auto left = boundary_point_at(engine, line, seed.phases, location,
                                     {0., 1.}, accuracy);
       if (!left)
@@ -183,9 +195,11 @@ void verify_critical_endpoints(Result &result, Engine &engine) {
   for (auto &node : result.nodes) {
     node.is_verified_critical_endpoint =
         false; // Never reuse a stale certificate.
-    if (result.section.type != DiagramType::PT ||
-        node.kind != "critical_point" ||
-        (node.gibbs_variance != 1 && node.gibbs_variance != 2) ||
+    // Criticality is defined by the physical Gibbs energy in every fixed-bulk
+    // thermodynamic section. Compare corrected points in the plotted axes;
+    // their S/V entries are extensive coordinates, never a starting P/T.
+    if (has_composition_axis(result.section.type) ||
+        node.kind != "critical_point" || node.gibbs_variance < 1 ||
         !node.critical_mode.size())
       continue;
     bool verified = true, found = false;
@@ -193,7 +207,7 @@ void verify_critical_endpoints(Result &result, Engine &engine) {
       if (line.start_node == node.id || line.end_node == node.id) {
         found = true;
         try {
-          verified = verified && terminal_critical(engine, node, line);
+          verified = verified && terminal_critical(engine, result, node, line);
         } catch (const std::exception &error) {
           verified = false;
           if (engine.settings.verbose)
@@ -206,7 +220,7 @@ void verify_critical_endpoints(Result &result, Engine &engine) {
     // Two separately verified phase-out arms can pass through the coalescence
     // while exchanging which solution copy has zero amount. Replacement
     // limits (variance one) can instead be two records of one terminal arm.
-    if (node.is_verified_critical_endpoint && node.gibbs_variance == 2) {
+    if (node.is_verified_critical_endpoint && node.gibbs_variance >= 2) {
       const auto ranges = result.coordinate_ranges();
       const Eigen::Vector2d range(ranges[0][1] - ranges[0][0],
                                   ranges[1][1] - ranges[1][0]);
@@ -215,10 +229,13 @@ void verify_critical_endpoints(Result &result, Engine &engine) {
           const auto &point = node.id == line.start_node
                                   ? line.points[k]
                                   : line.points[line.points.size() - 1 - k];
-          const Eigen::Vector2d delta(point.pressure - node.pressure,
-                                      point.temperature - node.temperature);
+          const Eigen::Vector2d delta =
+              diagram_coordinates(point, result.section.type) -
+              diagram_coordinates(node, result.section.type);
           if ((delta.cwiseAbs().array() >
-               equilibrium_pt_tolerance().array() * 4.)
+               equilibrium_coordinate_tolerance(result.section.type, range)
+                       .array() *
+                   4.)
                   .any())
             return delta.cwiseQuotient(range).normalized();
         }

@@ -21,7 +21,12 @@ import numpy as np
 
 from .. import _core
 from ..minerals import load_dataset
-from .phase_diagram import plot_phase_diagram, save_phase_diagram
+from .phase_diagram import (
+    calculate_phase_diagram_patch,
+    merge_phase_diagrams,
+    plot_phase_diagram,
+    save_phase_diagram,
+)
 from .phase_diagram_helpers import _figure_formats, save_figure
 from .properties import (
     phase_diagram_grid_chunks,
@@ -67,11 +72,13 @@ class PhaseDiagramCalculation:
 
 @dataclass
 class PotentialGridCalculation:
-    """Saved potential arrays, processing diagnostics, timings and infill summary.
+    """Saved potential arrays, processing diagnostics, timings and audits.
 
     raw_potential always exists. Optional stage paths are None when disabled
     or skipped. diagnostics records processing problems; original equilibrium
     and response diagnostics remain in the saved grids and source manifest.
+    infill_info records estimated entries; smoothing_info records the applied
+    widths and curvature-sign audits before and after smoothing.
     """
 
     raw_potential: Path
@@ -80,6 +87,7 @@ class PotentialGridCalculation:
     diagnostics: list = field(default_factory=list)
     timings: dict = field(default_factory=dict)
     infill_info: dict = field(default_factory=dict)
+    smoothing_info: dict = field(default_factory=dict)
 
 
 def _counts(values, name):
@@ -124,6 +132,42 @@ def _write_json(path, data):
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(text, encoding="utf-8")
     temporary.replace(path)
+
+
+def _curvature_audit(grids):
+    """Record coordinate-curvature signs without altering the potential."""
+    audit = {}
+    for variable, name, sign, axis, coordinates in zip(
+        grids.variables,
+        ("d2_dx2", "d2_dy2"),
+        grids.curvature,
+        (1, 0),
+        (grids.x, grids.y),
+    ):
+        values = getattr(grids, name)
+        if values is None:
+            audit[variable] = {"available": False}
+            continue
+        values = np.asarray(values)
+        finite = np.isfinite(values)
+        audit[variable] = dict(
+            available=True,
+            wrong_sign_nodes=int(np.count_nonzero(finite & (sign * values < 0))),
+            zero_curvature_nodes=int(np.count_nonzero(finite & (values == 0))),
+            nonfinite_nodes=int(np.count_nonzero(~finite)),
+            minimum=float(values[finite].min()) if finite.any() else None,
+            maximum=float(values[finite].max()) if finite.any() else None,
+        )
+        # A locally stable response at every node does not establish that
+        # their sampled energies form a concave/convex equilibrium surface.
+        # Keep this separate from the supplied analytic response curvatures.
+        if len(coordinates) >= 3:
+            sampled = np.diff(grids.values, n=2, axis=axis)
+            finite_sampled = np.isfinite(sampled)
+            audit[variable]["sampled_wrong_sign_stencils"] = int(
+                np.count_nonzero(finite_sampled & (sign * sampled < 0))
+            )
+    return audit
 
 
 def _grid_to_disk(diagram, phases, resolution, directory, chunk_size, verbose):
@@ -228,6 +272,10 @@ def calculate_potential_grid(
     PotentialGridCalculation lists paths, timings, processing diagnostics and
     infill_info. Nonfinite entries left after infilling skip smoothing and are
     reported. Strict thermodynamic validation still applies to ASPECT export.
+    smoothing_info and report.json record the Gaussian widths in cells and
+    native units, together with raw/infilled/smoothed curvature-sign audits.
+    Wrong-sign smoothed curvatures are reported without clipping derivatives
+    or automatically increasing the requested smoothing width.
     """
     for name, enabled in (
         ("make_infilled_potential_grid", make_infilled_potential_grid),
@@ -292,10 +340,30 @@ def calculate_potential_grid(
                         "Smoothing potential and recalculating derivatives", flush=True
                     )
                 started = perf_counter()
+                smoothed = smooth_potential_grid(filled, sigma=smoothing_sigma)
                 result.smoothed_potential = save_potential_grid(
-                    smooth_potential_grid(filled, sigma=smoothing_sigma),
+                    smoothed,
                     directory / "potential_smoothed.npz",
                 )
+                result.smoothing_info = dict(
+                    axis_order=list(raw.variables[::-1]),
+                    sigma_cells=widths.tolist(),
+                    sigma_native=(widths * np.asarray(raw.spacings()[::-1])).tolist(),
+                    curvature_audit={
+                        "raw": _curvature_audit(raw),
+                        "infilled": _curvature_audit(filled),
+                        "smoothed": _curvature_audit(smoothed),
+                    },
+                )
+                for variable, audit in result.smoothing_info["curvature_audit"][
+                    "smoothed"
+                ].items():
+                    if audit.get("wrong_sign_nodes", 0):
+                        result.diagnostics.append(
+                            f"Smoothed {raw.potential}: {audit['wrong_sign_nodes']} "
+                            f"nodes have the wrong {variable}-curvature sign. "
+                            "Inspect the curvature audit before exporting."
+                        )
                 result.timings["smoothing"] = perf_counter() - started
             else:
                 message = (
@@ -310,6 +378,7 @@ def calculate_potential_grid(
             timings_seconds=result.timings,
             diagnostics=result.diagnostics,
             postprocessing=result.infill_info,
+            smoothing=result.smoothing_info,
         ),
     )
     return result
@@ -328,6 +397,8 @@ def calculate_phase_diagram_grid(
     output_dir="phase_diagram_output",
     phase_names=None,
     settings=None,
+    patch_regions=None,
+    patch_settings=None,
     pressure_range=None,
     temperature_range=None,
     chunk_size=4096,
@@ -365,6 +436,14 @@ def calculate_phase_diagram_grid(
     otherwise return grid_manifest=None and diagnostics. Unmet boundary spacing
     remains a warning and does not block gridding. These checks cannot prove
     that every possible disconnected field was discovered.
+    Optional patch_regions recalculates small discovery windows of an unresolved
+    initial diagram before line refinement. Each region is ((xmin,xmax),
+    (ymin,ymax)) in SI units and the requested diagram order. patch_settings
+    supplies their discovery seeds and solve settings (default: settings).
+    Patches run sequentially until the diagram resolves; out-of-domain windows
+    are skipped. Save each patch, merged checkpoint and merge report under
+    patches/. Only resolved patches are merged; remaining problems still block
+    gridding. This adds equilibrium evidence, never clears diagnostics by fiat.
     With stop_on_unresolved=True, save initial.json and raise RuntimeError
     before refinement if the initial diagram is unresolved.
     A grid_solutions manifest journals compressed batches, retained equilibria
@@ -409,6 +488,16 @@ def calculate_phase_diagram_grid(
     seeds = _counts(seeds, "seeds")
     boundary_resolution = _counts(boundary_resolution, "boundary_resolution")
     grid_resolution = _counts(grid_resolution, "grid_resolution")
+    regions = []
+    for region in (() if patch_regions is None else patch_regions):
+        values = np.asarray(region, float)
+        if (
+            values.shape != (2, 2)
+            or not np.isfinite(values).all()
+            or (values[:, 0] >= values[:, 1]).any()
+        ):
+            raise ValueError("patch_regions needs finite increasing 2-by-2 bounds.")
+        regions.append(values if native == variables else values[::-1])
     if (
         not isinstance(chunk_size, int)
         or isinstance(chunk_size, bool)
@@ -444,6 +533,14 @@ def calculate_phase_diagram_grid(
         else _core.PhaseDiagramSettings()
     )
     opts.verbose = bool(verbose)
+    patch_opts = _core.PhaseDiagramSettings.from_dict(
+        (patch_settings or opts).to_dict()
+    )
+    patch_opts.verbose = bool(verbose)
+    if regions and patch_opts.max_phase_instances != opts.max_phase_instances:
+        raise ValueError(
+            "Patches must use the same max_phase_instances as the diagram."
+        )
     for variable, count in zip(variables, seeds):
         setattr(opts, _COORDINATES[variable] + "_seeds", count)
     timings = {}
@@ -468,6 +565,8 @@ def calculate_phase_diagram_grid(
             native_diagram=native,
             boundary_resolution=list(boundary_resolution),
             grid_resolution=list(grid_resolution),
+            patch_regions=[region.tolist() for region in regions],
+            patch_settings=patch_opts.to_dict() if regions else None,
         )
     )
     if verbose:
@@ -486,12 +585,61 @@ def calculate_phase_diagram_grid(
             f"Initial phase diagram is unresolved; refinement stopped. See {initial_path}.\n"
             + "\n".join(initial.diagnostics)
         )
+    current = initial
+    if regions and not current.resolved:
+        started = perf_counter()
+        reports = []
+        patch_directory = directory / "patches"
+        patch_directory.mkdir()
+        ranges = np.asarray(current.coordinate_ranges)
+        for index, requested_region in enumerate(regions, 1):
+            if current.resolved:
+                break
+            region = np.column_stack(
+                (
+                    np.maximum(requested_region[:, 0], ranges[:, 0]),
+                    np.minimum(requested_region[:, 1], ranges[:, 1]),
+                )
+            )
+            if (region[:, 0] >= region[:, 1]).any():
+                reports.append(dict(index=index, status="outside diagram"))
+                continue
+            if verbose:
+                print(
+                    f"Recalculating discovery patch {index}/{len(regions)}", flush=True
+                )
+            # The patch API uses plot order; this workflow accepts native order.
+            patch = calculate_phase_diagram_patch(
+                current, phases, region[::-1], patch_opts
+            )
+            save_phase_diagram(
+                patch, patch_directory / f"patch_{index:03d}.json", metadata=metadata
+            )
+            report = dict(
+                index=index,
+                region_native=region.tolist(),
+                resolved=bool(patch.resolved),
+                diagnostics=list(patch.diagnostics),
+            )
+            if patch.resolved:
+                merged, messages = merge_phase_diagrams(current, patch, phases=phases)
+                current = _core.PhaseDiagramResult.from_dict(merged)
+                save_phase_diagram(
+                    current,
+                    patch_directory / f"merged_{index:03d}.json",
+                    metadata=metadata,
+                )
+                report["merge"] = messages
+            reports.append(report)
+            _write_json(patch_directory / "report.json", dict(patches=reports))
+        _write_json(patch_directory / "report.json", dict(patches=reports))
+        timings["patches"] = perf_counter() - started
     started = perf_counter()
     resolution = (
         boundary_resolution if native == variables else boundary_resolution[::-1]
     )
     refined = _core.refine_phase_diagram(
-        bulk, phases, initial, opts, resolution=resolution
+        bulk, phases, current, opts, resolution=resolution
     )
     timings["refinement"] = perf_counter() - started
     refined_path = save_phase_diagram(
