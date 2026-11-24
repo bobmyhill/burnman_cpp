@@ -1090,8 +1090,12 @@ std::vector<Minimum> Engine::minima(int index, const Eigen::VectorXd &mu,
     return left.first < right.first;
   });
   std::vector<Minimum> out;
-  for (int i = 0; i < std::min<int>(settings.minimization_starts,
-                                    burnman::utils::checked_int(seeds.size()));
+  // Ranking the starting energies cannot rank their relaxed minima. Once
+  // competing basins have been found, finish the vertex starts: an omitted
+  // basin can be lower than both existing solvus compositions and terminate
+  // their reaction at a third-copy junction.
+  for (int i = 0; i < burnman::utils::checked_int(seeds.size()) &&
+                  (i < settings.minimization_starts || out.size() > 1);
        ++i) {
     Minimum m;
     try {

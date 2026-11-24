@@ -859,6 +859,19 @@ bool same_boundary_compositions(const PhaseStates &a, int zero_a,
 bool same_solution_branches(const Engine &engine, const PhaseStates &before,
                             const PhaseStates &after, double pressure,
                             double temperature) {
+  // Two persistent solution copies cannot exchange their composition order
+  // in an ordinary correction. In particular a double-zero endpoint solve
+  // must not jump across their coalescence and attach to the other solvus arm.
+  for (std::size_t i = 0; i < before.size(); ++i)
+    for (std::size_t j = i + 1; j < before.size(); ++j)
+      if (before[i].candidate_index == before[j].candidate_index) {
+        const auto a = find_phase(after, before[i].id),
+                   b = find_phase(after, before[j].id);
+        if (a != after.end() && b != after.end() &&
+            (before[i].composition - before[j].composition)
+                    .dot(a->composition - b->composition) <= 0.)
+          return false;
+      }
   const double before_tolerance =
       engine.settings.amount_tolerance * total_amount(before);
   const double after_tolerance =

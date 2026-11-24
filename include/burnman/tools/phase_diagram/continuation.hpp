@@ -86,7 +86,8 @@ bool same_boundary_compositions(const PhaseStates &, int, const PhaseStates &,
 
 /// Persistent zero-amount phase IDs must remain in the same Gibbs mixing basin.
 /// Unlike an absolute composition-jump limit, homogeneous mixing permits large
-/// changes within a single basin. New junction phases have no earlier match.
+/// changes within a single basin. Persistent copies must also retain their
+/// composition order. New junction phases have no earlier match.
 bool same_solution_branches(const Engine &, const PhaseStates &before,
                             const PhaseStates &after, double pressure,
                             double temperature);
