@@ -1,0 +1,417 @@
+{
+  "diagram": {
+    "schema_version": 6,
+    "diagram_type": "PS",
+    "composition_start": {
+      "Si": 0.8391498922891328,
+      "O": 2.794945301178923,
+      "Mg": 0.24240401623663146,
+      "Cr": 0.0009211059451933201,
+      "Ca": 0.22361831702967405,
+      "Al": 0.32953537867889554,
+      "Na": 0.07195947755268563,
+      "Fe": 0.11222520530365615
+    },
+    "composition_end": {},
+    "composition_range": [
+      0.0,
+      1.0
+    ],
+    "entropy_range": [
+      54.90252565193394,
+      54.92252565193394
+    ],
+    "volume_range": [
+      1e-06,
+      0.0001
+    ],
+    "pressure_range": [
+      120350000000.0,
+      120550000000.0
+    ],
+    "temperature_range": [
+      273.15,
+      4273.15
+    ],
+    "phase_names": [
+      "alpha_(bcc)_Iron",
+      "alpha_(bcc)_Iron #2",
+      "alpha_(bcc)_Iron #3",
+      "alpha-PbO_2-SiO_2",
+      "alpha-PbO_2-SiO_2 #2",
+      "alpha-PbO_2-SiO_2 #3",
+      "bridgmanite",
+      "bridgmanite #2",
+      "bridgmanite #3",
+      "c2c_pyroxene",
+      "c2c_pyroxene #2",
+      "c2c_pyroxene #3",
+      "Ca-Perovskite",
+      "Ca-Perovskite #2",
+      "Ca-Perovskite #3",
+      "calcium_ferrite_structured_phase",
+      "calcium_ferrite_structured_phase #2",
+      "calcium_ferrite_structured_phase #3",
+      "clinopyroxene",
+      "clinopyroxene #2",
+      "clinopyroxene #3",
+      "Coesite",
+      "Coesite #2",
+      "Coesite #3",
+      "epsilon_(hcp)_Iron",
+      "epsilon_(hcp)_Iron #2",
+      "epsilon_(hcp)_Iron #3",
+      "gamma_(fcc)_Iron",
+      "gamma_(fcc)_Iron #2",
+      "gamma_(fcc)_Iron #3",
+      "ferropericlase",
+      "ferropericlase #2",
+      "ferropericlase #3",
+      "garnet",
+      "garnet #2",
+      "garnet #3",
+      "ilmenite",
+      "ilmenite #2",
+      "ilmenite #3",
+      "Kyanite",
+      "Kyanite #2",
+      "Kyanite #3",
+      "LS_Fe2O3-Post-Perovski",
+      "LS_Fe2O3-Post-Perovski #2",
+      "LS_Fe2O3-Post-Perovski #3",
+      "mg_fe_aluminous_spinel",
+      "mg_fe_aluminous_spinel #2",
+      "mg_fe_aluminous_spinel #3",
+      "new_aluminous_phase",
+      "new_aluminous_phase #2",
+      "new_aluminous_phase #3",
+      "Nepheline",
+      "Nepheline #2",
+      "Nepheline #3",
+      "olivine",
+      "olivine #2",
+      "olivine #3",
+      "orthopyroxene",
+      "orthopyroxene #2",
+      "orthopyroxene #3",
+      "plagioclase",
+      "plagioclase #2",
+      "plagioclase #3",
+      "post_perovskite",
+      "post_perovskite #2",
+      "post_perovskite #3",
+      "Pseudo-Wollastonite",
+      "Pseudo-Wollastonite #2",
+      "Pseudo-Wollastonite #3",
+      "Quartz",
+      "Quartz #2",
+      "Quartz #3",
+      "ringwoodite",
+      "ringwoodite #2",
+      "ringwoodite #3",
+      "Stishovite",
+      "Stishovite #2",
+      "Stishovite #3",
+      "wadsleyite",
+      "wadsleyite #2",
+      "wadsleyite #3",
+      "Wollastonite",
+      "Wollastonite #2",
+      "Wollastonite #3"
+    ],
+    "diagnostics": [],
+    "coordinate_diagnostics": [],
+    "spacing_diagnostics": [],
+    "spacing_resolved": true,
+    "resolved": true,
+    "equilibrium_solves": 0,
+    "minimization_calls": 0,
+    "settings": {
+      "pressure_seeds": 81,
+      "temperature_seeds": 51,
+      "entropy_seeds": 81,
+      "volume_seeds": 7,
+      "composition_seeds": 7,
+      "max_refinement_iterations": 150,
+      "minimization_starts": 10,
+      "max_phase_instances": 3,
+      "max_trace_steps": 500,
+      "max_lines": 1000,
+      "max_recovery_passes": 2,
+      "step": 0.025,
+      "min_step": 1e-07,
+      "affinity_tolerance": 0.2,
+      "mass_balance_tolerance": 1e-08,
+      "amount_tolerance": 1e-07,
+      "composition_tolerance": 1e-05,
+      "node_tolerance": 0.0002,
+      "verbose": false,
+      "exclude_invalid_eos": true,
+      "active_solution_faces": true,
+      "required_eos_phases": [
+        "orthopyroxene"
+      ],
+      "required_thermal_phases": []
+    },
+    "field_verifications": [],
+    "excluded_regions": [],
+    "fields": [
+      {
+        "id": 0,
+        "phases": [
+          3,
+          6,
+          12,
+          15,
+          24,
+          30,
+          63
+        ],
+        "sample_indices": [
+          0
+        ]
+      }
+    ],
+    "nodes": [],
+    "boundaries": [],
+    "samples": [
+      {
+        "pressure": 120400000000.0,
+        "temperature": 476.19237563580873,
+        "entropy": 54.91252565193394,
+        "volume": 1.760815920791627e-05,
+        "composition_coordinate": 0.0,
+        "mass_balance_error": 3.868567165333828e-17,
+        "minimum_affinity": 0.0,
+        "residual": 4.185130819678307e-06,
+        "phases": [
+          {
+            "id": 3,
+            "candidate_index": 1,
+            "name": "alpha-PbO_2-SiO_2",
+            "amount": 0.4608611374372949,
+            "composition": [
+              1.0
+            ]
+          },
+          {
+            "id": 6,
+            "candidate_index": 2,
+            "name": "bridgmanite",
+            "amount": 0.07745510081256099,
+            "composition": [
+              0.0,
+              0.0,
+              1.0,
+              0.0,
+              0.999999989415348,
+              -0.999999989415348,
+              0.0
+            ],
+            "composition_basis": [
+              [
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                1.0,
+                -1.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "id": 12,
+            "candidate_index": 4,
+            "name": "Ca-Perovskite",
+            "amount": 0.22361831702967405,
+            "composition": [
+              1.0
+            ]
+          },
+          {
+            "id": 15,
+            "candidate_index": 5,
+            "name": "calcium_ferrite_structured_phase",
+            "amount": 0.0905096171750872,
+            "composition": [
+              0.9949106237697003,
+              2.0063726205998833e-06,
+              9.584961280466137e-09,
+              0.0,
+              0.0050873602727179446
+            ],
+            "composition_basis": [
+              [
+                -1.0,
+                1.0,
+                0.0,
+                0.0,
+                1.0
+              ],
+              [
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ],
+              [
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "id": 24,
+            "candidate_index": 8,
+            "name": "epsilon_(hcp)_Iron",
+            "amount": 0.03199403767814334,
+            "composition": [
+              1.0
+            ]
+          },
+          {
+            "id": 30,
+            "candidate_index": 10,
+            "name": "ferropericlase",
+            "amount": 0.035979745994384686,
+            "composition": [
+              1.6785113055028944e-07,
+              0.0,
+              4.48187271467597e-08,
+              0.9999997873301423,
+              0.0
+            ],
+            "composition_basis": [
+              [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "id": 63,
+            "candidate_index": 21,
+            "name": "post_perovskite",
+            "amount": 0.15468177336658018,
+            "composition": [
+              0.981980966872899,
+              0.01794574451849013,
+              7.265542553380944e-05,
+              0.0,
+              6.331830769701341e-07
+            ],
+            "composition_basis": [
+              [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ],
+              [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0
+              ]
+            ]
+          }
+        ],
+        "gibbs": 1132366.291250727,
+        "success": true,
+        "equilibrium_error": 4.185130819678307e-06,
+        "message": "Neighbouring saved equilibrium for site-release step"
+      }
+    ]
+  },
+  "models": {
+    "dataset": "burnman_cpp._core.minerals.SLB_2024",
+    "phase_names": [
+      "alpha_bcc_iron",
+      "alpha_pbo_2_sio_2",
+      "bridgmanite",
+      "c2c",
+      "ca_perovskite",
+      "calcium_ferrite_structured_phase",
+      "clinopyroxene",
+      "coes",
+      "epsilon_hcp_iron",
+      "feg",
+      "ferropericlase",
+      "garnet",
+      "il",
+      "ky",
+      "lppv",
+      "mg_fe_aluminous_spinel",
+      "nal",
+      "neph",
+      "ol",
+      "opx",
+      "plagioclase",
+      "post_perovskite",
+      "pseudo_wollastonite",
+      "qtz",
+      "ri",
+      "st",
+      "wa",
+      "wo"
+    ]
+  },
+  "target": {
+    "pressure_Pa": 120450000000.0,
+    "entropy_J_K": 54.91252565193394
+  }
+}

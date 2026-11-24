@@ -15,6 +15,7 @@
 #include "burnman/core/equilibrated_composite.hpp"
 #include "burnman/core/relaxed_solution.hpp"
 #include "burnman/tools/phase_diagram/consistency.hpp"
+#include "burnman/tools/phase_diagram/continuation.hpp"
 #include "burnman/tools/phase_diagram/polygons.hpp"
 #include "burnman/tools/phase_diagram/stability.hpp"
 #include "burnman/tools/polytope.hpp"
@@ -320,6 +321,92 @@ const State *neighbour_seed(const std::map<double, State> &row,
   return nearest;
 }
 
+// Active composition faces are numerical warm-start data, not restrictions
+// on which sites may populate at a new P,T. Reopen favourable directions of
+// the existing phases before accepting a field equilibrium. This searches
+// within each occupied solution basin; it does not discover another phase.
+void relax_grid_composition_faces(std::shared_ptr<Assemblage> &a,
+                                  detail::Engine &engine,
+                                  const std::vector<int> &ids,
+                                  const Eigen::Vector2d &q) {
+  if (!engine.settings.active_solution_faces)
+    return;
+  for (int pass = 0; pass < 4; ++pass) {
+    const auto original = engine.snapshot(*a, ids);
+    auto states = original;
+    bool changed = false;
+    engine.set_pt(a->get_pressure(), a->get_temperature());
+    const auto potentials = engine.potentials(*a);
+    for (std::size_t k = 0; k < states.size(); ++k) {
+      auto &state = states[k];
+      const auto &phase =
+          engine.phases.at(static_cast<std::size_t>(state.candidate_index));
+      const auto basis =
+          engine.composition_basis(*a->get_phase(k), state.candidate_index);
+      if (!phase.solution || basis.rows() == basis.cols())
+        continue;
+      const auto minimum =
+          engine.minimize(state.candidate_index, potentials, state.composition);
+      const auto weights = basis.transpose()
+                               .completeOrthogonalDecomposition()
+                               .solve(minimum.p)
+                               .eval();
+      if (minimum.affinity >=
+              -std::min(engine.settings.affinity_tolerance * .05, 1.e-5) ||
+          (basis.transpose() * weights - minimum.p).norm() <= 1.e-10 ||
+          !engine.same_composition_basin(
+              state.candidate_index, state.composition, minimum.p,
+              a->get_pressure(), a->get_temperature()))
+        continue;
+      state.composition = minimum.p;
+      state.composition_basis.reset();
+      changed = true;
+    }
+    if (!changed)
+      return;
+    // Opening several sites at once can give a poor initial bulk balance.
+    // Shorter moves towards the same local minima retain feasible positive
+    // populations while Newton imposes the full equilibrium.
+    bool accepted = false;
+    std::string failure;
+    for (double fraction : {1., .1, .01}) {
+      auto seed = states;
+      for (std::size_t k = 0; k < seed.size(); ++k)
+        seed[k].composition =
+            original[k].composition +
+            fraction * (states[k].composition - original[k].composition);
+      try {
+        auto trial = engine.make_assemblage(ids, seed, a->get_pressure(),
+                                            a->get_temperature(), 1.e-9, true);
+        engine.set_coordinate(*trial, engine.composition_coordinate(*a));
+        auto constraints = engine.state_constraints(q);
+        auto solve = engine.solve(*trial, constraints, false);
+        if (!solve.success) {
+          failure = solve.message;
+          continue;
+        }
+        if (!detail::same_solution_branches(
+                engine, original, engine.snapshot(*trial, ids),
+                trial->get_pressure(), trial->get_temperature())) {
+          failure = "The corrected solution switched mixing basins.";
+          continue;
+        }
+        Properties(*trial, false).check_stability();
+        a = std::move(trial);
+        accepted = true;
+        break;
+      } catch (const std::exception &error) {
+        failure = error.what();
+      }
+    }
+    if (!accepted)
+      throw std::runtime_error(
+          "Equilibrium failed after reopening solution composition faces: " +
+          failure);
+  }
+  throw std::runtime_error("Solution composition faces did not settle.");
+}
+
 std::shared_ptr<Assemblage>
 equilibrate_grid_candidate(detail::Engine &engine, const std::vector<int> &ids,
                            const State &seed, const Eigen::Vector2d &q,
@@ -332,6 +419,7 @@ equilibrate_grid_candidate(detail::Engine &engine, const std::vector<int> &ids,
   auto solve = engine.solve(*a, constraints, false);
   if (!solve.success)
     throw std::runtime_error("Equilibrium solve failed: " + solve.message);
+  relax_grid_composition_faces(a, engine, ids, q);
   Properties(*a, false).check_stability();
   // Only fallback assemblages need a competing-phase search. A converged
   // assigned field is accepted directly, including provisional/open labels.

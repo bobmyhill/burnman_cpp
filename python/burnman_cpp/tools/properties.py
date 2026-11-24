@@ -35,7 +35,10 @@ def phase_diagram_grid(
     values are NaN and have ``diagnostics``; excluded
     points have field number zero. Saved polygons propose assemblages, including
     provisional/open labels. Accept an equilibrated assigned assemblage without
-    searching competing phases. Only if that assemblage fails, try fields across
+    searching competing phases. Saved composition faces are warm starts: empty
+    sites in an occupied solution are reopened when local minimisation in its
+    mixing basin favours them, then the same assemblage is re-equilibrated at
+    the requested coordinates. Only if that assemblage fails, try fields across
     shared boundaries within one grid spacing in each coordinate. On nonuniform
     grids, this window reaches the immediately preceding/following coordinates;
     at an endpoint it extends by the nearest spacing. A singleton axis has zero

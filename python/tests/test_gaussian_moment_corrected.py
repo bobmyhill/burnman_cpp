@@ -181,3 +181,44 @@ def test_small_kernel_support_preserves_quadratic_derivatives(sigma, truncate):
         np.testing.assert_allclose(
             getattr(result, name), getattr(grids, name), rtol=1e-8
         )
+
+
+def test_diagonal_stable_transition_does_not_create_bad_edge_curvature():
+    from scipy.ndimage import gaussian_filter
+
+    # Two stable quadratic branches meet with continuous first derivatives.
+    # Independent unconstrained boundary fits across this oblique front used
+    # to create positive H_PP at the upper entropy edge with sigma=1.
+    p, s = np.meshgrid(np.arange(61.0), np.arange(31.0))
+    q = p - 1.6 * s - 3.5
+    z, on = np.maximum(q, 0.0), q > 0.0
+    dp, ds, strength = 5.0e7, 0.624, 2.0
+    grids = bm.PotentialGrid(
+        "H",
+        120.0e9 + p[0] * dp,
+        280.0 + s[:, 0] * ds,
+        1.0e6
+        + 900.0 * p
+        + 500.0 * s
+        - 0.02 * p**2
+        + 25.0 * s**2
+        - 0.5 * strength * z**2,
+        (900.0 - 0.04 * p - strength * z) / dp,
+        (500.0 + 50.0 * s + 1.6 * strength * z) / ds,
+        (-0.04 - strength * on) / dp**2,
+        1.6 * strength * on / (dp * ds),
+        (50.0 - 1.6**2 * strength * on) / ds**2,
+    )
+    original = grids.values.copy()
+    smoothed = bm.smooth_potential_grid(grids, sigma=1.0)
+    assert (smoothed.d2_dx2 < 0.0).all()
+    assert (smoothed.d2_dy2 > 0.0).all()
+    assert (smoothed.d_dx > 0.0).all()
+    assert (smoothed.d_dy > 0.0).all()
+    np.testing.assert_array_equal(grids.values, original)
+    # The correction belongs to extrapolation outside the calculation domain;
+    # the requested interior Gaussian kernel remains unchanged.
+    reference = gaussian_filter(original, sigma=1.0, mode="constant")
+    np.testing.assert_allclose(
+        smoothed.values[4:-4, 4:-4], reference[4:-4, 4:-4], rtol=0, atol=1.0e-9
+    )

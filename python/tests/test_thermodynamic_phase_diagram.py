@@ -14,11 +14,13 @@
 """Thermodynamic sections use constrained totals, including latent volume."""
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
 
 import burnman_cpp as bm
+from burnman_cpp.minerals import load_dataset
 from conftest import oxide_params
 
 AXES = dict(
@@ -200,6 +202,38 @@ def test_entropy_minimum_can_start_with_an_invalid_hot_eos_endpoint(fix_volume):
     assert result.success, result.message
     assert result.temperature == pytest.approx(1000.0, abs=1e-6)
     assert result.entropy == pytest.approx(entropy, rel=1e-9)
+
+
+def test_volume_minimum_brackets_inside_a_required_model_eos_limit():
+    data = json.loads(
+        (Path(__file__).parent / "data/basalt_vt_hot_corner.json").read_text()
+    )
+    phases, _ = load_dataset("SLB_2024", data["models"]["phase_names"])
+    settings = bm.PhaseDiagramSettings.from_dict(data["settings"])
+    result = bm.stable_equilibrium(
+        data["composition"],
+        phases,
+        temperature=data["temperature_K"],
+        volume=data["volume_m3"],
+        pressure_range=data["pressure_range_Pa"],
+        settings=settings,
+    )
+    assert result.success, result.message
+    assert 5.0e9 < result.pressure < 10.0e9
+    assert result.volume == pytest.approx(data["volume_m3"], rel=1.0e-9)
+    assert result.temperature == pytest.approx(data["temperature_K"], abs=1.0e-6)
+    # A full independent P-T phase search must agree with the inverse state;
+    # merely finding a constrained root on an invalid/metastable branch fails.
+    reference = bm.stable_equilibrium(
+        data["composition"],
+        phases,
+        pressure=result.pressure,
+        temperature=data["temperature_K"],
+        settings=settings,
+    )
+    assert reference.success, reference.message
+    assert reference.volume == pytest.approx(result.volume, rel=1.0e-8)
+    assert reference.gibbs == pytest.approx(result.gibbs, abs=1.0e-3)
 
 
 @pytest.mark.parametrize(

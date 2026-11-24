@@ -596,6 +596,39 @@ WorkState Engine::stable_at(const Eigen::Vector2d &q, const WorkState *warm,
     auto residual = [&](const WorkState &w) {
       return coordinate_value(w.state, target_axis) - target;
     };
+    if (low.state.success != high.state.success) {
+      // A search endpoint can lie beyond a required model's EOS domain even
+      // when the requested S/V has a valid interior equilibrium. Move in from
+      // that endpoint, trying the newly available assemblages before giving
+      // up on the inverse bracket. The requested search bounds stay fixed.
+      const bool missing_low = !low.state.success;
+      double invalid = bounds[missing_low ? 0 : 1];
+      double valid = bounds[missing_low ? 1 : 0];
+      const auto &reference = missing_low ? high : low;
+      for (int iteration = 0; iteration < 40; ++iteration) {
+        const double value = .5 * (invalid + valid);
+        auto middle = at(value);
+        if (!middle.state.success) {
+          invalid = value;
+          continue;
+        }
+        const Eigen::Vector2d guess(middle.state.pressure,
+                                    middle.state.temperature);
+        if (attempt(middle, WorkState{}, guess) || minimize_selected())
+          return best;
+        if (residual(middle) * residual(reference) <= 0.) {
+          if (missing_low) {
+            low = std::move(middle);
+            bounds[0] = value;
+          } else {
+            high = std::move(middle);
+            bounds[1] = value;
+          }
+          break;
+        }
+        valid = value;
+      }
+    }
     if (low.state.success && high.state.success &&
         residual(low) * residual(high) <= 0.) {
       for (int iteration = 0; iteration < 40; ++iteration) {

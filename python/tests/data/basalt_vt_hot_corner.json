@@ -1,0 +1,78 @@
+{
+  "composition": {
+    "Fe": 0.11222520530365615,
+    "Na": 0.07195947755268563,
+    "Al": 0.32953537867889554,
+    "Ca": 0.22361831702967405,
+    "Cr": 0.0009211059451933201,
+    "Mg": 0.24240401623663146,
+    "O": 2.794945301178923,
+    "Si": 0.8391498922891328
+  },
+  "models": {
+    "dataset": "burnman_cpp._core.minerals.SLB_2024",
+    "phase_names": [
+      "alpha_bcc_iron",
+      "alpha_pbo_2_sio_2",
+      "bridgmanite",
+      "c2c",
+      "ca_perovskite",
+      "calcium_ferrite_structured_phase",
+      "clinopyroxene",
+      "coes",
+      "epsilon_hcp_iron",
+      "feg",
+      "ferropericlase",
+      "garnet",
+      "il",
+      "ky",
+      "lppv",
+      "mg_fe_aluminous_spinel",
+      "nal",
+      "neph",
+      "ol",
+      "opx",
+      "plagioclase",
+      "post_perovskite",
+      "pseudo_wollastonite",
+      "qtz",
+      "ri",
+      "st",
+      "wa",
+      "wo"
+    ]
+  },
+  "settings": {
+    "pressure_seeds": 15,
+    "temperature_seeds": 15,
+    "entropy_seeds": 15,
+    "volume_seeds": 15,
+    "composition_seeds": 7,
+    "max_refinement_iterations": 150,
+    "minimization_starts": 10,
+    "max_phase_instances": 3,
+    "max_trace_steps": 500,
+    "max_lines": 1000,
+    "max_recovery_passes": 2,
+    "step": 0.025,
+    "min_step": 1e-07,
+    "affinity_tolerance": 0.2,
+    "mass_balance_tolerance": 1e-08,
+    "amount_tolerance": 1e-07,
+    "composition_tolerance": 1e-05,
+    "node_tolerance": 0.0002,
+    "verbose": false,
+    "exclude_invalid_eos": true,
+    "active_solution_faces": true,
+    "required_eos_phases": [
+      "orthopyroxene"
+    ],
+    "required_thermal_phases": []
+  },
+  "temperature_K": 4273.15,
+  "volume_m3": 3.02914031761423e-05,
+  "pressure_range_Pa": [
+    0.0,
+    140000000000.0
+  ]
+}
