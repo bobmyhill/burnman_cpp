@@ -101,3 +101,45 @@ TEST_CASE("A junction correction cannot skip a solution coalescence",
   CHECK_FALSE(phase_diagrams::detail::same_solution_branches(
       engine, before, after, pressure, temperature));
 }
+
+TEST_CASE("Positive garnet copies cannot jump between mixing basins",
+          "[phase_diagram]") {
+  // A V-T pyrolite Fe-out trace had stable endpoints but skipped a third
+  // garnet field. Its positive first copy changed basin without reversing
+  // the pair's composition order; checking only zero-amount copies missed it.
+  auto models = minerals::model_sets::slb2024();
+  phase_diagrams::detail::Engine engine({{"Mg", 1.}, {"O", 1.}}, models.phases,
+                                        phase_diagrams::Settings{});
+  auto state = [](int id, std::initializer_list<double> composition) {
+    phase_diagrams::PhaseState phase;
+    phase.id = id;
+    phase.candidate_index = 6;
+    phase.amount = .02;
+    phase.composition = Eigen::Map<const Eigen::VectorXd>(
+        composition.begin(), static_cast<Eigen::Index>(composition.size()));
+    return phase;
+  };
+  const phase_diagrams::detail::PhaseStates before{
+      state(18,
+            {-.21711276276447508, .09483631598950071, .8787993918819401, 0.,
+             .0004728457788676194, .000004585340224072532, .24299962377394246}),
+      state(19, {.4649358718494968, .3065990353984142, .2225340518997586, 0.,
+                 .0028295339666611708, .00000830167868226539,
+                 .0030932052069868876})};
+  const phase_diagrams::detail::PhaseStates after{
+      state(18,
+            {.07257697369029838, .24030799344719847, .637273682610792, 0.,
+             .0014212340728593333, .000014042295295557672, .04840607388355622}),
+      state(19, {.4712941681627739, .29761783409956766, .22477919585949888, 0.,
+                 .003203439064527085, .00000884120524491383,
+                 .0030965216083875535})};
+  const double pressure = 17844152422.41068, temperature = 522.6257538736935;
+  REQUIRE((before[0].composition - before[1].composition)
+              .dot(after[0].composition - after[1].composition) > 0.);
+  REQUIRE_FALSE(engine.same_composition_basin(
+      6, before[0].composition, after[0].composition, pressure, temperature));
+  CHECK(phase_diagrams::detail::same_solution_branches(engine, before, before,
+                                                       pressure, temperature));
+  CHECK_FALSE(phase_diagrams::detail::same_solution_branches(
+      engine, before, after, pressure, temperature));
+}

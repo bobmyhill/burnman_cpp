@@ -675,7 +675,7 @@ def calculate_phase_diagram_grid(
         )
         diagnostics.extend(grid_diagnostics)
         timings["grid"] = perf_counter() - started
-    elif not ready:
+    elif make_grid and not ready:
         diagnostics = diagnostics or [
             "Diagram is not completely resolved; gridding skipped."
         ]

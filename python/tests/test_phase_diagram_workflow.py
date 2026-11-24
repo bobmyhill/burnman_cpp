@@ -679,7 +679,7 @@ def test_non_natural_sections_can_grid_equilibrium_samples(
 
 @pytest.mark.parametrize("resolved", [True, False])
 def test_plotting_without_gridding_saves_and_closes_the_refined_figure(
-    tmp_path, monkeypatch, resolved
+    tmp_path, monkeypatch, capsys, resolved
 ):
     plt = pytest.importorskip("matplotlib.pyplot")
     refine = workflow._core.refine_phase_diagram
@@ -695,13 +695,18 @@ def test_plotting_without_gridding_saves_and_closes_the_refined_figure(
         monkeypatch.setattr(workflow._core, "refine_phase_diagram", unresolved)
     existing_figures = set(plt.get_fignums())
     run = calculate(
-        tmp_path, make_grid=False, plot=True, plot_kwargs={"pressure_unit": "GPa"}
+        tmp_path,
+        make_grid=False,
+        plot=True,
+        plot_kwargs={"pressure_unit": "GPa"},
+        verbose=True,
     )
     assert run.grid_manifest is None
     assert run.diagram_plot == tmp_path / "phase_diagram.png"
     assert run.diagram_plot.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
     assert set(plt.get_fignums()) == existing_figures
     assert "plot" in run.timings
+    assert "gridding skipped" not in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(
