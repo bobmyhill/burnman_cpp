@@ -236,6 +236,33 @@ def test_volume_minimum_brackets_inside_a_required_model_eos_limit():
     assert reference.gibbs == pytest.approx(result.gibbs, abs=1.0e-3)
 
 
+def test_entropy_frame_seeds_inside_the_eos_mask_are_excluded():
+    from burnman_cpp.minerals import SLB_2024
+
+    phase = SLB_2024.mgts()
+    settings = bm.PhaseDiagramSettings()
+    settings.pressure_seeds = settings.entropy_seeds = 3
+    settings.required_eos_phases = [phase.name]
+    result = bm.phase_diagram(
+        phase.formula,
+        [phase],
+        diagram="PS",
+        pressure_range=(0.0, 2e9),
+        temperature_range=(273.15, 4273.15),
+        entropy_range=(150.0, 660.0),
+        settings=settings,
+    )
+    assert result.resolved, result.diagnostics
+    assert result.excluded_regions
+    upper_left = next(
+        s for s in result.samples if s.pressure == 0.0 and s.entropy == 660.0
+    )
+    assert upper_left.outside_model_domain
+    assert not upper_left.success
+    # The mask must preserve the admissible part of the same upper edge.
+    assert any(s.success and s.entropy == pytest.approx(660.0) for s in result.samples)
+
+
 @pytest.mark.parametrize(
     "diagram", ["PT", "PS", "PV", "TS", "TV", "SV", "PX", "TX", "SX", "VX"]
 )

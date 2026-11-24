@@ -174,18 +174,8 @@ double Tracer::phase_entry_tolerance(std::size_t base,
 bool Tracer::same_branch(const Assemblage &a, const Assemblage &b,
                          const std::vector<int> &ids) const {
   auto old = engine.snapshot(a, ids), next = engine.snapshot(b, ids);
-  if (!same_solution_branches(engine, old, next, b.get_pressure(),
-                              b.get_temperature()))
-    return false;
-  // Ordinary continuation must not exchange or coalesce existing copies.
-  // Junction/critical corrections can meet them under separate constraints.
-  for (std::size_t i = 0; i < ids.size(); ++i)
-    for (std::size_t j = i + 1; j < ids.size(); ++j)
-      if (old[i].candidate_index == old[j].candidate_index &&
-          (old[i].composition - old[j].composition)
-                  .dot(next[i].composition - next[j].composition) <= 0.)
-        return false;
-  return true;
+  return same_solution_branches(engine, old, next, b.get_pressure(),
+                                b.get_temperature());
 }
 
 bool Tracer::near_third_copy_event(const std::vector<int> &ids, int zero,
@@ -379,6 +369,12 @@ void Tracer::add_sample(const State &state, int existing) {
 bool Tracer::covered(const Seed &seed) const {
   for (auto &line : result.boundaries)
     if (line.assemblage == seed.ids && line.zero_phase == seed.zero) {
+      // An adjoining critical arm carries an explicit connection to its
+      // coalescence node. A nearby chord that skips that node does not cover
+      // the connection, even if it follows the same reaction farther away.
+      if (seed.bridge_node >= 0 && line.start_node != seed.bridge_node &&
+          line.end_node != seed.bridge_node)
+        continue;
       // An incident branch must retain the same solution compositions;
       // renumbering copies alone does not establish that it covers a seed.
       if (seed.node >= 0) {
@@ -2449,12 +2445,18 @@ State Tracer::field_state(const Eigen::Vector2d &location) {
 
 bool Tracer::model_excluded(const Eigen::Vector2d &q) const {
   const auto p = normalise(q);
+  // Ray crossings normally include the lower end of an edge. At the upper
+  // calculation frame include the upper end instead, so a clipped exclusion
+  // still masks frame seeds. The actual EOS envelope remains the boundary.
+  const auto above = [y = p[1]](double ordinate) {
+    return y == 1. ? ordinate >= y : ordinate > y;
+  };
   for (auto &region : result.excluded_regions) {
     bool inside = false;
     for (int i = 1; i < region.rows(); ++i) {
       auto a = normalise({region(i - 1, 0), region(i - 1, 1)}),
            b = normalise({region(i, 0), region(i, 1)});
-      if ((a[1] > p[1]) != (b[1] > p[1]) &&
+      if (above(a[1]) != above(b[1]) &&
           p[0] < a[0] + (p[1] - a[1]) * (b[0] - a[0]) / (b[1] - a[1]))
         inside = !inside;
     }

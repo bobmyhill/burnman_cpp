@@ -111,7 +111,10 @@ struct Settings {
   int pressure_seeds = 7, temperature_seeds = 7;
   int composition_seeds = 7;
   int entropy_seeds = 7, volume_seeds = 7;
-  int max_refinement_iterations = 150, minimization_starts = 10;
+  int max_refinement_iterations = 150;
+  // Initial composition-search budget. If competing basins are found, also
+  // test the remaining allowed vertices before accepting a phase affinity.
+  int minimization_starts = 10;
   // Allow distinct compositions of the same solution model, e.g. two feldspars.
   int max_phase_instances = 3, max_trace_steps = 500, max_lines = 1000;
   int max_recovery_passes = 2;
