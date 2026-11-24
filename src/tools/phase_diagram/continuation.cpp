@@ -872,15 +872,12 @@ bool same_solution_branches(const Engine &engine, const PhaseStates &before,
                     .dot(a->composition - b->composition) <= 0.)
           return false;
       }
-  const double before_tolerance =
-      engine.settings.amount_tolerance * total_amount(before);
-  const double after_tolerance =
-      engine.settings.amount_tolerance * total_amount(after);
   for (const auto &phase : before) {
     const auto next = find_phase(after, phase.id);
-    if (next == after.end() || std::abs(phase.amount) > before_tolerance ||
-        std::abs(next->amount) > after_tolerance)
+    if (next == after.end())
       continue;
+    // A positive-amount copy can jump to another minimum too. Such a jump
+    // skips the intervening solvus instead of continuing this reaction arm.
     if (phase.candidate_index != next->candidate_index ||
         phase.composition.size() != next->composition.size() ||
         !engine.same_composition_basin(phase.candidate_index, phase.composition,

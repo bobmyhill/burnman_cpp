@@ -144,9 +144,7 @@ bool Tracer::needs_face_refit(double affinity, bool composition) const {
   // tolerance. Releasing its face changes a composition, not the assemblage.
   const double tolerance =
       engine.settings.affinity_tolerance * (composition ? .05 : 1.);
-  return affinity < -(engine.direct_coordinates() && !composition
-                          ? tolerance
-                          : std::min(tolerance, 1.e-5));
+  return affinity < -std::min(tolerance, 1.e-5);
 }
 
 double Tracer::phase_entry_tolerance(std::size_t base,
@@ -1556,25 +1554,31 @@ Tracer::follow(std::shared_ptr<Assemblage> a, const Seed &seed,
           auto joined = ids;
           joined.push_back(added);
           std::sort(joined.begin(), joined.end());
-          auto states = engine.snapshot(*a, ids);
+          // Start from the newly unstable point. At a junction the previous
+          // state can already satisfy both zero conditions, so reusing it
+          // would terminate a short outgoing branch at its starting node.
+          auto previous_states = engine.snapshot(*a, ids);
+          auto states = engine.snapshot(*next, ids);
           PhaseState fresh;
           fresh.id = added;
           fresh.candidate_index = burnman::utils::checked_int(base);
           fresh.composition = ms[base].p;
           fresh.amount = 0.;
           states.push_back(fresh);
+          previous_states.push_back(fresh);
           // The accepted state may already be slightly beyond zero affinity:
           // stability permits a finite numerical tolerance. Halving the step
           // must not shrink the endpoint acceptance radius below node
           // tolerance.
           try {
             auto junction = engine.make_assemblage(
-                joined, states, a->get_pressure(), a->get_temperature());
-            engine.set_coordinate(*junction, engine.composition_coordinate(*a));
+                joined, states, next->get_pressure(), next->get_temperature());
+            engine.set_coordinate(*junction,
+                                  engine.composition_coordinate(*next));
             EquilibriumSolve event_s;
             double event_affinity = 0.;
             int n = endpoint(
-                *junction, joined, seed.zero, added, states, old_u,
+                *junction, joined, seed.zero, added, previous_states, old_u,
                 std::max((engine.direct_coordinates() ? used : requested) * 3.,
                          engine.settings.node_tolerance * 2.),
                 event_affinity, &event_s);
