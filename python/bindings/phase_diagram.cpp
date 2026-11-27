@@ -1026,54 +1026,6 @@ void bind_phase_diagram(py::module_ &m) {
       .def_readonly("boundary_segments", &FieldPolygons::boundary_segments)
       .def_readonly("boundary_lines", &FieldPolygons::boundary_lines)
       .def_readonly("boundary_nodes", &FieldPolygons::boundary_nodes);
-  py::class_<ContourSettings>(m, "PhaseDiagramContourSettings")
-      .def(py::init<>())
-      .def_readwrite("seed_grid", &ContourSettings::seed_grid)
-      .def_readwrite("step", &ContourSettings::step)
-      .def_readwrite("min_step", &ContourSettings::min_step)
-      .def_readwrite("max_trace_steps", &ContourSettings::max_trace_steps);
-  py::class_<ContourLine>(m, "PhaseDiagramContourLine")
-      .def_readonly("field_number", &ContourLine::field_number)
-      .def_readonly("phases", &ContourLine::phases)
-      .def_readonly("points", &ContourLine::points)
-      .def_readonly("closed", &ContourLine::closed)
-      .def_readonly("termination", &ContourLine::termination);
-  py::class_<ContourResult>(m, "PhaseDiagramContourResult")
-      .def_property_readonly(
-          "diagram_type",
-          [](const ContourResult &r) { return diagram_name(r.diagram_type); })
-      .def_readonly("lines", &ContourResult::lines)
-      .def_readonly("resolved", &ContourResult::resolved)
-      .def_property_readonly(
-          "diagnostics",
-          diagnostic_view(&ContourResult::diagnostics, diagnostic_messages))
-      .def_property_readonly(
-          "diagnostic_records",
-          diagnostic_view(&ContourResult::diagnostics, diagnostic_records))
-      .def_readonly("equilibrium_solves", &ContourResult::equilibrium_solves)
-      .def("to_dict", [](const ContourResult &r) {
-        py::dict data;
-        data["schema_version"] = 2;
-        data["diagram_type"] = diagram_name(r.diagram_type);
-        data["resolved"] = r.resolved;
-        data["diagnostics"] = diagnostic_records(r.diagnostics);
-        data["equilibrium_solves"] = r.equilibrium_solves;
-        py::list lines;
-        for (const auto &line : r.lines) {
-          py::dict record;
-          record["field_number"] = line.field_number;
-          record["phases"] = line.phases;
-          record["closed"] = line.closed;
-          record["termination"] = line.termination;
-          py::list points;
-          for (const auto &point : line.points)
-            points.append(boundary_point_dict(point));
-          record["points"] = points;
-          lines.append(record);
-        }
-        data["lines"] = lines;
-        return data;
-      });
   py::class_<GridSolution>(m, "GridSolution")
       .def_readonly("state", &GridSolution::state)
       .def_readonly("n_moles", &GridSolution::n_moles)
@@ -1213,55 +1165,6 @@ averaging_scheme controls elastic averaging and defaults to VRH.
       },
       py::arg("result"), py::arg("phases"), py::arg("properties"), py::arg("x"),
       py::arg("y"), py::arg("relaxed"), py::arg("store_solutions") = false);
-  m.def(
-      "phase_diagram_contours",
-      [](py::object previous,
-         const std::vector<std::shared_ptr<Material>> &phases,
-         py::object constraint, const ContourSettings &settings) {
-        auto saved = calculation_result(previous);
-        using C = equilibration::EqualityConstraint;
-        ContourConstraintFactory factory;
-        if (py::isinstance<C>(constraint)) {
-          auto native = constraint.cast<std::shared_ptr<C>>();
-          factory = [native](const Assemblage &, const auto &, const auto &) {
-            return native->clone();
-          };
-        } else if (PyCallable_Check(constraint.ptr())) {
-          factory = [constraint](const Assemblage &a, const auto &prm,
-                                 const auto &ids) -> std::unique_ptr<C> {
-            py::gil_scoped_acquire acquire;
-            // Callbacks receive independent copies; they cannot mutate the
-            // native warm state or retain a reference to a temporary layout.
-            auto context = std::make_shared<Assemblage>(a);
-            py::object value = constraint(
-                context, py::cast(prm, py::return_value_policy::copy), ids);
-            if (value.is_none())
-              return nullptr;
-            if (!py::isinstance<C>(value))
-              throw py::type_error("Constraint factory must return an "
-                                   "EqualityConstraint or None.");
-            return value.cast<std::shared_ptr<C>>()->clone();
-          };
-        } else
-          throw py::type_error("constraint must be an EqualityConstraint or a "
-                               "callable factory.");
-        py::gil_scoped_release release;
-        return phase_diagram_contours(saved, phases, factory, settings);
-      },
-      py::arg("result"), py::arg("phases"), py::arg("constraint"),
-      py::kw_only(), py::arg("settings") = ContourSettings{},
-      R"doc(Calculate a property contour or mineral-composition isopleth within saved fields.
-
-constraint fixes the contour value, for example a garnet composition or total
-volume. Supply a native equality constraint or a factory called once per field
-as factory(assemblage, parameters, phase_ids). Build phase-dependent constraints
-using that field's parameter layout; return None where the quantity is undefined.
-
-Use the original candidate models in their original order. The calculation holds
-each saved field's assemblage and follows equilibrium to its outer ring or holes;
-it does not repeat phase discovery or validate the source field identification.
-Increase settings.seed_grid to assess discovery of disconnected contours.
-)doc");
   m.def(
       "phase_diagram_field_polygons",
       [](py::object object, double tolerance, bool close_domain) {
