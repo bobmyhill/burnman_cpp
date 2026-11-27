@@ -23,7 +23,6 @@ _EXPORTS = {
         "sample_equilibrium_path",
         "plot_mode_box",
     ),
-    "contours": ("phase_diagram_contour_levels",),
     "composition_contours": (
         "phase_composition_grid",
         "phase_composition_contours",

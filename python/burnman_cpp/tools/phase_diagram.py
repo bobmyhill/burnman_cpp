@@ -1567,11 +1567,11 @@ def plot_phase_diagram_contours(
     inline_labels=True,
     **display_options,
 ):
-    """Overlay previously calculated constraint contours on an axes.
+    """Overlay saved grid contours on an axes.
 
-    This performs no equilibrium solves. Contours are the result of
-    phase_diagram_contours or its JSON dictionary. Display units and axis
-    order inherit those of plot_phase_diagram on the supplied axes.
+    This performs no equilibrium solves. Supply a contour dictionary from
+    phase_diagram_grid_contours or phase_composition_contours. Display units
+    and axis order inherit those of plot_phase_diagram on the supplied axes.
     Other axes default to SI units (Pa, K, J/K, m3); supply explicit units
     if their phase diagram uses a different convention.
     The label names this contour level in the legend and, optionally, along

@@ -22,7 +22,6 @@ def forbid_equilibrium_calculations(monkeypatch):
         "stable_equilibrium",
         "_equilibrate",
         "_phase_diagram_grid",
-        "phase_diagram_contours",
     ):
         monkeypatch.setattr(bm._core, name, forbidden)
     for name in (
@@ -30,7 +29,6 @@ def forbid_equilibrium_calculations(monkeypatch):
         "stable_equilibrium",
         "equilibrate",
         "phase_diagram_grid",
-        "phase_diagram_contours",
     ):
         monkeypatch.setattr(bm, name, forbidden)
 

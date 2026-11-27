@@ -105,17 +105,6 @@ from ._core import (
 __version__ = _core.__version__
 
 
-def _phase_composition_constraint_for_diagram(*args, **kwargs):
-    """Create a field-aware composition constraint without eager plotting imports."""
-    from .tools.contours import _phase_composition_constraint_for_diagram as factory
-
-    return factory(*args, **kwargs)
-
-
-PhaseCompositionConstraint.for_diagram = staticmethod(
-    _phase_composition_constraint_for_diagram
-)
-
 _EOS_NAMES = {
     "auto": EOSType.Auto,
     "vinet": EOSType.Vinet,
@@ -422,10 +411,6 @@ __all__ = [
 
 from ._core import (
     phase_diagram,
-    phase_diagram_contours,
-    PhaseDiagramContourSettings,
-    PhaseDiagramContourLine,
-    PhaseDiagramContourResult,
     stable_equilibrium,
     water_fluid,
     PhaseDiagramSettings,
@@ -474,16 +459,11 @@ __all__ += [
     "phase_diagram_problem_regions",
     "save_phase_diagram",
     "load_phase_diagram",
-    "phase_diagram_contour_levels",
     "phase_composition_grid",
     "phase_composition_contours",
     "phase_diagram_property_grid",
     "phase_diagram_grid_contours",
     "phase_diagram",
-    "phase_diagram_contours",
-    "PhaseDiagramContourSettings",
-    "PhaseDiagramContourLine",
-    "PhaseDiagramContourResult",
     "plot_phase_diagram_contours",
     "refine_phase_diagram",
     "stable_equilibrium",
@@ -532,7 +512,6 @@ _LAZY_TOOLS = {
     "label_phase_diagram_solutions",
     "plot_phase_diagram_contours",
     "refine_phase_diagram",
-    "phase_diagram_contour_levels",
     "phase_composition_grid",
     "phase_composition_contours",
     "phase_diagram_property_grid",

@@ -13,10 +13,9 @@
 
 #pragma once
 /// Phase diagram API: calculate equilibrium boundaries, reconstruct closed
-/// assemblage fields, and trace property or mineral-composition contours.
+/// assemblage fields, and grid their thermodynamic properties.
 /// The component headers document numerical settings, units and saved records.
 #include "burnman/tools/phase_diagram/calculation.hpp"
-#include "burnman/tools/phase_diagram/contours.hpp"
 #include "burnman/tools/phase_diagram/diagram_verification.hpp"
 #include "burnman/tools/phase_diagram/field_verification.hpp"
 #include "burnman/tools/phase_diagram/polygons.hpp"

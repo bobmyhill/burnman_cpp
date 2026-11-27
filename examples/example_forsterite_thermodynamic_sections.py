@@ -44,14 +44,14 @@ ENTROPY_SCALE = BULK_ATOMS * bm.constants.gas_constant
 ALIASES = ["per", "bdg", "aki", "rw"]
 # Native SI targets; alternate solid/dotted S and T levels as in the figure.
 CONTOURS = {
-    "P": (bm.PressureConstraint, [p * 1.0e8 for p in range(233, 238)], "blue"),
-    "T": (bm.TemperatureConstraint, list(range(1300, 1901, 50)), "orange"),
+    "P": ("pressure", [p * 1.0e8 for p in range(233, 238)], "blue"),
+    "T": ("temperature", list(range(1300, 1901, 50)), "orange"),
     "S": (
-        bm.EntropyConstraint,
+        "entropy",
         [s * BULK_ATOMS for s in range(42, 49)],
         "red",
     ),
-    "V": (bm.VolumeConstraint, [BULK_MASS / 4200.0], "cyan"),
+    "V": ("volume", [BULK_MASS / 4200.0], "cyan"),
 }
 
 
@@ -111,14 +111,29 @@ def calculate(verbose=False):
 
 
 def calculate_contours(results, verbose=False):
-    """Trace the two properties absent from each section's coordinate axes."""
+    """Grid and contour the two properties absent from each section's axes."""
     contours = {}
     for diagram, result in results.items():
+        phases = candidate_phases()
+        properties = [spec[0] for name, spec in CONTOURS.items() if name not in diagram]
+        if verbose:
+            print(f"Gridding {diagram} contours: {', '.join(properties)}", flush=True)
+        grid = bm.phase_diagram_grid(
+            result,
+            phases,
+            properties,
+            resolution=(101, 101),
+            relaxed=False,
+            store_solutions=True,
+        )
         contours[diagram] = {
-            name: bm.phase_diagram_contour_levels(
-                result, candidate_phases(), levels, constraint, verbose=verbose
+            name: bm.phase_diagram_grid_contours(
+                bm.phase_diagram_property_grid(grid, phases, quantity),
+                levels,
+                diagram=result,
+                phases=phases,
             )
-            for name, (constraint, levels, _) in CONTOURS.items()
+            for name, (quantity, levels, _) in CONTOURS.items()
             if name not in diagram
         }
     return contours

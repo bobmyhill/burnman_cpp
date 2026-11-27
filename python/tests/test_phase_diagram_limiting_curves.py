@@ -214,7 +214,6 @@ def test_contours_read_saved_curves_without_equilibrating_or_rebalancing(
                 "stable_equilibrium",
                 "equilibrate",
                 "phase_diagram_grid",
-                "phase_diagram_contours",
             ),
         ),
         (
@@ -224,7 +223,6 @@ def test_contours_read_saved_curves_without_equilibrating_or_rebalancing(
                 "stable_equilibrium",
                 "_equilibrate",
                 "_phase_diagram_grid",
-                "phase_diagram_contours",
             ),
         ),
     ):
