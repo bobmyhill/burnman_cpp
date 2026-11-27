@@ -93,7 +93,8 @@ TEST_CASE_METHOD(AveragingSchemeFixture, "Averaging::VoigtReussHill",
 TEMPLATE_TEST_CASE_METHOD(AveragingSchemeMulti, "Averaging (common fns)",
                           "[core][averaging_schemes]", Voigt, Reuss,
                           VoigtReussHill, HashinShtrikmanLower,
-                          HashinShtrikmanUpper, HashinShtrikman) {
+                          HashinShtrikmanUpper, HashinShtrikman,
+                          SelfConsistent) {
   auto &sch = this->scheme;
   auto &va = this->v_a;
   auto &Xa = this->X_a;

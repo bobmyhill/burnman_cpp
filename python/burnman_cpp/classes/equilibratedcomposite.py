@@ -56,6 +56,7 @@ def _averaging_scheme(scheme):
         "Reuss": _core.AveragingType.Reuss,
         "VoigtReussHill": _core.AveragingType.VRH,
         "VRH": _core.AveragingType.VRH,
+        "SelfConsistent": _core.AveragingType.SelfConsistent,
         "HashinShtrikmanLower": _core.AveragingType.HashinShtrikmanLower,
         "HashinShtrikmanUpper": _core.AveragingType.HashinShtrikmanUpper,
         "HashinShtrikmanAverage": _core.AveragingType.HashinShtrikman,

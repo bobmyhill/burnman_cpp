@@ -58,7 +58,8 @@ void bind_params(py::module_ &m) {
       .value("VRH", AveragingType::VRH)
       .value("HashinShtrikmanLower", AveragingType::HashinShtrikmanLower)
       .value("HashinShtrikmanUpper", AveragingType::HashinShtrikmanUpper)
-      .value("HashinShtrikman", AveragingType::HashinShtrikman);
+      .value("HashinShtrikman", AveragingType::HashinShtrikman)
+      .value("SelfConsistent", AveragingType::SelfConsistent);
   py::enum_<FractionType>(m, "FractionType")
       .value("Molar", FractionType::Molar)
       .value("Mass", FractionType::Mass);

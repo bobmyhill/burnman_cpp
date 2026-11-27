@@ -21,6 +21,7 @@
 #include "burnman/tools/averaging/hs_lower.hpp"
 #include "burnman/tools/averaging/hs_upper.hpp"
 #include "burnman/tools/averaging/reuss.hpp"
+#include "burnman/tools/averaging/self_consistent.hpp"
 #include "burnman/tools/averaging/voigt.hpp"
 #include "burnman/tools/averaging/vrh.hpp"
 
@@ -37,6 +38,7 @@ namespace burnman {
  * - Reuss
  * - Voigt-Reuss-Hill
  * - Hashin-Shtrikman
+ * - Spherical self-consistent
  */
 namespace averaging {
 // blank for documentation only
