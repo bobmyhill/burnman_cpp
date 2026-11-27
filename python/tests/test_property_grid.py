@@ -209,10 +209,13 @@ def test_prepared_batches_own_models_and_count_only_their_solves(single_phase):
 def test_resumed_diagram_audits_saved_states_without_new_solves(single_phase):
     source, phase = single_phase
     data = source.to_dict()
-    assert data.pop("thermodynamic_validation")["checked_pairs"] > 0
-    legacy = bm.PhaseDiagramResult.from_dict(data)
-    assert legacy.thermodynamic_validation["scope"] == "not_checked"
-    assert legacy.to_dict() == data
+    assert data["thermodynamic_validation"]["checked_pairs"] > 0
+    data["thermodynamic_validation"] = dict(
+        scope="not_checked", checked_pairs=0, skipped_pairs=0, violations=0
+    )
+    restored = bm.PhaseDiagramResult.from_dict(data)
+    assert restored.thermodynamic_validation["scope"] == "not_checked"
+    assert restored.to_dict() == data
     # Keep a previously resolved diagram but give one accepted root bad energy.
     data["samples"][0]["gibbs"] += 1.0e6
     resumed = bm.refine_phase_diagram(data["composition_start"], [phase], data)
@@ -232,7 +235,9 @@ def test_final_grid_audit_replaces_stale_messages_without_equilibrating(single_p
         source, [phase], "density", resolution=(2, 2), store_solutions=True
     ).to_dict()
     data = dict(original)
-    data.pop("thermodynamic_validation")
+    data["thermodynamic_validation"] = dict(
+        scope="not_checked", checked_pairs=0, skipped_pairs=0, violations=0
+    )
     stale = diagnostic(
         "Completely revised consistency wording.", "thermodynamic", grid_point=[0, 0]
     )
@@ -267,7 +272,9 @@ def test_chunk_final_audit_waits_for_repairs_and_covers_all_joins(
         )
     ):
         data = grid.to_dict()
-        data.pop("thermodynamic_validation")  # An older saved batch.
+        data["thermodynamic_validation"] = dict(
+            scope="not_checked", checked_pairs=0, skipped_pairs=0, violations=0
+        )
         if bad_energy and rows.start <= 1 < rows.stop and cols.start <= 1 < cols.stop:
             data["solutions"][1 - rows.start][1 - cols.start]["gibbs"] += 1.0e6
         filename = f"chunk_{n}.json"
@@ -1133,6 +1140,7 @@ def test_saved_grid_validation(single_phase):
         grid.solution_at(2, 0)
     data = grid.to_dict()
     for key, value, message in [
+        ("schema_version", 1, "schema"),
         ("schema_version", 999, "schema"),
         ("success", [[True]], "shape"),
         ("solutions", [[None]], "shape"),
@@ -1141,6 +1149,10 @@ def test_saved_grid_validation(single_phase):
         bad[key] = value
         with pytest.raises(ValueError, match=message):
             bm.PhaseDiagramPropertyGrid.from_dict(bad)
+    bad = copy.deepcopy(data)
+    del bad["thermodynamic_validation"]
+    with pytest.raises(KeyError, match="thermodynamic_validation"):
+        bm.PhaseDiagramPropertyGrid.from_dict(bad)
     bad = copy.deepcopy(data)
     bad["solutions"][0][0] = None
     with pytest.raises(ValueError, match="missing its solution"):

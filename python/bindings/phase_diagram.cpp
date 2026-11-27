@@ -79,12 +79,13 @@ py::dict settings_dict(const phase_diagrams::Settings &settings) {
 #undef SAVE
   return data;
 }
-phase_diagrams::Settings saved_settings(const py::dict &data) {
+phase_diagrams::Settings saved_settings(const py::dict &data,
+                                        bool for_calculation = false) {
   phase_diagrams::Settings settings;
   std::set<std::string> names;
 #define READ(name)                                                             \
   names.insert(#name);                                                         \
-  if (data.contains(#name))                                                    \
+  if (for_calculation || data.contains(#name))                                 \
     settings.name = data[#name].cast<decltype(settings.name)>();
   SETTINGS_OPTIONS(READ)
 #undef READ
@@ -114,17 +115,17 @@ void read_member(const py::dict &record, const char *key, Value &value,
   if (required || record.contains(key))
     value = record[key].cast<Value>();
 }
-std::vector<phase_diagrams::PhaseState> saved_phase_states(py::handle records,
-                                                           bool full = true) {
+std::vector<phase_diagrams::PhaseState>
+saved_phase_states(py::handle records, bool for_calculation = true) {
   std::vector<phase_diagrams::PhaseState> states;
   for (auto item : py::reinterpret_borrow<py::iterable>(records)) {
     auto record = py::reinterpret_borrow<py::dict>(item);
     phase_diagrams::PhaseState state;
     state.amount = 1.;
-#define READ(name) read_member(record, #name, state.name, full);
+#define READ(name) read_member(record, #name, state.name, for_calculation);
     state.id = record["id"].cast<int>();
     READ(amount)
-    if (full) {
+    if (for_calculation) {
       if (!record.contains("composition") ||
           !record.contains("candidate_index"))
         throw py::value_error("Resuming requires saved phase compositions "
@@ -141,13 +142,15 @@ std::vector<phase_diagrams::PhaseState> saved_phase_states(py::handle records,
 }
 template <typename Point>
 void read_coordinates(const py::dict &record, Point &point,
-                      phase_diagrams::DiagramType type) {
+                      phase_diagrams::DiagramType type,
+                      bool for_calculation = false) {
   using namespace phase_diagrams;
   point.pressure = record["pressure"].cast<double>();
   point.temperature = record["temperature"].cast<double>();
   const auto axes = diagram_axes(type);
   auto read = [&](const char *key, Coordinate axis, double &value) {
-    if (!record.contains(key) && (axes[0] == axis || axes[1] == axis))
+    if (!record.contains(key) &&
+        (for_calculation || axes[0] == axis || axes[1] == axis))
       throw py::value_error(std::string("Records in this diagram require ") +
                             key + ".");
     read_member(record, key, value);
@@ -158,10 +161,10 @@ void read_coordinates(const py::dict &record, Point &point,
 }
 phase_diagrams::BoundaryPoint
 saved_boundary_point(const py::dict &record, phase_diagrams::DiagramType type,
-                     bool full = true) {
+                     bool for_calculation = true) {
   phase_diagrams::BoundaryPoint point;
-  read_coordinates(record, point, type);
-  if (full) {
+  read_coordinates(record, point, type, for_calculation);
+  if (for_calculation) {
     point.phases = saved_phase_states(record["phases"]);
 #define READ(name) point.name = record[#name].cast<decltype(point.name)>();
     READ(mass_balance_error)
@@ -236,9 +239,10 @@ validation_dict(const phase_diagrams::ThermodynamicValidation &validation) {
 #undef SAVE
   return data;
 }
-phase_diagrams::ThermodynamicValidation saved_validation(const py::dict &data) {
+phase_diagrams::ThermodynamicValidation
+saved_validation(const py::dict &data, bool for_calculation = false) {
   phase_diagrams::ThermodynamicValidation validation;
-  if (data.contains("thermodynamic_validation")) {
+  if (for_calculation || data.contains("thermodynamic_validation")) {
     auto record = data["thermodynamic_validation"].cast<py::dict>();
 #define READ(name)                                                             \
   validation.name = record[#name].cast<decltype(validation.name)>();
@@ -351,9 +355,8 @@ py::dict result_dict(const phase_diagrams::Result &result) {
   SAVE(equilibrium_solves)
   SAVE(minimization_calls)
 #undef SAVE
-  if (result.thermodynamic_validation.scope != "not_checked")
-    data["thermodynamic_validation"] =
-        validation_dict(result.thermodynamic_validation);
+  data["thermodynamic_validation"] =
+      validation_dict(result.thermodynamic_validation);
   data["settings"] = settings_dict(result.settings);
   py::list verifications;
   for (const auto &verification : result.field_verifications) {
@@ -428,20 +431,17 @@ py::dict result_dict(const phase_diagrams::Result &result) {
       points.append(boundary_point_dict(point));
     }
     record["points"] = points;
-    if (!line.limiting_curves[0].points.empty() ||
-        !line.limiting_curves[1].points.empty()) {
-      py::list curves;
-      for (const auto &curve : line.limiting_curves) {
-        py::dict saved;
-        saved["assemblage"] = py::cast(curve.assemblage);
-        py::list curve_points;
-        for (const auto &point : curve.points)
-          curve_points.append(equilibrium_state_dict(point));
-        saved["points"] = curve_points;
-        curves.append(saved);
-      }
-      record["limiting_curves"] = curves;
+    py::list curves;
+    for (const auto &curve : line.limiting_curves) {
+      py::dict saved;
+      saved["assemblage"] = py::cast(curve.assemblage);
+      py::list curve_points;
+      for (const auto &point : curve.points)
+        curve_points.append(equilibrium_state_dict(point));
+      saved["points"] = curve_points;
+      curves.append(saved);
     }
+    record["limiting_curves"] = curves;
     boundaries.append(record);
   }
   for (auto &state : result.samples)
@@ -454,11 +454,16 @@ py::dict result_dict(const phase_diagrams::Result &result) {
 }
 // Geometry-only JSON remains sufficient for plotting. Resuming also requires
 // the accepted phase compositions/amounts retained by Result::to_dict().
-phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
+phase_diagrams::Result saved_result(const py::dict &data,
+                                    bool for_calculation = false) {
   using namespace phase_diagrams;
+  if ((for_calculation || data.contains("schema_version")) &&
+      (!data.contains("schema_version") ||
+       data["schema_version"].cast<int>() != 6))
+    throw py::value_error("Phase diagrams require schema version 6.");
   Result result;
-  result.thermodynamic_validation = saved_validation(data);
-  if (data.contains("field_verifications"))
+  result.thermodynamic_validation = saved_validation(data, for_calculation);
+  if (for_calculation || data.contains("field_verifications"))
     for (auto item : data["field_verifications"].cast<py::list>()) {
       const auto record = item.cast<py::dict>();
       FieldVerification verification;
@@ -479,47 +484,51 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
 #undef READ
       result.field_verifications.push_back(std::move(verification));
     }
-  if (data.contains("diagram_type"))
+  if (for_calculation || data.contains("diagram_type"))
     result.section.type =
         diagram_type(data["diagram_type"].cast<std::string>());
-#define READ(name) read_member(data, #name, result.section.name);
+#define READ(name)                                                             \
+  read_member(data, #name, result.section.name, for_calculation);
   READ(composition_end)
   READ(composition_range)
   READ(entropy_range)
   READ(volume_range)
 #undef READ
-  read_member(data, "composition_start", result.composition_start);
+  read_member(data, "composition_start", result.composition_start,
+              for_calculation);
   if (data.contains("fixed_coordinate")) {
     result.section.fixed_coordinate =
         coordinate_type(data["fixed_coordinate"].cast<std::string>());
     result.section.fixed_value = data["fixed_value"].cast<double>();
   }
-  if (data.contains("settings"))
-    result.settings = saved_settings(data["settings"].cast<py::dict>());
-  read_member(data, "resolved", result.resolved);
-  if (data.contains("diagnostics"))
+  if (for_calculation || data.contains("settings"))
+    result.settings =
+        saved_settings(data["settings"].cast<py::dict>(), for_calculation);
+  read_member(data, "resolved", result.resolved, for_calculation);
+  if (for_calculation || data.contains("diagnostics"))
     result.diagnostics = saved_diagnostics(data["diagnostics"]);
-  if (data.contains("coordinate_diagnostics"))
+  if (for_calculation || data.contains("coordinate_diagnostics"))
     result.coordinate_diagnostics =
         saved_diagnostics(data["coordinate_diagnostics"]);
-  if (data.contains("spacing_diagnostics"))
+  if (for_calculation || data.contains("spacing_diagnostics"))
     result.spacing_diagnostics = saved_diagnostics(data["spacing_diagnostics"]);
   result.pressure_range = data["pressure_range"].cast<std::array<double, 2>>();
   result.temperature_range =
       data["temperature_range"].cast<std::array<double, 2>>();
-  read_member(data, "phase_names", result.phase_names);
-  read_member(data, "excluded_regions", result.excluded_regions);
+  read_member(data, "phase_names", result.phase_names, for_calculation);
+  read_member(data, "excluded_regions", result.excluded_regions,
+              for_calculation);
   auto saved_state = [&](const py::dict &value) {
     State state;
     state.success = value["success"].cast<bool>();
-    read_coordinates(value, state, result.section.type);
-#define READ(name) read_member(value, #name, state.name);
+    read_coordinates(value, state, result.section.type, for_calculation);
+#define READ(name) read_member(value, #name, state.name, for_calculation);
     READ(is_field_verification)
     READ(outside_model_domain)
     READ(excluded_phases)
 #undef READ
-    state.phases = saved_phase_states(value["phases"], full);
-    if (full) {
+    state.phases = saved_phase_states(value["phases"], for_calculation);
+    if (for_calculation) {
 #define READ(name) state.name = value[#name].cast<decltype(state.name)>();
       READ(message)
       READ(gibbs)
@@ -530,48 +539,49 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
     }
     return state;
   };
-  if (data.contains("nodes"))
+  if (for_calculation || data.contains("nodes"))
     for (auto item : data["nodes"]) {
       auto value = py::reinterpret_borrow<py::dict>(item);
       Node node;
-      if (!full)
+      if (!for_calculation)
         node.gibbs_variance = node.pt_nullity = -1; // unknown unless supplied
       node.id = value["id"].cast<int>();
-      read_coordinates(value, node, result.section.type);
-      read_member(value, "incident_lines", node.incident_lines);
+      read_coordinates(value, node, result.section.type, for_calculation);
+      read_member(value, "incident_lines", node.incident_lines,
+                  for_calculation);
       read_member(value, "is_verified_critical_endpoint",
-                  node.is_verified_critical_endpoint);
+                  node.is_verified_critical_endpoint, for_calculation);
     // Polygon construction also needs invariant metadata when plotting a
     // saved dictionary, without requiring all resumable equilibrium data.
-#define READ(name) read_member(value, #name, node.name, full);
+#define READ(name) read_member(value, #name, node.name, for_calculation);
       READ(kind)
       READ(assemblage)
       READ(gibbs_variance)
       READ(pt_nullity)
       READ(zero_phases)
 #undef READ
-      if (full)
-        read_member(value, "critical_mode", node.critical_mode);
+      if (for_calculation)
+        read_member(value, "critical_mode", node.critical_mode, true);
       result.nodes.push_back(node);
     }
   for (auto item : data["boundaries"]) {
     auto value = py::reinterpret_borrow<py::dict>(item);
     Boundary line;
     // Loop constraints need the reaction metadata for dictionary plotting too.
-#define READ(name) read_member(value, #name, line.name, full);
+#define READ(name) read_member(value, #name, line.name, for_calculation);
     READ(assemblage)
     READ(id)
     READ(zero_phase)
     READ(termination)
 #undef READ
-#define READ(name) read_member(value, #name, line.name);
+#define READ(name) read_member(value, #name, line.name, for_calculation);
     READ(start_node)
     READ(end_node)
     READ(side_a)
     READ(side_b)
     READ(is_solution_replacement)
 #undef READ
-    if (value.contains("reaction_kind")) {
+    if (for_calculation || value.contains("reaction_kind")) {
       const auto kind = value["reaction_kind"].cast<std::string>();
       if (kind == "phase_out")
         line.reaction_kind = ReactionKind::phase_out;
@@ -581,10 +591,11 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
         throw py::value_error("Unknown reaction kind: " + kind);
     }
     for (auto point : value["points"]) {
-      line.points.push_back(saved_boundary_point(
-          py::reinterpret_borrow<py::dict>(point), result.section.type, full));
+      line.points.push_back(
+          saved_boundary_point(py::reinterpret_borrow<py::dict>(point),
+                               result.section.type, for_calculation));
     }
-    if (full && value.contains("limiting_curves")) {
+    if (for_calculation) {
       auto curves = value["limiting_curves"].cast<py::list>();
       if (curves.size() != 2)
         throw py::value_error("A reaction boundary needs two limiting curves.");
@@ -599,24 +610,24 @@ phase_diagrams::Result saved_result(const py::dict &data, bool full = false) {
     }
     result.boundaries.push_back(std::move(line));
   }
-  if (data.contains("fields"))
+  if (for_calculation || data.contains("fields"))
     for (auto item : data["fields"]) {
       auto value = py::reinterpret_borrow<py::dict>(item);
       Field field;
       field.id = value["id"].cast<int>();
       field.phases = value["phases"].cast<std::vector<int>>();
-      if (full)
+      if (for_calculation)
         field.sample_indices = value["sample_indices"].cast<std::vector<int>>();
       result.fields.push_back(field);
     }
-  if (data.contains("samples"))
+  if (for_calculation || data.contains("samples"))
     for (auto item : data["samples"]) {
       result.samples.push_back(
           saved_state(py::reinterpret_borrow<py::dict>(item)));
     }
-  if (full) {
-    read_member(data, "equilibrium_solves", result.equilibrium_solves);
-    read_member(data, "minimization_calls", result.minimization_calls);
+  if (for_calculation) {
+    read_member(data, "equilibrium_solves", result.equilibrium_solves, true);
+    read_member(data, "minimization_calls", result.minimization_calls, true);
   }
   return result;
 }
@@ -660,9 +671,8 @@ py::dict property_grid_dict(const phase_diagrams::PropertyGrid &grid) {
   data["equilibrium_diagnostics"] =
       diagnostic_records(grid.equilibrium_diagnostics);
   data["equilibrium_solves"] = grid.equilibrium_solves;
-  if (grid.thermodynamic_validation.scope != "not_checked")
-    data["thermodynamic_validation"] =
-        validation_dict(grid.thermodynamic_validation);
+  data["thermodynamic_validation"] =
+      validation_dict(grid.thermodynamic_validation);
   py::dict values;
   for (const auto &[name, matrix] : grid.values) {
     py::list rows;
@@ -708,7 +718,7 @@ phase_diagrams::PropertyGrid saved_property_grid(const py::dict &data) {
     throw py::value_error(
         "Unsupported property grid format or schema version.");
   PropertyGrid grid;
-  grid.thermodynamic_validation = saved_validation(data);
+  grid.thermodynamic_validation = saved_validation(data, true);
   grid.context = saved_result(data["context"].cast<py::dict>(), true);
   grid.diagram_type = grid.context.section.type;
   grid.x = data["x"].cast<Eigen::VectorXd>();
@@ -788,6 +798,8 @@ phase_diagrams::PropertyGrid saved_property_grid(const py::dict &data) {
 }
 } // namespace
 void bind_phase_diagram(py::module_ &m) {
+  m.def("_phase_diagram_context",
+        [](const py::dict &data) { return result_dict(saved_result(data)); });
   m.def("phase_diagram_diagnostic_messages", [](const py::list &records) {
     return diagnostic_messages(saved_diagnostics(records));
   });
@@ -810,7 +822,9 @@ void bind_phase_diagram(py::module_ &m) {
       .def("to_dict", &settings_dict,
            "Return all settings as a JSON-compatible dictionary.")
       .def_static(
-          "from_dict", &saved_settings, py::arg("data"),
+          "from_dict",
+          [](const py::dict &data) { return saved_settings(data); },
+          py::arg("data"),
           "Restore numerical settings; omitted entries retain defaults.")
 #define OPTION(name) .def_readwrite(#name, &Settings::name)
           SETTINGS_OPTIONS(OPTION)
@@ -1480,29 +1494,6 @@ Unplotted P/T ranges guide inverse seed searches (defaults 0-150 GPa, 1-6000 K).
 settings controls seed density, tracing and acceptance tolerances. In the returned
 result, resolved means that the implemented checks have no outstanding messages;
 finite sampling cannot prove discovery of every disconnected stability field.
-)doc");
-  m.def(
-      "refresh_phase_diagram_limiting_curves",
-      [](py::object previous,
-         const std::vector<std::shared_ptr<Material>> &phases) {
-        const auto saved = calculation_result(previous);
-        py::gil_scoped_release release;
-        return refresh_limiting_curves(saved, phases);
-      },
-      py::arg("previous"), py::arg("phases"),
-      R"doc(Rebuild field-side limits from saved reaction equilibria.
-
-Use the original candidate models and ordering. Returns a new native result;
-the input, reaction points, topology, samples and diagnostics are preserved.
-Each side follows the curve's geometric orientation, including zero-amount
-junction phases. Mass balance and reaction affinities are checked. Ambiguous
-or invalid limits retain success=False and an explanatory message.
-
-This explicit operation upgrades older saved limits before contour extraction.
-It replaces independently sampled limiting curves with limits at the saved
-reaction points. It does not retrace boundaries. Some diagram coordinates
-require limiting equilibrium solves; these are included in the returned work
-counts. Contour extraction itself never invokes this operation.
 )doc");
   m.def(
       "refine_phase_diagram",

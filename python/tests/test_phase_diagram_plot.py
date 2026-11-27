@@ -52,6 +52,11 @@ def diagram(lines, samples=()):
     )
 
 
+def native_geometry(data):
+    """Construct a native geometry view without restoring calculation states."""
+    return bm.PhaseDiagramResult.from_dict(bm._core._phase_diagram_context(data))
+
+
 def square(low=0.2, high=0.8):
     return [(low, low), (high, low), (high, high), (low, high), (low, low)]
 
@@ -527,7 +532,7 @@ def test_retired_pyrolite_invariant_does_not_recreate_a_closed_loop(reverse):
             b["points"].reverse()
             b["start_node"], b["end_node"] = b["end_node"], b["start_node"]
             b["side_a"], b["side_b"] = b["side_b"], b["side_a"]
-    for representation in [data, bm.PhaseDiagramResult.from_dict(data)]:
+    for representation in [data, native_geometry(data)]:
         geometry = bm.phase_diagram_field_polygons(representation, close_domain=False)
         assert not geometry.polygons
         check_joined_edges(geometry)
@@ -589,7 +594,7 @@ def test_parallel_curved_arcs_follow_their_neighbouring_assemblages(reverse, nat
                 boundary["start_node"],
             )
     geometry = bm.phase_diagram_field_polygons(
-        bm.PhaseDiagramResult.from_dict(data) if native else data,
+        native_geometry(data) if native else data,
         close_domain=False,
     )
     assert len(geometry.polygons) == 2
@@ -628,7 +633,7 @@ def test_frame_fan_preserves_thin_pyrolite_loop(rotation, reverse, native):
             b["side_a"], b["side_b"] = b["side_b"], b["side_a"]
     before = json.dumps(data)
     geometry = bm.phase_diagram_field_polygons(
-        bm.PhaseDiagramResult.from_dict(data) if native else data
+        native_geometry(data) if native else data
     )
     assert json.dumps(data) == before
     assert not geometry.diagnostics
@@ -1304,7 +1309,7 @@ def test_pyrolite_loop_uses_common_limiting_neighbours(reverse, native):
             b["side_a"], b["side_b"] = b["side_b"], b["side_a"]
             b["start_node"], b["end_node"] = b["end_node"], b["start_node"]
     geometry = bm.phase_diagram_field_polygons(
-        bm.PhaseDiagramResult.from_dict(data) if native else data
+        native_geometry(data) if native else data
     )
     matches = [
         p
@@ -1830,7 +1835,7 @@ def test_loop_constraints_recover_coexisting_solution_instances(case, reverse, n
                 boundary["start_node"],
             )
     geometry = bm.phase_diagram_field_polygons(
-        bm.PhaseDiagramResult.from_dict(data) if native else data
+        native_geometry(data) if native else data
     )
     matches = [
         p

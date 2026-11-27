@@ -678,23 +678,6 @@ refine_phase_diagram(const types::FormulaMap &bulk,
   return refine_phase_diagram(bulk, phases, previous, previous.settings,
                               resolution);
 }
-Result refresh_limiting_curves(
-    const Result &previous,
-    const std::vector<std::shared_ptr<Material>> &candidates) {
-  // The no-resolution resume validates the saved bulk and candidate identity.
-  auto result =
-      refine_phase_diagram(previous.composition_start, candidates, previous);
-  detail::Engine engine(result.composition_start, candidates, result.settings,
-                        result.section);
-  engine.pressure_bounds = result.pressure_range;
-  engine.temperature_bounds = result.temperature_range;
-  for (auto &line : result.boundaries)
-    line.limiting_curves = {};
-  detail::record_limiting_curves(result, engine);
-  result.equilibrium_solves += engine.equilibrium_solves;
-  result.minimization_calls += engine.minimization_calls;
-  return result;
-}
 State stable_equilibrium_at(
     const types::FormulaMap &bulk,
     const std::vector<std::shared_ptr<Material>> &candidates,

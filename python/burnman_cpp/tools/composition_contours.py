@@ -22,9 +22,9 @@ _VOLUME_SYMBOLS = {"volume_fraction", "standard_volume_fraction"}
 
 
 def _diagram_context(data):
-    return _core.PhaseDiagramResult.from_dict(
+    return _core._phase_diagram_context(
         dict(data, boundaries=[], samples=[], nodes=[], fields=[])
-    ).to_dict()
+    )
 
 
 def _check_context(saved, diagram):
@@ -396,6 +396,9 @@ def phase_composition_grid(
         dict(
             format="burnman_cpp.property_grid",
             schema_version=2,
+            thermodynamic_validation=dict(
+                scope="not_checked", checked_pairs=0, skipped_pairs=0, violations=0
+            ),
             context=context,
             x=x,
             y=y,
@@ -460,7 +463,7 @@ def phase_composition_contours(grid, levels, *, diagram, phases=None):
     if phases is not None:
         phases = list(phases)
         state_value = _boundary_expression(data, phases, quantity).state_value
-        state_boundaries = field_boundary_states(data, phases)
+        state_boundaries = field_boundary_states(data)
     records = [
         dict(
             value=float(level),
@@ -583,7 +586,7 @@ def _boundary_expression(data, phases, quantity):
     ranges = np.asarray([data[a + "_range"] for a in axes])
     fields = {f["id"]: f for f in data.get("fields", [])}
     boundaries = {b["id"]: b for b in data.get("boundaries", [])}
-    boundary_states = field_boundary_states(data, phases) if volume_symbols else None
+    boundary_states = field_boundary_states(data) if volume_symbols else None
     branch_select = _secondary_branch(data, phase)[1] if labels is not None else None
 
     def sample(polygon):
@@ -600,7 +603,6 @@ def _boundary_expression(data, phases, quantity):
             polygon,
             candidate,
             len(ids),
-            copies,
             data.get("samples", []),
             fields,
             boundaries,
@@ -731,7 +733,6 @@ def _secondary_branch(diagram, label):
             polygon,
             candidate,
             len(ids),
-            copies,
             data["samples"],
             fields,
             boundaries,

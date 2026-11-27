@@ -440,7 +440,6 @@ from ._core import (
     phase_diagram_field_polygons,
     verify_phase_diagram_critical_endpoints,
     verify_phase_diagram_field_perimeters,
-    refresh_phase_diagram_limiting_curves,
     PhaseFieldPolygon,
     PhaseDiagramPolygons,
 )
@@ -501,7 +500,6 @@ __all__ += [
     "phase_diagram_field_polygons",
     "verify_phase_diagram_critical_endpoints",
     "verify_phase_diagram_field_perimeters",
-    "refresh_phase_diagram_limiting_curves",
     "PhaseFieldPolygon",
     "PhaseDiagramPolygons",
     "plot_phase_diagram",

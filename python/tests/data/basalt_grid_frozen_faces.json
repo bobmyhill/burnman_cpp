@@ -336,9 +336,13 @@
         "gibbs": 1136342.8313635478,
         "success": true,
         "equilibrium_error": 3.958120942115784e-09,
-        "message": "Saved restricted-face grid warm start"
+        "message": "Saved restricted-face grid warm start",
+        "is_field_verification": false,
+        "outside_model_domain": false,
+        "excluded_phases": []
       }
-    ]
+    ],
+    "thermodynamic_validation": {"scope": "not_checked", "checked_pairs": 0, "skipped_pairs": 0, "violations": 0}
   },
   "models": {
     "dataset": "burnman_cpp._core.minerals.SLB_2024",

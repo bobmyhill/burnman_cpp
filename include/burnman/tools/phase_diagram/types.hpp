@@ -221,7 +221,7 @@ struct Boundary {
   std::vector<BoundaryPoint> points;
   // Two separate curves, ordered like side_a/side_b. Their P-T projections
   // can coincide while their S/V coordinates and phase amounts differ.
-  // Created with the diagram; older saved results can omit these records.
+  // Saved explicitly, including empty curves when no limit was verified.
   std::array<BoundaryCurve, 2> limiting_curves;
   // "start status; end status". Failed/unresolved ends have node ID -1.
   std::string termination;

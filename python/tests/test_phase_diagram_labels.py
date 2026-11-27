@@ -62,6 +62,26 @@ def moving_solvus(*, swapped=False, three=False):
                 reaction_kind="replacement" if three else "phase_out",
                 is_solution_replacement=three,
                 points=points,
+                limiting_curves=[
+                    dict(
+                        assemblage=group,
+                        points=[
+                            dict(
+                                point,
+                                success=True,
+                                phases=[
+                                    deepcopy(p)
+                                    for i, p in enumerate(point["phases"])
+                                    if p["candidate_index"] == 1
+                                    or len(group) > 2
+                                    or i == (0 if index == 0 else count - 1)
+                                ],
+                            )
+                            for point in points
+                        ],
+                    )
+                    for group in (right, left)
+                ],
                 termination="frame; frame",
             )
         )
@@ -70,6 +90,7 @@ def moving_solvus(*, swapped=False, three=False):
         for x, roots in ((0.15, [0]), (0.5, range(count)), (0.85, [count - 1]))
     ]
     return dict(
+        schema_version=6,
         diagram_type="PT",
         pressure_range=[0.0, 1.0],
         temperature_range=[0.0, 1.0],
@@ -82,6 +103,19 @@ def moving_solvus(*, swapped=False, three=False):
             dict(id=1, phases=list(range(count)) + [3], sample_indices=[1]),
         ],
         nodes=[],
+    )
+
+
+def saved_states(data):
+    return (
+        data["samples"]
+        + [p for b in data["boundaries"] for p in b["points"]]
+        + [
+            p
+            for b in data["boundaries"]
+            for c in b["limiting_curves"]
+            for p in c["points"]
+        ]
     )
 
 
@@ -142,6 +176,25 @@ def test_inconsistent_continuity_never_merges_coexisting_instances():
                     dict(pressure=p, temperature=t, phases=deepcopy(phases))
                     for p, t in (a, b)
                 ],
+                limiting_curves=[
+                    dict(
+                        assemblage=group,
+                        points=[
+                            dict(
+                                pressure=p,
+                                temperature=t,
+                                success=True,
+                                phases=[
+                                    deepcopy(phase)
+                                    for phase in phases
+                                    if len(group) > 2 or phase["id"] != zero
+                                ],
+                            )
+                            for p, t in (a, b)
+                        ],
+                    )
+                    for group in ([0, 3], [0, 1, 3])
+                ],
                 termination="closed loop",
             )
         )
@@ -158,7 +211,7 @@ def test_inconsistent_continuity_never_merges_coexisting_instances():
 
 def test_signed_original_endmember_coefficients_are_preserved():
     data = moving_solvus()
-    states = data["samples"] + [p for b in data["boundaries"] for p in b["points"]]
+    states = saved_states(data)
     for state in states:
         for phase in state["phases"]:
             if phase["candidate_index"] == 0:
@@ -185,7 +238,7 @@ def test_uniform_two_phase_field_can_use_frame_seeds_without_reaction_lines():
 def test_native_non_pt_coordinates_are_used_for_continuity():
     data = moving_solvus()
     data.update(diagram_type="PS", entropy_range=[0.0, 1.0])
-    states = data["samples"] + [p for b in data["boundaries"] for p in b["points"]]
+    states = saved_states(data)
     for state in states:
         state["entropy"] = state["temperature"]
         state["temperature"] = 1000.0

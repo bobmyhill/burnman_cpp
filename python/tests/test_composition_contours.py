@@ -23,7 +23,6 @@ def forbid_equilibrium_calculations(monkeypatch):
         "_equilibrate",
         "_phase_diagram_grid",
         "phase_diagram_contours",
-        "refresh_phase_diagram_limiting_curves",
     ):
         monkeypatch.setattr(bm._core, name, forbidden)
     for name in (
@@ -32,7 +31,6 @@ def forbid_equilibrium_calculations(monkeypatch):
         "equilibrate",
         "phase_diagram_grid",
         "phase_diagram_contours",
-        "refresh_phase_diagram_limiting_curves",
     ):
         monkeypatch.setattr(bm, name, forbidden)
 
@@ -56,7 +54,7 @@ def stored_grid(phases, *, diagram=None, x=None, y=None, phase_states=None):
         nodes=[],
         fields=[],
     )
-    context = bm.PhaseDiagramResult.from_dict(context).to_dict()
+    context = bm._core._phase_diagram_context(context)
     solutions = []
     for t in y:
         row = []
@@ -101,6 +99,9 @@ def stored_grid(phases, *, diagram=None, x=None, y=None, phase_states=None):
         dict(
             format="burnman_cpp.property_grid",
             schema_version=2,
+            thermodynamic_validation=dict(
+                scope="not_checked", checked_pairs=0, skipped_pairs=0, violations=0
+            ),
             context=context,
             x=x,
             y=y,
@@ -314,7 +315,7 @@ def test_exclusions_are_reused_when_evaluating_preexisting_boundary_states(
 
     source, phases, _ = volume_sample
     diagram = split_diagram(source, solved_boundary=True)
-    for point in diagram["boundaries"][0]["points"]:
+    for point in diagram["boundaries"][0]["limiting_curves"][0]["points"]:
         point["phases"][1]["amount"] = 1.0
     polygon = max(
         bm.phase_diagram_field_polygons(diagram).polygons,
@@ -436,6 +437,25 @@ def split_diagram(grid, *, solved_boundary=False):
                 end_node=-1,
                 reaction_kind="phase_out",
                 points=points,
+                limiting_curves=[
+                    dict(
+                        assemblage=ids,
+                        points=[
+                            dict(
+                                point,
+                                success=solved_boundary,
+                                volume=0.0,
+                                phases=[
+                                    deepcopy(p)
+                                    for p in point.get("phases", [])
+                                    if p["id"] in ids
+                                ],
+                            )
+                            for point in points
+                        ],
+                    )
+                    for ids in ([0, 3], [0])
+                ],
             )
         ],
     )
@@ -1302,7 +1322,7 @@ def test_bulk_filters_persist_and_replay_preexisting_boundary_states(
 
 
 def replacement_diagram(phases, left, right):
-    """A saved replacement with finite amounts recorded only on its right side."""
+    """A saved replacement with explicit equilibria on each field side."""
     source = stored_grid(
         phases, phase_states=lambda p, t: deepcopy(left if p <= 1.5e9 else right)
     )
@@ -1324,6 +1344,22 @@ def replacement_diagram(phases, left, right):
                 assemblage=sorted(set().union(*ids)),
                 side_a=ids[1],
                 side_b=ids[0],
+                limiting_curves=[
+                    dict(
+                        assemblage=group,
+                        points=[
+                            dict(
+                                pressure=1.5e9,
+                                temperature=float(t),
+                                success=True,
+                                volume=0.0,
+                                phases=deepcopy(side),
+                            )
+                            for t in source.y
+                        ],
+                    )
+                    for group, side in zip(ids[::-1], (right, left))
+                ],
                 start_node=-1,
                 end_node=-1,
                 points=[
@@ -1410,85 +1446,6 @@ def test_replacement_contour_reaches_the_boundary_without_a_false_return_branch(
     boundary = next(p for p in endpoints if p["pressure"] == pytest.approx(1.5e9))
     assert boundary["temperature"] == pytest.approx(1000.0, abs=1e-6)
     assert all(p["pressure"] <= 1.5e9 + 1e-6 for p in lines[0]["points"])
-
-
-def test_compound_replacement_conserves_chemistry_when_total_moles_change():
-    from burnman_cpp.tools._boundary_states import field_boundary_states
-
-    compound = dict(
-        oxide_params(),
-        name="compound",
-        formula=dict(Mg=1.0, Fe=1.0, O=2.0),
-        molar_mass=0.1121488,
-        n=4,
-    )
-    phases = [
-        bm.Mineral(oxide_params()),
-        bm.Mineral(oxide_params("Fe")),
-        bm.Mineral(compound),
-    ]
-    left = [
-        dict(id=3 * i, candidate_index=i, name=p.name, amount=2.0, composition=[1.0])
-        for i, p in enumerate(phases[:2])
-    ]
-    right = [
-        dict(id=6, candidate_index=2, name="compound", amount=2.0, composition=[1.0])
-    ]
-    _, diagram, polygons = replacement_diagram(phases, left, right)
-    states = list(field_boundary_states(diagram, phases)(polygons[0]))
-    assert len(states) == 5
-    for _, _, state in states:
-        np.testing.assert_allclose(
-            [p["amount"] for p in state["phases"]], [2.0, 2.0], rtol=1e-12
-        )
-        assert state["volume"] == 0.0  # The other side's total volume is invalid.
-
-
-@pytest.mark.parametrize("nonunique", [False, True])
-def test_undefined_replacement_amounts_are_omitted(nonunique):
-    from burnman_cpp.tools._boundary_states import field_boundary_states
-
-    phases = [bm.Mineral(dict(oxide_params(), name="left"))]
-    if nonunique:
-        phases.append(bm.Mineral(dict(oxide_params(), name="duplicate")))
-    phases.append(
-        bm.Mineral(dict(oxide_params("Mg" if nonunique else "Fe"), name="right"))
-    )
-    left = [
-        dict(id=3 * i, candidate_index=i, name=p.name, amount=1.0, composition=[1.0])
-        for i, p in enumerate(phases[:-1])
-    ]
-    right = [
-        dict(
-            id=3 * (len(phases) - 1),
-            candidate_index=len(phases) - 1,
-            name="right",
-            amount=1.0,
-            composition=[1.0],
-        )
-    ]
-    _, diagram, polygons = replacement_diagram(phases, left, right)
-    sample = field_boundary_states(diagram, phases)
-    assert list(sample(polygons[0])) == []
-    assert len(list(sample(polygons[1]))) == 5
-
-
-def test_latent_entropy_boundary_needs_its_own_compatible_limiting_state(
-    polymorph_boundary,
-):
-    from burnman_cpp.tools._boundary_states import field_boundary_states
-
-    phases, _, diagram, _ = polymorph_boundary
-    diagram.update(diagram_type="PS", entropy_range=[800.0, 1200.0])
-    for state in diagram["samples"] + diagram["boundaries"][0]["points"]:
-        state["entropy"] = state["temperature"]
-    polygons = sorted(
-        bm.phase_diagram_field_polygons(diagram).polygons,
-        key=lambda p: p.label_position[0],
-    )
-    sample = field_boundary_states(diagram, phases)
-    assert list(sample(polygons[0])) == []
-    assert len(list(sample(polygons[1]))) == 5
 
 
 @pytest.mark.parametrize(

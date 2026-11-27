@@ -373,9 +373,13 @@
         "gibbs": 1132366.291250727,
         "success": true,
         "equilibrium_error": 4.185130819678307e-06,
-        "message": "Neighbouring saved equilibrium for site-release step"
+        "message": "Neighbouring saved equilibrium for site-release step",
+        "is_field_verification": false,
+        "outside_model_domain": false,
+        "excluded_phases": []
       }
-    ]
+    ],
+    "thermodynamic_validation": {"scope": "not_checked", "checked_pairs": 0, "skipped_pairs": 0, "violations": 0}
   },
   "models": {
     "dataset": "burnman_cpp._core.minerals.SLB_2024",

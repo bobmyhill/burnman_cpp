@@ -32,7 +32,8 @@
     "active_solution_faces": true,
     "required_eos_phases": [
       "opx"
-    ]
+    ],
+    "required_thermal_phases": []
   },
   "phase_names": [
     "ol",
@@ -765,7 +766,8 @@
           ]
         }
       ],
-      "reaction_kind": "unknown"
+      "reaction_kind": "unknown",
+      "limiting_curves": [{"assemblage": [0, 12, 13, 18, 21, 22, 51, 54], "points": []}, {"assemblage": [0, 12, 13, 21, 22, 51, 54], "points": []}]
     },
     {
       "id": 8,
@@ -1428,7 +1430,8 @@
           ]
         }
       ],
-      "reaction_kind": "phase_out"
+      "reaction_kind": "phase_out",
+      "limiting_curves": [{"assemblage": [0, 12, 21, 22, 24, 51, 54], "points": []}, {"assemblage": [0, 12, 13, 21, 22, 51, 54], "points": []}]
     },
     {
       "id": 9,
@@ -2091,7 +2094,8 @@
           ]
         }
       ],
-      "reaction_kind": "phase_out"
+      "reaction_kind": "phase_out",
+      "limiting_curves": [{"assemblage": [0, 12, 13, 21, 22, 51, 54], "points": []}, {"assemblage": [0, 12, 13, 21, 22, 51, 54], "points": []}]
     },
     {
       "id": 10,
@@ -3092,7 +3096,8 @@
           ]
         }
       ],
-      "reaction_kind": "phase_out"
+      "reaction_kind": "phase_out",
+      "limiting_curves": [{"assemblage": [0, 9, 12, 13, 21, 22, 51, 54], "points": []}, {"assemblage": [0, 12, 13, 21, 22, 51, 54], "points": []}]
     },
     {
       "id": 196,
@@ -3476,7 +3481,8 @@
           ]
         }
       ],
-      "reaction_kind": "replacement"
+      "reaction_kind": "replacement",
+      "limiting_curves": [{"assemblage": [0, 9, 12, 21, 22, 24, 51, 54], "points": []}, {"assemblage": [0, 12, 13, 21, 22, 24, 51, 54], "points": []}]
     }
   ],
   "fields": [],
@@ -3492,5 +3498,13 @@
   "resolved": false,
   "equilibrium_solves": 0,
   "minimization_calls": 0,
-  "schema_version": 6
+  "schema_version": 6,
+  "composition_range": [0.0, 1.0],
+  "entropy_range": [0.0, 1.0],
+  "volume_range": [1e-06, 0.0001],
+  "coordinate_diagnostics": [],
+  "spacing_diagnostics": [],
+  "spacing_resolved": true,
+  "thermodynamic_validation": {"scope": "not_checked", "checked_pairs": 0, "skipped_pairs": 0, "violations": 0},
+  "field_verifications": []
 }

@@ -493,7 +493,8 @@
             }
           ]
         }
-      ]
+      ],
+      "limiting_curves": [{"assemblage": [18, 33, 72, 75], "points": []}, {"assemblage": [18, 19, 33, 72, 75], "points": []}]
     },
     {
       "id": 1,
@@ -1088,9 +1089,24 @@
             }
           ]
         }
-      ]
+      ],
+      "limiting_curves": [{"assemblage": [15, 18, 19, 33, 34, 75, 78], "points": []}, {"assemblage": [15, 18, 19, 33, 75, 78], "points": []}]
     }
   ],
   "fields": [],
-  "samples": []
+  "samples": [],
+  "schema_version": 6,
+  "composition_end": {},
+  "composition_range": [0.0, 1.0],
+  "phase_names": [],
+  "diagnostics": [],
+  "coordinate_diagnostics": [],
+  "spacing_diagnostics": [],
+  "spacing_resolved": true,
+  "resolved": false,
+  "equilibrium_solves": 0,
+  "minimization_calls": 0,
+  "thermodynamic_validation": {"scope": "not_checked", "checked_pairs": 0, "skipped_pairs": 0, "violations": 0},
+  "field_verifications": [],
+  "excluded_regions": []
 }
