@@ -95,6 +95,9 @@ void Assemblage::set_averaging_scheme(types::AveragingType scheme_type) {
   case types::AveragingType::HashinShtrikman:
     this->averaging_scheme = std::make_shared<averaging::HashinShtrikman>();
     break;
+  case types::AveragingType::SelfConsistent:
+    this->averaging_scheme = std::make_shared<averaging::SelfConsistent>();
+    break;
   default:
     throw std::invalid_argument("Unknown Averaging Scheme!");
   }

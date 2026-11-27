@@ -207,6 +207,7 @@ public:
    *  HashinShtrikmanLower
    *  HashinShtrikmanUpper
    *  HashinShtrikman
+   *  SelfConsistent
    *
    */
   void set_averaging_scheme(types::AveragingType scheme_type);

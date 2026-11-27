@@ -77,7 +77,8 @@ enum class AveragingType {
   VRH,
   HashinShtrikmanLower,
   HashinShtrikmanUpper,
-  HashinShtrikman
+  HashinShtrikman,
+  SelfConsistent
 };
 
 /**

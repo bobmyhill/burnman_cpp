@@ -33,6 +33,41 @@ struct MultiMineralFixture {
   StishoviteFixture stish_fix;
 };
 
+TEST_CASE_METHOD(BdgFperAssemblageFixture, "Assemblage self-consistent moduli",
+                 "[core][assemblage][self_consistent]") {
+  assemblage.set_method(types::EOSType::Auto);
+  assemblage.set_state(120.e9, 2500.0);
+  const double thermodynamic_k = assemblage.get_isentropic_bulk_modulus_reuss();
+  const double density = assemblage.get_density();
+  const double vrh = assemblage.get_effective_isentropic_bulk_modulus();
+  assemblage.set_averaging_scheme(types::AveragingType::SelfConsistent);
+  const Eigen::ArrayXd volumes = assemblage.get_phase_volumes();
+  Eigen::ArrayXd bulk(2), shear(2);
+  for (Eigen::Index i = 0; i < 2; ++i) {
+    bulk[i] = assemblage.get_phase(static_cast<std::size_t>(i))
+                  ->get_isentropic_bulk_modulus_reuss();
+    shear[i] =
+        assemblage.get_phase(static_cast<std::size_t>(i))->get_shear_modulus();
+  }
+  const auto expected =
+      averaging::utils::self_consistent_fn(volumes, bulk, shear);
+  CHECK(assemblage.get_effective_isentropic_bulk_modulus() == expected.first);
+  CHECK(assemblage.get_effective_shear_modulus() == expected.second);
+  CHECK(assemblage.get_effective_isentropic_bulk_modulus() != vrh);
+  CHECK(assemblage.get_isentropic_bulk_modulus_reuss() == thermodynamic_k);
+  CHECK(assemblage.get_density() == density);
+  CHECK_THAT(
+      assemblage.get_p_wave_velocity(),
+      WithinRel(
+          std::sqrt((expected.first + 4.0 * expected.second / 3.0) / density),
+          1.e-12));
+  CHECK_THAT(assemblage.get_shear_wave_velocity(),
+             WithinRel(std::sqrt(expected.second / density), 1.e-12));
+  assemblage.set_averaging_scheme(types::AveragingType::Voigt);
+  CHECK_THAT(assemblage.get_effective_isentropic_bulk_modulus(),
+             WithinRel(averaging::utils::voigt_fn(volumes, bulk), 1.e-12));
+}
+
 TEST_CASE_METHOD(MultiMineralFixture, "Test assemblage creation",
                  "[core][assemblage]") {
   // Make assemblage

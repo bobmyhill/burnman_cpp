@@ -15,6 +15,7 @@
 #define BURNMAN_TOOLS_AVERAGING_AVERAGING_UTILS_HPP_INCLUDED
 
 #include <Eigen/Dense>
+#include <utility>
 
 namespace burnman {
 namespace averaging {
@@ -29,6 +30,26 @@ namespace averaging {
  * such as Voigt and Reuss functions.
  */
 namespace utils {
+
+/**
+ * @brief Coupled spherical self-consistent bulk and shear moduli.
+ *
+ * At a trial effective shear modulus, the bulk equation is solved explicitly.
+ * The remaining shear equation is solved with Brent's method between the
+ * smallest and largest occupied phase shear moduli. The zero-rigidity limit
+ * is handled explicitly for mixtures containing fluids or voids.
+ *
+ * @param phase_volumes Finite, nonnegative phase volumes, with positive total.
+ * @param bulk_moduli Finite, nonnegative bulk moduli of occupied phases.
+ * @param shear_moduli Finite, nonnegative shear moduli of occupied phases.
+ * @return Effective bulk and shear moduli, in the input modulus units.
+ * @throws std::invalid_argument For inconsistent sizes or invalid inputs.
+ * @throws std::runtime_error If the root finder fails to converge.
+ */
+std::pair<double, double>
+self_consistent_fn(const Eigen::ArrayXd &phase_volumes,
+                   const Eigen::ArrayXd &bulk_moduli,
+                   const Eigen::ArrayXd &shear_moduli);
 
 // Utility functions for V & R averages
 /**
