@@ -121,6 +121,84 @@ def test_equal_assemblages_select_the_geometric_side(right):
     )
 
 
+@pytest.mark.parametrize("missing", [False, True])
+def test_explicit_refresh_rebuilds_legacy_limits_without_mutating_input(
+    original_diagram, missing
+):
+    diagram, phases = original_diagram
+    saved = diagram.to_dict()
+    curves = saved["boundaries"][0]["limiting_curves"]
+    curves[0]["points"] = deepcopy(curves[1]["points"])
+    if missing:
+        del saved["boundaries"][0]["limiting_curves"]
+    before = deepcopy(saved)
+    refreshed = bm.refresh_phase_diagram_limiting_curves(saved, phases).to_dict()
+    assert saved == before
+    assert refreshed == diagram.to_dict()
+
+
+def test_explicit_refresh_keeps_invalid_limits_unsuccessful(original_diagram):
+    diagram, phases = original_diagram
+    saved = diagram.to_dict()
+    for point in saved["boundaries"][0]["points"]:
+        for phase in point["phases"]:
+            phase["amount"] *= 2.0
+    refreshed = bm.refresh_phase_diagram_limiting_curves(saved, phases)
+    for curve in refreshed.boundaries[0].limiting_curves:
+        assert all(not s.success for s in curve.points)
+        assert all(s.message for s in curve.points)
+
+
+def test_explicit_refresh_rejects_changed_candidate_order(original_diagram):
+    diagram, phases = original_diagram
+    with pytest.raises(ValueError, match="same candidate names"):
+        bm.refresh_phase_diagram_limiting_curves(diagram, phases[::-1])
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("failed", [False, True])
+def test_internal_limits_use_independent_curve_coordinates(reverse, failed):
+    from burnman_cpp.tools._grid_contours import internal_boundary_samples
+
+    def state(x, sign):
+        return dict(pressure=x, temperature=0.5, success=True, value=sign * x)
+
+    curves = [
+        dict(assemblage=[0], points=[state(x, 1) for x in (0.0, 0.25, 1.0)]),
+        dict(assemblage=[0], points=[state(x, -1) for x in (0.0, 0.5, 0.75, 1.0)]),
+    ]
+    if failed:
+        curves[0]["points"][1]["success"] = False
+    if reverse:
+        for curve in curves:
+            curve["points"].reverse()
+    boundary = dict(points=[state(0.0, 0), state(1.0, 0)], limiting_curves=curves)
+    before = deepcopy(boundary)
+    polygon = SimpleNamespace(
+        phases=[0],
+        contains_rectangle=lambda *args: True,
+        vertices=np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]),
+        holes=[],
+    )
+    points, values, junctions = internal_boundary_samples(
+        polygon,
+        boundary,
+        np.zeros(2),
+        np.ones(2),
+        lambda s, side, index: s["value"],
+    )
+    assert boundary == before
+    right = points[:, 1] < 0.5
+    left = points[:, 1] > 0.5
+    if failed:
+        assert np.isnan(values[right & (points[:, 0] < 1.0)]).all()
+        np.testing.assert_array_equal(sorted(values[points[:, 0] == 1.0]), [-1.0, 1.0])
+    else:
+        np.testing.assert_allclose(values[right], points[right, 0])
+    np.testing.assert_allclose(values[left], -points[left, 0])
+    np.testing.assert_array_equal(junctions, [[1.0, 0.5]])
+
+
 def test_contours_read_saved_curves_without_equilibrating_or_rebalancing(
     original_diagram, monkeypatch
 ):
@@ -144,6 +222,7 @@ def test_contours_read_saved_curves_without_equilibrating_or_rebalancing(
                 "equilibrate",
                 "phase_diagram_grid",
                 "phase_diagram_contours",
+                "refresh_phase_diagram_limiting_curves",
             ),
         ),
         (
@@ -154,6 +233,7 @@ def test_contours_read_saved_curves_without_equilibrating_or_rebalancing(
                 "_equilibrate",
                 "_phase_diagram_grid",
                 "phase_diagram_contours",
+                "refresh_phase_diagram_limiting_curves",
             ),
         ),
     ):
@@ -205,6 +285,11 @@ def test_natural_coordinate_creation_retains_limiting_curves(diagram_type):
     )
     assert diagram.resolved, diagram.diagnostics
     assert diagram.boundaries
+    refreshed = bm.refresh_phase_diagram_limiting_curves(diagram, [first, second])
+    saved, updated = diagram.to_dict(), refreshed.to_dict()
+    for key in ("equilibrium_solves", "minimization_calls"):
+        assert updated.pop(key) >= saved.pop(key)
+    assert updated == saved
     for boundary in diagram.boundaries:
         assert all(c.points for c in boundary.limiting_curves)
         for curve in boundary.limiting_curves:

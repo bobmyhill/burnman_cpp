@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/geodynamics/burnman",
-  "commit": "3485092500b6a909c7a2ef6d106ed150b30662f2",
+  "commit": "027fdf481e150542eaa9430951be2b2ad442c938",
   "volume_root_xtol_m3_per_mol": 1e-24,
   "historical_commits": {
     "authors_and_model_sets": "39b582cd23954fabd3bdbbee6526a522b1d97bc9",

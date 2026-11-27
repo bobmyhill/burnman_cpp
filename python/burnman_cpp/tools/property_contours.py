@@ -459,4 +459,12 @@ def _property_boundary_values(data, phases, quantity):
                 values.append(value)
         return np.asarray(points).reshape(-1, 2), np.asarray(values)
 
+    def evaluate_state(state, polygon):
+        position = tuple(state[a] for a in axes)
+        try:
+            return evaluate(state, field=polygon.field_number, position=position)
+        except (ValueError, RuntimeError):
+            return np.nan
+
+    sample.state_value = evaluate_state
     return sample

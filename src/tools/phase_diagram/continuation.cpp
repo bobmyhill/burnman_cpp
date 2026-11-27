@@ -53,10 +53,104 @@ State limiting_state(Engine &engine, const Assemblage &a,
   state.mass_balance_error = engine.mass_error(a);
   state.equilibrium_error = reaction_residual(a);
   state.success =
+      std::isfinite(state.gibbs) && std::isfinite(state.entropy) &&
+      std::isfinite(state.volume) &&
       state.mass_balance_error <= engine.settings.mass_balance_tolerance &&
       state.equilibrium_error <= engine.settings.affinity_tolerance * .1;
   state.message = "Limiting equilibrium on a reaction curve";
+  if (!state.success)
+    state.message =
+        "Limiting state failed mass-balance or affinity validation.";
   return state;
+}
+
+// A junction can empty another phase as well as the imposed zero phase.
+// Restore that field's zero-amount root, without borrowing the opposite side.
+State complete_limiting_state(Engine &engine, State state,
+                              const std::vector<int> &expected,
+                              const BoundaryPoint &point) {
+  const int copies = engine.settings.max_phase_instances;
+  const double cutoff =
+      engine.settings.amount_tolerance * total_amount(point.phases);
+  std::map<int, int> missing;
+  for (int id : expected)
+    ++missing[id / copies];
+  for (const auto &phase : state.phases)
+    --missing[phase.candidate_index];
+  for (const auto &[candidate, count] : missing) {
+    if (count < 0) {
+      const auto empty =
+          std::count_if(state.phases.begin(), state.phases.end(),
+                        [&, candidate_index = candidate](const PhaseState &p) {
+                          return p.candidate_index == candidate_index &&
+                                 std::abs(p.amount) <= cutoff;
+                        });
+      if (empty != -count)
+        throw std::runtime_error("Limiting state belongs to the other field.");
+      erase_if(state.phases,
+               [&, candidate_index = candidate](const PhaseState &p) {
+                 return p.candidate_index == candidate_index &&
+                        std::abs(p.amount) <= cutoff;
+               });
+      continue;
+    }
+    if (!count)
+      continue;
+    PhaseStates roots;
+    for (const auto &root : point.phases) {
+      if (root.candidate_index != candidate || std::abs(root.amount) > cutoff)
+        continue;
+      const bool represented =
+          std::any_of(state.phases.begin(), state.phases.end(),
+                      [&, candidate_index = candidate](const PhaseState &p) {
+                        return p.candidate_index == candidate_index &&
+                               (p.composition - root.composition).norm() <=
+                                   engine.settings.composition_tolerance;
+                      });
+      if (!represented) {
+        roots.push_back(root);
+        roots.back().amount = 0.;
+      }
+    }
+    if (roots.size() != static_cast<std::size_t>(count))
+      throw std::runtime_error(
+          "Ambiguous zero-amount roots at a limiting state.");
+    state.phases.insert(state.phases.end(), roots.begin(), roots.end());
+  }
+  std::sort(state.phases.begin(), state.phases.end(),
+            [](const auto &a, const auto &b) { return a.id < b.id; });
+  for (const auto &phase : state.phases)
+    if (!std::isfinite(phase.amount) || phase.amount < -cutoff ||
+        !phase.composition.allFinite())
+      throw std::runtime_error(
+          "Invalid amount or composition in a limiting state.");
+  auto a = engine.make_at(phase_ids(state.phases), state.phases,
+                          diagram_coordinates(point, engine.section.type),
+                          Eigen::Vector2d(point.pressure, point.temperature));
+  state = limiting_state(engine, *a, phase_ids(state.phases));
+  state.minimum_affinity = point.minimum_affinity;
+  return state;
+}
+
+State coalesced_limiting_state(Engine &engine, const BoundaryPoint &point,
+                               const std::vector<int> &expected) {
+  State state;
+  state.phases = point.phases;
+  const double cutoff =
+      engine.settings.amount_tolerance * total_amount(point.phases);
+  erase_if(state.phases, [&](const PhaseState &p) {
+    return std::abs(p.amount) <= cutoff &&
+           std::any_of(point.phases.begin(), point.phases.end(),
+                       [&](const PhaseState &q) {
+                         return q.amount > cutoff &&
+                                q.candidate_index == p.candidate_index &&
+                                (p.composition - q.composition).norm() <=
+                                    engine.settings.composition_tolerance;
+                       });
+  });
+  if (engine.canonical_ids(phase_ids(state.phases)) != expected)
+    throw std::runtime_error("No verified coalesced limiting state.");
+  return complete_limiting_state(engine, std::move(state), expected, point);
 }
 
 // Differentiate a field branch with respect to a normal displacement in the
@@ -593,8 +687,22 @@ void record_limiting_curves(Result &result, Engine &engine) {
         if (along.norm() == 0.)
           throw std::runtime_error("A limiting curve needs a nonzero tangent.");
         along.normalize();
-        const auto zero = std::find(line.assemblage.begin(),
-                                    line.assemblage.end(), line.zero_phase);
+        int zero_id = line.zero_phase;
+        if (line.is_solution_replacement) {
+          std::vector<int> zeros;
+          const double cutoff =
+              engine.settings.amount_tolerance * total_amount(point.phases);
+          for (const auto &phase : point.phases)
+            if (phase.candidate_index ==
+                    line.zero_phase / engine.settings.max_phase_instances &&
+                std::abs(phase.amount) <= cutoff)
+              zeros.push_back(phase.id);
+          if (zeros.size() != 1)
+            throw std::runtime_error("Ambiguous zero-amount solution root.");
+          zero_id = zeros.front();
+        }
+        const auto zero =
+            std::find(line.assemblage.begin(), line.assemblage.end(), zero_id);
         if (zero == line.assemblage.end())
           throw std::runtime_error("Missing reaction zero phase.");
         const auto prm = engine.parameters(*a);
@@ -613,16 +721,24 @@ void record_limiting_curves(Result &result, Engine &engine) {
         solved.J =
             J(solved.x, *a, constraints, prm.reduced_free_composition_vectors);
         std::array<State, 2> candidate;
-        const auto sides = boundary_sides(
-            engine, *a, line.assemblage, line.zero_phase, solved, span,
-            Eigen::Vector2d(-along[1], along[0]), &candidate, nullptr, true);
-        for (std::size_t side = 0; side < 2; ++side) {
-          const auto slot = sides[side] == neighbours[side] ? side : 1 - side;
-          if (sides[slot] == neighbours[side] && candidate[slot].success) {
-            limits[side] = candidate[slot];
-            limits[side].minimum_affinity = point.minimum_affinity;
-          }
-        }
+        boundary_sides(engine, *a, line.assemblage, zero_id, solved, span,
+                       Eigen::Vector2d(-along[1], along[0]), &candidate,
+                       nullptr, true);
+        for (std::size_t side = 0; side < 2; ++side)
+          if (!limits[side].success)
+            try {
+              // boundary_sides uses this tangent's right/left orientation.
+              // Assemblage names alone cannot distinguish solution branches.
+              if (candidate[side].success)
+                limits[side] = complete_limiting_state(engine, candidate[side],
+                                                       neighbours[side], point);
+              else if (line.is_solution_replacement &&
+                       neighbours[0] == neighbours[1])
+                limits[side] =
+                    coalesced_limiting_state(engine, point, neighbours[side]);
+            } catch (const std::exception &error) {
+              limits[side].message = error.what();
+            }
       } catch (const std::exception &error) {
         for (auto &state : limits)
           if (!state.success)
