@@ -22,7 +22,7 @@
     "recommended_max_pressure_Pa": 1500000000.0,
     "cautious_max_pressure_Pa": 2000000000.0
   },
-  "schema_version": 3,
+  "schema_version": 6,
   "diagram_type": "PT",
   "composition_start": {
     "H": 0.22203374024716793,
@@ -160,7 +160,8 @@
     "verbose": false,
     "exclude_invalid_eos": true,
     "active_solution_faces": true,
-    "required_eos_phases": []
+    "required_eos_phases": [],
+    "required_thermal_phases": []
   },
   "excluded_regions": [],
   "fields": [],
@@ -438,8 +439,15 @@
             }
           ]
         }
-      ]
+      ],
+      "reaction_kind": "unknown",
+      "limiting_curves": [{"assemblage": [0, 1, 3, 18, 21, 36, 45, 60], "points": []}, {"assemblage": [0, 1, 3, 18, 21, 36, 45, 51, 60], "points": []}]
     }
   ],
-  "samples": []
+  "samples": [],
+  "coordinate_diagnostics": [],
+  "spacing_diagnostics": [],
+  "spacing_resolved": true,
+  "thermodynamic_validation": {"scope": "not_checked", "checked_pairs": 0, "skipped_pairs": 0, "violations": 0},
+  "field_verifications": []
 }

@@ -355,6 +355,9 @@ def phase_diagram_property_grid(
         dict(
             format="burnman_cpp.property_grid",
             schema_version=2,
+            thermodynamic_validation=dict(
+                scope="not_checked", checked_pairs=0, skipped_pairs=0, violations=0
+            ),
             context=context,
             x=x,
             y=y,
@@ -394,7 +397,7 @@ def _property_boundary_values(data, phases, quantity):
     ranges = np.asarray([data[a + "_range"] for a in axes])
     fields = {f["id"]: f for f in data.get("fields", [])}
     boundaries = {b["id"]: b for b in data.get("boundaries", [])}
-    bulk_states = field_boundary_states(data, phases) if candidate is None else None
+    bulk_states = field_boundary_states(data) if candidate is None else None
 
     def sample(polygon):
         points, values = [], []
@@ -420,7 +423,6 @@ def _property_boundary_values(data, phases, quantity):
                     polygon,
                     candidate,
                     count,
-                    copies,
                     data.get("samples", []),
                     fields,
                     boundaries,
@@ -431,11 +433,11 @@ def _property_boundary_values(data, phases, quantity):
         for line_id in polygon.boundary_ids:
             boundary = boundaries[line_id]
             curve = _limiting_curve(polygon, boundary, axes, ranges)
-            if boundary.get("limiting_curves") and curve is None:
+            if curve is None:
                 continue
-            states = curve["points"] if curve is not None else boundary["points"]
+            states = curve["points"]
             for index, state in enumerate(states):
-                if curve is not None and not state.get("success", False):
+                if not state["success"]:
                     continue
                 if not state.get("phases"):
                     continue

@@ -48,7 +48,11 @@
       "gibbs_variance": 1,
       "pt_nullity": 0,
       "incident_lines": [115, 117],
-      "is_verified_critical_endpoint": false
+      "is_verified_critical_endpoint": false,
+      "entropy": 0.0,
+      "volume": 0.0,
+      "composition_coordinate": 0.0,
+      "critical_mode": []
     },
     {
       "id": 137,
@@ -60,7 +64,11 @@
       "gibbs_variance": 1,
       "pt_nullity": 0,
       "incident_lines": [115, 118],
-      "is_verified_critical_endpoint": false
+      "is_verified_critical_endpoint": false,
+      "entropy": 0.0,
+      "volume": 0.0,
+      "composition_coordinate": 0.0,
+      "critical_mode": []
     },
     {
       "id": 138,
@@ -72,7 +80,11 @@
       "gibbs_variance": 2,
       "pt_nullity": 0,
       "incident_lines": [117, 118],
-      "is_verified_critical_endpoint": false
+      "is_verified_critical_endpoint": false,
+      "entropy": 0.0,
+      "volume": 0.0,
+      "composition_coordinate": 0.0,
+      "critical_mode": []
     },
     {
       "id": 223,
@@ -84,7 +96,11 @@
       "gibbs_variance": 1,
       "pt_nullity": 0,
       "incident_lines": [292, 360],
-      "is_verified_critical_endpoint": false
+      "is_verified_critical_endpoint": false,
+      "entropy": 0.0,
+      "volume": 0.0,
+      "composition_coordinate": 0.0,
+      "critical_mode": []
     },
     {
       "id": 231,
@@ -96,7 +112,11 @@
       "gibbs_variance": 1,
       "pt_nullity": 0,
       "incident_lines": [292, 368],
-      "is_verified_critical_endpoint": false
+      "is_verified_critical_endpoint": false,
+      "entropy": 0.0,
+      "volume": 0.0,
+      "composition_coordinate": 0.0,
+      "critical_mode": []
     },
     {
       "id": 233,
@@ -108,7 +128,11 @@
       "gibbs_variance": 2,
       "pt_nullity": 0,
       "incident_lines": [360, 368],
-      "is_verified_critical_endpoint": false
+      "is_verified_critical_endpoint": false,
+      "entropy": 0.0,
+      "volume": 0.0,
+      "composition_coordinate": 0.0,
+      "critical_mode": []
     }
   ],
   "boundaries": [
@@ -248,7 +272,10 @@
               "amount": 0.08406684230189722,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         },
         {
           "pressure": 19720164177.839622,
@@ -374,7 +401,10 @@
               "amount": 0.08406684817371204,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         },
         {
           "pressure": 19720160792.806683,
@@ -500,7 +530,10 @@
               "amount": 0.08406685404549924,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         },
         {
           "pressure": 19720160792.80695,
@@ -626,9 +659,13 @@
               "amount": 0.08406685404549855,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         }
-      ]
+      ],
+      "limiting_curves": [{"assemblage": [6, 12, 18, 27, 28, 39, 60, 78], "points": []}, {"assemblage": [6, 12, 18, 27, 30, 39, 60, 78], "points": []}]
     },
     {
       "id": 117,
@@ -756,7 +793,10 @@
               "amount": 0.08206209311270991,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         },
         {
           "pressure": 19906871497.481346,
@@ -872,7 +912,10 @@
               "amount": 0.08330550308446683,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         },
         {
           "pressure": 19720160792.80683,
@@ -998,9 +1041,13 @@
               "amount": 0.08406685404549874,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         }
-      ]
+      ],
+      "limiting_curves": [{"assemblage": [6, 12, 18, 27, 30, 39, 60, 78], "points": []}, {"assemblage": [6, 18, 27, 30, 39, 60, 78], "points": []}]
     },
     {
       "id": 118,
@@ -1128,7 +1175,10 @@
               "amount": 0.08206209311270948,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         },
         {
           "pressure": 20038429774.89201,
@@ -1244,7 +1294,10 @@
               "amount": 0.0825246742343075,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         },
         {
           "pressure": 19906875410.643337,
@@ -1360,7 +1413,10 @@
               "amount": 0.08330551109058244,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         },
         {
           "pressure": 19720167562.87695,
@@ -1486,9 +1542,13 @@
               "amount": 0.08406684230189795,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         }
-      ]
+      ],
+      "limiting_curves": [{"assemblage": [6, 12, 18, 27, 39, 60, 78], "points": []}, {"assemblage": [6, 12, 18, 27, 30, 39, 60, 78], "points": []}]
     },
     {
       "id": 292,
@@ -1612,7 +1672,10 @@
               "amount": 0.08277450607100051,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         },
         {
           "pressure": 21515030772.482616,
@@ -1724,7 +1787,10 @@
               "amount": 0.0827745060710103,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         },
         {
           "pressure": 21515030234.548138,
@@ -1836,7 +1902,10 @@
               "amount": 0.08277411762777101,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         },
         {
           "pressure": 21515029696.61368,
@@ -1948,9 +2017,13 @@
               "amount": 0.08277372919073839,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         }
-      ]
+      ],
+      "limiting_curves": [{"assemblage": [6, 18, 27, 28, 39, 45, 60, 78], "points": []}, {"assemblage": [6, 27, 28, 39, 42, 45, 60, 78], "points": []}]
     },
     {
       "id": 360,
@@ -2067,7 +2140,10 @@
               "amount": 0.0827429382502726,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         },
         {
           "pressure": 21516111536.726536,
@@ -2172,7 +2248,10 @@
               "amount": 0.08275876777258151,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         },
         {
           "pressure": 21515030772.482643,
@@ -2277,7 +2356,10 @@
               "amount": 0.08277450607100038,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         },
         {
           "pressure": 21515030772.482582,
@@ -2389,9 +2471,13 @@
               "amount": 0.08277450607100055,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         }
-      ]
+      ],
+      "limiting_curves": [{"assemblage": [6, 18, 27, 28, 39, 45, 60, 78], "points": []}, {"assemblage": [6, 27, 28, 39, 45, 60, 78], "points": []}]
     },
     {
       "id": 368,
@@ -2508,7 +2594,10 @@
               "amount": 0.08274293825027233,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         },
         {
           "pressure": 21516110998.54193,
@@ -2613,7 +2702,10 @@
               "amount": 0.08275837451411262,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         },
         {
           "pressure": 21515029696.613693,
@@ -2718,7 +2810,10 @@
               "amount": 0.08277372919073891,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         },
         {
           "pressure": 21515029696.613716,
@@ -2830,9 +2925,13 @@
               "amount": 0.08277372919073894,
               "composition": [1.0]
             }
-          ]
+          ],
+          "entropy": 0.0,
+          "volume": 0.0,
+          "composition_coordinate": 0.0
         }
-      ]
+      ],
+      "limiting_curves": [{"assemblage": [6, 18, 27, 39, 45, 60, 78], "points": []}, {"assemblage": [6, 18, 27, 28, 39, 45, 60, 78], "points": []}]
     }
   ],
   "samples": [
@@ -2870,5 +2969,22 @@
       "equilibrium_error": 0.0,
       "phases": []
     }
-  ]
+  ],
+  "schema_version": 6,
+  "diagram_type": "PT",
+  "composition_end": {},
+  "composition_range": [0.0, 1.0],
+  "entropy_range": [0.0, 1.0],
+  "volume_range": [1e-06, 0.0001],
+  "phase_names": [],
+  "diagnostics": [],
+  "coordinate_diagnostics": [],
+  "spacing_diagnostics": [],
+  "spacing_resolved": true,
+  "resolved": false,
+  "equilibrium_solves": 0,
+  "minimization_calls": 0,
+  "thermodynamic_validation": {"scope": "not_checked", "checked_pairs": 0, "skipped_pairs": 0, "violations": 0},
+  "field_verifications": [],
+  "excluded_regions": []
 }

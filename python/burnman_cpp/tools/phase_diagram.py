@@ -35,10 +35,9 @@ def save_phase_diagram(result, path, *, metadata=None):
     can later be plotted or refined without repeating the initial calculation.
     Candidate model objects are not serialised; refinement needs them separately.
 
-    Native schema 6 stores diagnostics as category/message records, with optional
+    Schema 6 is required. Diagnostics are category/message records, with optional
     entity_id or grid_point provenance. Native result.diagnostics and the other
-    message views remain lists of readable text. Text-only saved diagnostics are
-    not upgraded automatically.
+    message views remain lists of readable text.
 
     All coordinates retain their native SI units. Optional ``metadata`` adds
     top-level entries, e.g. a model set or oxide amounts. Result entries take
@@ -54,6 +53,8 @@ def save_phase_diagram(result, path, *, metadata=None):
 
     data = dict(result) if isinstance(result, Mapping) else result.to_dict()
     data = dict(metadata or {}) | data
+    if data.get("schema_version") != 6:
+        raise ValueError("Phase diagrams require schema version 6.")
     text = json.dumps(data, indent=2, allow_nan=False, ensure_ascii=False) + "\n"
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -62,7 +63,7 @@ def save_phase_diagram(result, path, *, metadata=None):
 
 
 def load_phase_diagram(path):
-    """Load a phase diagram JSON file, preserving all entries and metadata.
+    """Load a schema 6 phase diagram, preserving all entries and metadata.
 
     Return a dictionary usable for plotting, contours and refinement, with
     coordinates in native SI units. Candidate models are supplied separately
@@ -76,6 +77,8 @@ def load_phase_diagram(path):
         data = json.load(source)
     if not isinstance(data, dict):
         raise ValueError("A saved phase diagram must be a JSON object.")
+    if data.get("schema_version") != 6:
+        raise ValueError("Phase diagrams require schema version 6.")
     return data
 
 
@@ -654,7 +657,9 @@ def merge_phase_diagrams(base, patch, *, join_tolerance=None, phases=None):
         fields=fields,
     )
     # Changed samples and indices invalidate the source audit's coverage.
-    merged.pop("thermodynamic_validation", None)
+    merged["thermodynamic_validation"] = dict(
+        scope="not_checked", checked_pairs=0, skipped_pairs=0, violations=0
+    )
 
     # Partition each old excluded ring into the four strips outside the patch.
     # Only coordinates are clipped here; accepted equilibrium states above

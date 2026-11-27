@@ -92,7 +92,6 @@ def _secondary_phase_labels(data, geometry, tolerance, close_domain):
                 polygon,
                 candidate,
                 len(phase_ids),
-                copies,
                 samples,
                 fields,
                 boundaries,
@@ -215,7 +214,7 @@ def _secondary_phase_labels(data, geometry, tolerance, close_domain):
 
 def _limiting_curve(polygon, boundary, axes, ranges):
     """Select a saved field-side curve, using orientation for equal names."""
-    curves = boundary.get("limiting_curves", [])
+    curves = boundary["limiting_curves"]
     matches = [
         i
         for i, curve in enumerate(curves)
@@ -243,13 +242,10 @@ def _limiting_curve(polygon, boundary, axes, ranges):
 
 
 def _field_observations(
-    polygon, candidate, count, copies, samples, fields, boundaries, axes, ranges
+    polygon, candidate, count, samples, fields, boundaries, axes, ranges
 ):
     """Select the field's limiting compositions, retaining zero-amount roots."""
-    from scipy.optimize import linear_sum_assignment
-    from scipy.spatial.distance import cdist
-
-    records, ambiguous = [], []
+    records = []
     sample_ids = set(fields.get(polygon.field_id, {}).get("sample_indices", []))
     if polygon.sample_index >= 0:
         sample_ids.add(polygon.sample_index)
@@ -257,13 +253,12 @@ def _field_observations(
     for line_id in polygon.boundary_ids:
         boundary = boundaries[line_id]
         curve = _limiting_curve(polygon, boundary, axes, ranges)
-        points = curve["points"] if curve is not None else boundary["points"]
-        if boundary.get("limiting_curves") and curve is None:
+        if curve is None:
             continue
         states += [
             (("boundary", line_id, i), point, boundary)
-            for i, point in enumerate(points)
-            if curve is None or point.get("success", False)
+            for i, point in enumerate(curve["points"])
+            if point["success"]
         ]
     half_size = np.diff(ranges).ravel() * 1.0e-12
     for key, state, boundary in states:
@@ -282,7 +277,9 @@ def _field_observations(
             continue
         phases = []
         for phase in state.get("phases", []):
-            if phase.get("candidate_index", phase["id"] // copies) != candidate:
+            if phase["candidate_index"] != candidate:
+                continue
+            if boundary is None and phase["amount"] <= 0.0:
                 continue
             composition = np.asarray(phase.get("composition", []), dtype=float)
             if (
@@ -294,31 +291,10 @@ def _field_observations(
                     "Secondary labels require finite saved phase compositions."
                 )
             phases.append((phase["id"], composition))
-        if len(phases) < count:
-            continue
-        if (
-            boundary is not None
-            and len(phases) > count
-            and boundary.get("reaction_kind") == "phase_out"
-        ):
-            phases = [p for p in phases if p[0] != boundary.get("zero_phase")]
         phases.sort(key=lambda phase: tuple(phase[1]))
         record = (key, (position - ranges[:, 0]) / np.diff(ranges).ravel(), phases)
         if len(phases) == count:
             records.append(record)
-        elif len(phases) > count:
-            ambiguous.append(record)
-    # Replacement boundaries can retain both limiting compositions. Select
-    # the field's subset by matching the nearest unambiguous saved state.
-    if records:
-        reference_positions = np.asarray([r[1] for r in records])
-        for key, position, phases in ambiguous:
-            near = np.argmin(np.linalg.norm(reference_positions - position, axis=1))
-            reference = [p[1] for p in records[near][2]]
-            _, selected = linear_sum_assignment(
-                cdist(reference, [p[1] for p in phases])
-            )
-            records.append((key, position, [phases[i] for i in sorted(selected)]))
     return sorted(
         records,
         key=lambda r: (tuple(r[1]), tuple(np.concatenate([p[1] for p in r[2]]))),

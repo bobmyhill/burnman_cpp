@@ -127,6 +127,8 @@ def test_intervening_line_requires_a_verified_crossing(source, models, at_saved_
             side_a=[],
             side_b=[],
             reaction_kind="unknown",
+            is_solution_replacement=False,
+            limiting_curves=[dict(assemblage=[], points=[]) for _ in range(2)],
             termination="unresolved; unresolved",
             points=points,
         )

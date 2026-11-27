@@ -63,8 +63,8 @@ def phase_diagram_grid(
     Consistent equilibria and their properties are preserved, including
     property failures. A final read-only audit checks the settled neighbouring
     states. ``thermodynamic_validation`` records its scope, checked/skipped pair
-    counts and remaining violations. Older saved files without this evidence
-    report ``scope="not_checked"``; a zero count is not a stability certificate.
+    counts and remaining violations. Unchecked grids explicitly record
+    ``scope="not_checked"``; a zero count is not a stability certificate.
     ``relaxed=False`` holds
     phase amounts and endmember compositions fixed during property response
     (the point itself is still equilibrated). ``relaxed=True`` includes all

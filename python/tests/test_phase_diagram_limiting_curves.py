@@ -49,7 +49,7 @@ def test_original_creation_records_two_separate_curves(original_diagram):
         assert abs(a.volume - b.volume) == pytest.approx(1e-6, abs=1e-14)
 
 
-def test_curve_json_roundtrip_and_older_diagrams(original_diagram, tmp_path):
+def test_curve_json_roundtrip(original_diagram, tmp_path):
     diagram, _ = original_diagram
     data = json.loads(json.dumps(diagram.to_dict(), allow_nan=False))
     assert data["schema_version"] == 6
@@ -60,14 +60,6 @@ def test_curve_json_roundtrip_and_older_diagrams(original_diagram, tmp_path):
     path = tmp_path / "diagram.json"
     bm.save_phase_diagram(diagram, path)
     assert bm.load_phase_diagram(path) == data
-    old = deepcopy(data)
-    old["schema_version"] = 4
-    for line in old["boundaries"]:
-        del line["limiting_curves"]
-    restored = bm.PhaseDiagramResult.from_dict(old)
-    assert all(
-        not c.points for line in restored.boundaries for c in line.limiting_curves
-    )
 
 
 def test_refinement_records_new_curve_points_and_reuses_saved_curves(original_diagram):
@@ -121,38 +113,39 @@ def test_equal_assemblages_select_the_geometric_side(right):
     )
 
 
-@pytest.mark.parametrize("missing", [False, True])
-def test_explicit_refresh_rebuilds_legacy_limits_without_mutating_input(
-    original_diagram, missing
-):
-    diagram, phases = original_diagram
-    saved = diagram.to_dict()
-    curves = saved["boundaries"][0]["limiting_curves"]
-    curves[0]["points"] = deepcopy(curves[1]["points"])
-    if missing:
-        del saved["boundaries"][0]["limiting_curves"]
-    before = deepcopy(saved)
-    refreshed = bm.refresh_phase_diagram_limiting_curves(saved, phases).to_dict()
-    assert saved == before
-    assert refreshed == diagram.to_dict()
+@pytest.mark.parametrize("schema", [None, 4, 5, 7])
+def test_saved_diagrams_require_the_current_schema(original_diagram, schema, tmp_path):
+    data = original_diagram[0].to_dict()
+    if schema is None:
+        del data["schema_version"]
+    else:
+        data["schema_version"] = schema
+    with pytest.raises(ValueError, match="schema version 6"):
+        bm.PhaseDiagramResult.from_dict(data)
+    path = tmp_path / "diagram.json"
+    path.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match="schema version 6"):
+        bm.load_phase_diagram(path)
+    with pytest.raises(ValueError, match="schema version 6"):
+        bm.save_phase_diagram(data, path)
 
 
-def test_explicit_refresh_keeps_invalid_limits_unsuccessful(original_diagram):
-    diagram, phases = original_diagram
-    saved = diagram.to_dict()
-    for point in saved["boundaries"][0]["points"]:
-        for phase in point["phases"]:
-            phase["amount"] *= 2.0
-    refreshed = bm.refresh_phase_diagram_limiting_curves(saved, phases)
-    for curve in refreshed.boundaries[0].limiting_curves:
-        assert all(not s.success for s in curve.points)
-        assert all(s.message for s in curve.points)
+@pytest.mark.parametrize("missing", ["limiting_curves", "thermodynamic_validation"])
+def test_current_records_do_not_infer_missing_saved_data(original_diagram, missing):
+    data = original_diagram[0].to_dict()
+    del (data["boundaries"][0] if missing == "limiting_curves" else data)[missing]
+    with pytest.raises(KeyError, match=missing):
+        bm.PhaseDiagramResult.from_dict(data)
 
 
-def test_explicit_refresh_rejects_changed_candidate_order(original_diagram):
-    diagram, phases = original_diagram
-    with pytest.raises(ValueError, match="same candidate names"):
-        bm.refresh_phase_diagram_limiting_curves(diagram, phases[::-1])
+def test_empty_limits_and_unchecked_validation_roundtrip_explicitly(original_diagram):
+    data = original_diagram[0].to_dict()
+    data["thermodynamic_validation"] = dict(
+        scope="not_checked", checked_pairs=0, skipped_pairs=0, violations=0
+    )
+    for curve in data["boundaries"][0]["limiting_curves"]:
+        curve["points"] = []
+    assert bm.PhaseDiagramResult.from_dict(data).to_dict() == data
 
 
 @pytest.mark.parametrize("reverse", [False, True])
@@ -222,7 +215,6 @@ def test_contours_read_saved_curves_without_equilibrating_or_rebalancing(
                 "equilibrate",
                 "phase_diagram_grid",
                 "phase_diagram_contours",
-                "refresh_phase_diagram_limiting_curves",
             ),
         ),
         (
@@ -233,7 +225,6 @@ def test_contours_read_saved_curves_without_equilibrating_or_rebalancing(
                 "_equilibrate",
                 "_phase_diagram_grid",
                 "phase_diagram_contours",
-                "refresh_phase_diagram_limiting_curves",
             ),
         ),
     ):
@@ -285,11 +276,6 @@ def test_natural_coordinate_creation_retains_limiting_curves(diagram_type):
     )
     assert diagram.resolved, diagram.diagnostics
     assert diagram.boundaries
-    refreshed = bm.refresh_phase_diagram_limiting_curves(diagram, [first, second])
-    saved, updated = diagram.to_dict(), refreshed.to_dict()
-    for key in ("equilibrium_solves", "minimization_calls"):
-        assert updated.pop(key) >= saved.pop(key)
-    assert updated == saved
     for boundary in diagram.boundaries:
         assert all(c.points for c in boundary.limiting_curves)
         for curve in boundary.limiting_curves:

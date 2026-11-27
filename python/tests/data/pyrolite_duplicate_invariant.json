@@ -22,7 +22,7 @@
     0.0,
     2500.0
   ],
-  "schema_version": 3,
+  "schema_version": 6,
   "diagram_type": "PT",
   "composition_start": {
     "Cr": 0.007500518941903751,

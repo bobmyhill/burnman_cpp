@@ -450,7 +450,12 @@ def test_save_refined_diagram_preserves_metadata_and_replaces_old_phase_lines(tm
 def test_invalid_metadata_does_not_overwrite_an_existing_diagram(
     tmp_path, invalid_value
 ):
-    saved = {"diagram_type": "PT", "phase_names": ["A", "B"], "boundaries": []}
+    saved = {
+        "schema_version": 6,
+        "diagram_type": "PT",
+        "phase_names": ["A", "B"],
+        "boundaries": [],
+    }
     path = bm.save_phase_diagram(saved, tmp_path / "section.json")
     original = path.read_bytes()
     with pytest.raises(ValueError, match="JSON"):

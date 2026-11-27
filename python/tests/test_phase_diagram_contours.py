@@ -210,7 +210,7 @@ def test_constraint_and_source_validation(simple_diagram):
         bm.phase_diagram_contours(result, [], bm.PressureConstraint(4.0e9))
     incomplete = result.to_dict()
     del incomplete["composition_start"]
-    with pytest.raises(ValueError, match="composition_start"):
+    with pytest.raises(KeyError, match="composition_start"):
         bm.phase_diagram_contours(incomplete, [phase], bm.PressureConstraint(4.0e9))
 
 

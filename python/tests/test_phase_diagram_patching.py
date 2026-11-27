@@ -26,6 +26,7 @@ from test_phase_diagram import crossing_phases, settings
 def diagram(points, low=0.0, high=1.0, *, closed=False):
     points = [dict(pressure=p, temperature=t, residual=0.0) for p, t in points]
     return dict(
+        schema_version=6,
         diagram_type="PT",
         pressure_range=[low, high],
         temperature_range=[low, high],
@@ -143,7 +144,9 @@ def test_patching_drops_obsolete_sample_audit_evidence():
     ]
     patch = diagram([(0.5, 0.25), (0.5, 0.75)], 0.25, 0.75)
     merged, _ = bm.merge_phase_diagrams(base, patch)
-    assert "thermodynamic_validation" not in merged
+    assert merged["thermodynamic_validation"] == dict(
+        scope="not_checked", checked_pairs=0, skipped_pairs=0, violations=0
+    )
     assert not any(d["category"] == "thermodynamic" for d in merged["diagnostics"])
     assert base["thermodynamic_validation"]["checked_pairs"] == 10
 
