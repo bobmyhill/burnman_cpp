@@ -422,15 +422,23 @@ def phase_composition_contours(grid, levels, *, diagram, phases=None):
     or its saved JSON path. Also exported as phase_diagram_grid_contours(). Return
     JSON-ready {value, contours} records, usable with plot_phase_diagram_contours().
     Supply the matching completed diagram for exact field edges and holes.
-    If phases is supplied, also evaluate the expression/property on pre-existing
-    boundary equilibria. Missing boundary vertices use a local affine estimate
-    from that field's observations. No new boundary or equilibrium solves run.
+    Supply the original candidate phases to evaluate the grid's recorded
+    expression on saved interior and boundary equilibria, including the correct
+    field sides and both limits of internal solution replacements. Missing
+    boundary vertices use a local affine estimate from that field's observations.
+    No new boundary or equilibrium solves run.
     A separate interpolant is built in each field and clipped to its polygon;
     contours reach field edges but never continue outside them. Invalid grid
-    nodes mask adjacent triangles. Accuracy depends on the retained sampling.
+    nodes and internal discontinuities mask adjacent or crossing triangles.
+    Use phase_diagram_property_grid() for scalar property expressions and unit
+    conversions, so grid nodes and saved boundary states share the expression.
+    Secondary labels use the same composition track for these observations
+    as for the scalar grid, including when solver copy IDs change.
+    Accuracy depends on the retained sampling.
     Requires the Matplotlib and Shapely examples dependencies.
     """
-    from ._grid_contours import field_contours
+    from ._grid_contours import field_contours, saved_scalar_samples
+    from ._boundary_states import field_boundary_states
     from .phase_diagram import _phase_diagram_data
 
     if not isinstance(grid, _core.PhaseDiagramPropertyGrid):
@@ -444,15 +452,15 @@ def phase_composition_contours(grid, levels, *, diagram, phases=None):
         raise ValueError("levels must contain finite contour values.")
     if len(np.unique(levels)) != len(levels):
         raise ValueError("Contour levels must be distinct.")
-    quantity, values = next(iter(grid.values.items()))
+    quantity, scalar_values = next(iter(grid.values.items()))
     data = _phase_diagram_data(diagram)
     _check_context(grid.context.to_dict(), _diagram_context(data))
     geometry = _core.phase_diagram_field_polygons(data)
-    boundary_values = (
-        _boundary_expression(data, list(phases), quantity)
-        if phases is not None
-        else None
-    )
+    state_value, state_boundaries = None, None
+    if phases is not None:
+        phases = list(phases)
+        state_value = _boundary_expression(data, phases, quantity).state_value
+        state_boundaries = field_boundary_states(data, phases)
     records = [
         dict(
             value=float(level),
@@ -483,17 +491,38 @@ def phase_composition_contours(grid, levels, *, diagram, phases=None):
         if polygon.outside_model_domain:
             continue
         field = grid.field_numbers == polygon.field_number
-        valid = field & grid.success & np.isfinite(values)
+        valid = field & grid.success & np.isfinite(scalar_values)
         points, samples = np.empty((0, 2)), np.empty(0)
-        if boundary_values is not None:
-            points, samples = boundary_values(polygon)
-        boundary_count = int(np.isfinite(samples).sum())
+        boundary_count = 0
+        saved_invalid = np.empty((0, 2))
+        field_barriers = []
+        if state_boundaries is not None:
+            (
+                points,
+                samples,
+                field_barriers,
+                saved_invalid,
+                boundary_count,
+            ) = saved_scalar_samples(
+                data, polygon, state_value, state_boundaries, grid_axes=(grid.x, grid.y)
+            )
         points = np.vstack([points, coordinates[valid]])
-        samples = np.r_[samples, values[valid]]
+        samples = np.r_[samples, scalar_values[valid]]
         if len(points) < 3:
             continue
+        invalid = np.vstack(
+            (
+                coordinates[field & ~valid],
+                saved_invalid,
+            )
+        )
         for level, segment in field_contours(
-            points, samples, polygon, coordinates[field & ~valid], levels
+            points,
+            samples,
+            polygon,
+            invalid,
+            levels,
+            barriers=field_barriers,
         ):
             by_level[level]["lines"].append(
                 dict(
@@ -555,6 +584,7 @@ def _boundary_expression(data, phases, quantity):
     fields = {f["id"]: f for f in data.get("fields", [])}
     boundaries = {b["id"]: b for b in data.get("boundaries", [])}
     boundary_states = field_boundary_states(data, phases) if volume_symbols else None
+    branch_select = _secondary_branch(data, phase)[1] if labels is not None else None
 
     def sample(polygon):
         ids = [i for i in polygon.phases if i // copies == candidate]
@@ -635,6 +665,33 @@ def _boundary_expression(data, phases, quantity):
             ).copy()
         return np.asarray(points), values
 
+    def evaluate_state(state, polygon):
+        matches = sorted(
+            [p for p in state.get("phases", []) if p["candidate_index"] == candidate],
+            key=lambda p: p["id"],
+        )
+        if branch_select is not None:
+            matches = branch_select(
+                matches, polygon.field_number, tuple(state[a] for a in axes)
+            )
+        if len(matches) < instance:
+            return 0.0 if volume_only else np.nan
+        selected = matches[instance - 1]
+        selected_ids = (
+            {p["id"] for p in matches}
+            if volume_only and not separator and labels is None
+            else {selected["id"]}
+        )
+        extra = {
+            name: volume(
+                state, selected_ids, standard=name == "standard_volume_fraction"
+            )
+            for name in volume_symbols
+        }
+        with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+            return float(evaluate(np.asarray(selected["composition"]), extra))
+
+    sample.state_value = evaluate_state
     return sample
 
 

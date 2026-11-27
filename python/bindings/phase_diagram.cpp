@@ -1482,6 +1482,29 @@ result, resolved means that the implemented checks have no outstanding messages;
 finite sampling cannot prove discovery of every disconnected stability field.
 )doc");
   m.def(
+      "refresh_phase_diagram_limiting_curves",
+      [](py::object previous,
+         const std::vector<std::shared_ptr<Material>> &phases) {
+        const auto saved = calculation_result(previous);
+        py::gil_scoped_release release;
+        return refresh_limiting_curves(saved, phases);
+      },
+      py::arg("previous"), py::arg("phases"),
+      R"doc(Rebuild field-side limits from saved reaction equilibria.
+
+Use the original candidate models and ordering. Returns a new native result;
+the input, reaction points, topology, samples and diagnostics are preserved.
+Each side follows the curve's geometric orientation, including zero-amount
+junction phases. Mass balance and reaction affinities are checked. Ambiguous
+or invalid limits retain success=False and an explanatory message.
+
+This explicit operation upgrades older saved limits before contour extraction.
+It replaces independently sampled limiting curves with limits at the saved
+reaction points. It does not retrace boundaries. Some diagram coordinates
+require limiting equilibrium solves; these are included in the returned work
+counts. Contour extraction itself never invokes this operation.
+)doc");
+  m.def(
       "refine_phase_diagram",
       [](const types::FormulaMap &bulk,
          const std::vector<std::shared_ptr<Material>> &phases,

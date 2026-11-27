@@ -23,6 +23,7 @@ def forbid_equilibrium_calculations(monkeypatch):
         "_equilibrate",
         "_phase_diagram_grid",
         "phase_diagram_contours",
+        "refresh_phase_diagram_limiting_curves",
     ):
         monkeypatch.setattr(bm._core, name, forbidden)
     for name in (
@@ -31,6 +32,7 @@ def forbid_equilibrium_calculations(monkeypatch):
         "equilibrate",
         "phase_diagram_grid",
         "phase_diagram_contours",
+        "refresh_phase_diagram_limiting_curves",
     ):
         monkeypatch.setattr(bm, name, forbidden)
 
@@ -733,6 +735,66 @@ def test_concave_field_splits_contours_at_its_actual_edges():
     np.testing.assert_allclose(endpoints, [0.1, 0.3, 0.7, 0.9], atol=1.0e-12)
 
 
+def test_replacement_barrier_does_not_contour_across_a_scalar_jump():
+    from types import SimpleNamespace
+    from burnman_cpp.tools._grid_contours import field_contours
+
+    polygon = SimpleNamespace(
+        vertices=np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]), holes=[]
+    )
+    points = np.stack(
+        np.meshgrid([0.0, 0.25, 0.499999, 0.500001, 0.75, 1.0], [0.0, 0.5, 1.0]),
+        axis=-1,
+    ).reshape(-1, 2)
+    values = points[:, 0] + (points[:, 0] > 0.5)
+    assert list(field_contours(points, values, polygon, [], [1.0]))
+    assert not list(
+        field_contours(
+            points, values, polygon, [], [1.0], barriers=[[[0.5, 0.0], [0.5, 1.0]]]
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "expression,level", [("temperature", 950.0), ("temperature / 1000", 0.95)]
+)
+def test_property_contours_use_saved_boundary_values_and_retained_equilibria(
+    sample, expression, level
+):
+    source, phases = sample
+    data = source.to_dict()
+    data["success"] = np.zeros((5, 5), dtype=bool).tolist()
+    data["field_numbers"] = [[1, 1, 2, 2, 2] for _ in range(5)]
+    source_grid = bm.PhaseDiagramPropertyGrid.from_dict(data)
+    before = source_grid.to_dict()
+    grid = bm.phase_diagram_property_grid(source_grid, phases, expression)
+    assert grid.success.all()
+    record = bm.phase_diagram_grid_contours(
+        grid,
+        [level],
+        diagram=split_diagram(source, solved_boundary=True),
+        phases=phases,
+    )[0]
+    assert record["contours"]["equilibrium_solves"] == 0
+    assert {line["field_number"] for line in record["contours"]["lines"]} == {1, 2}
+    for line in record["contours"]["lines"]:
+        assert line["preexisting_boundary_samples"] == 5
+        assert all(p["temperature"] == pytest.approx(950.0) for p in line["points"])
+        assert any(p["pressure"] == pytest.approx(1.5e9) for p in line["points"])
+    assert source_grid.to_dict() == before
+
+
+def test_property_contours_do_not_bridge_undefined_expression_nodes(sample):
+    source, phases = sample
+    grid = bm.phase_diagram_property_grid(source, phases, "1 / (temperature - 1000)")
+    assert grid.equilibrium_success.all()
+    assert not grid.success[2].any()
+    record = bm.phase_diagram_grid_contours(
+        grid, [0.0], diagram=source.context, phases=phases
+    )[0]
+    assert not record["contours"]["lines"]
+
+
 def test_non_pt_contours_keep_native_coordinate_names(sample):
     source, phases = sample
     data = source.to_dict()
@@ -804,6 +866,31 @@ def test_secondary_labels_follow_compositions_when_grid_copy_ids_swap(
             ),
         )
         assert result.equilibrium_solves == 0
+        contours = bm.phase_diagram_grid_contours(
+            result, [0.5], diagram=diagram, phases=phases
+        )[0]["contours"]["lines"]
+        expected_fields = {
+            polygon.field_number
+            for polygon in polygons[slice(0, 2) if root == 0 else slice(1, 3)]
+        }
+        assert {line["field_number"] for line in contours} == expected_fields
+        expected_temperature = (0.5 - 0.05 - 0.15 * root) / 0.6
+        field_extents = {
+            polygon.field_number: (
+                polygon.vertices[:, 0].min(),
+                polygon.vertices[:, 0].max(),
+            )
+            for polygon in polygons
+        }
+        for line in contours:
+            assert all(
+                point["temperature"] == pytest.approx(expected_temperature)
+                for point in line["points"]
+            )
+            endpoints = sorted(line["points"][i]["pressure"] for i in (0, -1))
+            np.testing.assert_allclose(
+                endpoints, field_extents[line["field_number"]], atol=1e-12
+            )
         property_grid = bm.phase_diagram_property_grid(
             data, phases, property_name, phase=label, diagram=diagram
         )

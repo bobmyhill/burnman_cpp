@@ -866,7 +866,8 @@ TEST_CASE("A buffered solvus exchanges compositions with identical phase names",
           "[phase_diagram][limiting_curves]") {
   namespace ps = phase_diagrams;
   const double fraction = GENERATE(.9, .99);
-  const int zero = GENERATE(0, 1);
+  const auto [zero, junction] =
+      GENERATE(std::pair{0, false}, std::pair{1, false}, std::pair{0, true});
   const double gas = constants::physics::gas_constant, interaction = 13000.;
   const double critical_t = interaction / (2. * gas), critical_p = 1.e9;
   const double temperature = fraction * critical_t, volume = 1.e-6;
@@ -895,9 +896,11 @@ TEST_CASE("A buffered solvus exchanges compositions with identical phase names",
       {*fe}, Eigen::ArrayXd::Ones(1),
       {critical_g + critical_p * volume, 0., -volume}, "Fe buffer"));
   ps::Settings settings;
-  ps::detail::Engine engine({{"Mg", .1}, {"Fe", .9}, {"O", 1.}},
-                            {mixture, buffer}, settings);
-  const double amount = .1 / (zero ? x : 1. - x);
+  const double magnesium = junction ? 1. - x : .1;
+  ps::detail::Engine engine(
+      {{"Mg", magnesium}, {"Fe", 1. - magnesium}, {"O", 1.}}, {mixture, buffer},
+      settings);
+  const double amount = magnesium / (zero ? x : 1. - x);
   ps::detail::PhaseStates states;
   for (int id : {0, 1, 3}) {
     ps::PhaseState phase;
@@ -922,11 +925,13 @@ TEST_CASE("A buffered solvus exchanges compositions with identical phase names",
   const auto sides = ps::detail::boundary_sides(
       engine, *a, ids, zero, solved, {1.e9, 500.}, {1., 0.}, &limits, &kind);
   CHECK(kind == ps::ReactionKind::replacement);
-  CHECK(sides[0] == expected);
-  CHECK(sides[1] == expected);
+  if (!junction) {
+    CHECK(sides[0] == expected);
+    CHECK(sides[1] == expected);
+  }
   for (const auto &state : limits) {
     REQUIRE(state.success);
-    REQUIRE(state.phases.size() == 2);
+    REQUIRE(state.phases.size() >= 1);
     CHECK(state.mass_balance_error < 1.e-12);
     CHECK(state.equilibrium_error <= settings.affinity_tolerance * .1);
   }
@@ -936,6 +941,95 @@ TEST_CASE("A buffered solvus exchanges compositions with identical phase names",
   const auto &second = limits[1].phases.front().composition;
   CHECK_THAT(std::abs(first[0] - second[0]),
              Catch::Matchers::WithinAbs(2. * x - 1., 1.e-8));
+
+  // At the endpoint the buffer has zero amount on one side, but remains
+  // part of that field's limit. Equal assemblage names cannot choose sides.
+  ps::Result result;
+  result.settings = settings;
+  result.pressure_range = {0., 2.e9};
+  result.temperature_range = {500., 1000.};
+  ps::Boundary line;
+  line.assemblage = ids;
+  line.side_a = line.side_b = expected;
+  line.zero_phase = zero;
+  line.reaction_kind = ps::ReactionKind::replacement;
+  line.is_solution_replacement = true;
+  auto point = [&]() {
+    ps::BoundaryPoint saved;
+    engine.record_coordinates(saved, *a);
+    saved.phases = engine.snapshot(*a, ids);
+    return saved;
+  };
+  line.points.push_back(point());
+  constraints[1][0] =
+      std::make_unique<equilibration::TemperatureConstraint>(temperature + 1.);
+  REQUIRE(engine.solve(*a, constraints).success);
+  line.points.push_back(point());
+  result.boundaries.push_back(line);
+  ps::detail::record_limiting_curves(result, engine);
+  const auto &curves = result.boundaries.front().limiting_curves;
+  for (const auto &curve : curves) {
+    REQUIRE(curve.assemblage == expected);
+    REQUIRE(curve.points.size() == 2);
+    for (const auto &state : curve.points) {
+      INFO(state.message);
+      REQUIRE(state.success);
+      CHECK(engine.canonical_ids(ps::detail::phase_ids(state.phases)) ==
+            expected);
+      CHECK(state.mass_balance_error <= settings.mass_balance_tolerance);
+      CHECK(state.equilibrium_error <= .1 * settings.affinity_tolerance);
+    }
+  }
+  CHECK_THAT(std::abs(curves[0].points[0].phases[0].composition[0] -
+                      curves[1].points[0].phases[0].composition[0]),
+             Catch::Matchers::WithinAbs(2. * x - 1., 1.e-8));
+  const auto reference = curves;
+  // Local solution-copy IDs need not retain the same composition along a line.
+  auto &saved_line = result.boundaries.front();
+  std::swap(saved_line.points.back().phases[0].id,
+            saved_line.points.back().phases[1].id);
+  std::reverse(saved_line.points.begin(), saved_line.points.end());
+  saved_line.limiting_curves = {};
+  ps::detail::record_limiting_curves(result, engine);
+  for (std::size_t side = 0; side < 2; ++side)
+    for (std::size_t i = 0; i < 2; ++i) {
+      const auto &state = saved_line.limiting_curves[side].points[i];
+      REQUIRE(state.success);
+      CHECK_THAT(state.phases[0].composition[0],
+                 Catch::Matchers::WithinAbs(
+                     reference[1 - side].points[1 - i].phases[0].composition[0],
+                     1.e-8));
+    }
+  if (zero == 0) {
+    auto merged = states;
+    for (auto &phase : merged) {
+      phase.amount = phase.id == 0   ? 0.
+                     : phase.id == 1 ? 2. * magnesium
+                                     : 1. - 2. * magnesium;
+      if (phase.candidate_index == 0)
+        phase.composition = Eigen::Vector2d(.5, .5);
+    }
+    a = engine.make_at(ids, merged, {critical_p, critical_t});
+    saved_line.points = {line.points[0], point()};
+    saved_line.limiting_curves = {};
+    ps::detail::record_limiting_curves(result, engine);
+    for (const auto &curve : saved_line.limiting_curves) {
+      const auto &state = curve.points.back();
+      INFO(state.message);
+      REQUIRE(state.success);
+      CHECK_THAT(state.phases[0].composition[0],
+                 Catch::Matchers::WithinAbs(.5, 1.e-10));
+      CHECK(state.mass_balance_error <= settings.mass_balance_tolerance);
+    }
+    // Two empty solution roots do not establish either field's limit.
+    saved_line.points.back().phases[1].amount = 0.;
+    saved_line.limiting_curves = {};
+    ps::detail::record_limiting_curves(result, engine);
+    for (const auto &curve : saved_line.limiting_curves) {
+      CHECK_FALSE(curve.points.back().success);
+      CHECK(curve.points.back().message.find("Ambiguous") != std::string::npos);
+    }
+  }
 }
 
 TEST_CASE("Parallel-line removal needs thermodynamic evidence of instability",

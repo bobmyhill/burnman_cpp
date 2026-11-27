@@ -67,6 +67,18 @@ Result refine_phase_diagram(
     const Result &previous, const Settings &settings,
     const std::optional<LineResolution> &resolution = std::nullopt);
 
+/// Rebuild both field-side limiting curves from the saved reaction equilibria.
+/// This is an explicit upgrade for older saved limits, not a contour operation.
+/// Preserve the reaction points, topology, samples, settings and diagnostics.
+/// Validate mass balance and reaction affinities using the original candidates;
+/// ambiguous limits retain success=false and an explanatory message. Curves are
+/// sampled at the reaction points; previous independent curve samples are
+/// replaced. Any required limiting-equilibrium solves are included in the
+/// returned work counts.
+Result refresh_limiting_curves(
+    const Result &previous,
+    const std::vector<std::shared_ptr<Material>> &candidates);
+
 /// Resume with the settings retained in the previous result.
 Result refine_phase_diagram(
     const types::FormulaMap &composition,

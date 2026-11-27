@@ -1551,6 +1551,8 @@ def plot_phase_diagram_contours(
     color="crimson",
     line_width=0.8,
     line_style="solid",
+    zorder=3,
+    contour_level=0.0,
     label=None,
     variable=None,
     value=None,
@@ -1588,6 +1590,8 @@ def plot_phase_diagram_contours(
 
     if not np.isfinite(label_fontsize) or label_fontsize <= 0.0:
         raise ValueError("label_fontsize must be positive and finite.")
+    if not np.isfinite(contour_level):
+        raise ValueError("contour_level must be finite.")
     if label_placement not in ("auto", "single", "coexistence"):
         raise ValueError("label_placement must be 'auto', 'single' or 'coexistence'.")
     if variable is not None and variable not in ("P", "T", "S", "V", "X"):
@@ -1634,12 +1638,12 @@ def plot_phase_diagram_contours(
     if segments:
         lines = ContourSet(
             ax,
-            [0.0],
+            [float(contour_level)],
             [segments],
             colors=color,
             linewidths=line_width,
             linestyles=line_style,
-            zorder=3,
+            zorder=zorder,
         )
         ax.collections[-1].set_label(label)
         if label is not None and inline_labels:
@@ -1670,7 +1674,7 @@ def plot_phase_diagram_contours(
                 else:
                     return ax.figure, ax
             lines.clabel(
-                fmt={0.0: str(label)},
+                fmt={float(contour_level): str(label)},
                 fontsize=label_fontsize,
                 inline=True,
                 manual=positions,
